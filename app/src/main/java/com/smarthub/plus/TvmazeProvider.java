@@ -16,7 +16,10 @@ final class TvmazeProvider {
  private static int year(String s){java.util.regex.Matcher m=java.util.regex.Pattern.compile("(?:19|20)[0-9]{2}").matcher(s==null?"":s);return m.find()?Integer.parseInt(m.group()):0;}
  private static String clean(String s){return s==null?"":s.replaceAll("(?i)<br\\s*/?>","\\n").replaceAll("<[^>]+>"," ").replace("&amp;","&").replace("&quot;","\\\"").replace("&#39;","'").replaceAll("\\s+"," ").trim();}
  private static String enc(String s)throws Exception{return URLEncoder.encode(s,"UTF-8").replace("+","%20");}
- private JSONObject get(String title)throws Exception{
+
+ // TVmaze search endpoint returns a JSON array. The cache wrapper is an object
+ // whose "data" member contains that array.
+ private JSONArray get(String title)throws Exception{
   String key=Integer.toHexString(title.toLowerCase(Locale.ROOT).hashCode());java.io.File dir=new java.io.File(context.getCacheDir(),"tvmaze");if(!dir.exists())dir.mkdirs();java.io.File cache=new java.io.File(dir,key+".json");
   try{String body=HubHttp.get("https://api.tvmaze.com/search/shows?q="+enc(title),512*1024);JSONObject wrapper=new JSONObject().put("at",System.currentTimeMillis()).put("data",new JSONArray(body));try(java.io.FileOutputStream out=new java.io.FileOutputStream(cache)){out.write(wrapper.toString().getBytes(StandardCharsets.UTF_8));}return wrapper.getJSONArray("data");}
   catch(Exception e){if(cache.isFile()&&System.currentTimeMillis()-cache.lastModified()<7L*24*3600000L)try(java.io.FileInputStream in=new java.io.FileInputStream(cache)){return new JSONObject(PlaylistRepository.readBounded(in)).getJSONArray("data");}catch(Exception ignored){}throw e;}
