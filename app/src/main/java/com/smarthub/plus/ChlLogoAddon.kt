@@ -1,0 +1,48 @@
+package com.smarthub.plus
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.util.AtomicFile
+import java.io.File
+import java.io.Reader
+import org.json.JSONArray
+import java.net.URI
+
+/** Explicit optional source. Independent logo resolvers do not call CHMAX. */
+class ChlLogoAddon private constructor(private val context:Context){
+ @Volatile private var index:ChlChannelIndex?=null
+ @Volatile private var loaded=false
+ @Volatile private var selectionSeed=""
+ private val prefs=context.getSharedPreferences("smarthub",0)
+ @Synchronized fun load(){if(loaded)return;selectionSeed=LogoSelection.seed(context);index=try{val f=File(context.filesDir,"chl-logo-index.bin");if(f.isFile&&f.length()<=8*1024*1024)f.inputStream().use{ChlChannelIndex.read(it)}else null}catch(_:Exception){null};loaded=true}
+ @Synchronized fun importFile(reader:Reader):ChlChannelIndex {val raw=ReceiverCatalog.readText(reader);val parsed=ChlChannelIndex.parse(java.io.StringReader(raw));val catalog=ReceiverCatalog.get(context);try{catalog.importText(raw)}catch(_:Exception){catalog.replaceCompact(parsed)};val atomic=AtomicFile(File(context.filesDir,"chl-logo-index.bin"));val out=atomic.startWrite();try{parsed.write(out);atomic.finishWrite(out)}catch(e:Exception){atomic.failWrite(out);throw e};File(context.filesDir,"chl-logo-index.json").delete();selectionSeed=LogoSelection.seed(context);val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();index=parsed;loaded=true;changed();return parsed}
+ @Synchronized fun clear(){ReceiverCatalog.get(context).clear();AtomicFile(File(context.filesDir,"chl-logo-index.bin")).delete();AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete();index=null;loaded=true;val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();prefs.edit().putBoolean("chl_chmax_enabled",false).apply();changed()}
+ fun snapshot():ChlChannelIndex?{load();return index}
+ fun provider(name:String)=index?.provider(name)?:prefs.getString("chl_provider:"+ChlChannelIndex.normalize(name),"")?:""
+ fun rememberProvider(name:String){val value=index?.provider(name)?:return;val key="chl_provider:"+ChlChannelIndex.normalize(name);if(prefs.getString(key,"")!=value)prefs.edit().putString(key,value).apply()}
+ fun choice(name:String)=index?.choose(name,selectionSeed)
+ fun resolve(name:String,loader:ChannelLogoResolver):Bitmap?{load();rememberProvider(name);for(service in index?.choices(name,selectionSeed)?.take(3)?:emptyList())resolve(service,loader)?.let{return it};return null}
+ fun unique(name:String)=index?.unique(name)
+ fun enabled()=prefs.getBoolean("chl_chmax_enabled",false)
+ fun statusLabel():String=when(prefs.getString("chl_chmax_status","")){
+  "CHMAX_LOGO_OK"->"تم جلب شعار مطابق من CHMAX"
+  "CHMAX_LOGO_NOT_FOUND"->"لم ينشر CHMAX شعاراً مطابقاً لهذه القناة"
+  "FACTORY_CHMAX_PROFILE_REQUIRED"->"ملف توافق CHMAX غير معدّ على هذا الجهاز"
+  "FACTORY_IDENTITY_REQUIRED","FACTORY_AUTH_REQUIRED"->"تحتاج إضافة CHMAX مصادقة الرسيفر"
+  ""->"لم يُختبر CHMAX بعد"
+  else->"تعذر الاتصال بـCHMAX؛ يبقى المصدر المستقل متاحاً"
+ }
+ fun enable(value:Boolean){prefs.edit().putBoolean("chl_chmax_enabled",value).apply();changed()}
+ private fun changed(){prefs.edit().putLong("logo_mapping_changed_at",System.currentTimeMillis()).apply()}
+ fun resolve(service:ChlChannelIndex.Service,loader:ChannelLogoResolver):Bitmap? {
+  val client=FactoryClient(context)
+  return try{val rows=client.channelIcons(service.query());val url=select(rows,service);val image=if(url.isEmpty())null else loader.download(url);prefs.edit().putString("chl_chmax_status",if(image!=null)"CHMAX_LOGO_OK" else "CHMAX_LOGO_NOT_FOUND").apply();image}catch(e:Exception){prefs.edit().putString("chl_chmax_status",FactoryClient.safe(e)).apply();null}
+ }
+ companion object{
+  @Volatile private var instance:ChlLogoAddon?=null
+  @JvmStatic fun get(c:Context):ChlLogoAddon=instance?:synchronized(this){instance?:ChlLogoAddon(c.applicationContext).also{instance=it}}
+  /** Only an exact physical service response is accepted; no default or transponder logo. */
+  @JvmStatic fun select(rows:JSONArray,s:ChlChannelIndex.Service):String{var result="";for(i in 0 until minOf(100,rows.length())){val sat=rows.optJSONObject(i)?:continue;if(sat.optString("sat")!=s.sat.toString())continue;val tps=sat.optJSONArray("tps")?:continue;for(t in 0 until minOf(1000,tps.length())){val tp=tps.optJSONObject(t)?:continue;if(tp.optString("tp")!="${s.frequency}:${s.polarity}:${s.symbolRate}")continue;val chs=tp.optJSONArray("chs")?:continue;for(n in 0 until minOf(2000,chs.length())){val ch=chs.optJSONObject(n)?:continue;if(ch.optString("sid")!=s.sid.toString())continue;val url=imageUrl(ch.optString("iconUrl"));if(url.isEmpty())continue;if(result.isNotEmpty()&&result!=url)return "";result=url}}};return result}
+  @JvmStatic fun imageUrl(value:String):String{if(value.isBlank())return "";return try{val raw=if(value.startsWith("https://"))value else if(value.contains(":")||value.startsWith("/"))return "" else "https://$value";val u=URI(raw);if(u.scheme!="https"||u.userInfo!=null||u.port !in setOf(-1,443)||u.query!=null||u.fragment!=null||u.host !in setOf("gchsicon.datasver.com")||!u.path.matches(Regex("/icon/[A-Za-z0-9_/-]+(?:\\.png)?")))return "";if(u.path.endsWith(".png"))raw else "$raw.png"}catch(_:Exception){""}}
+ }
+}

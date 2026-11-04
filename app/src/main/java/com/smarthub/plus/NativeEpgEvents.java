@@ -1,0 +1,11 @@
+package com.smarthub.plus;
+import org.json.*;import java.time.*;import java.time.format.*;import java.util.*;
+/** Native EPG_TDT packets use UTC calendar strings, independent of device UI timezone. */
+final class NativeEpgEvents {
+ static final class Event {final String title,image;final long start,end;Event(String title,long start,long end,String image){this.title=title;this.start=start;this.end=end;this.image=image;}}
+ static long time(String value){try{return LocalDateTime.parse(value,DateTimeFormatter.ofPattern("uuuu:MM:dd/HH:mm:ss").withResolverStyle(ResolverStyle.STRICT)).toInstant(ZoneOffset.UTC).toEpochMilli();}catch(Exception invalid){return 0;}}
+ static String format(long time){return DateTimeFormatter.ofPattern("uuuu:MM:dd/HH:mm:ss",Locale.ROOT).withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(time));}
+ static JSONObject request(int programme,int tp,int sid,long now)throws Exception{return new JSONObject().put("prog_id",programme).put("tp_id",tp).put("tp_type",0).put("sid",sid).put("ucEPGCode",0).put("start",format(now-3600000L)).put("end",format(now+6*3600000L)).put("current",format(now));}
+ static Event event(JSONObject data,int programme){if(data.optInt("prog_id",programme)!=programme)return null;String title=data.optString("title","").trim();long start=time(data.optString("start")),end=time(data.optString("end"));return title.length()<=300&&ProgrammeTitle.available(title)&&start>0&&end>start&&end-start<=24*3600000L?new Event(title,start,end,PlaylistRepository.epgImage(data.optString("pic"))):null;}
+ static List<Event> packet(String text,int programme){List<Event> out=new ArrayList<>();try{if(text.length()>65507)return out;String[] p=text.replace("\u0000","").split("\n",3);if(p.length!=3||!p[0].equals("EPG_TDT")||!Arrays.asList("0011","0012","0016").contains(p[1])||!p[2].startsWith("SUCCESS:"))return out;int begin=p[2].indexOf('{');if(begin<0)return out;JSONObject body=new JSONObject(p[2].substring(begin));if(body.optInt("prog_id",-1)!=programme)return out;JSONArray list=body.optJSONArray("stEPGList");if(list!=null){for(int n=0;n<Math.min(200,list.length());n++){JSONObject row=list.optJSONObject(n);if(row!=null){Event e=event(row,programme);if(e!=null)out.add(e);}}}else{Event e=event(body,programme);if(e!=null)out.add(e);}}catch(Exception malformed){}return out;}
+}

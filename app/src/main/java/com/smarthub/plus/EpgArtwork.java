@@ -1,0 +1,20 @@
+package com.smarthub.plus;
+import android.content.*;
+import android.graphics.*;
+import android.net.Uri;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.*;
+/** EPG programme images, never channel logos. URL/XMLTV and observed native-guide crops. */
+final class EpgArtwork {
+ static String key(String channel,String title){try{String raw=PlaylistRepository.normalize(channel)+"\n"+PlaylistRepository.normalize(title);StringBuilder out=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8)))out.append(String.format(Locale.ROOT,"%02x",b&255));return out.toString();}catch(Exception e){throw new IllegalStateException(e);}}
+ private static File directory(Context c){File dir=new File(c.getCacheDir(),"epg-programme-art");dir.mkdirs();return dir;}
+ static synchronized void saveGuide(Context c,String channel,String title,Bitmap bitmap)throws IOException{if(channel.isEmpty()||title.isEmpty()||bitmap==null)return;File target=new File(directory(c),key(channel,title)+".png");try(FileOutputStream out=new FileOutputStream(target)){if(!bitmap.compress(Bitmap.CompressFormat.PNG,100,out))throw new IOException("Cannot save EPG artwork");}File[] files=directory(c).listFiles();if(files!=null){Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());long size=0;for(int n=0;n<files.length;n++){size+=files[n].length();if(n>=32||size>16*1024*1024)files[n].delete();}}c.getSharedPreferences("smarthub",0).edit().putLong("epg_art_changed_at",System.currentTimeMillis()).putString("epg_art_observed_channel",channel).putString("epg_art_observed_title",title).apply();}
+ static Bitmap load(Context c,String raw)throws Exception{return load(c,SatelliteState.read(c),raw);}
+ static Bitmap load(Context c,SatelliteState state,String raw)throws Exception{String title=raw;String address=raw.equals(state.title)?state.image:raw.equals(state.nextTitle)?state.nextImage:"";if(address.isEmpty()){SatelliteGuideRepository guide=new SatelliteGuideRepository(c);PlaylistRepository.Programme p=raw.equals(state.title)?guide.currentFor(state,System.currentTimeMillis()):raw.equals(state.nextTitle)?guide.nextFor(state,System.currentTimeMillis()):null;if(p!=null&&PlaylistRepository.normalize(p.title).equals(PlaylistRepository.normalize(raw)))address=p.image;}if(address.isEmpty())address=PublishedEpgArtwork.image(c,state,raw);if(!address.isEmpty())try{byte[] bytes;Uri uri=Uri.parse(address);if("https".equals(uri.getScheme()))bytes=ArtworkCache.fetch(c,new URL(address),5*1024*1024);else if("http".equals(uri.getScheme())){HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();bytes=OnlineChannelLogo.read(connection,5*1024*1024);}else try(InputStream in=c.getContentResolver().openInputStream(uri)){bytes=read(in);}Bitmap picture=decode(bytes);if(picture!=null)return picture;}catch(Exception unavailable){}return loadGuide(c,state.channelName,title);}
+ static Bitmap loadGuide(Context c,String channel,String title)throws Exception{File file=new File(directory(c),key(channel,title)+".png");if(file.isFile()&&System.currentTimeMillis()-file.lastModified()<12*3600000L)try(InputStream in=new FileInputStream(file)){return decode(read(in));}return null;}
+ private static byte[] read(InputStream in)throws IOException{if(in==null)throw new IOException("No EPG artwork stream");ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(out.size()+n>5*1024*1024)throw new IOException("EPG artwork exceeds limit");out.write(b,0,n);}return out.toByteArray();}
+ private static Bitmap decode(byte[] bytes){BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);if(o.outWidth<=0||o.outHeight<=0||o.outWidth>10000||o.outHeight>10000)return null;o.inSampleSize=1;while(o.outWidth/o.inSampleSize>1920||o.outHeight/o.inSampleSize>1920)o.inSampleSize*=2;o.inJustDecodeBounds=false;return BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);}
+}

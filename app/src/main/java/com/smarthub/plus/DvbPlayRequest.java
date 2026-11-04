@@ -1,0 +1,15 @@
+package com.smarthub.plus;
+import org.json.*;import java.io.IOException;import java.util.*;
+
+/** Public MPEG service metadata only. Never enables conditional-access overrides. */
+final class DvbPlayRequest {
+ static int video(String value){switch(value.toUpperCase(Locale.ROOT)){case "MPEG1":return 1;case "MPEG2":return 2;case "H264":return 27;case "H265":case "HEVC":return 36;default:return -1;}}
+ static int audio(String value){switch(value.toUpperCase(Locale.ROOT)){case "MPEG1":return 3;case "MPEG2":return 4;case "AAC":return 15;case "AACP":case "LATM":return 17;case "AC3":return 129;case "EAC3":return 135;default:return -1;}}
+ static JSONObject create(JSONObject data,int index,int sid,int angle,int frequency,String polarity,int symbolRate,int runtimeTp,int volume)throws Exception{return create(data,index,sid,angle,frequency,polarity,symbolRate,runtimeTp,volume,false);}
+ static JSONObject create(JSONObject data,int index,int sid,int angle,int frequency,String polarity,int symbolRate,int runtimeTp,int volume,boolean radio)throws Exception{
+  int pid=data.optInt("VideoPID",8191),codec=video(data.optString("VideoType"));if(index<0||index>1000000||sid<0||sid>65535||(!radio&&(pid<1||pid>=8191||codec<0))||runtimeTp<0||frequency<100||frequency>100000||symbolRate<1||symbolRate>100000||!Arrays.asList("H","V").contains(polarity))throw new IOException("DVB_METADATA_REQUIRED");
+  JSONArray source=data.optJSONArray("Audio"),tracks=new JSONArray();if(source!=null)for(int n=0;n<Math.min(16,source.length());n++){JSONObject a=source.optJSONObject(n);if(a==null)continue;int type=audio(a.optString("Type")),audioPid=a.optInt("PID",8191);if(type<0||audioPid<1||audioPid>=8191)continue;tracks.put(new JSONObject().put("audio_lan",0).put("iAudioIndex",tracks.length()).put("iAudioPid",audioPid).put("iAudioTrack",0).put("iAudioType",type).put("iVolume",Math.max(0,Math.min(100,volume))).put("supplementary_audio_type",0));}
+  if(radio){if(tracks.length()==0)throw new IOException("DVB_RADIO_AUDIO_REQUIRED");pid=8191;codec=0;}
+  return new JSONObject().put("bBlink",0).put("bPip",0).put("iAudioNum",tracks.length()).put("iAudioSelected",0).put("iCAType",0).put("iPcrPid",data.optInt("PcrPID",radio?tracks.getJSONObject(0).getInt("iAudioPid"):pid)).put("iProgId",1100000000+index).put("iServiceId",sid).put("iSubtitleSelected",-1).put("iTVType",radio?1:0).put("iTtxPid",8191).put("iTunerIndex",0).put("iVideoPid",pid).put("iVideoType",codec).put("iVolume",Math.max(0,Math.min(100,volume))).put("plpid",0).put("pmt_pid",data.optInt("PmtPID",8191)).put("pucPmtPids","").put("pucSids",String.format(Locale.ROOT,"%04x",sid)).put("sat_degree",angle).put("stAudioInfo",tracks).put("stSubInfo",new JSONArray()).put("stream_id",0).put("tp_freq",frequency).put("tp_id",runtimeTp).put("tp_onid",0).put("tp_pol",polarity.equals("H")?0:1).put("tp_symbolrate",symbolRate).put("tp_type",0).put("uiSIDCount",1).put("video_fps",0).put("video_width",0).put("video_height",0).put("chromaformat",0).put("ca_systemid_list",new JSONArray()).put("force_CA_B",0);
+ }
+}

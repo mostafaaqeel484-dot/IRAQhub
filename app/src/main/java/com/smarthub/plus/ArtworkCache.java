@@ -1,0 +1,17 @@
+package com.smarthub.plus;
+import android.content.Context;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.*;
+/** Short-lived image bytes, used only after online channel/programme identity lookup. */
+final class ArtworkCache {
+ static byte[] fetch(Context c,URL url,int limit)throws Exception{
+  if(!"https".equals(url.getProtocol()))throw new IOException("Image must use HTTPS");StringBuilder key=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(url.toString().getBytes(StandardCharsets.UTF_8)))key.append(String.format(Locale.ROOT,"%02x",b&255));File dir=new File(c.getCacheDir(),"online-artwork");dir.mkdirs();File saved=new File(dir,key.toString());
+  if(saved.isFile()&&saved.length()<=limit&&System.currentTimeMillis()-saved.lastModified()<600000)return java.nio.file.Files.readAllBytes(saved.toPath());
+  byte[] bytes;try{DirectHttp.Reply reply=DirectHttp.request(url.toString(),Collections.emptyMap(),null,limit,null);if(reply.code!=200)throw new IOException("Artwork HTTP "+reply.code);bytes=reply.bytes;}catch(Exception error){if(saved.isFile()&&saved.length()<=limit){c.getSharedPreferences("smarthub",0).edit().putString("artwork_status","Online image refresh failed; showing matching cached image").apply();return java.nio.file.Files.readAllBytes(saved.toPath());}throw error;}File temp=File.createTempFile("image-",".tmp",dir);try(FileOutputStream out=new FileOutputStream(temp)){out.write(bytes);}if(!temp.renameTo(saved))temp.delete();
+  File[] files=dir.listFiles();if(files!=null){Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());long total=0;for(int n=0;n<files.length;n++){total+=files[n].length();if(n>=24||total>40*1024*1024)files[n].delete();}}
+  return bytes;
+ }
+}

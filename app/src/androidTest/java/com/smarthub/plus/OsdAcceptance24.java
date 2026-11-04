@@ -1,0 +1,21 @@
+package com.smarthub.plus;
+import android.app.Instrumentation;import android.content.*;import android.os.Bundle;import android.graphics.*;import android.view.*;import android.widget.*;import java.io.*;import java.lang.reflect.Field;import java.util.concurrent.*;
+/** Offscreen layout tests only; sample programme text is explicitly a UI test, never live data. */
+final class OsdAcceptance24 {
+ private static Object field(Object v,String name)throws Exception{Field f=NowNextView.class.getDeclaredField(name);f.setAccessible(true);return f.get(v);}
+ private static Rect rect(NowNextView root,View child){Rect r=new Rect();child.getDrawingRect(r);root.offsetDescendantRectToMyCoords(child,r);return r;}
+ static void run(Instrumentation test,Context c,Bundle out)throws Exception{
+  CountDownLatch ready=new CountDownLatch(2);Bitmap[] images={null,null};test.runOnMainSync(()->LogoRepository.get(c).request("MBC 2",new LogoRepository.Listener(){public void channel(Bitmap b){images[0]=b;ready.countDown();}public void provider(String n,Bitmap b){images[1]=b;ready.countDown();}}));if(!ready.await(30,TimeUnit.SECONDS)||images[0]==null||images[1]==null)throw new IOException("Real logo fixtures unavailable");
+  int minX=images[1].getWidth(),maxX=-1;for(int y=0;y<images[1].getHeight();y+=4)for(int x=0;x<images[1].getWidth();x+=4)if(android.graphics.Color.alpha(images[1].getPixel(x,y))>24){minX=Math.min(minX,x);maxX=Math.max(maxX,x);}out.putBoolean("provider_svg_fills_bitmap",maxX-minX>images[1].getWidth()/2);ChlLogoAddon.get(c).load();SharedPreferences prefs=c.getSharedPreferences("smarthub",0);boolean auto=prefs.getBoolean("osd_receiver_size",true);int percent=prefs.getInt("osd_bar_percent",26);
+  try{test.runOnMainSync(()->{try{
+   SatelliteState state=new SatelliteState();state.channelName="MBC 2";state.channelId="layout-test";state.title="اختبار تصميم الشريط · OSD layout test";state.nextTitle="البرنامج القادم · اختبار واجهة";state.startMs=System.currentTimeMillis()-1800000;state.endMs=state.startMs+7200000;state.nextStartMs=state.endMs;state.nextEndMs=state.endMs+3600000;
+   NowNextView view=new NowNextView(c);view.bind(state,null,null,images[0],"");view.provider(images[1]);layout(c,view);Rect provider=rect(view,(View)field(view,"providerLogo")),channel=rect(view,(View)field(view,"logo"));
+   out.putBoolean("provider_far_right",provider.left>view.getWidth()*0.8&&provider.right<=view.getWidth());out.putBoolean("channel_stays_left",channel.left<view.getWidth()*0.15);out.putBoolean("provider_does_not_overlap_channel",provider.left>channel.right);save(c,view,"osd-provider-right24.png");
+   view.provider(null);layout(c,view);TextView name=(TextView)field(view,"providerName");out.putBoolean("provider_name_fallback",name.getVisibility()==View.VISIBLE&&name.getText().toString().equals("MBC"));save(c,view,"osd-provider-name24.png");
+   state.channelName="Love Nature 4K";view.bind(state,null,null,null,"");view.provider(null);out.putBoolean("chl_provider_name_fallback",name.getText().toString().equals("iKOMG"));
+   prefs.edit().putBoolean("osd_receiver_size",false).putInt("osd_bar_percent",16).commit();NowNextView small=new NowNextView(c);small.bind(state,null,null,null,"");small.provider(null);layout(c,small);Rect now=rect(small,(View)field(small,"nowLine")),next=rect(small,(View)field(small,"nextLine"));out.putBoolean("compact_programmes_visible",now.top>=small.getHeight()-OsdGeometry.bar(c)&&next.bottom<=small.getHeight());
+  }catch(Exception e){throw new RuntimeException(e);}});}finally{prefs.edit().putBoolean("osd_receiver_size",auto).putInt("osd_bar_percent",percent).commit();}
+ }
+ private static void layout(Context c,NowNextView v){int w=c.getResources().getDisplayMetrics().widthPixels,h=OsdGeometry.window(c);v.measure(View.MeasureSpec.makeMeasureSpec(w,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(h,View.MeasureSpec.EXACTLY));v.layout(0,0,w,h);v.animate().cancel();v.setAlpha(1);}
+ private static void save(Context c,NowNextView v,String name)throws IOException{Bitmap image=Bitmap.createBitmap(v.getWidth(),v.getHeight(),Bitmap.Config.ARGB_8888);v.draw(new Canvas(image));try(OutputStream out=new FileOutputStream(new File(c.getCacheDir(),name))){image.compress(Bitmap.CompressFormat.PNG,100,out);}image.recycle();}
+}

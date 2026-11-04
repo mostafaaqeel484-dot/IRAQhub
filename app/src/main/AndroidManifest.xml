@@ -1,0 +1,64 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <uses-feature android:name="android.software.leanback" android:required="false" />
+ <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+ <uses-permission android:name="android.permission.INTERNET" />
+ <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+ <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+ <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+ <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+ <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+ <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+ <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+ <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+ <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
+ <queries>
+  <package android:name="com.tosmart.aurum"/><package android:name="com.android.tv.settings"/>
+  <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LEANBACK_LAUNCHER"/></intent>
+  <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent>
+  <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.HOME"/></intent>
+  <intent><action android:name="android.intent.action.OPEN_DOCUMENT"/><data android:mimeType="*/*"/></intent>
+  <intent><action android:name="android.intent.action.GET_CONTENT"/><data android:mimeType="*/*"/></intent>
+  <intent><action android:name="android.intent.action.CREATE_DOCUMENT"/><data android:mimeType="*/*"/></intent>
+ </queries>
+ <application android:supportsRtl="true" android:label="IRAQhub" android:theme="@style/AppTheme" android:icon="@drawable/ic_launcher" android:banner="@drawable/tv_banner" android:allowBackup="false" android:usesCleartextTraffic="true">
+  <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape" android:launchMode="singleTask">
+   <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/><category android:name="android.intent.category.LEANBACK_LAUNCHER"/></intent-filter>
+   <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.HOME"/><category android:name="android.intent.category.DEFAULT"/></intent-filter>
+  </activity>
+  <activity android:name=".IPAudioActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".TunerSettingsActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".SignalInformationActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".SoftwareVideoActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".DvbPlaybackActivity" android:launchMode="singleTask" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".SatelliteBrowserActivity" android:theme="@style/ReceiverPanelTheme" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".HubSettingsActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".HubSearchActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".AppsActivity" android:exported="false" android:screenOrientation="landscape"/>
+  <activity android:name=".ReceiverChannelsActivity" android:theme="@style/ReceiverPanelTheme" android:exported="false" android:screenOrientation="landscape"/>
+  <activity android:name=".ManufacturerToolsActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".ReceiverToolsActivity" android:exported="false" android:screenOrientation="landscape"/>
+  <activity android:name=".CompatibilityActivity" android:exported="false" android:screenOrientation="landscape"/>
+  <activity android:name=".SportsCenterActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".MatchDetailsView" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".MediaActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ChannelIdentityActivity" android:exported="false" /><activity android:name=".ProviderSetupActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".SatelliteActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".SatelliteGuideActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ToolsActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ChannelsActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".PlayerActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".TranslationActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".LiveTranslationActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ArtworkDetailsActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".LogoSourcesActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".FactorySettingsActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".OsdSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".CaptionCaptureActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ScreenToolsActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".PrayerActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".WorldClockActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".CommunityActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ReceiverActivity" android:exported="false" android:screenOrientation="landscape" />
+  <service android:name=".CaptionCaptureService" android:exported="false" android:foregroundServiceType="mediaProjection" />
+  <service android:name=".ScreenOverlayService" android:exported="false" android:foregroundServiceType="specialUse">
+   <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-controlled logo, text, mask and subtitle overlays above television playback."/>
+  </service>
+  <service android:name=".SatelliteCompanionService" android:exported="false" android:foregroundServiceType="specialUse">
+   <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started programme, poster and subtitle companion overlay above native satellite television playback."/>
+  </service>
+  <service android:name=".SatelliteAccessibilityService" android:label="@string/satellite_bridge_name" android:description="@string/satellite_bridge_description" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
+   <intent-filter><action android:name="android.accessibilityservice.AccessibilityService"/></intent-filter>
+   <meta-data android:name="android.accessibilityservice" android:resource="@xml/satellite_accessibility"/>
+  </service>
+  <receiver android:name=".EventReminderReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter></receiver>
+  <receiver android:name=".PrayerReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"/></intent-filter></receiver>
+  <provider android:name="androidx.core.content.FileProvider" android:authorities="com.smarthub.plus.files" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"/></provider>
+ </application>
+</manifest>
