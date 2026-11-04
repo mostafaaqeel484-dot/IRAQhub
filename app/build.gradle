@@ -1,0 +1,25 @@
+plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
+android {
+ namespace 'com.smarthub.plus'
+ compileSdk 35
+ defaultConfig { ndk { abiFilters 'armeabi-v7a','arm64-v8a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 28; versionName '3.6.5'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
+ kotlinOptions { jvmTarget = '11' }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
+ testOptions { unitTests.returnDefaultValues=true }
+}
+dependencies {
+ implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+ implementation 'androidx.core:core:1.15.0'
+ implementation 'androidx.work:work-runtime:2.10.1'
+ implementation 'androidx.media3:media3-exoplayer:1.5.1'
+ implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
+ implementation 'androidx.media3:media3-exoplayer-dash:1.5.1'
+ implementation 'androidx.media3:media3-ui:1.5.1'
+ implementation 'com.caverock:androidsvg-aar:1.4'
+ implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+ implementation 'com.google.mlkit:translate:17.0.3'
+ implementation 'com.google.mlkit:language-id:17.0.6'
+ implementation 'cz.adaptech.tesseract4android:tesseract4android:4.9.0'
+ testImplementation 'junit:junit:4.13.2'
+ testImplementation 'org.json:json:20240303'
+}

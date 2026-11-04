@@ -1,0 +1,222 @@
+{
+  "version": 1,
+  "source": "https://github.com/iptv-org/api",
+  "providers": [
+    {
+      "id": "mbc",
+      "name": "MBC",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/6b/MBC_Group_Logo.svg",
+      "asset": "mbc.svg"
+    },
+    {
+      "id": "bein",
+      "name": "beIN SPORTS",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/41/BeIN_Sports_logo_%282017%29.png",
+      "asset": "bein.png"
+    },
+    {
+      "id": "abu-dhabi",
+      "name": "Abu Dhabi Media",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Abu_Dhabi_Media_Network_logo_2023.svg"
+    },
+    {
+      "id": "dubai",
+      "name": "Dubai Media",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/df/Dubai_Media_logo_in_SVG.svg"
+    }
+  ],
+  "channels": [
+    {
+      "id": "MBC1.ae",
+      "name": "MBC 1",
+      "provider": "mbc",
+      "aliases": [
+        "MBC 1",
+        "MBC1",
+        "MBC ONE"
+      ],
+      "url": "https://i.imgur.com/CiA3plN.png"
+    },
+    {
+      "id": "MBC2.ae",
+      "name": "MBC 2",
+      "provider": "mbc",
+      "aliases": [
+        "MBC 2",
+        "MBC2",
+        "MBC TWO"
+      ],
+      "url": "https://i.imgur.com/n9mSHuP.png",
+      "asset": "MBC2.ae.png"
+    },
+    {
+      "id": "MBC3.ae",
+      "name": "MBC 3",
+      "provider": "mbc",
+      "aliases": [
+        "MBC 3",
+        "MBC3",
+        "MBC THREE"
+      ],
+      "url": "https://i.imgur.com/PVt8OPN.png"
+    },
+    {
+      "id": "MBCAction.ae",
+      "name": "MBC Action",
+      "provider": "mbc",
+      "aliases": [
+        "MBC ACTION",
+        "MBCACTION"
+      ],
+      "url": "https://i.imgur.com/OWZAghw.png",
+      "asset": "MBCAction.ae.png"
+    },
+    {
+      "id": "MBCMax.sa",
+      "name": "MBC Max",
+      "provider": "mbc",
+      "aliases": [
+        "MBC MAX"
+      ],
+      "url": "https://i.imgur.com/A02CptP.png"
+    },
+    {
+      "id": "MBCBollywood.ae",
+      "name": "MBC Bollywood",
+      "provider": "mbc",
+      "aliases": [
+        "MBC BOLLYWOOD"
+      ],
+      "url": "https://i.imgur.com/TTAGFHG.png"
+    },
+    {
+      "id": "AbuDhabiSports1.ae",
+      "name": "Abu Dhabi Sports 1",
+      "provider": "abu-dhabi",
+      "aliases": [
+        "Abu Dhabi Sports 1",
+        "AbuDhabiSports1"
+      ],
+      "url": "https://i.imgur.com/6BVWk8z.png"
+    },
+    {
+      "id": "DubaiSports1.ae",
+      "name": "Dubai Sports 1",
+      "provider": "dubai",
+      "aliases": [
+        "Dubai Sports 1",
+        "DubaiSports1"
+      ],
+      "url": "https://i.imgur.com/Poxw8lG.png"
+    },
+    {
+      "id": "beINSports1.qa",
+      "name": "beIN Sports 1",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 1",
+        "beINSPORTS1"
+      ],
+      "url": "https://i.imgur.com/Vtk2cGI.png",
+      "asset": "beINSports1.qa.png"
+    },
+    {
+      "id": "beINSports2.qa",
+      "name": "beIN Sports 2",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 2",
+        "beINSPORTS2"
+      ],
+      "url": "https://i.imgur.com/vUJZSvs.png"
+    },
+    {
+      "id": "beINSports3.qa",
+      "name": "beIN Sports 3",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 3",
+        "beINSPORTS3"
+      ],
+      "url": "https://i.imgur.com/UYSMao3.png"
+    },
+    {
+      "id": "beINSports4.qa",
+      "name": "beIN Sports 4",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 4",
+        "beINSPORTS4"
+      ],
+      "url": "https://i.imgur.com/vwAgJNi.png"
+    },
+    {
+      "id": "beINSports5.qa",
+      "name": "beIN Sports 5",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 5",
+        "beINSPORTS5"
+      ],
+      "url": "https://i.imgur.com/2Rha5aY.png"
+    },
+    {
+      "id": "beINSports6.qa",
+      "name": "beIN Sports 6",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 6",
+        "beINSPORTS6"
+      ],
+      "url": "https://i.imgur.com/0wBdLYb.png"
+    },
+    {
+      "id": "beINSports7.qa",
+      "name": "beIN Sports 7",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 7",
+        "beINSPORTS7"
+      ],
+      "url": "https://i.imgur.com/iODFwZi.png"
+    },
+    {
+      "id": "beINSports8.qa",
+      "name": "beIN Sports 8",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 8",
+        "beINSPORTS8"
+      ],
+      "url": "https://i.imgur.com/CaFEyVn.png"
+    },
+    {
+      "id": "beINSports9.qa",
+      "name": "beIN Sports 9",
+      "provider": "bein",
+      "aliases": [
+        "beIN SPORTS 9",
+        "beINSPORTS9"
+      ],
+      "url": "https://assets.bein.com/mena/sites/3/2023/09/logos-_beINSPORTS9.png"
+    },
+    {
+      "id": "abu-dhabi-sports-family",
+      "name": "Abu Dhabi Sports",
+      "provider": "abu-dhabi",
+      "aliases": [
+        "Abu Dhabi Sports"
+      ],
+      "url": ""
+    },
+    {
+      "id": "dubai-sports-family",
+      "name": "Dubai Sports",
+      "provider": "dubai",
+      "aliases": [
+        "Dubai Sports"
+      ],
+      "url": ""
+    }
+  ]
+}
