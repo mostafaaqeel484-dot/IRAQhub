@@ -147,6 +147,7 @@ public final class SoftwareVideoActivity extends HubActivity {
             status.setText(tx("لا توجد مسارات صوت متاحة", "No audio tracks available"));
             return;
         }
+        final MediaPlayer.TrackDescription[] audioTracks = tracks;
         String[] labels = new String[tracks.length];
         int selected = -1;
         int current = mediaPlayer.getAudioTrack();
@@ -157,7 +158,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         new AlertDialog.Builder(this)
                 .setTitle(tx("اختر مسار الصوت", "Select audio track"))
                 .setSingleChoiceItems(labels, selected, (dialog, which) -> {
-                    boolean ok = mediaPlayer != null && mediaPlayer.setAudioTrack(tracks[which].id);
+                    boolean ok = mediaPlayer != null && mediaPlayer.setAudioTrack(audioTracks[which].id);
                     if (status != null) status.setText(ok
                             ? tx("تم تغيير مسار الصوت", "Audio track changed")
                             : tx("تعذر تغيير مسار الصوت", "Could not change audio track"));
@@ -175,6 +176,7 @@ public final class SoftwareVideoActivity extends HubActivity {
             status.setText(tx("لا توجد ترجمات داخل البث", "No embedded subtitles available"));
             return;
         }
+        final MediaPlayer.TrackDescription[] subtitleTracks = tracks;
         String[] labels = new String[tracks.length + 1];
         labels[0] = tx("إيقاف الترجمة", "Disable subtitles");
         int selected = mediaPlayer.getSpuTrack() == -1 ? 0 : -1;
@@ -185,7 +187,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         new AlertDialog.Builder(this)
                 .setTitle(tx("اختر الترجمة", "Select subtitle"))
                 .setSingleChoiceItems(labels, selected, (dialog, which) -> {
-                    int trackId = which == 0 ? -1 : tracks[which - 1].id;
+                    int trackId = which == 0 ? -1 : subtitleTracks[which - 1].id;
                     boolean ok = mediaPlayer != null && mediaPlayer.setSpuTrack(trackId);
                     if (status != null) status.setText(ok
                             ? tx("تم تغيير الترجمة", "Subtitle selection changed")
