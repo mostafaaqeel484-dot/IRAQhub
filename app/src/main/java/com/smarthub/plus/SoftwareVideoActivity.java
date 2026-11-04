@@ -148,12 +148,12 @@ public final class SoftwareVideoActivity extends HubActivity {
             return;
         }
         final MediaPlayer.TrackDescription[] audioTracks = tracks;
-        String[] labels = new String[tracks.length];
+        String[] labels = new String[audioTracks.length];
         int selected = -1;
         int current = mediaPlayer.getAudioTrack();
-        for (int i = 0; i < tracks.length; i++) {
-            labels[i] = tracks[i].name == null ? ("Audio " + tracks[i].id) : tracks[i].name;
-            if (tracks[i].id == current) selected = i;
+        for (int i = 0; i < audioTracks.length; i++) {
+            labels[i] = audioTracks[i].name == null ? ("Audio " + audioTracks[i].id) : audioTracks[i].name;
+            if (audioTracks[i].id == current) selected = i;
         }
         new AlertDialog.Builder(this)
                 .setTitle(tx("اختر مسار الصوت", "Select audio track"))
@@ -177,12 +177,12 @@ public final class SoftwareVideoActivity extends HubActivity {
             return;
         }
         final MediaPlayer.TrackDescription[] subtitleTracks = tracks;
-        String[] labels = new String[tracks.length + 1];
+        String[] labels = new String[subtitleTracks.length + 1];
         labels[0] = tx("إيقاف الترجمة", "Disable subtitles");
         int selected = mediaPlayer.getSpuTrack() == -1 ? 0 : -1;
-        for (int i = 0; i < tracks.length; i++) {
-            labels[i + 1] = tracks[i].name == null ? ("Subtitle " + tracks[i].id) : tracks[i].name;
-            if (tracks[i].id == mediaPlayer.getSpuTrack()) selected = i + 1;
+        for (int i = 0; i < subtitleTracks.length; i++) {
+            labels[i + 1] = subtitleTracks[i].name == null ? ("Subtitle " + subtitleTracks[i].id) : subtitleTracks[i].name;
+            if (subtitleTracks[i].id == mediaPlayer.getSpuTrack()) selected = i + 1;
         }
         new AlertDialog.Builder(this)
                 .setTitle(tx("اختر الترجمة", "Select subtitle"))
