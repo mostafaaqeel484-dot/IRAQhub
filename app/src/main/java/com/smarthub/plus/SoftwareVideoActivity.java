@@ -27,7 +27,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     private TextView status;
     private boolean released;
 
-    @Override protected void onCreate(Bundle state) {
+    @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
