@@ -11,8 +11,12 @@
  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
  <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
+ <!-- Normal OEM permission for launching the exported USB updater UI; not a system privilege. -->
+ <uses-permission android:name="com.tosmart.stb_extend.permission.UPDATE_EXT_FILE" />
  <queries>
   <package android:name="com.tosmart.aurum"/><package android:name="com.android.tv.settings"/>
+  <package android:name="com.tosmart.filemanagerpro"/><package android:name="com.tosmart.localplayer"/>
+  <provider android:authorities="com.tosmart.dvb.common.program.provider;com.dvb.service.readonly.provider;com.dvb.service.provider"/>
   <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LEANBACK_LAUNCHER"/></intent>
   <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent>
   <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.HOME"/></intent>
@@ -29,6 +33,7 @@
   <activity android:name=".ReceiverChannelsActivity" android:theme="@style/ReceiverPanelTheme" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".ManufacturerToolsActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".ReceiverToolsActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".CompatibilityActivity" android:exported="false" android:screenOrientation="landscape"/>
+  <activity android:name=".OemDvbIntegrationActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".SportsCenterActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".MatchDetailsView" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".MediaActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".ChannelIdentityActivity" android:exported="false" /><activity android:name=".ProviderSetupActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".SatelliteActivity" android:exported="false" android:screenOrientation="landscape" />
