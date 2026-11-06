@@ -51,7 +51,16 @@ final class NowNextView extends FrameLayout {
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   encryptionLine.setText(info.encryption.isEmpty()?tx("التشفير: —","Encryption: —"):info.encryption);encryptionLine.setContentDescription("encryption-status");
   ArrayList<String> details=new ArrayList<>();if(!info.broadcast.isEmpty())details.add(info.broadcast);
-  if(s.source.startsWith("IPTV")){String audio=prefs.getString("osd_audio","");if(!audio.isEmpty())details.add(audio);}
+  if(s.source.startsWith("IPTV")){
+    String audio=prefs.getString("osd_audio","");
+    if(!audio.isEmpty())details.add(audio);
+    if(prefs.getBoolean("decoder_input_profile422",false))
+      details.add("AVC High 4:2:2 · "+tx("ملف فيديو فقط","video profile only"));
+    else if(prefs.getBoolean("decoder_422_possible",false))
+      details.add("HEVC RExt · "+tx("صيغة اللون غير مؤكدة","chroma unknown"));
+  }else if(s.channelId.startsWith("DVB:")&&prefs.getBoolean("dvb_422_compat_active",false)){
+    details.add(tx("محاولة تشغيل 4:2:2 · غير مؤكدة","4:2:2 compatibility attempt · unverified"));
+  }
   if(s.channelId.equals(prefs.getString("subtitle_channel_id",""))&&s.startMs==prefs.getLong("subtitle_event_start_ms",0)&&prefs.getBoolean("overlay_caption",false))details.add("SUB · "+prefs.getString("subtitle_provider","")+String.format(Locale.ROOT," %+.3f s",prefs.getLong("subtitle_offset",0)/1000.0));
   SportsMatch related=MatchRepository.get(getContext()).forProgramme(s);if(related!=null)details.add(related.league+" · "+related.home+" "+related.score()+" "+related.away+" · "+related.state());
   technical.setText(String.join("   ·   ",details));technical.setVisibility(details.isEmpty()?GONE:VISIBLE);
