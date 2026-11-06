@@ -60,7 +60,7 @@ final class ReceiverTileMenu {
    return false;
   });
   // Explicit focus indicator and safe D-pad activation on vendor Android TV.
-  box.setOnFocusChangeListener((view,focused)->view.setSelected(focused));
+  box.setOnFocusChangeListener((view,hasFocus)->view.setSelected(hasFocus));
   if("01".equals(item.number))box.post(box::requestFocus);
   LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,host.dp(134),1);
   params.setMargins(host.dp(5),0,host.dp(5),0);row.addView(box,params);
