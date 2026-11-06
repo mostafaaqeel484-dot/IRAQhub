@@ -33,13 +33,27 @@ final class ReceiverInfoRepository {
         ReceiverSignalReading frame=DirectReceiverSignal.reading(s);if(frame!=null&&frame.locked==1&&frame.tp==p.getInt("own_dvb_runtime_tp",-1)&&p.getInt("own_dvb_mapping_version",0)==3&&s.channelId.equals("DVB:"+p.getString("own_dvb_physical",""))&&p.getString("own_dvb_physical","").startsWith(p.getString("own_dvb_physical_tp","invalid")+":")){String metadata=p.getString("own_dvb_rf","");if(!metadata.isEmpty())broadcast.add(metadata);String audio=p.getString("own_dvb_audio","");if(!audio.isEmpty())broadcast.add(audio);if(p.getBoolean("own_dvb_fta",false))encryption="FTA · CHL";else encryption=ar?"مشفرة · Firmware":"Encrypted · Firmware";}
         if(s.channelId.equals(p.getString("decoder_channel",""))){int w=p.getInt("decoder_width",0),h=p.getInt("decoder_height",0);if(w>0&&h>0)broadcast.add(w+"×"+h);int fps=p.getInt("decoder_fps",0),bitrate=p.getInt("decoder_bitrate",0);if(fps>0)broadcast.add(fps+" FPS");if(bitrate>0)broadcast.add(String.format(java.util.Locale.ROOT,"%.2f Mbps",bitrate/1000000.0));}
         long resolutionAge=System.currentTimeMillis()-p.getLong("broadcast_resolution_seen:"+key,0);if(resolutionAge>=0&&resolutionAge<120000){java.util.regex.Matcher fps=java.util.regex.Pattern.compile("([0-9]{1,3}(?:\\.[0-9]+)?) fps").matcher(p.getString("broadcast_resolution:"+key,""));if(fps.find())broadcast.add(fps.group());}
-        return new Info(LogoRepository.get(context).providerName(s.channelName),ResolutionBadge.label(context,s),String.join(" · ",broadcast),encryption,
+        String accurateCa=ReceiverTechnicalBadges.encryption(context,s);
+        if(!accurateCa.isEmpty())encryption=accurateCa;
+        String bitrate="";
+        if(!rate.isEmpty())bitrate=rate;
+        if(s.channelId.equals(p.getString("decoder_channel",""))){
+          int decoderRate=p.getInt("decoder_bitrate",0);
+          if(decoderRate>0&&decoderRate<=1000000000)
+            bitrate=String.format(java.util.Locale.ROOT,"%.2f Mbps",decoderRate/1000000d);
+        }
+        long tsAge=System.currentTimeMillis()-p.getLong("software_ts_bitrate_at",0);
+        if(s.channelId.equals(p.getString("software_ts_channel",""))&&tsAge>=0&&tsAge<12000){
+          long bps=p.getLong("software_ts_bitrate",0);
+          if(bps>0)bitrate=String.format(java.util.Locale.ROOT,"TS %.2f Mbps",bps/1000000d);
+        }
+        return new Info(LogoRepository.get(context).providerName(s.channelName),ResolutionBadge.label(context,s),String.join(" · ",broadcast),encryption,bitrate,
                 ReceptionData.value(context,s,"strength"),ReceptionData.value(context,s,"quality"),ReceptionData.value(context,s,"snr"),ReceptionData.value(context,s,"ber"));
     }
     private static String published(SharedPreferences p,String channel,String field){long age=System.currentTimeMillis()-p.getLong("native_"+field+"_seen:"+channel,0);if(age<0||age>=120000)return "";String v=p.getString("native_"+field+":"+channel,"").trim();return v.length()<=100&&!v.chars().anyMatch(n->n<32)?v:"";}
     static final class Info {
-        final String provider,badge,broadcast,encryption,strength,quality,snr,ber;
-        Info(String provider,String badge,String broadcast,String encryption,String strength,String quality,String snr,String ber){this.provider=provider;this.badge=badge;this.broadcast=broadcast;this.encryption=encryption;this.strength=strength;this.quality=quality;this.snr=snr;this.ber=ber;}
+        final String provider,badge,broadcast,encryption,bitrate,strength,quality,snr,ber;
+        Info(String provider,String badge,String broadcast,String encryption,String bitrate,String strength,String quality,String snr,String ber){this.provider=provider;this.badge=badge;this.broadcast=broadcast;this.encryption=encryption;this.bitrate=bitrate;this.strength=strength;this.quality=quality;this.snr=snr;this.ber=ber;}
         String signalDetail(){return "SNR "+(snr.isEmpty()?"—":snr)+"  ·  BER "+(ber.isEmpty()?"—":ber);}
     }
 }
