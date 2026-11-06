@@ -12,7 +12,7 @@ final class DvbTuner {
    JSONObject packet=new JSONObject().put("iTunerIndex",0)
      .put("eCMD",0).put("iParabyte",0).put("usals",1);
    String reply=exchange(4,packet,1000);
-   return reply.contains("\\nSUCCESS:");
+   return reply.contains("\nSUCCESS:");
   }catch(Exception ignored){return false;}
  }
  static boolean usalsEnabled(Context context,int orbitalAngle,String band){
