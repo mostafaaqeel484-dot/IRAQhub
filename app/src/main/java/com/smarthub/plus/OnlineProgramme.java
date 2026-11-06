@@ -42,14 +42,57 @@ final class OnlineProgramme {
    if("matched".equals(other.optString("status")))j=other;
   }catch(Exception unavailable){/* Preserve verified EPG artwork. */}
   if(!"matched".equals(j.optString("status")))return epg(context,event,raw);
-  PosterSelection.save(context,event,raw,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));item.id=(tmdb?"tmdb:":better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · حقوق الصور لأصحابها";item.imageCredit=tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
-  String address=j.optString("poster");
-  if(address.isEmpty()&&item.imdbId.matches("tt[0-9]{7,10}")&&
+  PosterSelection.save(context,event,raw,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));item.id=tmdb?(item.imdbId.isEmpty()?j.optString("id"):"tmdb:"+item.imdbId):(better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · حقوق الصور لأصحابها";item.imageCredit=tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
+  String address=j.optString("poster");Bitmap bitmap=posterBitmap(context,address);
+  if(bitmap==null&&tmdb)try{
+   // Reuse verified TMDB/IMDb identity; never pick a different named movie.
+   String verified=item.imdbId;
+   JSONObject betterArt=new BetterPostersProvider(context).resolve(raw,
+     verified.isEmpty()?j.optString("id"):"",j.optString("type"),verified,duration);
+   boolean same="matched".equals(betterArt.optString("status"))&&
+     (verified.matches("tt[0-9]{7,10}")?verified.equals(betterArt.optString("imdbId")):
+       j.optString("id").equals(betterArt.optString("id")))&&
+     j.optString("type").equals(betterArt.optString("type"));
+   if(same){
+    String candidate=betterArt.optString("poster");
+    Bitmap alternative=posterBitmap(context,candidate);
+    if(alternative!=null){bitmap=alternative;address=candidate;item.imageCredit="BetterPosters";item.imageLicense="BetterPosters · حقوق الصور لأصحابها";}
+   }
+  }catch(Exception unavailable){}
+  if(bitmap==null&&item.imdbId.matches("tt[0-9]{7,10}")&&
       context.getSharedPreferences("smarthub",0).getBoolean("betterposters_direct_enabled",true))
-   try{address=BetterPostersDirect.poster(context,item.imdbId);}catch(Exception unavailable){}
-  item.image=address;Bitmap bitmap=null;try{if(!address.isEmpty()){URI uri=new URI(address);if("https".equals(uri.getScheme())&&Arrays.asList("btttr.cc","cdn.subsource.net","image.tmdb.org","static.tvmaze.com").contains(uri.getHost())&&uri.getUserInfo()==null){byte[] data=ArtworkCache.fetch(context,uri.toURL(),6*1024*1024);BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(data,0,data.length,bounds);if(bounds.outWidth>0&&bounds.outHeight>0&&bounds.outWidth<=10000&&bounds.outHeight<=10000){BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=1;int dimension=Math.min(3840,Math.max(1280,context.getResources().getDisplayMetrics().widthPixels));while(bounds.outWidth/options.inSampleSize>dimension||bounds.outHeight/options.inSampleSize>dimension)options.inSampleSize*=2;bitmap=BitmapFactory.decodeByteArray(data,0,data.length,options);}}}
-  }catch(Exception unavailable){}if(bitmap==null){bitmap=EpgArtwork.load(context,event,raw);if(bitmap!=null){item.imageKind="epg";item.imageCredit="EPG";item.imageLicense="EPG · حقوق الصور لأصحابها";}}return new OnlineProgramme(item,bitmap);
+   try{
+    String direct=BetterPostersDirect.poster(context,item.imdbId);
+    Bitmap alternative=posterBitmap(context,direct);
+    if(alternative!=null){bitmap=alternative;address=direct;item.imageCredit="BetterPosters · IMDb";item.imageLicense="BetterPosters · حقوق الصور لأصحابها";}
+   }catch(Exception unavailable){}
+  if(bitmap==null){
+   bitmap=EpgArtwork.load(context,event,raw);
+   if(bitmap!=null){item.imageKind="epg";item.imageCredit="EPG";item.imageLicense="EPG · حقوق الصور لأصحابها";}
+  }
+  // Do not let an unusable metadata-only result block open-image fallbacks.
+  if(bitmap==null)return null;
+  item.image="epg".equals(item.imageKind)?"":address;
+  return new OnlineProgramme(item,bitmap);
  }
  private static OnlineProgramme epg(Context context,SatelliteState event,String raw)throws Exception{Bitmap picture=EpgArtwork.load(context,event,raw);if(picture==null)return null;MediaRepository.Item item=new MediaRepository.Item();item.id="epg:"+EpgArtwork.key(event.channelName,raw);item.title=raw;item.imageKind="epg";item.imageCredit="EPG";item.imageLicense="EPG · حقوق الصور لأصحابها";item.fetchedAt=System.currentTimeMillis();return new OnlineProgramme(item,picture);}
+ private static Bitmap posterBitmap(Context context,String address){
+  if(address==null||address.isEmpty())return null;
+  try{
+   URI uri=new URI(address);
+   if(!"https".equalsIgnoreCase(uri.getScheme())||uri.getUserInfo()!=null||
+      uri.getFragment()!=null||!Arrays.asList("btttr.cc","cdn.subsource.net",
+        "image.tmdb.org","static.tvmaze.com").contains(uri.getHost()))return null;
+   byte[] data=ArtworkCache.fetch(context,uri.toURL(),6*1024*1024);
+   BitmapFactory.Options bounds=new BitmapFactory.Options();
+   bounds.inJustDecodeBounds=true;
+   BitmapFactory.decodeByteArray(data,0,data.length,bounds);
+   if(bounds.outWidth<90||bounds.outHeight<90||bounds.outWidth>10000||bounds.outHeight>10000)return null;
+   BitmapFactory.Options opts=new BitmapFactory.Options();
+   int limit=1280;opts.inSampleSize=1;
+   while(bounds.outWidth/opts.inSampleSize>limit||bounds.outHeight/opts.inSampleSize>limit)opts.inSampleSize*=2;
+   return BitmapFactory.decodeByteArray(data,0,data.length,opts);
+  }catch(Exception unavailable){return null;}
+ }
  private static String join(JSONArray array){if(array==null)return "";List<String> values=new ArrayList<>();for(int n=0;n<Math.min(12,array.length());n++)values.add(array.optString(n));return String.join("، ",values);}
 }
