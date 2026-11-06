@@ -60,6 +60,11 @@ final class ReceiverTechnicalBadges {
    }
   }
   String id=ReceiverInfoRepository.channelKey(state);
+  // An explicitly visible CA-system field (Irdeto/BISS/etc.) is itself
+  // reliable receiver evidence even when no generic "encrypted" text exists.
+  long typeAge=System.currentTimeMillis()-p.getLong("native_ca_type_seen:"+id,0);
+  String typed=p.getString("native_ca_type:"+id,"");
+  if(typeAge>=0&&typeAge<120000&&!typed.isEmpty())return "CA · "+typed;
   long age=System.currentTimeMillis()-p.getLong("broadcast_encryption_seen:"+id,0);
   if(age>=0&&age<120000){
    String value=p.getString("broadcast_encryption:"+id,"");
