@@ -47,7 +47,23 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
  ChannelScope validScope(ChannelScope scope){SQLiteDatabase db=getReadableDatabase();long sat=scope.satellite,group=scope.group;if(sat>=0&&DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat WHERE _id=?",new String[]{Long.toString(sat)})==0)sat=-1;if(group>=0&&DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM fav_group WHERE _id=?",new String[]{Long.toString(group)})==0)group=-1;return new ChannelScope(scope.query,sat,scope.type,scope.favorites,scope.alphabetical,group);}
  List<Long> navigationIds(ChannelScope scope){List<String> args=new ArrayList<>();String where=scopeWhere(scope,args);List<Long> ids=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT c._id FROM ch c JOIN tp t ON t._id=c.tp_id JOIN sat s ON s._id=t.sat_id"+where+scopeOrder(scope),args.toArray(new String[0]))){while(c.moveToNext())ids.add(c.getLong(0));}return ids;}
  int pageFor(Channel channel,ChannelScope scope){int index=navigationIds(scope).indexOf(channel.id);return index<0?0:index/120*120;}
- Channel adjacent(Channel active,int direction,ChannelScope scope){List<Long> ids=navigationIds(scope);if(ids.isEmpty())return null;int position=ids.indexOf(active.id);int index=position<0?(direction>0?0:ids.size()-1):Math.floorMod(position+(direction>0?1:-1),ids.size());return channel(ids.get(index));}
+ Channel adjacent(Channel active,int direction,ChannelScope scope){
+  if(active==null)return null;
+  ChannelScope tuned=scope==null?new ChannelScope("",-1,active.tv,false,false,-1):scope;
+  if(tuned.type!=active.tv)tuned=tuned.kind(active.tv);
+  List<Long> ids=navigationIds(tuned);
+  int position=ids.indexOf(active.id);
+  if(position<0){
+   // A previous search/favourites filter must not trap CH+/CH- in the wrong list.
+   tuned=new ChannelScope("",-1,active.tv,false,tuned.alphabetical,-1);
+   ids=navigationIds(tuned);
+   position=ids.indexOf(active.id);
+  }
+  if(ids.isEmpty())return null;
+  int index=position<0?(direction>0?0:ids.size()-1):
+    Math.floorMod(position+(direction>0?1:-1),ids.size());
+  return channel(ids.get(index));
+ }
  JSONArray transportServices(Channel ch)throws Exception{JSONArray out=new JSONArray();try(Cursor cursor=getReadableDatabase().rawQuery(JOIN+" WHERE s.angle=? AND s.band=? AND t.freq=? AND t.pol=? AND t.sr=? ORDER BY c._id LIMIT 512",new String[]{Integer.toString(ch.angle),ch.band,Integer.toString(ch.frequency),ch.pol,Integer.toString(ch.symbolRate)})){while(cursor.moveToNext()){Channel s=new Channel(cursor);out.put(new JSONObject().put("sid",s.sid).put("pmt",s.data.optInt("PmtPID",8191)).put("ca",s.ca));}}return out;}
  Channel channel(long id){try(Cursor c=getReadableDatabase().rawQuery(JOIN+" WHERE c._id=?",new String[]{Long.toString(id)})){return c.moveToFirst()?new Channel(c):null;}catch(Exception unavailable){return null;}}
  /**
