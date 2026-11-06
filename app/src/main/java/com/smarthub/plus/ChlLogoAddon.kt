@@ -23,6 +23,15 @@ class ChlLogoAddon private constructor(private val context:Context){
  fun choice(name:String)=index?.choose(name,selectionSeed)
  fun resolve(name:String,loader:ChannelLogoResolver):Bitmap?{load();rememberProvider(name);for(service in index?.choices(name,selectionSeed)?.take(3)?:emptyList())resolve(service,loader)?.let{return it};return null}
  fun unique(name:String)=index?.unique(name)
+ /** Bind CHMAX logos to the exact DVB transport/service identity, not the name. */
+ @Synchronized fun resolvePhysical(physical:String,loader:ChannelLogoResolver):Bitmap?{
+  load()
+  val actual=physical.removePrefix("DVB:")
+  if(!physical.startsWith("DVB:")||actual.length>100||!enabled())return null
+  val matching=index?.services?.filter{it.physicalKey==actual}?.distinctBy{it.physicalKey}?:return null
+  val single=matching.singleOrNull()?:return null
+  return resolve(single,loader)
+ }
  fun enabled()=prefs.getBoolean("chl_chmax_enabled",prefs.getBoolean("factory_enabled",true)&&prefs.getBoolean("osd_chmax_logos",true))
  fun statusLabel():String=when(prefs.getString("chl_chmax_status","")){
   "CHMAX_LOGO_OK"->"تم جلب شعار مطابق من CHMAX"
