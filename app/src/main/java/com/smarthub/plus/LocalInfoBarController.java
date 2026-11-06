@@ -21,9 +21,9 @@ import java.util.concurrent.Executors;
 final class LocalInfoBarController implements AutoCloseable {
  private final Activity host;
  private final FrameLayout root;
- private final NowNextView bar;
+ private NowNextView bar;
  private final Handler main=new Handler(Looper.getMainLooper());
- private final SharedPreferences prefs;
+ private SharedPreferences prefs;
  private final ExecutorService io=Executors.newFixedThreadPool(2);
  private final FactoryProvider chmax;
  private final PublishedEpgArtwork published;
