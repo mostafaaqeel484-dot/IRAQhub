@@ -187,24 +187,30 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
   * 1 = observed multiple clear video TS packets, -1 = scrambled video,
   * 0 = insufficient evidence. This is a media check, not a CA bypass.
   */
- private static int videoClearState(File file,int videoPid){
+ static int videoClearState(File file,int videoPid){
   if(videoPid<16||videoPid>=8191||file==null)return 0;
   try(RandomAccessFile in=new RandomAccessFile(file,"r")){
    long total=in.length()/TS;
    if(total<16)return 0;
-   // Only inspect the live tail: early encrypted packets must not permanently
-   // reject a receiver which authorises a BISS service moments later.
-   long from=Math.max(0,total-3072);
+   long from=Math.max(0,total-4096);
    in.seek(from*TS);
    byte[] packet=new byte[TS];
-   int clear=0,scrambled=0;
+   // A BISS receiver may unlock mid-capture. Examine only the most recent
+   // 24 observed video packets, not encrypted packets at recording startup.
+   int[] recent=new int[24];
+   int head=0,kept=0,clear=0,scrambled=0;
    for(long i=from;i<total;i++){
     in.readFully(packet);
     if(packet[0]!=(byte)0x47)break;
     int pid=((packet[1]&31)<<8)|(packet[2]&255);
     if(pid!=videoPid||(packet[3]&0x10)==0)continue;
-    if((packet[3]&0xc0)!=0)scrambled++;
-    else clear++;
+    int flag=(packet[3]&0xc0)==0?0:1;
+    if(kept==recent.length){
+     if(recent[head]==0)clear--;else scrambled--;
+    }else kept++;
+    recent[head]=flag;
+    head=(head+1)%recent.length;
+    if(flag==0)clear++;else scrambled++;
    }
    if(clear>=12&&scrambled==0)return 1;
    if(scrambled>=8)return -1;
