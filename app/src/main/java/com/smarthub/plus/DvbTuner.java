@@ -34,9 +34,7 @@ final class DvbTuner {
      ||!prefs.getString("iraqhub_pvr_session","").isEmpty()
      ||!prefs.getString("capture_session","").isEmpty())
     throw new IOException("STOP_VIDEO_BEFORE_MANUAL_TUNE");
-  String saved=prefs.getString(LnbProfile.key(satellite.angle,satellite.band),"");
-  if(saved.isEmpty())throw new IOException("DVB_TUNING_PROFILE_REQUIRED");
-  LnbProfile profile=LnbProfile.parse(saved);
+  LnbProfile profile=LnbProfile.forSatellite(context,satellite.angle,satellite.band);
   long hash=frequency*37L+symbolRate*11L+("H".equals(polarity)?1:2);
   int index=(int)(Math.abs(hash)%1000000L);
   JSONObject command=profile.tune(index,frequency,polarity,symbolRate);
@@ -64,7 +62,7 @@ final class DvbTuner {
   }finally{prefs.edit().putBoolean("dvb_tuning",false).apply();}
  }
  static ReceiverSignalReading ensure(Context context,ReceiverCatalog.Channel channel)throws Exception{
-  SharedPreferences prefs=context.getSharedPreferences("smarthub",0);int lease=prefs.getInt("verified_native_tuner_tp",-1);if(lease>=0&&channel.transponder().equals(prefs.getString("verified_native_tuner_rf",""))){ReceiverSignalReading frame=read();if(frame.locked==1&&frame.tp==lease){prefs.edit().putInt("own_dvb_mapping_version",3).putInt("own_dvb_runtime_tp",lease).putString("own_dvb_physical_tp",channel.transponder()).apply();return frame;}prefs.edit().remove("verified_native_tuner_tp").remove("verified_native_tuner_rf").apply();}String saved=prefs.getString(LnbProfile.key(channel.angle,channel.band),"");if(saved.isEmpty())throw new IOException("DVB_TUNING_PROFILE_REQUIRED");LnbProfile profile=LnbProfile.parse(saved);
+  SharedPreferences prefs=context.getSharedPreferences("smarthub",0);int lease=prefs.getInt("verified_native_tuner_tp",-1);if(lease>=0&&channel.transponder().equals(prefs.getString("verified_native_tuner_rf",""))){ReceiverSignalReading frame=read();if(frame.locked==1&&frame.tp==lease){prefs.edit().putInt("own_dvb_mapping_version",3).putInt("own_dvb_runtime_tp",lease).putString("own_dvb_physical_tp",channel.transponder()).apply();return frame;}prefs.edit().remove("verified_native_tuner_tp").remove("verified_native_tuner_rf").apply();}LnbProfile profile=LnbProfile.forSatellite(context,channel.angle,channel.band);
   boolean motor=usalsEnabled(context,channel.angle,channel.band);
   String rawLocation=prefs.getString("own_usals_location","");
   if(motor&&rawLocation.isEmpty())throw new IOException("USALS_LOCATION_REQUIRED");
