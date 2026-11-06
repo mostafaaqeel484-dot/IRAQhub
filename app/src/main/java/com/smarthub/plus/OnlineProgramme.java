@@ -34,7 +34,7 @@ final class OnlineProgramme {
   }catch(Exception unavailable){/* Try independent providers. */}
   if(!"matched".equals(j.optString("status")))try{
    JSONObject other=new BetterPostersProvider(context).resolve(raw,
-      id.startsWith("tmdb:")?"":id,type,imdb,duration);
+      id,type,imdb,duration);
    if("matched".equals(other.optString("status")))j=other;
   }catch(Exception unavailable){/* Keep any existing verified candidate. */}
   if(!"matched".equals(j.optString("status")))try{
