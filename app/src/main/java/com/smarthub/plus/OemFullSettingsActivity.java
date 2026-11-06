@@ -40,6 +40,23 @@ public final class OemFullSettingsActivity extends HubActivity {
   addGroup(body,"TV",tx("التلفاز وInfobar والريموت","Live TV, Infobar and remote"));
   addGroup(body,"OTHER",tx("خدمات المصنع والتحديثات","Manufacturer services and updates"));
 
+  LinearLayout dynamic=card(body);
+  dynamic.addView(text(tx("القوائم الأصلية المكتشفة من الروم","Original OEM menu entries discovered on this device"),20,true));
+  note(dynamic,tx("المدخلات التالية تُقرأ من dvb_host_main_menu الخاص بإصدار Aurum المثبت على الجهاز. قد تختلف من روم لآخر.",
+     "The following entries come from the installed firmware's dvb_host_main_menu and can differ between devices."));
+  for(ManufacturerFeatures.Entry e:published){
+   if(!e.id.startsWith("xml:"))continue;
+   String reason=ManufacturerFeatures.unavailable(this,e);
+   Button b=action(dynamic,e.title+(reason.isEmpty()?"":tx(" · غير متاح"," · unavailable")),()->
+       new AlertDialog.Builder(this).setTitle(e.title)
+         .setMessage(tx("سيتم فتح شاشة المصنع المعلنة فقط. لا تتابع أي تحديث للنظام أو تعديل للقنوات دون التحقق من الملف والنسخة الاحتياطية.",
+           "Only the exported OEM screen opens. Verify backups and correct firmware before changing channel data or updating."))
+         .setPositiveButton(tx("فتح","Open"),(d,w)->{
+           if(!ManufacturerFeatures.open(this,e))toast(tx("تعذر فتح شاشة المصنع","Cannot open OEM screen"));
+         })
+         .setNegativeButton(tx("إلغاء","Cancel"),null).show());
+   b.setEnabled(reason.isEmpty());
+  }
   LinearLayout checks=card(body);
   action(checks,tx("تقرير صلاحيات Aurum والنظام","OEM routes and permissions report"),
      ()->startActivity(new Intent(this,OemDvbIntegrationActivity.class)));
