@@ -157,21 +157,16 @@ public final class SoftwareVideoActivity extends HubActivity {
     }
 
     private void open(String source) {
+        if(released)return;
+        playbackUri=source;
+        streamRetries=0;
         try {
-            ArrayList<String> options = new ArrayList<>();
-            options.add("--avcodec-hw=none");
-            options.add("--aout=audiotrack");
-            options.add("--no-video-title-show");
-            // Same software-avcodec path identified in the compiled 3.7.0 APK.
-            options.add("--codec=avcodec");
-            int decodingThreads=Math.max(1,Math.min(4,Runtime.getRuntime().availableProcessors()-1));
-            options.add("--avcodec-threads="+decodingThreads);
-            options.add("--deinterlace=0");
-            options.add(":demux=avformat");
-            options.add(":file-caching=1000");
-            options.add("--network-caching=2500");
-            options.add("--live-caching=1500");
-
+            closeDecoder();
+            // Real 4:2:2 requires FFmpeg software decode unless the actual
+            // receiver advertises and proves a compatible hardware decoder.
+            ArrayList<String> options=Software422Profile.options(this);
+            // Never force avformat on an MPEG-TS stream: LibVLC's TS demuxer
+            // must see the real PAT/PMT and timestamps.
             libVLC = new LibVLC(this, options);
             mediaPlayer = new MediaPlayer(libVLC);
             mediaPlayer.attachViews(videoLayout, null, false, false);
@@ -182,17 +177,24 @@ public final class SoftwareVideoActivity extends HubActivity {
                         status.setText(tx("فتح البث…", "Opening stream…"));
                         break;
                     case MediaPlayer.Event.Buffering:
-                        status.setText(tx("تخزين مؤقت…", "Buffering…"));
+                        if(android.os.SystemClock.elapsedRealtime()-lastBufferStatus>650){
+                            lastBufferStatus=android.os.SystemClock.elapsedRealtime();
+                            status.setText(tx("مزامنة بيانات الفيديو والصوت…","Synchronising video and audio…"));
+                        }
                         break;
                     case MediaPlayer.Event.Playing:
                         if(localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1L)>=0)localInfo.show();
-                        status.setText(tx("بدأ تشغيل LibVLC البرمجي؛ تحقق من ظهور صورة 4:2:2 فعلياً", "LibVLC software playback started; verify decoded 4:2:2 video frames"));
+                        status.setText(tx("LibVLC يعمل برمجياً · تحقق من ظهور صورة فعلية · "+Software422Profile.current(this),
+                           "Software decoder running · verify visible picture · "+Software422Profile.current(this)));
                         break;
                     case MediaPlayer.Event.EncounteredError:
-                        status.setText(tx("فشل فك الترميز أو قراءة البث", "Decoder or stream error"));
+                        status.setText(tx("انقطاع بث TS أو خطأ فك الصورة، فحص إعادة الاتصال…",
+                                          "TS stream or video decoding error; checking reconnect…"));
+                        recoverStream();
                         break;
                     case MediaPlayer.Event.EndReached:
-                        status.setText(tx("انتهى البث", "Stream ended"));
+                        status.setText(tx("انتهى بث TS","TS stream ended"));
+                        recoverStream();
                         break;
                     default:
                         break;
@@ -200,12 +202,7 @@ public final class SoftwareVideoActivity extends HubActivity {
             }));
 
             Media media = new Media(libVLC, Uri.parse(source));
-            media.setHWDecoderEnabled(false, false);
-            media.addOption(":avcodec-hw=none");
-            media.addOption(":codec=avcodec");
-            media.addOption(":avcodec-corrupted=1");
-            media.addOption(":file-caching=1000");
-            media.addOption(":network-caching=2500");
+            configure(media,source);
             mediaPlayer.setMedia(media);
             media.release();
             mediaPlayer.play();
@@ -216,6 +213,39 @@ public final class SoftwareVideoActivity extends HubActivity {
                         + (detail == null ? "" : " · " + detail));
             }
         }
+    }
+
+    private void configure(Media media,String source){
+        media.setHWDecoderEnabled(false,false);
+        media.addOption(":avcodec-hw=none");
+        media.addOption(":codec=avcodec");
+        int cache=Software422Profile.QUALITY.equals(Software422Profile.current(this))?1700:
+          Software422Profile.SMOOTH.equals(Software422Profile.current(this))?950:1250;
+        if(source.startsWith("http://127.0.0.1:")){
+            media.addOption(":network-caching="+cache);
+            media.addOption(":live-caching="+Math.max(750,cache-150));
+            media.addOption(":http-reconnect");
+        }else media.addOption(":file-caching=900");
+    }
+    private void recoverStream(){
+        if(released||satelliteRelay==null||!satelliteRelay.running()||
+           playbackUri==null||streamRetries>=2)return;
+        final int attempt=++streamRetries;
+        main.postDelayed(()->{
+            if(released||satelliteRelay==null||!satelliteRelay.running()||
+               libVLC==null||mediaPlayer==null||attempt!=streamRetries)return;
+            try{
+                Media reload=new Media(libVLC,Uri.parse(playbackUri));
+                configure(reload,playbackUri);
+                mediaPlayer.stop();
+                mediaPlayer.setMedia(reload);
+                reload.release();
+                status.setText(tx("إعادة وصل بث DVB "+attempt+"/2","Reconnecting DVB stream "+attempt+"/2"));
+                mediaPlayer.play();
+            }catch(Throwable failure){
+                status.setText(tx("لم يتمكن LibVLC من استعادة البث","LibVLC could not recover the stream"));
+            }
+        },2200L);
     }
 
     private void showBiss(){
