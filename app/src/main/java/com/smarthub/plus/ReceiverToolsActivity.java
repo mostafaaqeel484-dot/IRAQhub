@@ -84,11 +84,11 @@ public final class ReceiverToolsActivity extends HubActivity {
   if(saved==null){nativeScanReport.setText(tx("لم تُلتقط نتيجة بحث أصلية بعد.","No native scan result observed yet."));return;}
   String date=java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(saved.observedAt));
   nativeScanReport.setText(tx("آخر نتيجة بحث مرصودة · ","Last observed scan result · ")+date+
-    tx("\\nتلفزيون: ","\\nTV: ")+saved.tv+tx(" · راديو: "," · Radio: ")+saved.radio+
-    tx("\\nمفتوحة: ","\\nFree: ")+saved.free+tx(" · مشفرة: "," · Encrypted: ")+saved.encrypted+
+    tx("\nتلفزيون: ","\nTV: ")+saved.tv+tx(" · راديو: "," · Radio: ")+saved.radio+
+    tx("\nمفتوحة: ","\nFree: ")+saved.free+tx(" · مشفرة: "," · Encrypted: ")+saved.encrypted+
     tx(" · HD: "," · HD: ")+saved.hd+
-    tx("\\nهذه إحصائيات واجهة المصنع فقط؛ القنوات ليست مستوردة داخل IRAQhub.",
-       "\\nOEM screen counters only; channels have not been imported into IRAQhub."));
+    tx("\nهذه إحصائيات واجهة المصنع فقط؛ القنوات ليست مستوردة داخل IRAQhub.",
+       "\nOEM screen counters only; channels have not been imported into IRAQhub."));
  }
  private void open(LinearLayout parent,String label,Class<?> type){
   action(parent,label,()->startActivity(new Intent(this,type)));
