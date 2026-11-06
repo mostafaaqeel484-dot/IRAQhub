@@ -43,13 +43,15 @@ final class Software422Profile {
   options.add("--avcodec-threads="+threads());
   // Values 0,1,2 are VLC's documented default/non-ref/B-frame discard levels.
   options.add("--avcodec-skiploopfilter="+(QUALITY.equals(mode)?0:SMOOTH.equals(mode)?2:1));
-  options.add("--avcodec-skip-frame="+(SMOOTH.equals(mode)?2:0));
-  options.add("--avcodec-skip-idct="+(SMOOTH.equals(mode)?2:0));
+  // Skipping reference-dependent/B frames produces jerky motion and A/V drift.
+  // Decode all frames; only deblocking is relaxed in Smooth.
+  options.add("--avcodec-skip-frame=0");
+  options.add("--avcodec-skip-idct=0");
   options.add("--drop-late-frames");
-  if(SMOOTH.equals(mode))options.add("--skip-frames");
+  // Do not use VLC --skip-frames: it causes choppy picture during sports feeds.
   // Bound live latency without forcing LibVLC's file demuxer on an MPEG-TS HTTP stream.
-  options.add("--network-caching="+(QUALITY.equals(mode)?1700:SMOOTH.equals(mode)?950:1250));
-  options.add("--live-caching="+(QUALITY.equals(mode)?1600:SMOOTH.equals(mode)?850:1200));
+  options.add("--network-caching="+(QUALITY.equals(mode)?1700:SMOOTH.equals(mode)?1350:1250));
+  options.add("--live-caching="+(QUALITY.equals(mode)?1600:SMOOTH.equals(mode)?1150:1200));
   return options;
  }
  static String status(Context context){
