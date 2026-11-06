@@ -81,7 +81,7 @@ final class LocalInfoBarController implements AutoCloseable {
   String id=ReceiverInfoRepository.channelKey(state);
   String logos=id+"|"+prefs.getLong("logo_mapping_changed_at",0)+"|"+
     prefs.getLong("native_logos_changed_at",0)+"|"+
-    prefs.getLong("providers_changed_at",0);
+    prefs.getLong("providers_changed_at",0)+"|"+prefs.getLong("osd_changed_at",0);
   if(!logos.equals(logoKey)){
    logoKey=logos;
    channelLogo=null;providerLogo=null;
