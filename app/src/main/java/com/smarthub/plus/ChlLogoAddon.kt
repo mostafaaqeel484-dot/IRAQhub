@@ -15,8 +15,36 @@ class ChlLogoAddon private constructor(private val context:Context){
  @Volatile private var selectionSeed=""
  private val prefs=context.getSharedPreferences("smarthub",0)
  @Synchronized fun load(){if(loaded)return;selectionSeed=LogoSelection.seed(context);index=try{val f=File(context.filesDir,"chl-logo-index.bin");if(f.isFile&&f.length()<=8*1024*1024)f.inputStream().use{ChlChannelIndex.read(it)}else null}catch(_:Exception){null};loaded=true}
- @Synchronized fun importFile(reader:Reader):ChlChannelIndex {val raw=ReceiverCatalog.readText(reader);val parsed=ChlChannelIndex.parse(java.io.StringReader(raw));val catalog=ReceiverCatalog.get(context);try{catalog.importText(raw)}catch(_:Exception){catalog.replaceCompact(parsed)};val atomic=AtomicFile(File(context.filesDir,"chl-logo-index.bin"));val out=atomic.startWrite();try{parsed.write(out);atomic.finishWrite(out)}catch(e:Exception){atomic.failWrite(out);throw e};File(context.filesDir,"chl-logo-index.json").delete();selectionSeed=LogoSelection.seed(context);val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();index=parsed;loaded=true;changed();return parsed}
- @Synchronized fun clear(){ReceiverCatalog.get(context).clear();AtomicFile(File(context.filesDir,"chl-logo-index.bin")).delete();AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete();index=null;loaded=true;val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();prefs.edit().putBoolean("chl_chmax_enabled",false).apply();changed()}
+ @Synchronized fun importFile(reader:Reader):ChlChannelIndex {val raw=ReceiverCatalog.readText(reader);val parsed=ChlChannelIndex.parse(java.io.StringReader(raw));val catalog=ReceiverCatalog.get(context);try{catalog.importText(raw)}catch(_:Exception){catalog.replaceCompact(parsed)};prefs.edit().putString("receiver_catalog_format","CHL").apply();val atomic=AtomicFile(File(context.filesDir,"chl-logo-index.bin"));val out=atomic.startWrite();try{parsed.write(out);atomic.finishWrite(out)}catch(e:Exception){atomic.failWrite(out);throw e};File(context.filesDir,"chl-logo-index.json").delete();selectionSeed=LogoSelection.seed(context);val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();index=parsed;loaded=true;changed();return parsed}
+ /** After importing a native DB, rebuild the logo source once from indexed SQLite.
+  * Keeps physical CHMAX lookups without reparsing CHL at every process start.
+  */
+ @Synchronized fun databaseImported(){
+  val parsed=try{ChlChannelIndex.fromReceiverDatabase(context)}catch(_:Exception){null}
+  val file=AtomicFile(File(context.filesDir,"chl-logo-index.bin"))
+  var saved=false
+  if(parsed!=null){
+   var out:java.io.FileOutputStream?=null
+   try{
+    out=file.startWrite()
+    parsed.write(out)
+    file.finishWrite(out)
+    saved=true
+   }catch(_:Exception){
+    if(out!=null)file.failWrite(out)
+   }
+  }
+  if(!saved)file.delete()
+  AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete()
+  index=if(saved)parsed else null
+  loaded=true
+  selectionSeed=LogoSelection.seed(context)
+  val edit=prefs.edit()
+  prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)}
+  edit.apply()
+  changed()
+ }
+ @Synchronized fun clear(){ReceiverCatalog.get(context).clear();AtomicFile(File(context.filesDir,"chl-logo-index.bin")).delete();AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete();index=null;loaded=true;val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();prefs.edit().putBoolean("chl_chmax_enabled",false).remove("receiver_catalog_format").remove("receiver_catalog_count").apply();changed()}
  fun snapshot():ChlChannelIndex?{load();return index}
  fun provider(name:String)=index?.provider(name)?:prefs.getString("chl_provider:"+ChlChannelIndex.normalize(name),"")?:""
  fun rememberProvider(name:String){val value=index?.provider(name)?:return;val key="chl_provider:"+ChlChannelIndex.normalize(name);if(prefs.getString(key,"")!=value)prefs.edit().putString(key,value).apply()}

@@ -57,6 +57,31 @@ class ChlChannelIndex private constructor(val services:List<Service>,val satelli
     require(depth==0);consume(JSONObject(b.toString()));first=false
    }
   }
+  /** Rebuild the compact CHMAX/logo physical index from app-owned SQLite rows.
+   * This is a one-time scan during DB import, not a CHL text parse on startup.
+   */
+  @JvmStatic fun fromReceiverDatabase(context:android.content.Context):ChlChannelIndex{
+   val db=ReceiverCatalog.get(context).readableDatabase
+   val data=ArrayList<Service>()
+   db.rawQuery(
+     "SELECT c.name,c.provider,s.angle,s.band,t.freq,t.pol,t.sr,c.sid "+
+     "FROM ch c JOIN tp t ON c.tp_id=t._id JOIN sat s ON t.sat_id=s._id "+
+     "ORDER BY c.order_index,c._id LIMIT 50001",null
+   ).use{cursor->
+    while(cursor.moveToNext()){
+     require(data.size<50000){"CHANNEL_INDEX_TOO_LARGE"}
+     val item=Service(cursor.getString(0),cursor.getString(1),cursor.getInt(2),
+       cursor.getString(3),cursor.getInt(4),cursor.getString(5),
+       cursor.getInt(6),cursor.getInt(7))
+     require(item.name.isNotBlank()&&item.name.length<=200&&item.provider.length<=200)
+     data.add(item)
+    }
+   }
+   require(data.isNotEmpty())
+   val sats=android.database.DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat",null).toInt()
+   val tps=android.database.DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM tp",null).toInt()
+   return ChlChannelIndex(data,sats,tps)
+  }
   @JvmStatic fun fromSaved(text:String):ChlChannelIndex{require(text.length<=16*1024*1024);val root=JSONObject(text);require(root.getInt("version")==1);val rows=root.getJSONArray("services");require(rows.length() in 1..50000);val out=ArrayList<Service>();for(i in 0 until rows.length()){val j=rows.getJSONObject(i);val name=label(j,"name");val band=label(j,"band");val pol=label(j,"polarity");require(name.isNotBlank()&&band in setOf("KU","C")&&pol in setOf("H","V","L","R"));out.add(Service(name,label(j,"provider"),number(j,"sat",0,3599),band,number(j,"frequency",100,100000),pol,number(j,"symbolRate",1,100000),number(j,"sid",0,65535)))};return ChlChannelIndex(out,root.getInt("satellites"),root.getInt("transponders"))}
  }
 }
