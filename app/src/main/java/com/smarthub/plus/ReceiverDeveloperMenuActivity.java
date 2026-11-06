@@ -42,10 +42,7 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
   updateReport();
  }
  private void open(Class<?> cls){startActivity(new Intent(this,cls));}
- private void openNative(){
-  try{startActivity(new Intent("com.tosmart.action.NavHost").setPackage("com.tosmart.aurum"));}
-  catch(RuntimeException rejected){toast(tx("الروم لم يسمح بفتح القائمة؛ استخدم ريموت الرسيفر.","OEM menu entry was denied; use the receiver remote."));}
- }
+ private void openNative(){NativeSearchNavigation.open(this);}
  @Override protected void onResume(){super.onResume();updateReport();}
  private void updateReport(){
   if(report==null)return;
