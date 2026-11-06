@@ -252,44 +252,68 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
   OutputStream stream=client.getOutputStream();
   stream.write(headers.getBytes(StandardCharsets.US_ASCII));stream.flush();
  }
- private void stream(OutputStream out)throws IOException {
-  int fileIndex=0;long offset=0,lastData=SystemClock.elapsedRealtime();
-  byte[] buffer=new byte[TS*128];
-  TsSplice.Continuity continuity=new TsSplice.Continuity();
-  while(!closed){
-   File source;
-   synchronized(lock){
-    if(fileIndex>=files.size())source=null;
-    else source=files.get(fileIndex);
-   }
-   if(source==null){if(SystemClock.elapsedRealtime()-lastData>14000)break;sleep(90);continue;}
-   try(RandomAccessFile data=new RandomAccessFile(source,"r")){
-    long length=data.length();
-    long available=length-offset;
-    int count=(int)(Math.min(buffer.length,Math.max(0,available))/TS)*TS;
-    if(count>0){
-     data.seek(offset);
-     data.readFully(buffer,0,count);
-     int got=count;
-     if(got>0){
-      continuity.rewrite(buffer,got);
-      out.write(Integer.toHexString(got).getBytes(StandardCharsets.US_ASCII));
-      out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
-      out.write(buffer,0,got);
-      out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
-      out.flush();
-      offset+=got;lastData=SystemClock.elapsedRealtime();continue;
+ private void stream(OutputStream destination,Socket client)throws IOException {
+  int fileIndex;
+  synchronized(lock){fileIndex=Math.max(0,files.size()-2);}
+  cursors.put(client,fileIndex);
+  long offset=0,lastData=SystemClock.elapsedRealtime();
+  final byte[] buffer=new byte[TS*256];
+  final TsSplice.Continuity continuity=new TsSplice.Continuity();
+  final OutputStream out=new BufferedOutputStream(destination,TS*512);
+  RandomAccessFile input=null;
+  File opened=null;
+  try{
+   while(!closed&&!client.isClosed()&&!Thread.currentThread().isInterrupted()){
+    File source;
+    boolean next;
+    synchronized(lock){
+     source=fileIndex<files.size()?files.get(fileIndex):null;
+     next=fileIndex+1<files.size();
+    }
+    if(source==null){
+     if(next){
+      if(input!=null){input.close();input=null;opened=null;}
+      fileIndex++;offset=0;cursors.put(client,fileIndex);continue;
+     }
+     if(SystemClock.elapsedRealtime()-lastData>14000)break;
+     sleep(65);continue;
+    }
+    if(!source.equals(opened)){
+     if(input!=null)input.close();
+     try{input=new RandomAccessFile(source,"r");opened=source;}
+     catch(FileNotFoundException missing){
+      input=null;opened=null;
+      if(next){fileIndex++;offset=0;cursors.put(client,fileIndex);continue;}
+      sleep(65);continue;
      }
     }
-    boolean newSegment;
-    synchronized(lock){newSegment=fileIndex+1<files.size();}
-    if(newSegment){fileIndex++;offset=0;continue;}
+    long available=input.length()-offset;
+    int amount=(int)(Math.min(buffer.length,Math.max(0,available))/TS)*TS;
+    if(amount>0){
+     input.seek(offset);
+     input.readFully(buffer,0,amount);
+     continuity.rewrite(buffer,amount);
+     out.write(Integer.toHexString(amount).getBytes(StandardCharsets.US_ASCII));
+     out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
+     out.write(buffer,0,amount);
+     out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
+     out.flush();
+     offset+=amount;lastData=SystemClock.elapsedRealtime();
+     continue;
+    }
+    if(next){
+     if(input!=null){input.close();input=null;opened=null;}
+     fileIndex++;offset=0;cursors.put(client,fileIndex);
+     continue;
+    }
     if(SystemClock.elapsedRealtime()-lastData>14000)break;
-   }catch(FileNotFoundException absent){if(SystemClock.elapsedRealtime()-lastData>14000)break;}
-   sleep(90);
-  }
-  try{out.write("0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));out.flush();}
-  catch(IOException ignored){}
+    sleep(65);
+   }
+   out.write("0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+   out.flush();
+  }catch(IOException disconnected){
+   if(!client.isClosed()&&!closed)throw disconnected;
+  }finally{if(input!=null)try{input.close();}catch(IOException ignored){}}
  }
  private static void sleep(long ms){try{Thread.sleep(ms);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}}
 
