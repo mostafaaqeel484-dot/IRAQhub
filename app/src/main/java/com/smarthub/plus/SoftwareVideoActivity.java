@@ -70,6 +70,11 @@ public final class SoftwareVideoActivity extends HubActivity {
             options.add("--avcodec-hw=none");
             options.add("--aout=audiotrack");
             options.add("--no-video-title-show");
+            // Same software-avcodec path identified in the compiled 3.7.0 APK.
+            options.add("--no-avcodec-hurry-up");
+            options.add("--codec=avcodec");
+            int decodingThreads=Math.max(1,Math.min(4,Runtime.getRuntime().availableProcessors()-1));
+            options.add("--avcodec-threads="+decodingThreads);
             options.add("--no-drop-late-frames");
             options.add("--no-skip-frames");
             options.add("--deinterlace=0");
@@ -90,7 +95,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                         status.setText(tx("تخزين مؤقت…", "Buffering…"));
                         break;
                     case MediaPlayer.Event.Playing:
-                        status.setText(tx("تشغيل برمجي عبر LibVLC", "Software playback · LibVLC"));
+                        status.setText(tx("بدأ تشغيل LibVLC البرمجي؛ تحقق من ظهور صورة 4:2:2 فعلياً", "LibVLC software playback started; verify decoded 4:2:2 video frames"));
                         break;
                     case MediaPlayer.Event.EncounteredError:
                         status.setText(tx("فشل فك الترميز أو قراءة البث", "Decoder or stream error"));
@@ -106,6 +111,8 @@ public final class SoftwareVideoActivity extends HubActivity {
             Media media = new Media(libVLC, Uri.parse(source));
             media.setHWDecoderEnabled(false, false);
             media.addOption(":avcodec-hw=none");
+            media.addOption(":codec=avcodec");
+            media.addOption(":avcodec-corrupted=1");
             media.addOption(":file-caching=1000");
             media.addOption(":network-caching=1000");
             mediaPlayer.setMedia(media);
