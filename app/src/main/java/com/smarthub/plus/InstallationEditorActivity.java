@@ -16,6 +16,7 @@ public final class InstallationEditorActivity extends HubActivity {
  private TextView status;
  private List<ReceiverCatalog.Sat> items=Collections.emptyList();
  private boolean closed;
+ private int tpPage;
 
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
@@ -35,7 +36,7 @@ public final class InstallationEditorActivity extends HubActivity {
    ()->withSatellite(s->startActivity(new Intent(this,MotorCenterActivity.class).putExtra("satellite",s.id))));
   satellites.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
    @Override public void onNothingSelected(AdapterView<?> a){}
-   @Override public void onItemSelected(AdapterView<?> a,View view,int index,long id){loadTransponders(index);}
+   @Override public void onItemSelected(AdapterView<?> a,View view,int index,long id){tpPage=0;loadTransponders(index);}
   });
 
   LinearLayout tps=card(page);
@@ -137,7 +138,11 @@ public final class InstallationEditorActivity extends HubActivity {
     if(closed||selection()!=sat.id)return;
     transponders.removeAllViews();
     transponders.addView(text(tx("الترددات: ","Transponders: ")+found.size(),15,false));
-    for(ReceiverCatalog.Tp tp:found){
+    int from=tpPage*40,to=Math.min(found.size(),from+40);
+    if(from>=found.size()){tpPage=0;from=0;to=Math.min(found.size(),40);}
+    transponders.addView(text(tx("صفحة ","Page ")+(tpPage+1)+" · "+from+"–"+to+"/"+found.size(),13,false));
+    for(int j=from;j<to;j++){
+     ReceiverCatalog.Tp tp=found.get(j);
      action(transponders,tp.label(),()->ReceiverPanelStyle.choose(this,tp.label(),new String[]{
        tx("ضبط التردد وقياس الإشارة","Tune and measure signal"),
        tx("حذف التردد إن لم ترتبط به قنوات","Delete TP if no channels use it")
@@ -152,6 +157,8 @@ public final class InstallationEditorActivity extends HubActivity {
        })).setNegativeButton(tx("إلغاء","Cancel"),null).show();
       }));
     }
+    if(tpPage>0)action(transponders,tx("الصفحة السابقة","Previous TPs"),()->{tpPage--;loadTransponders(index);});
+    if(to<found.size())action(transponders,tx("الصفحة التالية","Next TPs"),()->{tpPage++;loadTransponders(index);});
    });
   });
  }
