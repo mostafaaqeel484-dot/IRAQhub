@@ -1,21 +1,34 @@
 package com.smarthub.plus;
-import android.app.AlertDialog;import android.content.*;import android.os.Bundle;import android.provider.Settings;import android.widget.*;
 
-/** IRAQhub settings; firmware controls remain separate from app appearance. */
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.LinearLayout;
+
+/** Remote-first settings hub; advanced options remain one click away. */
 public final class HubSettingsActivity extends HubActivity {
- @Override public void onCreate(Bundle saved){super.onCreate(saved);LinearLayout body=page(tx("إعدادات IRAQhub","IRAQhub settings"));LinearLayout appearance=card(body);appearance.addView(text(tx("المظهر والتنقل","Appearance and navigation"),22,true));
- action(appearance,tx("ألوان الواجهة","Interface colours"),()->new AlertDialog.Builder(this).setTitle(tx("اختر المظهر","Choose a theme")).setSingleChoiceItems(new String[]{tx("بنفسجي ليلي","Midnight violet"),tx("زمردي","Emerald"),tx("أزرق محيطي","Ocean blue")},prefs().getInt("launcher_theme",0),(d,i)->{prefs().edit().putInt("launcher_theme",i).apply();d.dismiss();recreate();}).show());
- action(appearance,tx("حجم خط القوائم","Menu text size"),()->{int[] sizes={85,100,110,125};String[] labels={"85%","100%","110%","125%"};int current=1;for(int n=0;n<sizes.length;n++)if(sizes[n]==prefs().getInt("ui_font_percent",100))current=n;new AlertDialog.Builder(this).setTitle(tx("حجم الخط","Text size")).setSingleChoiceItems(labels,current,(d,i)->{prefs().edit().putInt("ui_font_percent",sizes[i]).apply();d.dismiss();recreate();}).show();});
- action(appearance,ar?"English":"العربية",()->{prefs().edit().putBoolean("arabic",!ar).apply();recreate();});
- action(appearance,tx("اختيار IRAQhub كشاشة HOME","Choose IRAQhub as HOME"),()->{try{startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));}catch(Exception unavailable){toast(tx("اختيار HOME غير منشور في هذا الجهاز","HOME chooser unavailable on this device"));}});
- LinearLayout viewing=card(body);viewing.addView(text(tx("المشاهدة والمعلومات","Viewing and information"),22,true));open(viewing,tx("شريط المعلومات","Information bar"),OsdSettingsActivity.class);open(viewing,tx("القنوات والشعارات","Channels and logos"),LogoSourcesActivity.class);open(viewing,tx("الترجمة ومزامنتها","Subtitles and synchronization"),SatelliteActivity.class);open(viewing,tx("DVB / TXT والترجمة الفورية","DVB / TXT live translation"),LiveTranslationActivity.class);open(viewing,tx("مصادر الصور والترجمة","Artwork and subtitle providers"),ProviderSetupActivity.class);
- open(viewing,tx("الإشارة والجودة المباشرة","Live signal information"),SignalInformationActivity.class);open(viewing,tx("ضبط الموالف وLNB","Tuner and LNB profiles"),TunerSettingsActivity.class);open(viewing,tx("مركز الموتور وUSALS المدمج","Built-in motor and USALS centre"),MotorCenterActivity.class);open(viewing,tx("مركز تشغيل 4:2:2 عبر LibVLC","LibVLC 4:2:2 centre"),Software422CenterActivity.class);open(viewing,tx("تسجيل PVR داخل IRAQhub","IRAQhub PVR recording"),PvrRecordingActivity.class);open(viewing,tx("صوت الإنترنت للقناة","Channel Internet Audio"),IPAudioActivity.class);LinearLayout epg=card(body);epg.addView(text(tx("مزامنة EPG والبوسترات","EPG and poster synchronization"),22,true));
- android.content.SharedPreferences sync=getSharedPreferences("smarthub",0);
- long lastSync=sync.getLong("online_epg_sync_at",0);
- String lastText=lastSync>0?new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm",java.util.Locale.ROOT).format(new java.util.Date(lastSync)):tx("لم يحدث بعد","Not yet");
- epg.addView(text(tx("آخر تحديث EPG: ","Last EPG sync: ")+lastText+"\n"+tx("مصادر EPG الناجحة: ","Successful EPG feeds: ")+sync.getInt("online_epg_sync_success_count",0)+" / 3\n"+tx("حالة BetterPosters: ","BetterPosters status: ")+getSharedPreferences("poster_sources",0).getString("betterposters_manifest_status",tx("لم يفحص","Not checked")),14,false));
- action(epg,tx("تحديث الآن","Sync now"),()->{IraqHubSyncScheduler.runNow(this);toast(tx("تمت إضافة مهمة المزامنة إلى الخلفية","Sync queued in background"));});
- LinearLayout system=card(body);system.addView(text(tx("الاتصال والجهاز","Connection and device"),22,true));action(system,tx("خدمة ربط القنوات وMENU","Channel bridge and MENU"),()->{try{AccessibilitySetup.open(this);}catch(Exception unavailable){toast(tx("إعداد الخدمة غير متاح","Service settings unavailable"));}});open(system,tx("تقرير التوافق ومصادر البيانات","Compatibility and data sources"),CompatibilityActivity.class);open(system,tx("البث والبحث","Broadcast and scanning"),ReceiverToolsActivity.class);action(system,tx("الشبكة","Network"),()->{try{startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));}catch(Exception unavailable){toast(tx("إعدادات الشبكة غير متاحة","Network settings unavailable"));}});
+ @Override public void onCreate(Bundle state){
+  super.onCreate(state);
+  LinearLayout page=page(tx("إعدادات IRAQhub","IRAQhub settings"),
+    tx("أهم إعدادات التلفاز والقنوات بصورة مختصرة، وكل الإعدادات القديمة محفوظة تحت متقدم.",
+      "Simple TV-focused settings; all previous options remain under Advanced."));
+  LinearLayout satellite=card(page);
+  satellite.addView(text(tx("الطبق والقنوات","Dish and channels"),22,true));
+  open(satellite,tx("تركيب الأقمار والترددات والبحث","Satellite setup and scanning"),ReceiverToolsActivity.class);
+  open(satellite,tx("ضبط LNB — Universal 9750/10600","LNB — universal 9750/10600"),TunerSettingsActivity.class);
+  open(satellite,tx("ترتيب وإدارة القنوات","Sort and manage channels"),ChannelManageActivity.class);
+  LinearLayout viewing=card(page);
+  viewing.addView(text(tx("المشاهدة والصور","Viewing and artwork"),22,true));
+  open(viewing,tx("الشعارات — جلب شعارات القنوات","Channel logos"),LogoSourcesActivity.class);
+  open(viewing,tx("الـInfobar","Information bar"),OsdSettingsActivity.class);
+  open(viewing,tx("دليل البرامج ومصادر EPG","EPG and feed sources"),SatelliteGuideActivity.class);
+  open(viewing,tx("البوسترات ومصادر الصور","Posters and artwork providers"),ProviderSetupActivity.class);
+  LinearLayout help=card(page);
+  help.addView(text(tx("المساعدة والأدوات","Help and tools"),22,true));
+  open(help,tx("لوحة المساعدة واختصارات الريموت","Remote control help"),RemoteHelpActivity.class);
+  open(help,tx("الإعدادات المتقدمة — كل الخيارات السابقة","Advanced — all previous settings"),AdvancedSettingsActivity.class);
+  open(help,tx("فحص الإشارة والتوافق","Signal and compatibility"),CompatibilityActivity.class);
  }
- private void open(LinearLayout box,String label,Class<?> type){action(box,label,()->startActivity(new Intent(this,type)));}
+ private void open(LinearLayout parent,String label,Class<?> target){
+  action(parent,label,()->startActivity(new Intent(this,target)));
+ }
 }
