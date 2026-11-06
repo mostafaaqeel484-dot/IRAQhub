@@ -272,8 +272,9 @@ public final class SoftwareVideoActivity extends HubActivity {
         for(int n=0;n<modes.length;n++)if(modes[n].equals(Software422Profile.current(this)))current=n;
         long bitrate=prefs().getLong("software_ts_bitrate",0);
         String capture=prefs().getString("software_422_runtime","NOT_STARTED");
-        String telemetry="\nTS: "+(bitrate>0?(bitrate/1000000.0)+" Mbit/s":"—")+
-           " · "+capture;
+        String telemetry="\nTS: "+(bitrate>0?String.format(java.util.Locale.ROOT,"%.2f",bitrate/1000000.0)+" Mbit/s":"—")+
+           " · "+capture+"\nOEM audio: "+prefs().getString("software_422_native_audio","NOT_CHECKED")+
+           "\nOEM audio commands are sent without firmware acknowledgement.";
         final String diagnostics=Software422Profile.status(this)+telemetry;
         new AlertDialog.Builder(this).setTitle(tx("أداء 4:2:2","4:2:2 performance"))
           .setSingleChoiceItems(labels,current,(dialog,which)->{
