@@ -33,7 +33,7 @@ public final class ReceiverToolsActivity extends HubActivity {
 
   LinearLayout scan=card(body);
   scan.addView(text(tx("البحث وقياس الترددات","Scanning and tuning"),22,true));
-  open(scan,tx("بحث التردد اليدوي · فحص Lock","Manual transponder lock"),
+  open(scan,tx("البحث اليدوي المستقل · ضبط وحفظ التردد وقراءة SID","Manual satellite search · tune, save TP and read SID"),
     ManualTransponderActivity.class);
   open(scan,tx("فحص سريع للترددات المحفوظة · نتائج فعلية","Saved TP sweep · measured results"),
     TransponderSweepActivity.class);
