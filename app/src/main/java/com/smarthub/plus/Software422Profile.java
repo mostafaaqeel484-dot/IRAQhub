@@ -32,8 +32,10 @@ final class Software422Profile {
   // Leave some CPU time for live TS capture, audio, remote and the UI.
   return Math.min(4,Math.max(1,cores>2?cores-1:cores));
  }
- static ArrayList<String> options(Context context){
-  String mode=current(context);
+ static ArrayList<String> options(Context context){return buildOptions(current(context));}
+ static ArrayList<String> buildOptions(String mode){
+  if(!BALANCED.equals(mode)&&!SMOOTH.equals(mode)&&!QUALITY.equals(mode))
+   throw new IllegalArgumentException("INVALID_422_PROFILE");
   ArrayList<String> options=new ArrayList<>();
   options.add("--avcodec-hw=none");
   options.add("--codec=avcodec");
