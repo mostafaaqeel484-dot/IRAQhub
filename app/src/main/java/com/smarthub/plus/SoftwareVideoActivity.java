@@ -27,6 +27,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     private TextView status;
     private boolean released;
     private LiveTsRelay satelliteRelay;
+    private LocalInfoBarController localInfo;
     private final java.util.concurrent.ExecutorService relayThread=java.util.concurrent.Executors.newSingleThreadExecutor();
 
     @Override public void onCreate(Bundle state) {
@@ -57,6 +58,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                 new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
         root.addView(tracks, trackParams);
         setContentView(root);
+        localInfo=new LocalInfoBarController(this,root);
 
         long dvbChannel=getIntent().getLongExtra("dvb_channel",-1L);
         if(dvbChannel>=0){startSatellite(dvbChannel);return;}
@@ -99,6 +101,7 @@ public final class SoftwareVideoActivity extends HubActivity {
               status.setText(tx("التقاط بث DVB نشط؛ جارٍ فك الفيديو عبر LibVLC…",
                  "DVB MPEG-TS capture active; decoding via LibVLC…"));
               open(uri);
+              if(localInfo!=null)localInfo.show();
             }
             @Override public void error(String cause){
               if(!released)status.setText(tx("تعذر التقاط MPEG-TS: ","MPEG-TS capture failed: ")+cause);
@@ -143,6 +146,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                         status.setText(tx("تخزين مؤقت…", "Buffering…"));
                         break;
                     case MediaPlayer.Event.Playing:
+                        if(localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1L)>=0)localInfo.show();
                         status.setText(tx("بدأ تشغيل LibVLC البرمجي؛ تحقق من ظهور صورة 4:2:2 فعلياً", "LibVLC software playback started; verify decoded 4:2:2 video frames"));
                         break;
                     case MediaPlayer.Event.EncounteredError:
@@ -253,7 +257,18 @@ public final class SoftwareVideoActivity extends HubActivity {
                 .show();
     }
 
+    @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        int k=event.getKeyCode();
+        if(k==android.view.KeyEvent.KEYCODE_INFO||k==android.view.KeyEvent.KEYCODE_PROG_BLUE||k==1202){
+            if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0
+              &&localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1)>=0)localInfo.show();
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     @Override protected void onPause() {
+        if(localInfo!=null)localInfo.dismiss();
         if (mediaPlayer != null && mediaPlayer.isPlaying()) mediaPlayer.pause();
         super.onPause();
     }
@@ -265,6 +280,7 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override protected void onDestroy() {
         released = true;
+        if(localInfo!=null)localInfo.close();
         prefs().edit().putBoolean("software_dvb_422_active",false).putBoolean("dvb_tuning",false).apply();
         LiveTsRelay capture=satelliteRelay;
         if(capture!=null)new Thread(capture::close,"iraqhub-capture-stop").start();
