@@ -90,11 +90,16 @@ public final class SoftwareVideoActivity extends HubActivity {
           db.ensure();
           ReceiverCatalog.Channel channel=db.channel(channelId);
           if(channel==null)throw new java.io.IOException("CHANNEL_NOT_FOUND");
-          if(channel.ca!=0||channel.tv!=0)throw new java.io.IOException("SOFTWARE_FTA_ONLY");
+          if(channel.ca<0||channel.tv!=0)throw new java.io.IOException("SOFTWARE_TV_METADATA_REQUIRED");
+          if(channel.ca!=0)runOnUiThread(()->getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE));
           ReceiverSignalReading tuner=DvbTuner.ensure(this,channel);
           prefs().edit().putBoolean("dvb_tuning",false).apply();
           org.json.JSONObject request=DvbPlayRequest.create(channel.data,(int)channel.id,channel.sid,
               channel.angle,channel.frequency,channel.pol,channel.symbolRate,tuner.tp,0,false);
+          if(channel.ca!=0&&channel.data.optJSONArray("CaSystemIdList")!=null&&
+             channel.data.optJSONArray("CaSystemIdList").length()>0)
+            FirmwareCaRequest.apply(request,channel.ca,channel.data.optJSONArray("CaSystemIdList"),
+              db.transportServices(channel));
           request.put("tp_id",tuner.tp);
           if(released)return;
           LiveTsRelay relay=new LiveTsRelay(this,channel,request,new LiveTsRelay.Listener(){
@@ -105,7 +110,9 @@ public final class SoftwareVideoActivity extends HubActivity {
                 .putString("decoder_channel","DVB:"+channel.physical())
                 .remove("decoder_bitrate").remove("decoder_width").remove("decoder_height")
                 .putString("own_ca_channel","DVB:"+channel.physical())
-                .putInt("own_ca_flag",0).putString("own_ca_systems","").apply();
+                .putInt("own_ca_flag",channel.ca)
+                .putString("own_ca_systems",ReceiverTechnicalBadges.caIds(channel.data.optJSONArray("CaSystemIdList")))
+                .apply();
               SatelliteState previous=SatelliteState.read(SoftwareVideoActivity.this);
               SatelliteState next=previous.copy();
               if(!previous.channelId.equals("DVB:"+channel.physical())){
@@ -117,7 +124,7 @@ public final class SoftwareVideoActivity extends HubActivity {
               next.source="DVB · IRAQhub · LibVLC";
               next.observedAt=System.currentTimeMillis();
               next.save(SoftwareVideoActivity.this);
-              status.setText(tx("التقاط بث DVB نشط؛ جارٍ فك الفيديو عبر LibVLC…",
+              status.setText(tx(channel.ca==0?"التقاط بث DVB نشط؛ جارٍ فك الفيديو عبر LibVLC…":"تم التحقق من بث TS غير مشفر بعد معالجة الرسيفر؛ جارٍ تشغيل LibVLC…",
                  "DVB MPEG-TS capture active; decoding via LibVLC…"));
               open(uri);
               if(localInfo!=null)localInfo.show();
