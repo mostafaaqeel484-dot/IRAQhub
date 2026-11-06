@@ -30,6 +30,7 @@ public final class OemDvbIntegrationActivity extends HubActivity {
         note(info, tx("كل زر يتحقق أولاً من وجود الواجهة وصلاحية فتحها. نجاح فتح القائمة ليس دليلاً على عمل العتاد؛ اختبر على الرسيفر. لا ننسخ هوية النظام أو نعدل قواعد قنوات المصنع.",
                 "Each route is checked before opening. Menu availability does not prove tuner support; test on the receiver. System identity and OEM channel database are not modified."));
 
+        action(card(body),tx("فهرس كامل لكل وظائف Aurum الأصلية","Full original Aurum receiver feature index"),()->startActivity(new android.content.Intent(this,OemFullSettingsActivity.class)));
         group(body, tx("مشغل IRAQhub وقنواته", "IRAQhub playback and channels"),
                 OemDvbFeatureGateway.Feature.LOCAL_TV,
                 OemDvbFeatureGateway.Feature.LOCAL_CHANNELS,
