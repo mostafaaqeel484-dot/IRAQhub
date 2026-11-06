@@ -27,6 +27,29 @@ final class FactoryProvider implements AutoCloseable {
     .putLong("native_logos_changed_at",System.currentTimeMillis())
     .putString("factory_logo_status","FACTORY_LOGO_URL_READY").apply();
  }
- static Bitmap logo(Context c,String name,String id){try{SatelliteState s=new SatelliteState();s.channelName=name;s.channelId=id;String key=SportsCache.key(CHMAXIntegration.identity(s));SharedPreferences p=c.getSharedPreferences("smarthub",0);if(System.currentTimeMillis()-p.getLong("factory_logo_time:"+key,0)>86400000)return null;String url=p.getString("factory_logo:"+key,"");if(!url.startsWith("https://"))return null;byte[] bytes=ArtworkCache.fetch(c,new URL(url),4*1024*1024);BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);if(o.outWidth<1||o.outHeight<1||o.outWidth>10000||o.outHeight>10000)return null;o.inSampleSize=1;while(o.outWidth/o.inSampleSize>1024||o.outHeight/o.inSampleSize>1024)o.inSampleSize*=2;o.inJustDecodeBounds=false;return BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);}catch(Exception e){return null;}}
+ static Bitmap logo(Context c,String name,String id){return logo(c,name,id,false);}
+ /** UI-safe cached-only path; opening the channel list never blocks on CHMAX network IO. */
+ static Bitmap cachedLogo(Context c,String name,String id){return logo(c,name,id,true);}
+ private static Bitmap logo(Context c,String name,String id,boolean cachedOnly){
+  try{
+   SatelliteState s=new SatelliteState();s.channelName=name;s.channelId=id;
+   String key=SportsCache.key(CHMAXIntegration.identity(s));
+   SharedPreferences p=c.getSharedPreferences("smarthub",0);
+   if(System.currentTimeMillis()-p.getLong("factory_logo_time:"+key,0)>86400000)return null;
+   String url=p.getString("factory_logo:"+key,"");
+   if(!url.startsWith("https://"))return null;
+   URL link=new URL(url);
+   byte[] bytes=cachedOnly?ArtworkCache.cached(c,link,4*1024*1024):
+     ArtworkCache.fetch(c,link,4*1024*1024);
+   if(bytes==null)return null;
+   BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;
+   BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);
+   if(o.outWidth<1||o.outHeight<1||o.outWidth>10000||o.outHeight>10000)return null;
+   o.inSampleSize=1;
+   while(o.outWidth/o.inSampleSize>1024||o.outHeight/o.inSampleSize>1024)o.inSampleSize*=2;
+   o.inJustDecodeBounds=false;
+   return BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);
+  }catch(Exception e){return null;}
+ }
  public void close(){closed=true;io.shutdownNow();}
 }
