@@ -66,17 +66,7 @@ final class DirectTransponderScanner implements AutoCloseable {
   status.report("REQUESTING_NATIVE_FULL_TRANSPONDER_TS");
   // No invented PIDs or programme names. 0x1FFF means "not a selected stream".
   // The OEM must explicitly support whole-TP recording for this to work.
-  JSONObject request=new JSONObject()
-    .put("iProgId",captureId).put("iServiceId",0).put("iTunerIndex",0)
-    .put("tp_id",lock.tp).put("sat_degree",sat.angle)
-    .put("tp_freq",freq).put("tp_pol","H".equals(pol)?0:1)
-    .put("tp_symbolrate",sr).put("tp_type",0)
-    .put("iVideoPid",8191).put("iPcrPid",8191).put("pmt_pid",8191)
-    .put("iAudioNum",0).put("stAudioInfo",new JSONArray())
-    .put("uiSIDCount",0).put("pucSids","").put("pucPmtPids","")
-    .put("path_dir",folder.getAbsolutePath())
-    .put("path",capture.getAbsolutePath())
-    .put("bTimeShift",false).put("FsType",0).put("tp_record",1);
+  JSONObject request=wholeTransponderRequest(sat,freq,pol,sr,lock.tp,captureId,folder,capture);
   attempted=true;
   if(!NativeCapture.record(captureId,request))
    throw new IOException("FIRMWARE_FULL_TS_CAPTURE_REJECTED");
@@ -122,6 +112,24 @@ final class DirectTransponderScanner implements AutoCloseable {
   if(!capture.isFile()||capture.length()<188*400)
    throw new IOException("FIRMWARE_CAPTURE_NO_TS_DATA");
   throw new IOException(lastError);
+ }
+
+ static JSONObject wholeTransponderRequest(ReceiverCatalog.Sat sat,int freq,String pol,int sr,
+     int tp,int id,File root,File output)throws Exception {
+  if(sat==null||tp<0||!NativeCapture.validCaptureId(id)||root==null||output==null||
+     (!"H".equals(pol)&&!"V".equals(pol)))throw new IOException("INVALID_MANUAL_CAPTURE");
+  // No fabricated PIDs or programme names: firmware must accept tp_record=1.
+  return new JSONObject()
+    .put("iProgId",id).put("iServiceId",0).put("iTunerIndex",0)
+    .put("tp_id",tp).put("sat_degree",sat.angle)
+    .put("tp_freq",freq).put("tp_pol","H".equals(pol)?0:1)
+    .put("tp_symbolrate",sr).put("tp_type",0)
+    .put("iVideoPid",8191).put("iPcrPid",8191).put("pmt_pid",8191)
+    .put("iAudioNum",0).put("stAudioInfo",new JSONArray())
+    .put("uiSIDCount",0).put("pucSids","").put("pucPmtPids","")
+    .put("path_dir",root.getAbsolutePath())
+    .put("path",output.getAbsolutePath())
+    .put("bTimeShift",false).put("FsType",0).put("tp_record",1);
  }
 
  @Override public void close(){
