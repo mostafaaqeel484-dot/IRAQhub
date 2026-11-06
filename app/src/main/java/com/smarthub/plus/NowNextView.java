@@ -17,9 +17,9 @@ final class NowNextView extends FrameLayout {
  private final ProgressBar progress,strengthBar,qualityBar;
  private final android.content.SharedPreferences prefs;
  private final int ink=0xfff3f8ff,muted=0xffa6bfd0;
- private boolean compact;private float textScale=1;private int accent=0xffdc49ec;private MatchTickerView ticker;
+ private boolean compact,oemLayout;private float textScale=1;private int accent=0xffdc49ec;private MatchTickerView ticker;
  NowNextView(Context context){
-  super(context);prefs=context.getSharedPreferences("smarthub",0);accent=0xffe84c58;try{accent=Color.parseColor(prefs.getString("osd_accent","#E84C58"));}catch(Exception ignored){}setLayoutDirection(View.LAYOUT_DIRECTION_LTR);int barH=OsdGeometry.bar(context),tickerH=prefs.getBoolean("sports_ticker",false)?dp(68):0;compact=barH<dp(126);textScale=Math.max(.90f,Math.min(1.12f,barH/(150f*getResources().getDisplayMetrics().density)));
+  super(context);prefs=context.getSharedPreferences("smarthub",0);accent=0xffe84c58;try{accent=Color.parseColor(prefs.getString("osd_accent","#E84C58"));}catch(Exception ignored){}setLayoutDirection(View.LAYOUT_DIRECTION_LTR);int barH=OsdGeometry.bar(context),tickerH=prefs.getBoolean("sports_ticker",false)?dp(68):0;oemLayout=prefs.getBoolean("osd_oem_preset",false);compact=oemLayout||barH<dp(126);textScale=Math.max(.90f,Math.min(1.12f,barH/(150f*getResources().getDisplayMetrics().density)));
   LinearLayout left=column(),right=column();currentTitle=label(tx("الآن","NOW"),11,true);nextTitle=label(tx("التالي","NEXT"),11,true);currentTitle.setTextColor(0xfff7d97a);nextTitle.setTextColor(0xfff7d97a);left.addView(currentTitle);right.addView(nextTitle);currentPoster=poster();nextPoster=poster();left.addView(currentPoster,new LinearLayout.LayoutParams(dp(96),dp(142)));right.addView(nextPoster,new LinearLayout.LayoutParams(dp(96),dp(142)));LayoutParams lp=new LayoutParams(dp(96),-2,Gravity.LEFT|Gravity.BOTTOM);lp.setMargins(dp(22),0,0,barH+tickerH+dp(12));addView(left,lp);LayoutParams rp=new LayoutParams(dp(96),-2,Gravity.RIGHT|Gravity.BOTTOM);rp.setMargins(0,0,dp(22),barH+tickerH+dp(12));addView(right,rp);
   LinearLayout bar=column();bar.setPadding(dp(22),dp(compact?5:10),dp(22),dp(6));int alpha=Math.max(30,Math.min(95,prefs.getInt("osd_opacity",88)))*255/100;GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x18000000,(alpha<<24),0xf2000000});bar.setBackground(bg);LayoutParams bp=new LayoutParams(-1,barH,Gravity.BOTTOM);addView(bar,bp);
   LinearLayout head=new LinearLayout(context);head.setGravity(Gravity.CENTER_VERTICAL);heading=label("IRAQhub",compact?16:20,true);heading.setTextColor(0xff7be963);head.addView(heading,new LinearLayout.LayoutParams(0,-2,1));broadcast=label("",10,true);broadcast.setGravity(Gravity.CENTER);LinearLayout.LayoutParams badge=new LinearLayout.LayoutParams(dp(60),dp(compact?17:21));badge.rightMargin=dp(18);head.addView(broadcast,badge);clock=label("",compact?13:16,true);clock.setGravity(Gravity.RIGHT);clock.setSingleLine(false);clock.setMaxLines(2);head.addView(clock);bar.addView(head);
@@ -51,12 +51,21 @@ final class NowNextView extends FrameLayout {
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   encryptionLine.setText(info.encryption.isEmpty()?tx("التشفير: —","Encryption: —"):info.encryption);encryptionLine.setContentDescription("encryption-status");
   ArrayList<String> details=new ArrayList<>();if(!info.broadcast.isEmpty())details.add(info.broadcast);
-  if(s.source.startsWith("IPTV")){String audio=prefs.getString("osd_audio","");if(!audio.isEmpty())details.add(audio);}
+  if(s.source.startsWith("IPTV")){
+    String audio=prefs.getString("osd_audio","");
+    if(!audio.isEmpty())details.add(audio);
+    if(prefs.getBoolean("decoder_input_profile422",false))
+      details.add("AVC High 4:2:2 · "+tx("ملف فيديو فقط","video profile only"));
+    else if(prefs.getBoolean("decoder_422_possible",false))
+      details.add("HEVC RExt · "+tx("صيغة اللون غير مؤكدة","chroma unknown"));
+  }else if(s.channelId.startsWith("DVB:")&&prefs.getBoolean("dvb_422_compat_active",false)){
+    details.add(tx("محاولة تشغيل 4:2:2 · غير مؤكدة","4:2:2 compatibility attempt · unverified"));
+  }
   if(s.channelId.equals(prefs.getString("subtitle_channel_id",""))&&s.startMs==prefs.getLong("subtitle_event_start_ms",0)&&prefs.getBoolean("overlay_caption",false))details.add("SUB · "+prefs.getString("subtitle_provider","")+String.format(Locale.ROOT," %+.3f s",prefs.getLong("subtitle_offset",0)/1000.0));
   SportsMatch related=MatchRepository.get(getContext()).forProgramme(s);if(related!=null)details.add(related.league+" · "+related.home+" "+related.score()+" "+related.away+" · "+related.state());
   technical.setText(String.join("   ·   ",details));technical.setVisibility(details.isEmpty()?GONE:VISIBLE);
   if(ticker!=null){ArrayList<SportsMatch> selected=new ArrayList<>();for(SportsMatch m:MatchRepository.get(getContext()).snapshot()){LeagueRepository.League l=LeagueRepository.byId(m.leagueId);if(l!=null&&MatchRepository.get(getContext()).selected(l)&&m.kickoff>System.currentTimeMillis()-86400000L&&m.kickoff<System.currentTimeMillis()+2*86400000L)selected.add(m);}ticker.bind(selected);}
-  boolean show=prefs.getBoolean("osd_posters",true);currentTitle.setVisibility(s.title.isEmpty()?INVISIBLE:VISIBLE);nextTitle.setVisibility(s.nextTitle.isEmpty()?INVISIBLE:VISIBLE);currentPoster.setVisibility(s.title.isEmpty()||current==null||!show?INVISIBLE:VISIBLE);nextPoster.setVisibility(s.nextTitle.isEmpty()||next==null||!show?INVISIBLE:VISIBLE);setStatus(message);
+  boolean show=prefs.getBoolean("osd_posters",true)&&!oemLayout;currentTitle.setVisibility(oemLayout?GONE:s.title.isEmpty()?INVISIBLE:VISIBLE);nextTitle.setVisibility(oemLayout?GONE:s.nextTitle.isEmpty()?INVISIBLE:VISIBLE);currentPoster.setVisibility(s.title.isEmpty()||current==null||!show?INVISIBLE:VISIBLE);nextPoster.setVisibility(s.nextTitle.isEmpty()||next==null||!show?INVISIBLE:VISIBLE);setStatus(message);
  }
  void metadata(MediaRepository.Item item){if(item!=null&&!item.id.startsWith("epg:")){String detail=item.release+(item.ratings.isEmpty()?"":" · ★ "+item.ratings);if(!detail.isEmpty()){remaining.setText(remaining.getText()+" · "+detail);remaining.setVisibility(VISIBLE);}if(prefs.getBoolean("osd_description",true)&&!item.summary.isEmpty())setStatus(item.summary);}}
  void provider(Bitmap image){providerLogo.setImageBitmap(image);providerLogo.setVisibility(image==null?GONE:VISIBLE);providerName.setVisibility(image==null?VISIBLE:GONE);}

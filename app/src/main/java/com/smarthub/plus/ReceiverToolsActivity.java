@@ -1,18 +1,56 @@
 package com.smarthub.plus;
 
-import android.content.*;
+import android.app.AlertDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.widget.*;
+import android.widget.LinearLayout;
 
-/** Opens the real vendor controls; tuning/database edits remain owned by their UI. */
+/**
+ * IRAQhub-owned receiver tools only. No manufacturer home/menu launches.
+ * OEM-only capabilities are listed as pending SDK integration.
+ */
 public final class ReceiverToolsActivity extends HubActivity {
-    @Override public void onCreate(Bundle s){super.onCreate(s);LinearLayout body=page(tx("الرسيفر والبحث","Receiver and scanning"));LinearLayout directory=card(body);directory.addView(text(tx("البث في IRAQhub","IRAQhub broadcast"),22,true));action(directory,tx("الأقمار والترددات","Satellites and transponders"),()->startActivity(new Intent(this,SatelliteBrowserActivity.class)));action(directory,tx("قنواتي والمفضلة","My channels and favourites"),()->startActivity(new Intent(this,ReceiverChannelsActivity.class)));action(directory,tx("المشغل الفضائي المستقل","Independent satellite player"),()->startActivity(new Intent(this,DvbPlaybackActivity.class)));note(directory,tx("التشغيل المستقل للقنوات المجانية يعتمد على إعداد LNB المحفوظ لكل قمر. لا يرسل أوامر حركة للموتور. البحث والقنوات المشفرة تبقى ضمن أدوات المصنع.","Independent free-channel playback uses a saved LNB profile per satellite. No motor movement commands are sent. Scanning and encrypted channels remain in manufacturer tools."));action(directory,tx("ضبط الموالف وLNB","Tuner and LNB profiles"),()->startActivity(new Intent(this,TunerSettingsActivity.class)));ManufacturerFeatures.Entry motor=ManufacturerFeatures.find(this,"motor");if(motor!=null&&ManufacturerFeatures.unavailable(this,motor).isEmpty())action(directory,tx("الموتور · DiSEqC / USALS الأصلي","Motor · firmware DiSEqC / USALS"),()->ChannelControls.motor(this));action(directory,tx("معلومات الإشارة المباشرة","Live signal information"),()->startActivity(new Intent(this,SignalInformationActivity.class)));action(directory,tx("صوت الإنترنت للقناة","Channel Internet Audio"),()->startActivity(new Intent(this,IPAudioActivity.class)));LinearLayout nativeBox=card(body);
-        action(nativeBox,tx("Server Settings · CA · Patch ووظائف المصنع","Server Settings · CA · Patch and manufacturer tools"),()->startActivity(new Intent(this,ManufacturerToolsActivity.class)));nativeBox.addView(text(tx("أدوات النظام الخارجية · اختيارية","External system tools · optional"),22,true));
-        note(nativeBox,tx("تفتح هذه الأزرار أدوات المصنع الفعلية. اختر منها إدارة القنوات أو الأقمار وLNB والترددات والبحث. البحث الأعمى يتاح فقط إن كانت واجهة المصنع تدعمه.","These buttons open the actual manufacturer controls. Select channel management, satellites, LNB, transponders or scanning there. Blind scan is available only when supported by that interface."));
-        nativeAction(nativeBox,tx("إدارة القنوات · الأقمار · LNB · البحث","Channels · satellites · LNB · scanning"),ReceiverNavigation.menu());
-        nativeAction(nativeBox,tx("EPG Pro الأصلي","Native EPG Pro"),ReceiverNavigation.guide());nativeAction(nativeBox,tx("واجهة الرسيفر الأصلية","Original receiver home"),ReceiverNavigation.originalHome());
-        LinearLayout hub=card(body);action(hub,tx("قائمة القنوات والبحث المحلي","Channel library and local search"),()->startActivity(new Intent(this,ReceiverChannelsActivity.class)));action(hub,tx("تقرير توافق الجهاز ومصادر البيانات","Device compatibility and data sources"),()->startActivity(new Intent(this,CompatibilityActivity.class)));action(hub,tx("استيراد CHL ومصادر الشعارات","Import CHL and logo sources"),()->startActivity(new Intent(this,LogoSourcesActivity.class)));action(hub,tx("مساعد القنوات والترجمة","Companion and subtitles"),()->startActivity(new Intent(this,SatelliteActivity.class)));action(hub,tx("إعدادات Android","Android settings"),()->{try{startActivity(new Intent(Settings.ACTION_SETTINGS));}catch(Exception e){toast(tx("الإعدادات غير متاحة","Settings unavailable"));}});
-    }
-    private void nativeAction(LinearLayout box,String label,Intent intent){Button b=action(box,label,()->{if(!ReceiverNavigation.open(this,intent))toast(tx("واجهة المصنع غير متاحة أو لا تسمح بالدخول","Manufacturer interface unavailable or access denied"));});boolean available=ReceiverNavigation.available(this,intent);if(!available){b.setText(label+tx(" · غير متاح"," · unavailable"));b.setEnabled(false);}}
+ @Override public void onCreate(Bundle state){
+  super.onCreate(state);
+  LinearLayout body=page(tx("الرسيفر والبحث داخل IRAQhub","Receiver and scanning inside IRAQhub"),
+    tx("كل زر في هذه الشاشة يبقى داخل IRAQhub؛ لا يفتح Aurum.",
+       "No button on this page opens the original Aurum launcher."));
+  LinearLayout owned=card(body);
+  owned.addView(text(tx("وظائف IRAQhub المتاحة","Available IRAQhub functions"),20,true));
+  action(owned,tx("قائمة القنوات والمفضلة","Local channel catalogue and favourites"),
+      ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)));
+  action(owned,tx("الأقمار والترددات المستوردة","Imported satellite and transponder list"),
+      ()->startActivity(new Intent(this,SatelliteBrowserActivity.class)));
+  action(owned,tx("الضبط المحلي LNB / DiSEqC","App-owned LNB / DiSEqC profiles"),
+      ()->startActivity(new Intent(this,TunerSettingsActivity.class)));
+  action(owned,tx("مشغل القنوات الفضائية","IRAQhub DVB player"),
+      ()->startActivity(new Intent(this,DvbPlaybackActivity.class)));
+  action(owned,tx("معلومات الإشارة المباشرة","Live tuner signal"),
+      ()->startActivity(new Intent(this,SignalInformationActivity.class)));
+  action(owned,tx("الصوت عبر الإنترنت","Channel internet audio"),
+      ()->startActivity(new Intent(this,IPAudioActivity.class)));
+  action(owned,tx("CHMAX: EPG والشعارات وحالة الاتصال","CHMAX: EPG and logo connection"),
+      ()->startActivity(new Intent(this,ChmaxControlCenterActivity.class)));
+  action(owned,tx("اختبار أزرار الريموت","Remote key diagnostics"),
+      ()->startActivity(new Intent(this,RemoteKeyDiagnosticsActivity.class)));
+
+  LinearLayout missing=card(body);
+  missing.addView(text(tx("وظائف تحتاج خدمة المصنع ولم تُنقل بعد","OEM functions not yet natively ported"),20,true));
+  note(missing,tx("Fast/Manual/Blind/Network Scan، USALS/Motor، Unicable، TP/PID، تحرير قنوات المصنع وBISS وPVR/TimeShift وTKGS وDVB-T/C: كل واحدة تحتاج بروتوكولاً موثقاً وصلاحيات ملائمة. ماكو زر ينقلك إلى Aurum حتى يخفي هذا النقص.",
+    "Native scan, motor, Unicable, OEM channel edits, BISS, PVR/TimeShift, TKGS and DVB-T/C still need authorised firmware APIs. None of these buttons redirects to Aurum."));
+  action(missing,tx("اعرض حالة كل وظيفة وسبب عدم اكتمالها","View per-feature implementation status"),
+    ()->startActivity(new Intent(this,OemFullSettingsActivity.class)));
+
+  LinearLayout extra=card(body);
+  action(extra,tx("معلومات توافق الجهاز","Device compatibility report"),
+    ()->startActivity(new Intent(this,CompatibilityActivity.class)));
+  action(extra,tx("مصادر الشعارات وملفات CHL","CHL imports and logos"),
+    ()->startActivity(new Intent(this,LogoSourcesActivity.class)));
+  action(extra,tx("مساعد القنوات والترجمة","Channel companion and subtitles"),
+    ()->startActivity(new Intent(this,SatelliteActivity.class)));
+  action(extra,tx("إعدادات Android","Android settings"),
+    ()->{try{startActivity(new Intent(Settings.ACTION_SETTINGS));}
+      catch(RuntimeException ignored){toast(tx("الإعدادات غير متاحة","Settings unavailable"));}});
+ }
 }

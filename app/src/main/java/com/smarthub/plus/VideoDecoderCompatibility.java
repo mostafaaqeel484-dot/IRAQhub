@@ -31,11 +31,11 @@ final class VideoDecoderCompatibility {
     for(String mime:codec.getSupportedTypes()){
      if(!mime.startsWith("video/"))continue;
      if(result.videoDecoders.size()<32)result.videoDecoders.add(codec.getName()+" · "+mime+(hardware?" · HW":" · SW/unknown"));
-     if(!mime.equalsIgnoreCase("video/hevc")&&!mime.equalsIgnoreCase("video/avc"))continue;
+     if(!mime.equalsIgnoreCase("video/hevc")&&!mime.equalsIgnoreCase("video/avc")&&!mime.equalsIgnoreCase("video/mpeg2"))continue;
      MediaCodecInfo.CodecCapabilities caps;
      try{caps=codec.getCapabilitiesForType(mime);}catch(Exception ignored){continue;}
      for(MediaCodecInfo.CodecProfileLevel pl:caps.profileLevels){
-      String profile=profileName(pl.profile);
+      String profile=profileName(mime,pl.profile);
       if(profile.isEmpty())continue;
       String entry=codec.getName()+" · "+mime+" · "+profile;
       List<String> target=hardware?result.hardware422:result.software422;
@@ -57,28 +57,46 @@ final class VideoDecoderCompatibility {
   String name=codec.getName().toLowerCase(Locale.ROOT);
   return !(name.contains("google")||name.contains("android")||name.contains("software")||name.contains("ffmpeg")||name.contains("dav1d"));
  }
- private static String profileName(int value){
-  String[] names={"HEVCMain422_10","HEVCMain422_12","HEVCProfileMain422_10","HEVCProfileMain422_12","AVCProfileHigh422"};
+ private static String profileName(String mime,int value){
+  String[] names=mime.equalsIgnoreCase("video/mpeg2")?new String[]{"MPEG2Profile422"}:
+       mime.equalsIgnoreCase("video/avc")?new String[]{"AVCProfileHigh422"}:
+       new String[]{"HEVCMain422_10","HEVCMain422_12","HEVCProfileMain422_10","HEVCProfileMain422_12"};
   for(String name:names)try{
    Field field=MediaCodecInfo.CodecProfileLevel.class.getField(name);
    if(field.getInt(null)==value)return name;
   }catch(Exception ignored){}
   return "";
  }
- /** Codec-string profile hints. This identifies the stream profile, not decoder support. */
+ /**
+  * An AVC profile_idc of 122 identifies High 4:2:2. A HEVC general_profile_idc
+  * of 4/5 means Range Extensions / High Throughput; it DOES NOT identify the
+  * chroma format. Never report a 4:2:2 stream from HEVC codec strings alone.
+  */
  static boolean isKnown422CodecString(String codec){
   if(codec==null)return false;
   String value=codec.trim().toLowerCase(Locale.ROOT);
-  try{
-   if(value.startsWith("hvc1.")||value.startsWith("hev1.")){
-    String[] parts=value.split("\\.");
-    if(parts.length>1){int profile=Integer.parseInt(parts[1].replaceAll("[^0-9].*$",""));return profile==4||profile==5||profile==6||profile==7;}
-   }
-   if(value.startsWith("avc1.")||value.startsWith("avc3.")){
-    String p=value.substring(value.indexOf('.')+1);
-    if(p.length()>=2)return Integer.parseInt(p.substring(0,2),16)==122;
-   }
-  }catch(Exception ignored){}
+  for(String item:value.split(",")){
+   String part=item.trim();
+   if(!part.startsWith("avc1.")&&!part.startsWith("avc3."))continue;
+   String suffix=part.substring(part.indexOf('.')+1);
+   if(suffix.length()>=6&&suffix.substring(0,2).matches("[0-9a-f]{2}"))
+    try {if(Integer.parseInt(suffix.substring(0,2),16)==122)return true;}catch(NumberFormatException ignored){}
+  }
   return false;
  }
+ static boolean isPossible422CodecString(String codec){
+  if(isKnown422CodecString(codec))return true;
+  if(codec==null)return false;
+  for(String item:codec.toLowerCase(Locale.ROOT).split(",")){
+   String part=item.trim();
+   if(!part.startsWith("hvc1.")&&!part.startsWith("hev1."))continue;
+   String[] fields=part.split("\\.");
+   if(fields.length<2)continue;
+   // Both idc 4 (RExt) and 5 (High Throughput) can contain non-4:2:0 variants.
+   String token=fields[1].replaceFirst("^[a-c]", "");
+   if(token.equals("4")||token.equals("5"))return true;
+  }
+  return false;
+ }
+
 }
