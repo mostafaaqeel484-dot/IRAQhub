@@ -22,6 +22,11 @@ public final class ManualTransponderActivity extends HubActivity {
  private volatile int observedRuntimeTp=-1;
  private volatile long observedSatellite=-1;
  private volatile String observedFrequency="";
+ private volatile DirectTransponderScanner activeScan;
+ private volatile Future<?> directTask;
+ private volatile boolean directMayMoveMotor;
+ private volatile DvbPsiScan.Result directResults;
+ private volatile Selection resultSelection;
 
  @Override public void onCreate(Bundle saved){
   super.onCreate(saved);
@@ -46,7 +51,11 @@ public final class ManualTransponderActivity extends HubActivity {
   services=text("",14,false);panel.addView(services);
 
   action(panel,tx("فحص إشارة التردد · ضبط التونر","Check transponder signal · tune"),this::confirmTune);
-  action(panel,tx("فتح البحث اليدوي الكامل في Aurum الأصلي","Open native Aurum full manual channel search"),
+  action(panel,tx("بحث مباشر عن القنوات وإضافتها · PAT / PMT / SDT",
+      "Discover channels directly on this frequency · PAT / PMT / SDT"),this::confirmDirectScan);
+  action(panel,tx("اختيار القنوات المكتشفة وحفظها","Choose discovered channels to save"),this::chooseDirectServices);
+  action(panel,tx("إيقاف البحث المباشر","Stop direct scan"),this::cancelDirectScan);
+  action(panel,tx("بحث المصنع الأصلي (اختياري فقط)","Optional native Aurum search"),
     ()->NativeSearchNavigation.open(this));
   action(panel,tx("حفظ التردد في IRAQhub","Save this transponder"),this::saveTransponder);
   action(panel,tx("قراءة معرّفات الخدمات SID إن توفرت","Check observed service IDs (SID)"),this::readSids);
@@ -151,6 +160,148 @@ public final class ManualTransponderActivity extends HubActivity {
    }finally{busy.set(false);}
   });
  }
+ /**
+  * Real receiver-side scan. No OEM menu launches, synthetic services or private
+  * Aurum database access. Whole-TP TS recording is an optional firmware
+  * capability: unsupported firmware reports a clear error.
+  */
+ private void confirmDirectScan(){
+  Selection selected=selection();
+  if(selected==null||busy.get())return;
+  boolean motor=DvbTuner.usalsEnabled(this,selected.sat.angle,selected.sat.band);
+  new AlertDialog.Builder(this)
+   .setTitle(tx("بحث DVB يدوي مباشر","Direct DVB manual channel scan"))
+   .setMessage(selected.sat.label()+"\n"+selected.frequency+" "+selected.pol+
+    " / "+selected.rate+"\n"+
+    tx("سيُعاد ضبط التونر وقد يتوقف البث. يجب إغلاق المشغل والتسجيل أولاً. "+
+       "النتائج تأتي فقط من TS حقيقي بعد التحقق من PAT/PMT/SDT."+
+       (motor?"\nUSALS مفعّل وقد يتحرك الصحن.":""),
+       "The tuner will retune; stop video and PVR first. Services require "+
+       "real MPEG-TS PAT/PMT/SDT."+
+       (motor?"\nUSALS is enabled; the dish may move.":"")))
+   .setPositiveButton(tx("ابدأ البحث","Start scan"),(d,w)->directScan(selected))
+   .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+ }
+ private void directScan(Selection selected){
+  if(!busy.compareAndSet(false,true))return;
+  directResults=null;resultSelection=null;services.setText("");
+  result.setText(tx("ضبط التردد وقراءة القنوات من بث TS الحقيقي…",
+     "Tuning and extracting real DVB services…"));
+  DirectTransponderScanner scanner=new DirectTransponderScanner(this);
+  directMayMoveMotor=DvbTuner.usalsEnabled(this,selected.sat.angle,selected.sat.band);
+  activeScan=scanner;
+  directTask=io.submit(()->{
+   try(DirectTransponderScanner session=scanner){
+    DvbPsiScan.Result report=session.scan(selected.sat,selected.frequency,
+       selected.pol,selected.rate,status->{
+        prefs().edit().putString("manual_direct_scan_status",status).apply();
+        runOnUiThread(()->{
+         if(!closed&&activeScan==session)result.setText("DVB · "+status);
+        });
+       });
+    prefs().edit().putString("manual_direct_scan_status","SERVICES_VERIFIED")
+      .putInt("manual_direct_scan_count",report.services.length()).apply();
+    runOnUiThread(()->{
+     if(closed)return;
+     directResults=report;resultSelection=selected;
+     result.setText(tx("اكتملت قراءة TS · قنوات حقيقية: ",
+       "Verified live TS services: ")+report.services.length()+
+       " · TSID "+report.transportId+" · ONID "+report.networkId);
+     StringBuilder text=new StringBuilder();
+     for(int i=0;i<Math.min(80,report.services.length());i++){
+      JSONObject channel=report.services.optJSONObject(i);
+      if(channel!=null)text.append(channel.optInt("sid"))
+       .append(" · ").append(channel.optString("name"))
+       .append(channel.optInt("ca",0)==0?" · FTA":" · CA")
+       .append("\n");
+     }
+     services.setText(text.toString());
+    });
+   }catch(Exception problem){
+    String reason=problem.getMessage()==null?"MANUAL_PSI_SCAN_UNAVAILABLE":problem.getMessage();
+    prefs().edit().putString("manual_direct_scan_status",reason)
+      .putInt("manual_direct_scan_count",0).apply();
+    runOnUiThread(()->{
+     if(closed)return;
+     result.setText(tx("لم تكتمل قراءة القنوات: ","Live channel scan unavailable: ")+reason);
+     if("FIRMWARE_FULL_TS_CAPTURE_REJECTED".equals(reason)||
+        "FIRMWARE_CAPTURE_NO_TS_DATA".equals(reason))
+      services.setText(tx("الفيرموير لم يوفر تسجيل التردد الكامل. "+
+         "يمكن استعمال تسجيل TS من هذا التردد في أداة الاستيراد المنفصلة.",
+         "Firmware did not expose whole-transponder TS. You may use a "+
+         "real TS recording in the separate import tool."));
+    });
+   }finally{
+    activeScan=null;
+    directMayMoveMotor=false;
+    runOnUiThread(()->busy.set(false));
+   }
+  });
+ }
+ private void chooseDirectServices(){
+  DvbPsiScan.Result report=directResults;
+  Selection source=resultSelection,current=selection();
+  if(busy.get()||report==null||source==null||current==null||
+     current.sat.id!=source.sat.id||!current.key().equals(source.key())){
+   toast(tx("نفّذ البحث المباشر أولاً على نفس التردد",
+     "Run direct scan on this frequency first"));return;
+  }
+  int count=report.services.length();
+  if(count==0)return;
+  String[] names=new String[count];boolean[] picked=new boolean[count];
+  for(int i=0;i<count;i++){
+   JSONObject row=report.services.optJSONObject(i);
+   names[i]=row==null?"?":row.optInt("sid")+" · "+row.optString("name")+
+      (row.optInt("ca",0)==0?" · FTA":" · CA");
+   picked[i]=true;
+  }
+  new AlertDialog.Builder(this)
+   .setTitle(tx("اختَر القنوات المراد حفظها","Select channels to import"))
+   .setMultiChoiceItems(names,picked,(dialog,which,checked)->picked[which]=checked)
+   .setPositiveButton(tx("حفظ المحدد","Save selected"),(dialog,which)->{
+    JSONArray chosen=new JSONArray();
+    for(int i=0;i<count;i++)if(picked[i]){
+     JSONObject item=report.services.optJSONObject(i);
+     if(item!=null)chosen.put(item);
+    }
+    if(chosen.length()==0){
+     toast(tx("ما اخترت أي قناة","No channels selected"));return;
+    }
+    if(!busy.compareAndSet(false,true))return;
+    result.setText(tx("جاري حفظ القنوات…","Importing channels…"));
+    DvbPsiScan.Result selectedReport=new DvbPsiScan.Result(
+       report.packets,report.sections,report.transportId,report.networkId,
+       report.withoutNames,chosen);
+    io.execute(()->{
+     try{
+      ReceiverCatalog.PsiImportResult saved=ReceiverCatalog.get(this).savePsiServices(
+        source.sat.id,source.frequency,source.pol,source.rate,selectedReport);
+      runOnUiThread(()->{
+       if(closed)return;
+       result.setText(tx("تمت إضافة ","Added ")+saved.added+
+         tx(" قناة · موجودة: "," services · existing: ")+saved.duplicates+
+         tx(" · غير صالحة: "," · unsupported: ")+saved.invalid);
+       directResults=null;resultSelection=null;
+      });
+     }catch(Exception error){
+      String detail=error.getMessage()==null?"DVB_IMPORT_FAILED":error.getMessage();
+      runOnUiThread(()->{if(!closed)result.setText(detail);});
+     }finally{runOnUiThread(()->busy.set(false));}
+    });
+   })
+   .setNegativeButton(tx("رجوع","Back"),null).show();
+ }
+ private void cancelDirectScan(){
+  DirectTransponderScanner active=activeScan;
+  Future<?> job=directTask;
+  if(job==null||job.isDone())return;
+  boolean stopMotor=directMayMoveMotor;
+  job.cancel(true);
+  new Thread(()->{
+   if(active!=null)active.close();
+   if(stopMotor)DvbTuner.stopMotor();
+  },"manual-dvb-scan-stop").start();
+ }
  private void saveTransponder(){
   Selection current=selection();if(current==null||!busy.compareAndSet(false,true))return;
   result.setText(tx("حفظ التردد…","Saving transponder…"));
@@ -220,5 +371,7 @@ public final class ManualTransponderActivity extends HubActivity {
   section.addView(field,new LinearLayout.LayoutParams(-1,dp(48)));
   return field;
  }
- @Override protected void onDestroy(){closed=true;io.shutdownNow();super.onDestroy();}
+ @Override protected void onDestroy(){
+  closed=true;cancelDirectScan();io.shutdownNow();super.onDestroy();
+ }
 }
