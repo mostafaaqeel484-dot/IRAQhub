@@ -21,11 +21,20 @@ class LogoRepository private constructor(context:Context){
  interface Listener{fun channel(bitmap:Bitmap?);fun provider(name:String,bitmap:Bitmap?)}
  init{scope.launch{db.load()};scope.launch{addon.load()}}
  private fun network(name:String,known:ChannelAliasDatabase.Entry?)=providerResolver.resolve(known)?:db.providerByName(addon.provider(name))
+ private fun manual(name:String,physical:String?):Bitmap?{
+  if(physical.isNullOrBlank())return null
+  val state=SatelliteState()
+  state.channelId=physical
+  state.channelName=name
+  return if(app.getSharedPreferences("smarthub",0).getString(
+    "native_logo_source:"+CHMAXIntegration.identity(state),"")=="MANUAL_CHANNEL_IMAGE")
+     CHMAXIntegration.logo(app,state,false) else null
+ }
  private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)=if(physical?.startsWith("DVB:")==true)"channel:physical:$physical" else "channel:"+(e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name))
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
  fun requestCached(name:String,physical:String?,listener:Listener){
   val known=db.channel(name)
-  listener.channel(cache.read(channelKey(name,known,physical)))
+  listener.channel(manual(name,physical)?:cache.read(channelKey(name,known,physical)))
   val provider=network(name,known)
   val cached=provider?.let{cache.read("provider:"+db.key(it))}
   listener.provider(provider?.name?:"",cached)
@@ -38,12 +47,12 @@ class LogoRepository private constructor(context:Context){
  fun request(name:String,physical:String?,listener:Listener){
   val known=db.channel(name)
   val key=channelKey(name,known,physical)
-  val cached=cache.peek(key)
+  val cached=manual(name,physical)?:cache.peek(key)
   val network=network(name,known)
   val providerCached=network?.let{cache.peek("provider:"+db.key(it))}
   if(cached!=null)listener.channel(cached)
   if(network!=null&&providerCached!=null)listener.provider(network.name,providerCached)
-  if(cached!=null&&(network==null||providerCached!=null)){
+  if(cached!=null&&(manual(name,physical)!=null||network==null||providerCached!=null)){
    if(network==null)listener.provider("",null)
    return
   }
