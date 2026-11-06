@@ -60,11 +60,15 @@ public final class OemDvbIntegrationActivity extends HubActivity {
                 OemDvbFeatureGateway.Feature.OEM_SERVER,
                 OemDvbFeatureGateway.Feature.OEM_CA,
                 OemDvbFeatureGateway.Feature.OEM_PATCH,
+                OemDvbFeatureGateway.Feature.OEM_BISS_INPUT,
                 OemDvbFeatureGateway.Feature.OEM_HOMESHARE,
                 OemDvbFeatureGateway.Feature.OEM_USB_FILES,
                 OemDvbFeatureGateway.Feature.OEM_USB_MEDIA,
                 OemDvbFeatureGateway.Feature.OEM_ALL_APPS,
                 OemDvbFeatureGateway.Feature.OEM_WALLPAPER);
+
+        note(card(body), tx("مفتاح BISS يُكتب في محرر BisKeyEditPop داخل Aurum، بعد اختيار BISS من Patch Menu. IRAQhub ما يخزّن المفاتيح ولا يرسلها لخدمات غير موثقة.",
+                "Enter the BISS key in Aurum’s own BisKeyEditPop editor from Patch Menu. IRAQhub does not copy or persist keys."));
 
         group(body, tx("تحديث النظام واللانشر", "Updates and HOME"),
                 OemDvbFeatureGateway.Feature.OEM_NET_UPDATE,
