@@ -23,7 +23,7 @@ class ChlLogoAddon private constructor(private val context:Context){
  fun choice(name:String)=index?.choose(name,selectionSeed)
  fun resolve(name:String,loader:ChannelLogoResolver):Bitmap?{load();rememberProvider(name);for(service in index?.choices(name,selectionSeed)?.take(3)?:emptyList())resolve(service,loader)?.let{return it};return null}
  fun unique(name:String)=index?.unique(name)
- fun enabled()=prefs.getBoolean("chl_chmax_enabled",false)
+ fun enabled()=prefs.getBoolean("chl_chmax_enabled",prefs.getBoolean("factory_enabled",true)&&prefs.getBoolean("osd_chmax_logos",true))
  fun statusLabel():String=when(prefs.getString("chl_chmax_status","")){
   "CHMAX_LOGO_OK"->"تم جلب شعار مطابق من CHMAX"
   "CHMAX_LOGO_NOT_FOUND"->"لم ينشر CHMAX شعاراً مطابقاً لهذه القناة"
