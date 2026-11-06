@@ -106,7 +106,9 @@ public final class SoftwareVideoActivity extends HubActivity {
           if(channel.ca<0||channel.tv!=0)throw new java.io.IOException("SOFTWARE_TV_METADATA_REQUIRED");
           if(channel.ca!=0)runOnUiThread(()->getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE));
           ReceiverSignalReading tuner=DvbTuner.ensure(this,channel);
-          prefs().edit().putBoolean("dvb_tuning",false).apply();
+          prefs().edit().putBoolean("dvb_tuning",false)
+             .putBoolean("software_dvb_422_active",true)
+             .putString("software_422_runtime","CAPTURE_PREPARING").apply();
           org.json.JSONObject request=DvbPlayRequest.create(channel.data,(int)channel.id,channel.sid,
               channel.angle,channel.frequency,channel.pol,channel.symbolRate,tuner.tp,0,false);
           if(channel.ca!=0&&channel.data.optJSONArray("CaSystemIdList")!=null&&
@@ -137,19 +139,24 @@ public final class SoftwareVideoActivity extends HubActivity {
               next.source="DVB · IRAQhub · LibVLC";
               next.observedAt=System.currentTimeMillis();
               next.save(SoftwareVideoActivity.this);
+              prefs().edit().putString("software_422_runtime","TS_READY").apply();
               status.setText(tx(channel.ca==0?"التقاط بث DVB نشط؛ جارٍ فك الفيديو عبر LibVLC…":"تم التحقق من بث TS غير مشفر بعد معالجة الرسيفر؛ جارٍ تشغيل LibVLC…",
                  "DVB MPEG-TS capture active; decoding via LibVLC…"));
               open(uri);
               if(localInfo!=null)localInfo.show();
             }
             @Override public void error(String cause){
-              if(!released)status.setText(tx("تعذر التقاط MPEG-TS: ","MPEG-TS capture failed: ")+cause);
+              if(!released){prefs().edit().putBoolean("software_dvb_422_active",false)
+                  .putString("software_422_runtime","CAPTURE_ERROR:"+cause).apply();
+                  status.setText(tx("تعذر التقاط MPEG-TS: ","MPEG-TS capture failed: ")+cause);}
+
             }
           });
           satelliteRelay=relay;
           relay.start();
         }catch(Exception e){
-          prefs().edit().putBoolean("dvb_tuning",false).apply();
+          prefs().edit().putBoolean("dvb_tuning",false)
+            .putBoolean("software_dvb_422_active",false).apply();
           String reason=e.getMessage()==null?"DVB_CAPTURE_UNAVAILABLE":e.getMessage();
           runOnUiThread(()->{if(!released)status.setText(tx("فشل تشغيل 4:2:2: ","4:2:2 playback failed: ")+reason);});
         }
@@ -267,8 +274,12 @@ public final class SoftwareVideoActivity extends HubActivity {
         };
         int current=1;
         for(int n=0;n<modes.length;n++)if(modes[n].equals(Software422Profile.current(this)))current=n;
+        long bitrate=prefs().getLong("software_ts_bitrate",0);
+        String capture=prefs().getString("software_422_runtime","NOT_STARTED");
+        String telemetry="\nTS: "+(bitrate>0?(bitrate/1000000.0)+" Mbit/s":"—")+
+           " · "+capture;
         new AlertDialog.Builder(this).setTitle(tx("أداء 4:2:2","4:2:2 performance"))
-          .setMessage(Software422Profile.status(this))
+          .setMessage(Software422Profile.status(this)+telemetry)
           .setSingleChoiceItems(labels,current,(dialog,which)->{
             dialog.dismiss();
             String desired=modes[which];
@@ -403,7 +414,8 @@ public final class SoftwareVideoActivity extends HubActivity {
     @Override protected void onDestroy() {
         released = true;
         if(localInfo!=null)localInfo.close();
-        prefs().edit().putBoolean("software_dvb_422_active",false).putBoolean("dvb_tuning",false).apply();
+        prefs().edit().putBoolean("software_dvb_422_active",false)
+          .putBoolean("dvb_tuning",false).putString("software_422_runtime","STOPPED").apply();
         LiveTsRelay capture=satelliteRelay;
         if(capture!=null)new Thread(capture::close,"iraqhub-capture-stop").start();
         relayThread.shutdownNow();
