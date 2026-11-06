@@ -97,7 +97,7 @@ final class LocalInfoBarController implements AutoCloseable {
      }
      @Override public void provider(String name,Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
-       providerLogo=image;paint();
+       if(image!=null)providerLogo=image;paint();
       }});
      }
     };
