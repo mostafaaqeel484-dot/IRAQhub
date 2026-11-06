@@ -29,7 +29,7 @@ public class ReceiverLibraryActivity extends HubActivity {
  private void types(){ReceiverPanelStyle.choose(this,tx("نوع القنوات","Channel type"),new String[]{"TV",tx("راديو","Radio"),tx("غير منشور","Unknown")},type,index->{type=index;search(true);});}
  private void favorite(ReceiverCatalog.Channel ch){boolean on=!favorites.contains(ch.id);io.execute(()->{catalog.favorite(ch.id,on);main.post(()->search(false));});}
  private void play(ReceiverCatalog.Channel ch){
-  if(prefs().getBoolean("dvb_422_compat_all",false)&&ch.ca==0&&ch.tv==0)playSoftware(ch);
+  if(prefs().getBoolean("dvb_422_compat_all",false)&&ch.ca>=0&&ch.tv==0)playSoftware(ch);
   else playHardware(ch);
  }
  private void playHardware(ReceiverCatalog.Channel ch){
