@@ -11,7 +11,7 @@ import java.io.FileOutputStream;
 public final class LiveTsVideoClearTest {
  @Rule public TemporaryFolder tmp=new TemporaryFolder();
  private File capture(int encrypted,int clear)throws Exception{
-  File stream=tmp.newFile("observed.ts");
+  File stream=tmp.newFile();
   try(FileOutputStream out=new FileOutputStream(stream)){
    for(int i=0;i<encrypted+clear;i++){
     byte[] block=new byte[188];
