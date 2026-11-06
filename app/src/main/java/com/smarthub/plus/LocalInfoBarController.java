@@ -119,9 +119,10 @@ final class LocalInfoBarController implements AutoCloseable {
      published.refresh(snap,System.currentTimeMillis());
      Bitmap now=poster(snap,false);
      Bitmap next=poster(snap,true);
-     // Local EPG and cached verified posters are shown immediately.
+     // Snapshot before any online resolution; avoid stale or captured mutable values.
+     final Bitmap initialNow=now,initialNext=next;
      main.post(()->{if(!closed&&check.equals(imageKey)){
-      currentPoster=now;nextPoster=next;paint();
+      currentPoster=initialNow;nextPoster=initialNext;paint();
      }});
      // TMDB, BetterPosters and TVmaze can be resolved on-demand;
      // the four-hour worker alone cannot serve a newly tuned channel.
