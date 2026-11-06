@@ -53,7 +53,10 @@ final class EpgArtwork {
    byte[] bytes;
    if("https".equalsIgnoreCase(scheme)){
     bytes=ArtworkCache.fetch(c,source.toURL(),5*1024*1024);
-   }else if("content".equalsIgnoreCase(scheme)){
+   }else if("http".equalsIgnoreCase(scheme)){
+    HttpURLConnection connection=(HttpURLConnection)source.toURL().openConnection();
+    bytes=OnlineChannelLogo.read(connection,5*1024*1024);
+   }else if("content".equalsIgnoreCase(scheme)||"android.resource".equalsIgnoreCase(scheme)){
     try(InputStream in=c.getContentResolver().openInputStream(Uri.parse(address))){bytes=read(in);}
    }else continue;
    Bitmap picture=decode(bytes);
