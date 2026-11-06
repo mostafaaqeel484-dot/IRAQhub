@@ -2,6 +2,10 @@ package com.smarthub.plus;
 import android.accessibilityservice.AccessibilityService;import android.content.*;import android.content.pm.PackageManager;import android.graphics.*;import android.os.*;import android.view.accessibility.AccessibilityNodeInfo;import java.io.*;import java.util.*;
 /** Receiver/CHMAX boundary. No root, private database access, guessed IPC or signature-permission bypass. */
 final class CHMAXIntegration {
+ /** Verified Aurum R.id entries from the owner's original receiver APK.
+  * Do not use EPG grid icons: they may belong to another channel. */
+ static final List<String> CHANNEL_LOGO_IDS=Arrays.asList(
+   "detail_info_tv_program_logo","channel_icon","iv_channel_icon");
  static final Set<String> TEXT_IDS=new HashSet<>(Arrays.asList("detail_info_tv_channel_id","detail_info_tv_program_name","tv_provider","tv_service_provider","pt_menu_provider_name","tv_service_id","tv_network_id","tv_original_network_id","tv_transport_stream_id","tv_frequency","channel_info_frequency_tv"));
  private final AccessibilityService service;private boolean busy,display;private long retry;private String captured="";
  CHMAXIntegration(AccessibilityService s){service=s;}
@@ -26,7 +30,7 @@ final class CHMAXIntegration {
  void observe(AccessibilityNodeInfo root,SatelliteState current,Map<String,String> fields){
   if(current==null||!current.channelId.startsWith("Aurum:"))return;
   String detail=visibleChannelName(fields,current);
-  if(detail.isEmpty())return;SharedPreferences.Editor e=service.getSharedPreferences("smarthub",0).edit();String name=fields.getOrDefault("tv_service_provider",fields.getOrDefault("tv_provider",fields.getOrDefault("pt_menu_provider_name","")));if(!name.isEmpty()&&!name.equalsIgnoreCase("null"))e.putString("native_provider:"+identity(current),name);for(String key:Arrays.asList("tv_service_id","tv_network_id","tv_original_network_id","tv_transport_stream_id","channel_info_frequency_tv")){String value=fields.getOrDefault(key,"");if(!value.isEmpty())e.putString("native_"+key+":"+identity(current),value).putLong("native_"+key+"_seen:"+identity(current),System.currentTimeMillis());}e.apply();if(Build.VERSION.SDK_INT<34||busy||SystemClock.elapsedRealtime()<retry)return;Rect channel=rect(root,"detail_info_tv_program_logo"),provider=rect(root,"detail_info_tv_provider_logo");if(channel==null&&provider==null){
+  if(detail.isEmpty())return;SharedPreferences.Editor e=service.getSharedPreferences("smarthub",0).edit();String name=fields.getOrDefault("tv_service_provider",fields.getOrDefault("tv_provider",fields.getOrDefault("pt_menu_provider_name","")));if(!name.isEmpty()&&!name.equalsIgnoreCase("null"))e.putString("native_provider:"+identity(current),name);for(String key:Arrays.asList("tv_service_id","tv_network_id","tv_original_network_id","tv_transport_stream_id","channel_info_frequency_tv")){String value=fields.getOrDefault(key,"");if(!value.isEmpty())e.putString("native_"+key+":"+identity(current),value).putLong("native_"+key+"_seen:"+identity(current),System.currentTimeMillis());}e.apply();if(Build.VERSION.SDK_INT<34||busy||SystemClock.elapsedRealtime()<retry)return;Rect channel=channelRect(root),provider=rect(root,"detail_info_tv_provider_logo");if(channel==null&&provider==null){
   updateStatus("NO_VISIBLE_CHANNEL_LOGO_VIEW");return;
  }String key=identity(current)+"|"+channel+"|"+provider;if(key.equals(captured))return;Rect screen=new Rect();root.getBoundsInScreen(screen);int window=root.getWindowId();busy=true;retry=SystemClock.elapsedRealtime()+2500;AccessibilityService.TakeScreenshotCallback cb=new AccessibilityService.TakeScreenshotCallback(){public void onFailure(int error){busy=false;updateStatus("SCREENSHOT_DENIED_"+error);if(error==1)display=true;}public void onSuccess(AccessibilityService.ScreenshotResult shot){Bitmap b=null;AccessibilityNodeInfo active=TvWindowRoot.find(service);try{if(active==null||!SatelliteUiParser.DEFAULT_PACKAGE.contentEquals(active.getPackageName())||
   !identity(SatelliteState.read(service)).equals(identity(current))||
@@ -38,6 +42,13 @@ final class CHMAXIntegration {
    p.edit().putString("chmax_observe_status",status).apply();
  }
  private boolean save(Bitmap full,Rect rect,Rect screen,SatelliteState state,boolean provider)throws Exception{if(rect==null||screen.width()<=0||screen.height()<=0)return false;int x=Math.max(0,(rect.left-screen.left)*full.getWidth()/screen.width()),y=Math.max(0,(rect.top-screen.top)*full.getHeight()/screen.height()),w=Math.min(full.getWidth()-x,rect.width()*full.getWidth()/screen.width()),h=Math.min(full.getHeight()-y,rect.height()*full.getHeight()/screen.height());if(w<12||h<12)return false;Bitmap crop=Bitmap.createBitmap(full,x,y,w,h),copy=crop.copy(Bitmap.Config.ARGB_8888,false);if(crop!=full)crop.recycle();try{int low=255,high=0;for(int a=0;a<copy.getWidth();a+=4)for(int b=0;b<copy.getHeight();b+=4){int pixel=copy.getPixel(a,b),v=(Color.red(pixel)+Color.green(pixel)+Color.blue(pixel))/3;low=Math.min(low,v);high=Math.max(high,v);}if(high-low<45)return false;String key=SportsCache.key(identity(state))+(provider?"-provider":"-channel")+".png";try(FileOutputStream out=new FileOutputStream(new File(directory(service),key))){copy.compress(Bitmap.CompressFormat.PNG,100,out);}File[] files=directory(service).listFiles();if(files!=null&&files.length>128){Arrays.sort(files,Comparator.comparingLong(File::lastModified));for(int i=0;i<files.length-128;i++)files[i].delete();}return true;}finally{copy.recycle();}}
+ private Rect channelRect(AccessibilityNodeInfo root){
+  for(String id:CHANNEL_LOGO_IDS){
+   Rect found=rect(root,id);
+   if(found!=null)return found;
+  }
+  return null;
+ }
  private Rect rect(AccessibilityNodeInfo root,String id){List<AccessibilityNodeInfo> nodes=root.findAccessibilityNodeInfosByViewId(SatelliteUiParser.DEFAULT_PACKAGE+":id/"+id);Rect out=null;for(AccessibilityNodeInfo n:nodes)try{if(n.isVisibleToUser()){Rect r=new Rect();n.getBoundsInScreen(r);if(r.width()>12&&r.height()>12)out=r;}}finally{n.recycle();}return out;}
  private String text(AccessibilityNodeInfo root,String id){List<AccessibilityNodeInfo> nodes=root.findAccessibilityNodeInfosByViewId(SatelliteUiParser.DEFAULT_PACKAGE+":id/"+id);String out="";for(AccessibilityNodeInfo n:nodes)try{if(n.isVisibleToUser()&&n.getText()!=null)out=n.getText().toString();}finally{n.recycle();}return out;}
 }
