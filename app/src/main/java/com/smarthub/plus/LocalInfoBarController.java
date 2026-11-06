@@ -29,7 +29,7 @@ final class LocalInfoBarController implements AutoCloseable {
  private final PublishedEpgArtwork published;
  private String logoKey="",imageKey="";
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
- private long logoRetry;
+ private long logoRetry,posterRetryAt;
  private volatile boolean closed;
  private boolean visible;
  private int seq;
@@ -109,8 +109,10 @@ final class LocalInfoBarController implements AutoCloseable {
   String art=id+"|"+state.title+"|"+state.startMs+"|"+state.nextTitle+"|"+
     state.nextStartMs+"|"+state.image+"|"+state.nextImage+"|"+
     prefs.getLong("epg_art_changed_at",0);
-  if(!art.equals(imageKey)){
-   imageKey=art;
+  boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
+    (!state.nextTitle.isEmpty()&&nextPoster==null);
+  if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
+   imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
    currentPoster=null;nextPoster=null;
    final String check=art;
    final SatelliteState snap=state.copy();
