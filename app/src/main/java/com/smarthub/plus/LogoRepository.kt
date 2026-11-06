@@ -21,23 +21,39 @@ class LogoRepository private constructor(context:Context){
  interface Listener{fun channel(bitmap:Bitmap?);fun provider(name:String,bitmap:Bitmap?)}
  init{scope.launch{db.load()};scope.launch{addon.load()}}
  private fun network(name:String,known:ChannelAliasDatabase.Entry?)=providerResolver.resolve(known)?:db.providerByName(addon.provider(name))
- private fun manual(name:String,physical:String?):Bitmap?{
-  if(physical.isNullOrBlank())return null
+ /**
+  * Prefer a logo actually observed on the receiver's own infobar.
+  * Its private /data/ChannelImgs directory is not readable by a normal APK.
+  * A screenshot-derived logo is valid only for the same live channel ID/name;
+  * an explicitly chosen manual logo remains usable while off that channel.
+  */
+ private fun observed(name:String,physical:String?,provider:Boolean=false):Bitmap?{
+  if(physical.isNullOrBlank()||name.isBlank())return null
   val state=SatelliteState()
   state.channelId=physical
   state.channelName=name
-  return if(app.getSharedPreferences("smarthub",0).getString(
-    "native_logo_source:"+CHMAXIntegration.identity(state),"")=="MANUAL_CHANNEL_IMAGE")
-     CHMAXIntegration.logo(app,state,false) else null
+  val current=SatelliteState.read(app)
+  val exact=current.channelId==physical&&current.channelName.isNotBlank()&&
+    SatelliteUiParser.normalized(current.channelName)==SatelliteUiParser.normalized(name)
+  val manual=!provider&&app.getSharedPreferences("smarthub",0).getString(
+    "native_logo_source:"+CHMAXIntegration.identity(state),"")=="MANUAL_CHANNEL_IMAGE"
+  return if(exact||manual)CHMAXIntegration.logo(app,state,provider) else null
+ }
+ private fun observedProviderName(name:String,physical:String?,fallback:String):String{
+  if(physical.isNullOrBlank())return fallback
+  val state=SatelliteState()
+  state.channelId=physical
+  state.channelName=name
+  return CHMAXIntegration.provider(app,state).takeIf{it.isNotBlank()}?:fallback
  }
  private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)=if(physical?.startsWith("DVB:")==true)"channel:physical:$physical" else "channel:"+(e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name))
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
  fun requestCached(name:String,physical:String?,listener:Listener){
   val known=db.channel(name)
-  listener.channel(manual(name,physical)?:cache.read(channelKey(name,known,physical)))
+  listener.channel(observed(name,physical)?:cache.read(channelKey(name,known,physical)))
   val provider=network(name,known)
-  val cached=provider?.let{cache.read("provider:"+db.key(it))}
-  listener.provider(provider?.name?:"",cached)
+  val cached=observed(name,physical,true)?:provider?.let{cache.read("provider:"+db.key(it))}
+  listener.provider(observedProviderName(name,physical,provider?.name?:""),cached)
  }
  fun request(name:String,listener:Listener){request(name,null,listener)}
  /**
@@ -47,19 +63,21 @@ class LogoRepository private constructor(context:Context){
  fun request(name:String,physical:String?,listener:Listener){
   val known=db.channel(name)
   val key=channelKey(name,known,physical)
-  val cached=manual(name,physical)?:cache.peek(key)
+  val native=observed(name,physical)
+  val cached=native?:cache.peek(key)
   val network=network(name,known)
-  val providerCached=network?.let{cache.peek("provider:"+db.key(it))}
+  val nativeProvider=observed(name,physical,true)
+  val providerCached=nativeProvider?:network?.let{cache.peek("provider:"+db.key(it))}
   if(cached!=null)listener.channel(cached)
-  if(network!=null&&providerCached!=null)listener.provider(network.name,providerCached)
-  if(cached!=null&&(manual(name,physical)!=null||network==null||providerCached!=null)){
-   if(network==null)listener.provider("",null)
+  if(providerCached!=null)listener.provider(observedProviderName(name,physical,network?.name?:""),providerCached)
+  if(cached!=null&&(network==null||providerCached!=null)){
+   if(network==null&&providerCached==null)listener.provider("",null)
    return
   }
   scope.launch{
    db.load();addon.load()
    val entry=db.channel(name)
-   val image=async{get(channelKey(name,entry,physical)){
+   val image=async{native?:get(channelKey(name,entry,physical)){
     val ambiguous=(addon.snapshot()?.candidates(name)?.map{it.physicalKey}?.distinct()?.size?:0)>1
     val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled())
         addon.resolvePhysical(physical,channels) else null
@@ -82,8 +100,8 @@ class LogoRepository private constructor(context:Context){
      provider=network(name,entry)
     }
     val selected=provider
-    val bitmap=if(selected==null)null else get("provider:"+db.key(selected)){providers.resolve(selected.id)}
-    withContext(Dispatchers.Main){listener.provider(selected?.name?:"",bitmap)}
+    val bitmap=nativeProvider?:if(selected==null)null else get("provider:"+db.key(selected)){providers.resolve(selected.id)}
+    withContext(Dispatchers.Main){listener.provider(observedProviderName(name,physical,selected?.name?:""),bitmap)}
    }
   }
  }
