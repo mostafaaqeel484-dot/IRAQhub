@@ -23,7 +23,7 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
   ReceiverTileMenu.pair(this,body,
    new ReceiverTileMenu.Tile("03",tx("ربط CHMAX وEPG","Factory EPG & CHMAX"),
      tx("فحص اتصال الخدمات والصور","Read-only service and artwork status"),
-     ()->open(FactorySettingsActivity.class)),
+     ()->open(ArtworkDiagnosticsActivity.class)),
    new ReceiverTileMenu.Tile("04",tx("مراقبة الإشارة","Signal monitoring"),
      tx("القفل وBER وSNR","Tuner lock, BER and SNR"),
      ()->open(SignalInformationActivity.class)));
