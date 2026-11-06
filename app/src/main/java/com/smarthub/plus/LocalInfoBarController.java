@@ -117,12 +117,26 @@ final class LocalInfoBarController implements AutoCloseable {
    io.execute(()->{
     try{
      published.refresh(snap,System.currentTimeMillis());
-     Bitmap now=poster(snap,snap.title,snap.image);
-     Bitmap next=poster(snap,snap.nextTitle,snap.nextImage);
+     Bitmap now=poster(snap,false);
+     Bitmap next=poster(snap,true);
+     // Local EPG and cached verified posters are shown immediately.
      main.post(()->{if(!closed&&check.equals(imageKey)){
       currentPoster=now;nextPoster=next;paint();
      }});
-    }catch(Exception ignored){}
+     // TMDB, BetterPosters and TVmaze can be resolved on-demand;
+     // the four-hour worker alone cannot serve a newly tuned channel.
+     if(!prefs.getBoolean("software_dvb_422_active",false)&&
+        !prefs.getBoolean("dvb_tuning",false)){
+      if(now==null)now=onlinePoster(snap,false);
+      if(next==null)next=onlinePoster(snap,true);
+      final Bitmap current=now,upcoming=next;
+      main.post(()->{if(!closed&&check.equals(imageKey)){
+       currentPoster=current;nextPoster=upcoming;paint();
+      }});
+     }
+    }catch(Exception failure){
+     prefs.edit().putString("osd_poster_status","POSTER_TASK_"+failure.getClass().getSimpleName()).apply();
+    }
    });
   }
   if(System.currentTimeMillis()>=logoRetry&&!state.channelName.isEmpty()){
@@ -145,27 +159,34 @@ final class LocalInfoBarController implements AutoCloseable {
   paint();
  }
 
- private Bitmap poster(SatelliteState s,String title,String url){
+ private Bitmap poster(SatelliteState state,boolean upcoming){
+  String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().isEmpty())return null;
-  String href=url;
-  if(href==null||href.isEmpty())href=PublishedEpgArtwork.image(host,s,title);
-  if(href==null||href.isEmpty())href=UnifiedArtworkPrefetch.cachedUrl(host,s,title);
-  if(href==null||href.isEmpty())try{return EpgArtwork.load(host,s,title);}catch(Exception missing){return null;}
-  // Only verified programme-associated HTTPS artwork; never use name guesses.
-  if(href==null||!href.startsWith("https://")||href.length()>2048)return null;
   try{
-   URL verified=new URL(href);
-   byte[] bytes=prefs.getBoolean("software_dvb_422_active",false)?ArtworkCache.cached(host,verified,5*1024*1024):ArtworkCache.fetch(host,verified,5*1024*1024);
-   if(bytes==null)return null;
-   BitmapFactory.Options probe=new BitmapFactory.Options();
-   probe.inJustDecodeBounds=true;
-   BitmapFactory.decodeByteArray(bytes,0,bytes.length,probe);
-   if(probe.outWidth<50||probe.outHeight<50||
-     probe.outWidth>10000||probe.outHeight>10000)return null;
-   probe.inJustDecodeBounds=false;
-   probe.inSampleSize=Math.max(1,Math.max(probe.outWidth/480,probe.outHeight/720));
-   return BitmapFactory.decodeByteArray(bytes,0,bytes.length,probe);
-  }catch(Exception unavailable){return null;}
+   Bitmap image=EpgArtwork.load(host,state,title,upcoming);
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+     image==null?"NO_VERIFIED_EPG_ART":"EPG_POSTER_OK").apply();
+   return image;
+  }catch(Exception failed){
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+     "EPG_"+failed.getClass().getSimpleName()).apply();
+   return null;
+  }
+ }
+ private Bitmap onlinePoster(SatelliteState state,boolean upcoming){
+  String title=upcoming?state.nextTitle:state.title;
+  if(title==null||title.trim().length()<3)return null;
+  try{
+   OnlineProgramme programme=OnlineProgramme.fetch(host,state,title,upcoming);
+   Bitmap image=programme==null?null:programme.poster;
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      image==null?"NO_VERIFIED_TMDB_BETTER_TVMAZE_MATCH":"ONLINE_POSTER_OK").apply();
+   return image;
+  }catch(Exception error){
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+     "ONLINE_"+error.getClass().getSimpleName()).apply();
+   return null;
+  }
  }
 
  private void paint(){
