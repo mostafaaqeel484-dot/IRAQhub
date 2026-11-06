@@ -59,7 +59,7 @@ public final class SatelliteAccessibilityService extends AccessibilityService im
                 }
             }
         }
-        if(tvPackage.equals(eventPackage)){schedule();if(!prefs.getString("oem_pending_route","").isEmpty())handler.postDelayed(()->{AccessibilityNodeInfo nativeRoot=getRootInActiveWindow();if(nativeRoot!=null)try{ManufacturerFeatures.navigateSidebar(this,nativeRoot);}finally{nativeRoot.recycle();}},150);}
+        if(tvPackage.equals(eventPackage)){schedule();/* Read-only EPG/Infobar observation; no OEM menu automation. */}
     }
     private void visible(boolean value){if(prefs.getBoolean("satellite_tv_visible",false)!=value)prefs.edit().putBoolean("satellite_tv_visible",value).apply();}
     private void schedule(){if(!queued&&!closed){queued=true;handler.postDelayed(capture,220);}}
