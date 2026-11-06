@@ -16,11 +16,11 @@ final class BetterPostersDirect {
  static String poster(Context context,String verifiedImdb)throws Exception{
   if(verifiedImdb==null||!verifiedImdb.matches("tt[0-9]{7,10}"))
    return "";
-  String address="https://btttr.cc/poster-qa/imdb/poster-default/"+
-    verifiedImdb+".jpg?lang=ar";
+  String address="https://btttr.cc/poster/imdb/poster-default/"+
+    verifiedImdb+".jpg";
   File folder=new File(context.getCacheDir(),"betterposters-verified");
   if(!folder.isDirectory()&&!folder.mkdirs())return "";
-  File cached=new File(folder,verifiedImdb+"-ar.jpg");
+  File cached=new File(folder,verifiedImdb+"-default.jpg");
   if(cached.isFile()&&System.currentTimeMillis()-cached.lastModified()<7L*86400000
      &&valid(read(cached,5*1024*1024))){
    ArtworkCache.saveVerified(context,new URL(address),read(cached,5*1024*1024));
