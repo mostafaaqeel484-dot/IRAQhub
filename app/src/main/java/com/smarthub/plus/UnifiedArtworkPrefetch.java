@@ -112,7 +112,7 @@ final class UnifiedArtworkPrefetch {
    if(!"https".equals(uri.getScheme())||uri.getRawUserInfo()!=null
       ||uri.getRawFragment()!=null||source.length()>2048)return false;
    String host=uri.getHost();
-   return "btttr.cc".equals(host)||"image.tmdb.org".equals(host)||"static.tvmaze.com".equals(host);
+   return "btttr.cc".equals(host)||"image.tmdb.org".equals(host)||"static.tvmaze.com".equals(host)||"upload.wikimedia.org".equals(host);
   }catch(Exception invalid){return false;}
  }
 }
