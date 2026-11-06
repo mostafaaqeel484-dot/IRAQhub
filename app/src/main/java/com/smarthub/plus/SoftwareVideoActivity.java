@@ -57,6 +57,18 @@ public final class SoftwareVideoActivity extends HubActivity {
         FrameLayout.LayoutParams trackParams =
                 new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
         root.addView(tracks, trackParams);
+        long channelId=getIntent().getLongExtra("dvb_channel",-1L);
+        if(channelId>=0){
+            android.widget.Button biss=button("BISS");
+            biss.setContentDescription(tx("القائمة العائمة لإدخال شفرة BISS",
+                    "Floating BISS key input"));
+            biss.setTextColor(0xffffd86c);
+            FrameLayout.LayoutParams options=new FrameLayout.LayoutParams(
+                    dp(104),dp(47),Gravity.BOTTOM|Gravity.START);
+            options.setMargins(dp(14),dp(10),dp(10),dp(15));
+            root.addView(biss,options);
+            biss.setOnClickListener(view->showBiss());
+        }
         setContentView(root);
         localInfo=new LocalInfoBarController(this,root);
 
@@ -186,6 +198,14 @@ public final class SoftwareVideoActivity extends HubActivity {
         }
     }
 
+    private void showBiss(){
+        long id=getIntent().getLongExtra("dvb_channel",-1L);
+        if(id<0){toast(tx("اختر قناة DVB أولاً","Select a DVB channel first"));return;}
+        ReceiverCatalog.Channel selected=ReceiverCatalog.get(this).channel(id);
+        if(selected!=null)BissKeyDialog.show(this,selected);
+        else toast(tx("القناة غير موجودة","Channel missing"));
+    }
+
     private void showTrackMenu() {
         if (mediaPlayer == null || released || !mediaPlayer.hasMedia()) {
             status.setText(tx("انتظر حتى يبدأ البث", "Wait until playback starts"));
@@ -266,6 +286,10 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
         int k=event.getKeyCode();
+        if(k==android.view.KeyEvent.KEYCODE_F3){
+            if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)showBiss();
+            return true;
+        }
         if(k==android.view.KeyEvent.KEYCODE_INFO||k==android.view.KeyEvent.KEYCODE_PROG_BLUE||k==1202){
             if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0
               &&localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1)>=0)localInfo.show();
