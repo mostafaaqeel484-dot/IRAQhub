@@ -45,6 +45,8 @@ public final class InstallationEditorActivity extends HubActivity {
   transponders=col();tps.addView(transponders);
   note(tps,tx("يمكن حذف التردد فقط إذا ما مرتبط بقنوات محفوظة. ضبْط التردد يدوي ويتحقق من الإشارة الحقيقية؛ لا يضيف قنوات وهمية.",
     "A TP can only be deleted if no saved channel uses it. Manual tuning reads real tuner lock; it does not invent services."));
+  action(tps,tx("استخراج قنوات من تسجيل TS للتردد","Import services from TS recording"),
+    ()->withSatellite(s->startActivity(new Intent(this,TsServiceImportActivity.class).putExtra("satellite",s.id))));
   action(tps,tx("البحث عن الإشارة للتردد المختار","Manual signal tuning"),
     ()->withSatellite(s->startActivity(new Intent(this,ManualTransponderActivity.class).putExtra("satellite",s.id))));
   reload(-1);
