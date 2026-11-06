@@ -49,6 +49,7 @@ final class OemDvbFeatureGateway {
         OEM_SERVER("Firmware server settings", "إعدادات سيرفر الجهاز", "server", false),
         OEM_CA("Firmware CA status", "قائمة CA الأصلية", "ca", false),
         OEM_PATCH("Firmware patch menu", "قائمة Patch الأصلية", "patch", false),
+        OEM_BISS_INPUT("Enter BISS key in original Patch menu", "إدخال شفرة BISS في قائمة Patch الأصلية", "patch", false),
         OEM_HOMESHARE("Firmware Home Share", "مشاركة Home Share", "homeshare", false),
         OEM_USB_FILES("USB file manager", "مدير ملفات USB", "usb_files", false),
         OEM_USB_MEDIA("USB media player", "مشغل وسائط USB", "usb_media", false),
