@@ -37,22 +37,13 @@ public final class OemFullSettingsActivity extends HubActivity {
   section.addView(text(title,20,true));
   for(OemFeatureMenuIndex.Item item:OemFeatureMenuIndex.all()){
    if(!item.group.equals(family))continue;
-   boolean nativeReady=isLocal(item.route);
+   boolean nativeReady=NativeOnlyFeaturePolicy.isOwned(item.route);
    String prefix=nativeReady?tx("✓ داخل IRAQhub: ","✓ In IRAQhub: "):
       tx("✕ غير منقول: ","✕ Not implemented: ");
    action(section,prefix+item.label(ar),()->{
     if(nativeReady)openLocal(item.route);
     else explainMissing(item);
    });
-  }
- }
-
- private static boolean isLocal(String route){
-  switch(route){
-   case "local_lnb":case "local_sats":case "local_channels":
-   case "local_signal":case "local_chmax":case "local_logos":
-   case "osd":case "remote":return true;
-   default:return false;
   }
  }
 
