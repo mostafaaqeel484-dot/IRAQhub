@@ -28,6 +28,8 @@ public final class ReceiverToolsActivity extends HubActivity {
     ManualTransponderActivity.class);
   open(scan,tx("فحص سريع للترددات المحفوظة · نتائج فعلية","Saved TP sweep · measured results"),
     TransponderSweepActivity.class);
+  open(scan,tx("اكتشاف خدمات من تسجيل DVB MPEG-TS وحفظ القنوات","Discover/save channels from real DVB MPEG-TS"),
+    TsServiceImportActivity.class);
   note(scan,tx("البحث الأعمى ومسح الشبكة وحفظ القنوات الجديدة من PID لم تُربط بعد بمحرك SearchManager؛ هذه القائمة لا تدّعي عملها ولا تفتح Aurum.",
     "Blind/network scan and saving newly discovered PID services still lack a proven SearchManager API. No fake action or Aurum redirect."));
 
