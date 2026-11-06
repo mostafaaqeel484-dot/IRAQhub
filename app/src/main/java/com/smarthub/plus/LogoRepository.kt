@@ -81,13 +81,20 @@ class LogoRepository private constructor(context:Context){
     val ambiguous=(addon.snapshot()?.candidates(name)?.map{it.physicalKey}?.distinct()?.size?:0)>1
     val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled())
         addon.resolvePhysical(physical,channels) else null
-    exact?:if(ambiguous)null else {
+    // Prioritise a VERIFIED receiver-scoped CHMAX logo when one is available.
+    // The general name resolver may otherwise consume a fallback placeholder
+    // before the real manufacturer logo is considered.
+    val factory=if(physical!=null&&physical.isNotBlank()&&
+       app.getSharedPreferences("smarthub",0).getBoolean("osd_chmax_logos",true)&&
+       app.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true))
+      FactoryProvider.logo(app,name,physical) else null
+    factory?:exact?:if(ambiguous)null else {
       val local=if(entry==null&&addon.enabled())
         addon.unique(name)?.let{addon.resolve(it,channels)}?:channels.resolve(name)
       else channels.resolve(name)
       local?:try{
-        // Last resort: direct receiver/CHMAX image then public verified logo index.
-        // This must not apply to ambiguous same-name satellites.
+        // Last resort: public service-specific artwork; never guess between
+        // duplicate names on different satellites.
         OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")
       }catch(_:Exception){null}
     }
