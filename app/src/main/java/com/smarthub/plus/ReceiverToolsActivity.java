@@ -33,6 +33,8 @@ public final class ReceiverToolsActivity extends HubActivity {
    ()->startActivity(new Intent(this,DvbPlaybackActivity.class)));
   action(video,tx("مشغل 4:2:2 البرمجي · LibVLC","LibVLC software 4:2:2 player"),
    ()->startActivity(new Intent(this,Software422CenterActivity.class)));
+  action(video,tx("التسجيل المباشر PVR للقنوات المفتوحة وتصدير USB","FTA PVR recording and USB export"),
+   ()->startActivity(new Intent(this,PvrRecordingActivity.class)));
   action(video,tx("دليل البرامج EPG","Programme guide"),
    ()->startActivity(new Intent(this,SatelliteGuideActivity.class)));
   action(video,tx("إعداد Infobar","Infobar settings"),
