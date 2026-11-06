@@ -22,15 +22,17 @@ final class UnifiedArtworkPrefetch {
   SatelliteState event=ReceiverInfoRepository.get(context).enrich(SatelliteState.read(context));
   if(event.channelId.isEmpty())return 0;
   int done=0;
-  for(String title:new String[]{event.title,event.nextTitle}){
+  for(int index=0;index<2;index++){
+   boolean upcoming=index==1;
+   String title=upcoming?event.nextTitle:event.title;
    if(title==null||title.trim().isEmpty())continue;
-   long start=title.equals(event.title)?event.startMs:event.nextStartMs;
-   long end=title.equals(event.title)?event.endMs:event.nextEndMs;
+   long start=upcoming?event.nextStartMs:event.startMs;
+   long end=upcoming?event.nextEndMs:event.endMs;
    if(start<=0||end<=start||end<System.currentTimeMillis())continue;
    try{
-    String existing=title.equals(event.title)?event.image:event.nextImage;
+    String existing=upcoming?event.nextImage:event.image;
     if(existing!=null&&!existing.isEmpty())continue;
-    JSONObject chosen=PosterSelection.read(context,event,title);
+    JSONObject chosen=PosterSelection.read(context,event,title,upcoming);
     String id=chosen.optString("id"),type=chosen.optString("type");
     JSONObject auto=null;
     if(id.isEmpty()&&title.trim().length()>=5){
@@ -47,7 +49,7 @@ final class UnifiedArtworkPrefetch {
         auto=candidate;
         id=candidate.optString("id");
         type=candidate.optString("type");
-        PosterSelection.save(context,event,title,candidate);
+        PosterSelection.save(context,event,title,upcoming,candidate);
        }
       }
      }catch(Exception unavailable){/* Do not assign uncertain titles. */}
@@ -59,7 +61,7 @@ final class UnifiedArtworkPrefetch {
      if(episode.season>0||episode.episode>0)try{
       JSONObject show=new TvmazeProvider(context).resolve(title,"");
       String image=show.optString("poster","");
-      String key=PosterSelection.key(event,title);
+      String key=PosterSelection.key(event,title,upcoming);
       if("matched".equals(show.optString("status"))&&
          "series".equals(show.optString("type"))&&
          !key.isEmpty()&&imageAvailable(context,image)){
@@ -76,7 +78,7 @@ final class UnifiedArtworkPrefetch {
      }catch(Exception unavailable){/* No guessed episode artwork. */}
      continue;
     }
-    String key=PosterSelection.key(event,title);
+    String key=PosterSelection.key(event,title,upcoming);
     if(key.isEmpty())continue;
     long before=prefs.getLong("verified_poster_until:"+key,0);
     if(before>System.currentTimeMillis()&&!prefs.getString("verified_poster_url:"+key,"").isEmpty())continue;
@@ -145,11 +147,13 @@ final class UnifiedArtworkPrefetch {
   return done;
  }
  static String cachedUrl(Context context,SatelliteState event,String title){
+  return cachedUrl(context,event,title,event!=null&&title!=null&&!title.equals(event.title)&&title.equals(event.nextTitle));
+ }
+ static String cachedUrl(Context context,SatelliteState event,String title,boolean upcoming){
   if(event==null||title==null||title.isEmpty())return "";
-  long start=title.equals(event.title)?event.startMs:event.nextStartMs;
-  if(start<=0)return "";
+  String key=PosterSelection.key(event,title,upcoming);
+  if(key.isEmpty())return "";
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
-  String key=PosterSelection.key(event,title);
   if(p.getLong("verified_poster_until:"+key,0)<=System.currentTimeMillis())return "";
   String source=p.getString("verified_poster_url:"+key,"");
   return validUrl(source)?source:"";
