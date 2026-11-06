@@ -20,7 +20,7 @@ final class BetterPostersDirect {
     verifiedImdb+".jpg";
   File folder=new File(context.getCacheDir(),"betterposters-verified");
   if(!folder.isDirectory()&&!folder.mkdirs())return "";
-  File cached=new File(folder,verifiedImdb+"-ar.jpg");
+  File cached=new File(folder,verifiedImdb+"-default.jpg");
   if(cached.isFile()&&System.currentTimeMillis()-cached.lastModified()<7L*86400000
      &&valid(read(cached,5*1024*1024))){
    ArtworkCache.saveVerified(context,new URL(address),read(cached,5*1024*1024));
