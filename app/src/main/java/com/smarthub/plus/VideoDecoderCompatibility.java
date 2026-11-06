@@ -35,7 +35,7 @@ final class VideoDecoderCompatibility {
      MediaCodecInfo.CodecCapabilities caps;
      try{caps=codec.getCapabilitiesForType(mime);}catch(Exception ignored){continue;}
      for(MediaCodecInfo.CodecProfileLevel pl:caps.profileLevels){
-      String profile=profileName(pl.profile);
+      String profile=profileName(mime,pl.profile);
       if(profile.isEmpty())continue;
       String entry=codec.getName()+" · "+mime+" · "+profile;
       List<String> target=hardware?result.hardware422:result.software422;
@@ -57,8 +57,10 @@ final class VideoDecoderCompatibility {
   String name=codec.getName().toLowerCase(Locale.ROOT);
   return !(name.contains("google")||name.contains("android")||name.contains("software")||name.contains("ffmpeg")||name.contains("dav1d"));
  }
- private static String profileName(int value){
-  String[] names={"MPEG2Profile422","HEVCMain422_10","HEVCMain422_12","HEVCProfileMain422_10","HEVCProfileMain422_12","AVCProfileHigh422"};
+ private static String profileName(String mime,int value){
+  String[] names=mime.equalsIgnoreCase("video/mpeg2")?new String[]{"MPEG2Profile422"}:
+       mime.equalsIgnoreCase("video/avc")?new String[]{"AVCProfileHigh422"}:
+       new String[]{"HEVCMain422_10","HEVCMain422_12","HEVCProfileMain422_10","HEVCProfileMain422_12"};
   for(String name:names)try{
    Field field=MediaCodecInfo.CodecProfileLevel.class.getField(name);
    if(field.getInt(null)==value)return name;
