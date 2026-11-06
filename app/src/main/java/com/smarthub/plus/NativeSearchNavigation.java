@@ -13,6 +13,22 @@ final class NativeSearchNavigation {
  private NativeSearchNavigation(){}
  static boolean open(HubActivity host){
   String error="";
+  // This exported OEM route (host_type=Search_Channel) exists in the
+  // uploaded IRAQhub 3.7.0 APK and the published Aurum installation menu.
+  // Prefer it over launching a NavHostActivity without required extras.
+  ManufacturerFeatures.Entry nativeInstallation=ManufacturerFeatures.find(host,"satellite");
+  if(nativeInstallation!=null){
+   String reason=ManufacturerFeatures.unavailable(host,nativeInstallation);
+   if(reason.isEmpty()&&ManufacturerFeatures.open(host,nativeInstallation)){
+    host.prefs().edit().putString("native_search_launch_status","OEM_INSTALLATION_OPENED")
+      .remove("native_search_launch_error").apply();
+    return true;
+   }
+   host.prefs().edit().putString("native_search_launch_status",
+     reason.isEmpty()?"OEM_INSTALLATION_INTENT_REJECTED":reason).apply();
+  }
+  // Secondary fallback: direct captured NavHost. Android will enforce export
+  // and signature permissions; adb-shell success does not confer app access.
   // Verified by the owner's live ADB capture as the actual Aurum installation UI.
   try{
    Intent direct=new Intent(Intent.ACTION_MAIN)
