@@ -21,6 +21,14 @@ class LogoRepository private constructor(context:Context){
  init{scope.launch{db.load()};scope.launch{addon.load()}}
  private fun network(name:String,known:ChannelAliasDatabase.Entry?)=providerResolver.resolve(known)?:db.providerByName(addon.provider(name))
  private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)=if(physical?.startsWith("DVB:")==true)"channel:physical:$physical" else "channel:"+(e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name))
+ /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
+ fun requestCached(name:String,physical:String?,listener:Listener){
+  val known=db.channel(name)
+  listener.channel(cache.read(channelKey(name,known,physical)))
+  val provider=network(name,known)
+  val cached=provider?.let{cache.read("provider:"+db.key(it))}
+  listener.provider(provider?.name?:"",cached)
+ }
  fun request(name:String,listener:Listener){request(name,null,listener)}
  /**
   * A DVB picture is looked up by exact satellite/transponder/SID before any
