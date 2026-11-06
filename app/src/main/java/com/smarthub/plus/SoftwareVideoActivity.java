@@ -270,7 +270,8 @@ public final class SoftwareVideoActivity extends HubActivity {
         final String[] labels={
             tx("سريع · أقل تقطيعاً على X5M (تجاوز بعض الإطارات)","Smooth · less CPU, may skip frames"),
             tx("متوازن · صورة وصوت","Balanced · picture and sound"),
-            tx("جودة أعلى · يحتاج CPU أقوى","Higher quality · uses more CPU")
+            tx("جودة أعلى · يحتاج CPU أقوى","Higher quality · uses more CPU"),
+            tx("تشخيص الجهاز وسرعة بث TS","Device and live TS diagnostics")
         };
         int current=1;
         for(int n=0;n<modes.length;n++)if(modes[n].equals(Software422Profile.current(this)))current=n;
@@ -278,10 +279,15 @@ public final class SoftwareVideoActivity extends HubActivity {
         String capture=prefs().getString("software_422_runtime","NOT_STARTED");
         String telemetry="\nTS: "+(bitrate>0?(bitrate/1000000.0)+" Mbit/s":"—")+
            " · "+capture;
+        final String diagnostics=Software422Profile.status(this)+telemetry;
         new AlertDialog.Builder(this).setTitle(tx("أداء 4:2:2","4:2:2 performance"))
-          .setMessage(Software422Profile.status(this)+telemetry)
           .setSingleChoiceItems(labels,current,(dialog,which)->{
             dialog.dismiss();
+            if(which==3){
+                new AlertDialog.Builder(this).setTitle(tx("فحص X5M وTS","X5M / TS diagnostics"))
+                    .setMessage(diagnostics).setPositiveButton("OK",null).show();
+                return;
+            }
             String desired=modes[which];
             if(desired.equals(Software422Profile.current(this)))return;
             Software422Profile.save(this,desired);
