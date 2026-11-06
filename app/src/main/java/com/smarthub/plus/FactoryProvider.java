@@ -14,7 +14,7 @@ final class FactoryProvider implements AutoCloseable {
   // not suppress a correctly identified channel logo.
   rememberLogo(identity,data.optString("cimg"));
   List<FactoryProtocol.Event> events=FactoryProtocol.schedule(reply,zone);FactoryProtocol.Event current=null,next=null;for(FactoryProtocol.Event e:events){if(e.start<=now&&e.end>now)current=e;else if(e.start>now&&next==null)next=e;}if(current==null)throw new Exception("FACTORY_EPG_NOT_PUBLISHED");if(!state.title.isEmpty()&&!FactoryProtocol.sameTitle(state.title,current.title))throw new Exception("FACTORY_PROGRAMME_MISMATCH");if(state.startMs>0&&Math.abs(state.startMs-current.start)>120000||state.endMs>0&&Math.abs(state.endMs-current.end)>120000)throw new Exception("FACTORY_PROGRAMME_MISMATCH");SatelliteState resolved=state.copy();resolved.title=current.title;resolved.startMs=current.start;resolved.endMs=current.end;resolved.image=current.pic;if(next!=null){resolved.nextTitle=next.title;resolved.nextStartMs=next.start;resolved.nextEndMs=next.end;resolved.nextImage=next.pic;}resolved.source="Factory CHMAX / EPG";resolved.observedAt=now;if(closed)return;SatelliteState active=SatelliteState.read(context);if(!CHMAXIntegration.identity(active).equals(identity))return;cached=resolved;cachedIdentity=identity;resolved.save(context);SharedPreferences.Editor edit=prefs.edit().putLong("epg_art_changed_at",now).putString("factory_current_subtitle_metadata",current.subtitle);edit.apply();}
- private void rememberLogo(String identity,String raw){
+ private void rememberLogo(String identity,String raw)throws Exception{
   String logo=FactoryProtocol.image(raw);
   if(!logo.startsWith("https://")){
     prefs.edit().putString("factory_logo_status",logo.isEmpty()?
