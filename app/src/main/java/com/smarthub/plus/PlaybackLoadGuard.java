@@ -13,7 +13,7 @@ final class PlaybackLoadGuard {
 
     static boolean shouldDefer(boolean dvbVisible, boolean iptvVisible,
             boolean confirmed422, boolean hevcRextCandidate, boolean lowRam) {
-        return dvbVisible || (iptvVisible && (confirmed422 || hevcRextCandidate || lowRam));
+        return (dvbVisible || iptvVisible) && (confirmed422 || hevcRextCandidate || lowRam);
     }
 
     static boolean shouldDeferSync(Context context) {
@@ -27,10 +27,11 @@ final class PlaybackLoadGuard {
                 lowRam = manager.isLowRamDevice() || info.lowMemory;
             }
         } catch (RuntimeException ignored) { /* Fall back to stream profile. */ }
+        if (prefs.getBoolean("dvb_tuning",false)) return true;
         return shouldDefer(
-                prefs.getBoolean("dvb_player_visible", false) || prefs.getBoolean("dvb_tuning", false),
+                prefs.getBoolean("dvb_player_visible", false),
                 prefs.getBoolean("iptv_player_visible", false),
-                prefs.getBoolean("decoder_input_profile422", false),
+                prefs.getBoolean("decoder_input_profile422", false) || prefs.getBoolean("dvb_422_compat_active",false),
                 prefs.getBoolean("decoder_422_possible", false),
                 lowRam);
     }
