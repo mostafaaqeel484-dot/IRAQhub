@@ -52,6 +52,11 @@ class LogoSourcesActivity:HubActivity(){
   val imports=card(body)
   imports.addView(text(tx("ملفات القنوات · SQLite DB وCHL","Channel lists · SQLite DB & CHL"),20,true))
   action(imports,tx("استيراد قاعدة قنوات SQLite .db (سريع)","Fast SQLite .db channel import"),Runnable{open(5)})
+  action(imports,tx("تصدير قاعدة قنوات SQLite .db","Export SQLite .db channel backup"),Runnable{
+    startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
+      .setType("application/octet-stream")
+      .putExtra(Intent.EXTRA_TITLE,"IRAQhub_channels.db"),6)
+  })
   action(imports,tx("استيراد ملف قنوات CHL","Import CHL channel list"),Runnable{open(3)})
   imports.addView(text(tx("يدعم DB بنية receiver-catalog.db الخاصة بـIRAQhub. استيراد DB يستبدل قائمة IRAQhub والمفضلة، ولا يغيّر قاعدة Aurum؛ احفظ نسخة احتياطية أولاً.",
     "Accepts IRAQhub receiver-catalog.db schema only. Replaces local channels and favourites; does not touch Aurum. Back up first."),13,false))
@@ -179,6 +184,15 @@ class LogoSourcesActivity:HubActivity(){
   }
   scope.launch{try{
    when(request){
+    6->{
+      val bytes=withContext(Dispatchers.IO){
+       contentResolver.openOutputStream(uri,"wt")!!.use{output->
+        ReceiverSqliteImport.exportStream(this@LogoSourcesActivity,output)
+       }
+      }
+      message(tx("تم تصدير DB بحجم ","DB exported · ")+
+       (bytes/1024)+tx(" KB"," KB"))
+    }
     4->{
       val channel=SatelliteState.read(this@LogoSourcesActivity)
       require(channel.channelId.isNotBlank()&&channel.channelName.isNotBlank()){"NO_ACTIVE_CHANNEL"}
