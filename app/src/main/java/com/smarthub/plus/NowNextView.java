@@ -85,6 +85,7 @@ final class NowNextView extends FrameLayout {
   String strength=ReceptionData.value(getContext(),s,"strength"),quality=ReceptionData.value(getContext(),s,"quality");strengthLabel.setText("S: "+(strength.isEmpty()?"—":strength));qualityLabel.setText("Q: "+(quality.isEmpty()?"—":quality));strengthBar.setProgress(percent(strength),true);qualityBar.setProgress(percent(quality),true);strengthBar.setVisibility(strength.isEmpty()?INVISIBLE:VISIBLE);qualityBar.setVisibility(quality.isEmpty()?INVISIBLE:VISIBLE);
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   String ca=info.encryption;
+  for(int i=0;i<caChips.length;i++){caChips[i].setTextColor(ca.contains(CA_TYPES[i])?0xffffd36c:0xff8999a6);}
   boolean encrypted=!ca.isEmpty()&&!ca.startsWith("FTA")&&!ca.contains("مفتوحة");
   encryptionLine.setText(ca.isEmpty()?tx("CA —","CA —"):encrypted?"🔒 "+ca:"🔓 "+ca);
   GradientDrawable caBackground=new GradientDrawable();
