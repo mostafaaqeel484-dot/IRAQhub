@@ -52,6 +52,6 @@ final class ReceiverTileMenu {
  private static GradientDrawable shape(HubActivity host,int fill,int stroke){
   GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
     new int[]{fill,0xff101923});d.setCornerRadius(host.dp(18));
-  d.setStroke(host.dp(1.3f),stroke);return d;
+  d.setStroke(host.dp(1),stroke);return d;
  }
 }
