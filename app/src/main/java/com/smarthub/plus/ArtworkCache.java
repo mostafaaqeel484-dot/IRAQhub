@@ -19,6 +19,20 @@ final class ArtworkCache {
    return java.nio.file.Files.readAllBytes(f.toPath());
   }catch(Exception failed){return null;}
  }
+ static void saveVerified(Context c,URL url,byte[] bytes)throws Exception{
+  if(url==null||!"https".equals(url.getProtocol())||bytes==null
+    ||bytes.length<200||bytes.length>5*1024*1024)
+   throw new IOException("INVALID_VERIFIED_IMAGE");
+  StringBuilder key=new StringBuilder();
+  for(byte b:MessageDigest.getInstance("SHA-256").digest(url.toString().getBytes(StandardCharsets.UTF_8)))
+   key.append(String.format(Locale.ROOT,"%02x",b&255));
+  File dir=new File(c.getCacheDir(),"online-artwork");
+  if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("ART_CACHE_UNAVAILABLE");
+  android.util.AtomicFile safe=new android.util.AtomicFile(new File(dir,key.toString()));
+  FileOutputStream out=safe.startWrite();
+  try{out.write(bytes);safe.finishWrite(out);}
+  catch(Exception failed){safe.failWrite(out);throw failed;}
+ }
  static byte[] fetch(Context c,URL url,int limit)throws Exception{
   if(!"https".equals(url.getProtocol()))throw new IOException("Image must use HTTPS");StringBuilder key=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(url.toString().getBytes(StandardCharsets.UTF_8)))key.append(String.format(Locale.ROOT,"%02x",b&255));File dir=new File(c.getCacheDir(),"online-artwork");dir.mkdirs();File saved=new File(dir,key.toString());
   if(saved.isFile()&&saved.length()<=limit&&System.currentTimeMillis()-saved.lastModified()<600000)return java.nio.file.Files.readAllBytes(saved.toPath());
