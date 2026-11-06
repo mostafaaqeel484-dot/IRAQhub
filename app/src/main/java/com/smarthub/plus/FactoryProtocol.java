@@ -15,5 +15,23 @@ final class FactoryProtocol {
  static final class Event{String title="",pic="",subtitle="",description="",startText="";long start,end;}
  static List<Event> schedule(JSONObject response,ZoneId zone)throws Exception{if(response.optInt("code",-1)!=0)throw new Exception("FACTORY_EPG_REJECTED");JSONObject data=response.optJSONObject("data");List<Event> out=new ArrayList<>();JSONArray root=data==null?null:data.optJSONArray("root");if(root!=null)for(int n=0;n<Math.min(root.length(),14);n++){JSONObject group=root.optJSONObject(n);JSONArray list=group==null?null:group.optJSONArray("list");if(list==null)continue;for(int i=0;i<Math.min(200,list.length());i++){JSONObject e=list.optJSONObject(i);if(e==null)continue;Event event=new Event();event.title=e.optString("name");event.startText=e.optString("start");event.start=time(event.startText,zone);event.end=time(e.optString("end"),zone);String cover=e.optString("poster");if(cover.isEmpty())cover=e.optString("pic");
  event.pic=image(cover);event.subtitle=e.optString("subtitle");event.description=e.optString("desc");if(!event.title.isEmpty()&&event.start>0&&event.end>event.start&&event.end-event.start<=24*3600000L)out.add(event);}}out.sort(Comparator.comparingLong(e->e.start));return out;}
- static String channelKey(JSONObject search,String name,String currentTitle,long now,ZoneId zone)throws Exception{JSONObject data=search.optJSONObject("data");JSONArray rows=data==null?null:data.optJSONArray("channelList");List<JSONObject> matching=new ArrayList<>();if(rows!=null)for(int n=0;n<Math.min(50,rows.length());n++){JSONObject ch=rows.optJSONObject(n);if(ch!=null&&PublishedEpgArtwork.matchesChannel(name,ch.optString("name")))matching.add(ch);}if(matching.size()==1)return matching.get(0).optString("id");String chosen="";for(JSONObject ch:matching){JSONArray days=ch.optJSONArray("epgList");boolean belongs=false;if(days!=null)for(int d=0;d<Math.min(14,days.length());d++){JSONObject day=days.optJSONObject(d);JSONArray events=day==null?null:day.optJSONArray("scheduleList");if(events!=null)for(int i=0;i<Math.min(100,events.length());i++){JSONObject e=events.optJSONObject(i);if(e!=null&&sameTitle(currentTitle,e.optString("title"))&&time(e.optString("startTime"),zone)<=now&&time(e.optString("endTime"),zone)>now)belongs=true;}}if(belongs){if(!chosen.isEmpty())return "";chosen=ch.optString("id");}}return chosen;}
+ static boolean compatibleChannelName(String receiver,String published){
+  if(PublishedEpgArtwork.matchesChannel(receiver,published))return true;
+  if(receiver==null||published==null||receiver.trim().isEmpty()||published.trim().isEmpty())return false;
+  // OEM channel lists frequently omit only a trailing HD/SD quality suffix.
+  // Do not remove words such as News/Sport or make arbitrary fuzzy matches.
+  String a=receiver.trim().replaceFirst("(?i)\\s+(?:SD|HD|FHD|UHD|4K)\\s*$","");
+  String b=published.trim().replaceFirst("(?i)\\s+(?:SD|HD|FHD|UHD|4K)\\s*$","");
+  return !a.isEmpty()&&!b.isEmpty()&&
+    ChannelCatalogue.normalized(a).equals(ChannelCatalogue.normalized(b));
+ }
+ static String channelKey(JSONObject search,String name,String currentTitle,long now,ZoneId zone)throws Exception{JSONObject data=search.optJSONObject("data");JSONArray rows=data==null?null:data.optJSONArray("channelList");List<JSONObject> matching=new ArrayList<>();if(rows!=null)for(int n=0;n<Math.min(50,rows.length());n++){JSONObject ch=rows.optJSONObject(n);if(ch!=null&&PublishedEpgArtwork.matchesChannel(name,ch.optString("name")))matching.add(ch);}if(matching.isEmpty()&&rows!=null){
+  // Only quality-suffix variants may be considered, never a loosely named
+  // channel. All candidates are kept so ambiguous SD/HD channels are rejected.
+  for(int n=0;n<Math.min(50,rows.length());n++){
+   JSONObject row=rows.optJSONObject(n);
+   if(row!=null&&compatibleChannelName(name,row.optString("name")))matching.add(row);
+  }
+ }
+ if(matching.size()==1)return matching.get(0).optString("id");String chosen="";for(JSONObject ch:matching){JSONArray days=ch.optJSONArray("epgList");boolean belongs=false;if(days!=null)for(int d=0;d<Math.min(14,days.length());d++){JSONObject day=days.optJSONObject(d);JSONArray events=day==null?null:day.optJSONArray("scheduleList");if(events!=null)for(int i=0;i<Math.min(100,events.length());i++){JSONObject e=events.optJSONObject(i);if(e!=null&&sameTitle(currentTitle,e.optString("title"))&&time(e.optString("startTime"),zone)<=now&&time(e.optString("endTime"),zone)>now)belongs=true;}}if(belongs){if(!chosen.isEmpty())return "";chosen=ch.optString("id");}}return chosen;}
 }
