@@ -121,16 +121,14 @@ public final class SoftwareVideoActivity extends HubActivity {
             options.add("--aout=audiotrack");
             options.add("--no-video-title-show");
             // Same software-avcodec path identified in the compiled 3.7.0 APK.
-            options.add("--no-avcodec-hurry-up");
             options.add("--codec=avcodec");
             int decodingThreads=Math.max(1,Math.min(4,Runtime.getRuntime().availableProcessors()-1));
             options.add("--avcodec-threads="+decodingThreads);
-            options.add("--no-drop-late-frames");
-            options.add("--no-skip-frames");
             options.add("--deinterlace=0");
             options.add(":demux=avformat");
             options.add(":file-caching=1000");
-            options.add(":network-caching=1000");
+            options.add("--network-caching=2500");
+            options.add("--live-caching=1500");
 
             libVLC = new LibVLC(this, options);
             mediaPlayer = new MediaPlayer(libVLC);
@@ -164,7 +162,7 @@ public final class SoftwareVideoActivity extends HubActivity {
             media.addOption(":codec=avcodec");
             media.addOption(":avcodec-corrupted=1");
             media.addOption(":file-caching=1000");
-            media.addOption(":network-caching=1000");
+            media.addOption(":network-caching=2500");
             mediaPlayer.setMedia(media);
             media.release();
             mediaPlayer.play();
