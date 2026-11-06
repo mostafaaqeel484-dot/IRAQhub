@@ -42,7 +42,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  private String token;
 
  LiveTsRelay(Context context,ReceiverCatalog.Channel channel,JSONObject body,Listener callback)throws Exception {
-  if(channel==null||body==null||callback==null||channel.ca!=0||channel.tv!=0)
+  if(channel==null||body==null||callback==null||channel.ca<0||channel.tv!=0)
    throw new IOException("SOFTWARE_FTA_ONLY");
   if(channel.id<0||channel.id>1000000)throw new IOException("CAPTURE_ID_OUT_OF_RANGE");
   this.context=context.getApplicationContext();
@@ -92,6 +92,19 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
    if(closed)return;
    if(current==null||current.length()<TS*10||!sync(current))
     throw new IOException("CAPTURE_NO_MPEG_TS");
+   if(channel.ca!=0){
+    // Only the OEM's already-authorised descrambler may clear DVB packets.
+    // Never feed scrambled video to VLC or pretend a stored BISS key was applied.
+    int videoPid=channel.data.optInt("VideoPID",-1),observed=0;
+    long clearUntil=SystemClock.elapsedRealtime()+8000;
+    while(!closed&&SystemClock.elapsedRealtime()<clearUntil){
+     observed=videoClearState(current,videoPid);
+     if(observed!=0)break;
+     Thread.sleep(180);
+    }
+    if(observed<0)throw new IOException("BISS_FIRMWARE_CAPTURE_STILL_SCRAMBLED");
+    if(observed==0)throw new IOException("BISS_FIRMWARE_CLEAR_TS_NOT_VERIFIED");
+   }
    String url="http://127.0.0.1:"+server.getLocalPort()+"/"+token+".ts";
    main.post(()->{if(!closed)callback.ready(url);});
    long lastSignal=SystemClock.elapsedRealtime();
@@ -158,6 +171,26 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
   prefs().edit().putBoolean(old==firstId?"capture_active_a":"capture_active_b",false).apply();
  }
 
+ /**
+  * 1 = observed multiple clear video TS packets, -1 = scrambled video,
+  * 0 = insufficient evidence. This is a media check, not a CA bypass.
+  */
+ private static int videoClearState(File file,int videoPid){
+  if(videoPid<16||videoPid>=8191||file==null)return 0;
+  try(RandomAccessFile in=new RandomAccessFile(file,"r")){
+   long packets=Math.min(4096,in.length()/TS);
+   byte[] packet=new byte[TS];int clean=0;
+   for(long i=0;i<packets;i++){
+    in.readFully(packet);
+    if(packet[0]!=(byte)0x47)break;
+    int pid=((packet[1]&31)<<8)|(packet[2]&255);
+    if(pid!=videoPid||(packet[3]&0x10)==0)continue;
+    if((packet[3]&0xc0)!=0)return -1;
+    if(++clean>=8)return 1;
+   }
+  }catch(Exception unavailable){return 0;}
+  return 0;
+ }
  private static boolean sync(File file){
   try(RandomAccessFile in=new RandomAccessFile(file,"r")){
    if(in.length()<TS*3)return false;
