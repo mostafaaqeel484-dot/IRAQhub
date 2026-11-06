@@ -9,5 +9,5 @@ public class TimingControllerTest {
  @Test public void subtitleOffsetHasSymmetricBoundaries(){assertEquals(-3600000,SubtitleSyncRepository.clamp(Long.MIN_VALUE));assertEquals(3600000,SubtitleSyncRepository.clamp(Long.MAX_VALUE));assertEquals(-1234,SubtitleSyncRepository.clamp(-1234));}
  @Test public void existingArabicIsNotSentToMachineTranslation(){assertTrue(SubtitleSyncRepository.isArabic("هذه ترجمة عربية بالفعل."));assertFalse(SubtitleSyncRepository.isArabic("This is an English subtitle."));assertFalse(SubtitleSyncRepository.isArabic("123 !"));}
  @Test public void subtitlePreviewShowsMilliseconds(){assertEquals("00:01:01.234",ProgrammeClock.format(61234,true));assertEquals("00:01:01",ProgrammeClock.format(61234,false));}
- @Test public void tmdbImagePathsCannotInjectAnotherHost(){assertEquals("",TmdbProvider.image("https://bad.example/image.jpg"));assertEquals("https://image.tmdb.org/t/p/original/test.jpg",TmdbProvider.image("/test.jpg"));assertEquals("",TmdbProvider.image("/../key?secret"));}
+ @Test public void tmdbImagePathsCannotInjectAnotherHost(){assertEquals("",TmdbProvider.image("https://bad.example/image.jpg"));assertEquals("https://image.tmdb.org/t/p/w780/test.jpg",TmdbProvider.image("/test.jpg"));assertEquals("",TmdbProvider.image("/../key?secret"));}
 }
