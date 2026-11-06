@@ -63,10 +63,10 @@ final class LocalInfoBarController implements AutoCloseable {
 
  void show(){
   if(closed)return;
-  latest=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
-  refresh(latest);
   visible=true;
   bar.setVisibility(View.VISIBLE);
+  latest=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
+  refresh(latest);
   prefs.edit().putBoolean("now_next_visible",true).apply();
   main.removeCallbacks(hide);
   int seconds=Math.max(1,Math.min(10,prefs.getInt("osd_duration_seconds",8)));
@@ -165,6 +165,8 @@ final class LocalInfoBarController implements AutoCloseable {
   bar.bind(latest,currentPoster,nextPoster,channelLogo,"");
   bar.provider(providerLogo);
  }
+
+ void dismiss(){main.removeCallbacks(hide);main.removeCallbacks(tick);hide.run();}
 
  @Override public void close(){
   if(closed)return;
