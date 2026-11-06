@@ -76,6 +76,7 @@ public final class SoftwareVideoActivity extends HubActivity {
 
         long dvbChannel=getIntent().getLongExtra("dvb_channel",-1L);
         if(dvbChannel>=0){
+            LogoRepository.get(this).pauseForVideo();
             // Silence OEM Play audio only; never stop the tuner or TS capture.
             nativeAudioToken=NativeSatelliteAudioGate.suppress(this);
             startSatellite(dvbChannel);return;
@@ -221,11 +222,11 @@ public final class SoftwareVideoActivity extends HubActivity {
         media.setHWDecoderEnabled(false,false);
         media.addOption(":avcodec-hw=none");
         media.addOption(":codec=avcodec");
-        int cache=Software422Profile.QUALITY.equals(Software422Profile.current(this))?1700:
-          Software422Profile.SMOOTH.equals(Software422Profile.current(this))?1350:1250;
+        String profile=Software422Profile.current(this);
+        int cache=Software422Profile.networkCacheMs(profile);
         if(source.startsWith("http://127.0.0.1:")){
             media.addOption(":network-caching="+cache);
-            media.addOption(":live-caching="+Math.max(750,cache-150));
+            media.addOption(":live-caching="+Software422Profile.liveCacheMs(profile));
             media.addOption(":http-reconnect");
         }else media.addOption(":file-caching=900");
     }
@@ -428,6 +429,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     @Override protected void onDestroy() {
         released = true;
         if(localInfo!=null)localInfo.close();
+        LogoRepository.get(this).resumeAfterVideo();
         prefs().edit().putBoolean("software_dvb_422_active",false)
           .putBoolean("dvb_tuning",false).putString("software_422_runtime","STOPPED").apply();
         LiveTsRelay capture=satelliteRelay;
