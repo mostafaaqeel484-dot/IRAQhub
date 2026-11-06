@@ -35,6 +35,10 @@ public final class SatelliteGuideActivity extends HubActivity {
         LinearLayout input=card(body);
         note(input,tx("الدليل مستقل عن قوائم IPTV ولا يحتاج رابط بث. تُحفظ فقط البرامج ذات العنوان ووقت البداية والنهاية المعروفين. عند حجب EPG من نظام الرسيفر يمكنك استيراد XMLTV الخاص بك. لا تعني بيانات الدليل تأكيد البث الفعلي أو التحكم بتغيير القناة.","This guide is separate from IPTV and needs no stream URL. Only programmes with a known title, start and end time are stored. If the receiver hides its EPG, import your own XMLTV. Guide times do not prove what is actually being broadcast and do not control channel tuning."));
         source=text(repository.sourceSummary(),14,false);input.addView(source);
+        action(input,tx("اكتشاف واختيار مصادر EPGShare للقناة الحالية","Discover/select EPGShare source for current channel"),this::chooseEpgShare);
+        action(input,tx("حالة تحديث EPG والبوسترات","EPG and poster refresh status"),this::showUnifiedStatus);
+        action(input,tx("ربط بوستر Wikimedia مُرخّص بالبرنامج الحالي","Attach licensed Wikimedia image to current programme"),this::chooseCommonsPoster);
+        action(input,tx("تحديث XMLTV والبوسترات وDVB EPG الآن","Refresh XMLTV, posters and DVB EPG now"),()->{IraqHubSyncScheduler.runNow(this);toast(tx("تمت جدولة تحديثات منفصلة، من دون إيقاف البث","Independent refresh tasks queued without stopping playback"));});
         url=field(input,tx("رابط HTTPS لملف XMLTV أو XMLTV.gz","HTTPS URL for XMLTV or XMLTV.gz"),prefs().getString("satellite_xmltv_url",""));url.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
         action(input,tx("جلب واستيراد XMLTV من الرابط","Fetch and import XMLTV URL"),this::importUrl);
         action(input,tx("استيراد ملف XMLTV بترميز UTF-8","Import UTF-8 XMLTV file"),()->{if(busy)return;launchDocument(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),XMLTV_FILE);});
@@ -49,6 +53,111 @@ public final class SatelliteGuideActivity extends HubActivity {
         action(find,tx("البحث في دليل البرامج","Search programme guide"),()->search(false));
         action(find,tx("قائمة البرامج التي أتابعها","Watched programme list"),()->search(true));
         status=text("",15,false);find.addView(status);results=col();find.addView(results);search(false);
+    }
+    private void showUnifiedStatus(){
+      android.content.SharedPreferences p=prefs();
+      String report=tx("المصادر المختارة: ","Selected feeds: ")+EpgShareFeedDirectory.selected(this)
+        +"\nXMLTV · "+when(p.getLong("online_epg_sync_at",0))
+        +" · "+p.getString("online_epg_status","NOT_UPDATED")
+        +"\nDVB EIT · "+when(p.getLong("native_epg_sync_success_at",0))
+        +" · "+p.getString("native_epg_sync_status","NOT_OBSERVED")
+        +" · events "+p.getInt("native_epg_sync_events",0)
+        +"\nPoster · "+when(p.getLong("poster_sync_success_at",0))
+        +" · "+p.getString("poster_sync_status","NOT_UPDATED")
+        +" · verified images "+p.getInt("poster_sync_verified_prefetch",0)
+        +"\nEPGShare index · "+p.getString("epgshare_discovery_status","NOT_CHECKED")
+        +"\n"+tx("تتأجل المهام الثقيلة عند تشغيل 4:2:2، ولا تُحذف البيانات السابقة عند فشل المصدر.",
+         "Heavy tasks defer during 4:2:2. Previous valid EPG and artwork are kept when a source fails.");
+      new AlertDialog.Builder(this)
+        .setTitle(tx("مصادر EPG والبوسترات","EPG and poster sources"))
+        .setMessage(report).setPositiveButton("OK",null).show();
+    }
+    private static String when(long ms){
+      if(ms<=0)return "—";
+      java.text.SimpleDateFormat format=new java.text.SimpleDateFormat(
+        "yyyy-MM-dd HH:mm",java.util.Locale.ROOT);
+      format.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Baghdad"));
+      return format.format(new java.util.Date(ms));
+    }
+    private void chooseCommonsPoster(){
+      SatelliteState active=SatelliteState.read(this);
+      if(active.channelId.isEmpty()||active.title.trim().isEmpty()||
+        active.startMs<=0||active.endMs<=active.startMs){
+        toast(tx("لا يوجد برنامج EPG حالي بهوية ووقت مؤكدين","Current programme has no verified EPG identity/time"));
+        return;
+      }
+      EditText file=new EditText(this);
+      file.setSingleLine(true);
+      file.setHint("File:Example.jpg");
+      new AlertDialog.Builder(this)
+        .setTitle(tx("ملف Wikimedia Commons","Wikimedia Commons exact file"))
+        .setMessage(tx("اكتب اسم ملف Commons الدقيق. سيتم فحص الترخيص والمصدر وحفظ النسبة. لا يُختار ملف بالاسم التقريبي.",
+          "Enter the exact Commons File: title. Licence and attribution will be checked; no fuzzy match."))
+        .setView(file)
+        .setPositiveButton(tx("فحص وربط","Verify and attach"),(d,which)->{
+          String entered=file.getText().toString().trim();
+          status.setText(tx("التحقق من ترخيص الصورة…","Verifying image licence…"));
+          io.execute(()->{
+            try{
+              org.json.JSONObject item=CommonsArtworkProvider.exactFile(this,entered);
+              String address=item.getString("poster");
+              byte[] bytes=ArtworkCache.fetch(this,new java.net.URL(address),5*1024*1024);
+              android.graphics.BitmapFactory.Options dimensions=new android.graphics.BitmapFactory.Options();
+              dimensions.inJustDecodeBounds=true;
+              android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length,dimensions);
+              if(dimensions.outWidth<90||dimensions.outHeight<90||
+                dimensions.outWidth>10000||dimensions.outHeight>10000)
+                throw new java.io.IOException("WIKIMEDIA_INVALID_IMAGE");
+              String key=PosterSelection.key(active,active.title);
+              if(key.isEmpty())throw new java.io.IOException("EPG_PROGRAMME_ID_MISSING");
+              long now=System.currentTimeMillis();
+              getSharedPreferences("smarthub",0).edit()
+                .putString("verified_poster_url:"+key,address)
+                .putString("verified_poster_id:"+key,item.optString("file"))
+                .putString("verified_poster_type:"+key,"commons")
+                .putString("verified_poster_source:"+key,"Wikimedia Commons · user-selected")
+                .putString("verified_poster_attribution:"+key,item.optString("artist")+" · "+item.optString("credit"))
+                .putString("verified_poster_license:"+key,item.optString("license"))
+                .putString("verified_poster_license_url:"+key,item.optString("licenseUrl"))
+                .putString("verified_poster_reference:"+key,item.optString("source"))
+                .putLong("verified_poster_until:"+key,Math.min(active.endMs+60000,now+3L*86400000))
+                .putLong("verified_poster_at:"+key,now)
+                .putLong("epg_art_changed_at",now).apply();
+              runOnUiThread(()->{if(!destroyed)status.setText(
+                tx("الصورة مرتبطة بالبرنامج · الترخيص: ","Image linked · licence: ")+item.optString("license"));});
+            }catch(Exception error){
+              String reason=error.getMessage()==null?"COMMONS_SOURCE_UNAVAILABLE":error.getMessage();
+              runOnUiThread(()->{if(!destroyed)status.setText(reason);});
+            }
+          });
+        })
+        .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+    }
+    private void chooseEpgShare(){
+      if(current.channelName.trim().isEmpty()){
+        toast(tx("اختر قناة أولاً","Select a channel first"));return;
+      }
+      status.setText(tx("قراءة فهرس ملفات EPGShare…","Loading EPGShare feed index…"));
+      io.execute(()->{
+        List<String> found=EpgShareFeedDirectory.discover(this);
+        runOnUiThread(()->{
+          if(destroyed)return;
+          if(found.isEmpty()){
+            status.setText(tx("فهرس المصادر غير متاح حالياً، احتفظنا بالربط القديم",
+              "Feed index unavailable; saved mapping remains unchanged"));return;
+          }
+          String[] choices=new String[found.size()];
+          for(int i=0;i<choices.length;i++)choices[i]="epg_ripper_"+found.get(i)+".xml.gz";
+          new AlertDialog.Builder(this).setTitle(tx("EPGShare · اختيار مصدر القناة","EPGShare · channel source"))
+            .setItems(choices,(d,pos)->{
+              String feed=found.get(pos);
+              EpgShareFeedDirectory.selectForChannel(this,current.channelName,current.channelId,feed);
+              status.setText(tx("اختير المصدر: ","Selected feed: ")+feed+
+                tx(" · سيُستخدم للقناة الحالية بعد جلب XMLTV", " · will refresh from XMLTV"));
+              IraqHubSyncScheduler.runNow(this);
+            }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
+        });
+      });
     }
     private void showAliases(){Map<String,List<String>> aliases=repository.channelAliases();List<String> ids=new ArrayList<>(aliases.keySet());if(ids.isEmpty()){toast(tx("لم تُستورد قنوات XMLTV بعد","No XMLTV channels imported"));return;}int count=Math.min(500,ids.size());String[] labels=new String[count];for(int i=0;i<count;i++)labels[i]=ids.get(i)+" · "+String.join(" / ",aliases.get(ids.get(i)));new AlertDialog.Builder(this).setTitle(tx("اختر معرّف القناة · أول 500","Choose channel ID · first 500")).setItems(labels,(d,index)->mapping.setText(ids.get(index))).setNegativeButton(tx("إلغاء","Cancel"),null).show();}
     private void importUrl(){if(busy)return;String address=url.getText().toString().trim();try{URI uri=new URI(address);if(!"https".equalsIgnoreCase(uri.getScheme())||uri.getHost()==null)throw new IllegalArgumentException();}catch(Exception e){toast(tx("أدخل رابط HTTPS صحيحاً","Enter a valid HTTPS URL"));return;}busy=true;int token=++generation;status.setText(tx("جلب XMLTV والتحقق منه…","Fetching and validating XMLTV…"));job=io.submit(()->{try{String xml=SatelliteGuideRepository.fetchXml(address);if(!active(token))return;String host=URI.create(address).getHost();repository.importXml(xml,"XMLTV · "+host);prefs().edit().putString("satellite_xmltv_url",address).apply();runOnUiThread(()->{if(!active(token))return;busy=false;source.setText(repository.sourceSummary());toast(tx("استُورد الدليل؛ حُفظت المطابقة والتوقيت من المصدر","Guide imported with source times and identifiers"));search(false);});}catch(Exception e){failed(token,e);}});}

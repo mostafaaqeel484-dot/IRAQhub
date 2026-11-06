@@ -1,9 +1,11 @@
 package com.smarthub.plus;
-import android.content.*;import android.os.Bundle;import android.widget.*;import java.util.*;import java.util.concurrent.*;
-/** Original receiver features stay in the manufacturer's own UI and services. */
+import android.content.Intent;
+import android.os.Bundle;
+/** Retained alias for old navigation links: no OEM menu is ever launched. */
 public final class ManufacturerToolsActivity extends HubActivity {
- private final ExecutorService io=Executors.newSingleThreadExecutor();private boolean closed;private LinearLayout items;private TextView status;
- public void onCreate(Bundle b){super.onCreate(b);LinearLayout body=page(tx("وظائف الرسيفر الأصلية","Original receiver features"));note(body,tx("تُفتح هذه الوظائف في شاشات المصنع الفعلية وتعود إلى IRAQhub عند الرجوع. إعدادات الاشتراك وCA وPatch تبقى لدى خدمات الجهاز.","These features open the actual manufacturer screens and return to IRAQhub with Back. Subscription, CA and Patch settings remain with the receiver services."));status=text(tx("فحص القوائم المتاحة…","Reading available menus…"),14,false);body.addView(status);items=col();body.addView(items);action(body,tx("قائمة المصنع الكاملة","Full manufacturer menu"),()->{if(!ReceiverNavigation.open(this,ReceiverNavigation.menu()))toast(tx("قائمة المصنع غير متاحة","Manufacturer menu unavailable"));});action(body,tx("إعادة الفحص","Refresh"),this::load);load();}
- private void load(){io.execute(()->{List<ManufacturerFeatures.Entry> entries=ManufacturerFeatures.read(this);runOnUiThread(()->{if(closed)return;items.removeAllViews();int available=0;for(ManufacturerFeatures.Entry entry:entries){String unavailable=ManufacturerFeatures.unavailable(this,entry);if(unavailable.isEmpty())available++;Button button=action(items,entry.title+(unavailable.isEmpty()?"":tx(" · غير متاح"," · unavailable")),()->{if(!ManufacturerFeatures.open(this,entry))toast(tx("تعذر فتح واجهة المصنع","Could not open manufacturer screen"));});button.setContentDescription("oem:"+entry.id);button.setEnabled(unavailable.isEmpty());}status.setText(available+" / "+entries.size()+tx(" وظيفة قابلة للفتح من هذا الجهاز"," functions available on this receiver"));});});}
- protected void onDestroy(){closed=true;io.shutdownNow();super.onDestroy();}
+ @Override public void onCreate(Bundle saved){
+  super.onCreate(saved);
+  startActivity(new Intent(this,ReceiverToolsActivity.class));
+  finish();
+ }
 }

@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 
 class LogoRepository private constructor(context:Context){
+ private val app=context.applicationContext
  private val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
  private val db=ChannelAliasDatabase(context)
  private val cache=ChannelLogoCache(context)
@@ -20,25 +21,69 @@ class LogoRepository private constructor(context:Context){
  interface Listener{fun channel(bitmap:Bitmap?);fun provider(name:String,bitmap:Bitmap?)}
  init{scope.launch{db.load()};scope.launch{addon.load()}}
  private fun network(name:String,known:ChannelAliasDatabase.Entry?)=providerResolver.resolve(known)?:db.providerByName(addon.provider(name))
- private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?)="channel:"+(e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name))
- fun request(name:String,listener:Listener){
-  val known=db.channel(name);val channelCached=cache.peek(channelKey(name,known))
-  val network=network(name,known);val providerCached=network?.let{cache.peek("provider:"+db.key(it))}
-  if(channelCached!=null)listener.channel(channelCached)
+ private fun manual(name:String,physical:String?):Bitmap?{
+  if(physical.isNullOrBlank())return null
+  val state=SatelliteState()
+  state.channelId=physical
+  state.channelName=name
+  return if(app.getSharedPreferences("smarthub",0).getString(
+    "native_logo_source:"+CHMAXIntegration.identity(state),"")=="MANUAL_CHANNEL_IMAGE")
+     CHMAXIntegration.logo(app,state,false) else null
+ }
+ private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)=if(physical?.startsWith("DVB:")==true)"channel:physical:$physical" else "channel:"+(e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name))
+ /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
+ fun requestCached(name:String,physical:String?,listener:Listener){
+  val known=db.channel(name)
+  listener.channel(manual(name,physical)?:cache.read(channelKey(name,known,physical)))
+  val provider=network(name,known)
+  val cached=provider?.let{cache.read("provider:"+db.key(it))}
+  listener.provider(provider?.name?:"",cached)
+ }
+ fun request(name:String,listener:Listener){request(name,null,listener)}
+ /**
+  * A DVB picture is looked up by exact satellite/transponder/SID before any
+  * name-only source. Duplicate CHL names never select a random satellite.
+  */
+ fun request(name:String,physical:String?,listener:Listener){
+  val known=db.channel(name)
+  val key=channelKey(name,known,physical)
+  val cached=manual(name,physical)?:cache.peek(key)
+  val network=network(name,known)
+  val providerCached=network?.let{cache.peek("provider:"+db.key(it))}
+  if(cached!=null)listener.channel(cached)
   if(network!=null&&providerCached!=null)listener.provider(network.name,providerCached)
-  if(channelCached!=null&&(network==null||providerCached!=null)){if(network==null)listener.provider("",null);return}
+  if(cached!=null&&(manual(name,physical)!=null||network==null||providerCached!=null)){
+   if(network==null)listener.provider("",null)
+   return
+  }
   scope.launch{
-   db.load();val entry=db.channel(name)
-   val c=async{get(channelKey(name,entry)){
-    if(entry==null&&addon.enabled())addon.resolve(name,channels)?:channels.resolve(name)
-    else channels.resolve(name)
+   db.load();addon.load()
+   val entry=db.channel(name)
+   val image=async{get(channelKey(name,entry,physical)){
+    val ambiguous=(addon.snapshot()?.candidates(name)?.map{it.physicalKey}?.distinct()?.size?:0)>1
+    val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled())
+        addon.resolvePhysical(physical,channels) else null
+    exact?:if(ambiguous)null else {
+      val local=if(entry==null&&addon.enabled())
+        addon.unique(name)?.let{addon.resolve(it,channels)}?:channels.resolve(name)
+      else channels.resolve(name)
+      local?:try{
+        // Last resort: direct receiver/CHMAX image then public verified logo index.
+        // This must not apply to ambiguous same-name satellites.
+        OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")
+      }catch(_:Exception){null}
+    }
    }}
-   launch{val image=c.await();withContext(Dispatchers.Main){listener.channel(image)}}
+   launch{val bitmap=image.await();withContext(Dispatchers.Main){listener.channel(bitmap)}}
    launch{
     var provider=network(name,entry)
-    if(entry==null&&provider==null){addon.load();addon.rememberProvider(name);provider=network(name,entry)}
-    val selectedProvider=provider;val image=if(selectedProvider==null)null else get("provider:"+db.key(selectedProvider)){providers.resolve(selectedProvider.id)}
-    withContext(Dispatchers.Main){listener.provider(selectedProvider?.name?:"",image)}
+    if(entry==null&&provider==null){
+     addon.rememberProvider(name)
+     provider=network(name,entry)
+    }
+    val selected=provider
+    val bitmap=if(selected==null)null else get("provider:"+db.key(selected)){providers.resolve(selected.id)}
+    withContext(Dispatchers.Main){listener.provider(selected?.name?:"",bitmap)}
    }
   }
  }
