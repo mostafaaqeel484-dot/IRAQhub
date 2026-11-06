@@ -23,6 +23,12 @@ public final class ReceiverAntennaMenuActivity extends HubActivity {
     new ReceiverTileMenu.Tile("04",tx("مقياس الإشارة","Signal finder"),
       tx("القوة والجودة والتردد الفعلي","Signal strength, quality and RF"),
       ()->open(SignalInformationActivity.class)));
+  ReceiverTileMenu.pair(this,body,
+    new ReceiverTileMenu.Tile("05",tx("التركيب الأصلي من المصنع","Original receiver installation"),
+      tx("بحث الأقمار، إدارة القنوات ونسخة احتياطية في Aurum",
+        "Aurum search, channel management and OEM backup"),
+      ()->open(ManufacturerToolsActivity.class)),
+    null);
   note(body,tx("إعدادات IRAQhub محلية؛ تعديل قاعدة قنوات Aurum المحمية يحتاج صلاحية المصنع.",
     "IRAQhub settings are local; OEM channel database writes need vendor permission."));
  }
