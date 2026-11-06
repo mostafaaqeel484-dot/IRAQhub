@@ -26,6 +26,10 @@ public final class SoftwareVideoActivity extends HubActivity {
     private VLCVideoLayout videoLayout;
     private TextView status;
     private boolean released;
+    private String playbackUri;
+    private int streamRetries;
+    private long lastBufferStatus;
+    private final android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
     private LiveTsRelay satelliteRelay;
     private LocalInfoBarController localInfo;
     private final java.util.concurrent.ExecutorService relayThread=java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -47,6 +51,15 @@ public final class SoftwareVideoActivity extends HubActivity {
         FrameLayout.LayoutParams statusParams =
                 new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
         root.addView(status, statusParams);
+        android.widget.Button modeButton=button("4:2:2  ⚙");
+        modeButton.setContentDescription(tx("أوضاع أداء Amlogic 4:2:2",
+            "Amlogic software 4:2:2 performance profiles"));
+        FrameLayout.LayoutParams modeParams=new FrameLayout.LayoutParams(
+            dp(128),dp(47),Gravity.TOP|Gravity.END);
+        modeParams.setMargins(dp(8),dp(75),dp(15),dp(8));
+        root.addView(modeButton,modeParams);
+        modeButton.setOnClickListener(view->choosePerformance());
+
         TextView tracks = new TextView(this);
         tracks.setText(tx("مسارات الصوت والترجمة", "Audio / subtitle tracks"));
         tracks.setTextColor(0xffffffff);
@@ -213,6 +226,43 @@ public final class SoftwareVideoActivity extends HubActivity {
         else toast(tx("القناة غير موجودة","Channel missing"));
     }
 
+    /** Restart LibVLC only, leaving the DVB capture and tuned satellite untouched. */
+    private void choosePerformance(){
+        final String[] modes={Software422Profile.SMOOTH,
+            Software422Profile.BALANCED,Software422Profile.QUALITY};
+        final String[] labels={
+            tx("سريع · أقل تقطيعاً على X5M (تجاوز بعض الإطارات)","Smooth · less CPU, may skip frames"),
+            tx("متوازن · صورة وصوت","Balanced · picture and sound"),
+            tx("جودة أعلى · يحتاج CPU أقوى","Higher quality · uses more CPU")
+        };
+        int current=1;
+        for(int n=0;n<modes.length;n++)if(modes[n].equals(Software422Profile.current(this)))current=n;
+        new AlertDialog.Builder(this).setTitle(tx("أداء 4:2:2","4:2:2 performance"))
+          .setMessage(Software422Profile.status(this))
+          .setSingleChoiceItems(labels,current,(dialog,which)->{
+            dialog.dismiss();
+            String desired=modes[which];
+            if(desired.equals(Software422Profile.current(this)))return;
+            Software422Profile.save(this,desired);
+            if(playbackUri!=null&&!released){
+                status.setText(tx("إعادة تشغيل فك الفيديو فقط…","Restarting decoder only…"));
+                open(playbackUri);
+            }else status.setText(Software422Profile.status(this));
+          }).setNegativeButton(tx("رجوع","Close"),null).show();
+    }
+    private void closeDecoder(){
+        if(mediaPlayer!=null){
+            try{mediaPlayer.setEventListener(null);}catch(Throwable ignored){}
+            try{mediaPlayer.stop();}catch(Throwable ignored){}
+            try{mediaPlayer.detachViews();}catch(Throwable ignored){}
+            try{mediaPlayer.release();}catch(Throwable ignored){}
+            mediaPlayer=null;
+        }
+        if(libVLC!=null){
+            try{libVLC.release();}catch(Throwable ignored){}
+            libVLC=null;
+        }
+    }
     private void showTrackMenu() {
         if (mediaPlayer == null || released || !mediaPlayer.hasMedia()) {
             status.setText(tx("انتظر حتى يبدأ البث", "Wait until playback starts"));
@@ -293,6 +343,10 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
         int k=event.getKeyCode();
+        if(k==android.view.KeyEvent.KEYCODE_F4){
+            if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)choosePerformance();
+            return true;
+        }
         if(k==android.view.KeyEvent.KEYCODE_F3){
             if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)showBiss();
             return true;
@@ -323,16 +377,8 @@ public final class SoftwareVideoActivity extends HubActivity {
         LiveTsRelay capture=satelliteRelay;
         if(capture!=null)new Thread(capture::close,"iraqhub-capture-stop").start();
         relayThread.shutdownNow();
-        if (mediaPlayer != null) {
-            try { mediaPlayer.stop(); } catch (Throwable ignored) {}
-            try { mediaPlayer.detachViews(); } catch (Throwable ignored) {}
-            try { mediaPlayer.release(); } catch (Throwable ignored) {}
-            mediaPlayer = null;
-        }
-        if (libVLC != null) {
-            try { libVLC.release(); } catch (Throwable ignored) {}
-            libVLC = null;
-        }
+        main.removeCallbacksAndMessages(null);
+        closeDecoder();
         super.onDestroy();
     }
 }
