@@ -26,6 +26,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     private VLCVideoLayout videoLayout;
     private TextView status;
     private boolean released;
+    private volatile boolean backgroundStopped;
     private String playbackUri;
     private int streamRetries;
     private long lastBufferStatus;
@@ -100,6 +101,7 @@ public final class SoftwareVideoActivity extends HubActivity {
           if(channel.ca<0||channel.tv!=0)throw new java.io.IOException("SOFTWARE_TV_METADATA_REQUIRED");
           if(channel.ca!=0)runOnUiThread(()->getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE));
           ReceiverSignalReading tuner=DvbTuner.ensure(this,channel);
+          if(released||backgroundStopped)return;
           prefs().edit().putBoolean("dvb_tuning",false)
              .putBoolean("software_dvb_422_active",true)
              .putString("software_422_runtime","CAPTURE_PREPARING").apply();
@@ -113,7 +115,7 @@ public final class SoftwareVideoActivity extends HubActivity {
           if(released)return;
           LiveTsRelay relay=new LiveTsRelay(this,channel,request,new LiveTsRelay.Listener(){
             @Override public void ready(String uri){
-              if(released)return;
+              if(released||backgroundStopped)return;
               android.content.SharedPreferences.Editor prefsEdit=prefs().edit();
               prefsEdit.putBoolean("software_dvb_422_active",true)
                 .putString("decoder_channel","DVB:"+channel.physical())
@@ -159,7 +161,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     }
 
     private void open(String source) {
-        if(released)return;
+        if(released||backgroundStopped)return;
         playbackUri=source;
         streamRetries=0;
         try {
@@ -426,6 +428,30 @@ public final class SoftwareVideoActivity extends HubActivity {
         if(mediaPlayer!=null&&!released)mediaPlayer.play();
     }
 
+    @Override protected void onStop(){
+        // Suspend only our own 4:2:2 decoder and PVR/TS relay while off-screen.
+        // Never force-stop Aurum or the DVB tuner service.
+        backgroundStopped=true;
+        if(localInfo!=null)localInfo.dismiss();
+        closeDecoder();
+        LiveTsRelay active=satelliteRelay;
+        satelliteRelay=null;
+        if(active!=null)new Thread(active::close,"iraqhub-background-ts-stop").start();
+        prefs().edit().putBoolean("software_dvb_422_active",false)
+          .putString("software_422_runtime","BACKGROUND_STOPPED").apply();
+        LogoRepository.get(this).resumeAfterVideo();
+        super.onStop();
+    }
+    @Override protected void onRestart(){
+        super.onRestart();
+        backgroundStopped=false;
+        if(released)return;
+        long channel=getIntent().getLongExtra("dvb_channel",-1L);
+        if(channel>=0){
+            LogoRepository.get(this).pauseForVideo();
+            startSatellite(channel);
+        }else if(playbackUri!=null)open(playbackUri);
+    }
     @Override protected void onDestroy() {
         released = true;
         if(localInfo!=null)localInfo.close();
