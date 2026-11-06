@@ -89,7 +89,7 @@ final class LocalInfoBarController implements AutoCloseable {
    if(!state.channelName.isEmpty()){
     final String expected=logos;
     LogoRepository repository=LogoRepository.get(host);
-    LogoRepository.Listener logos=new LogoRepository.Listener(){
+    LogoRepository.Listener images=new LogoRepository.Listener(){
      @Override public void channel(Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
        channelLogo=image;paint();
@@ -102,8 +102,8 @@ final class LocalInfoBarController implements AutoCloseable {
      }
     };
     if(prefs.getBoolean("software_dvb_422_active",false))
-      repository.requestCached(state.channelName,state.channelId,logos);
-    else repository.request(state.channelName,state.channelId,logos);
+      repository.requestCached(state.channelName,state.channelId,images);
+    else repository.request(state.channelName,state.channelId,images);
    }
   }
   String art=id+"|"+state.title+"|"+state.startMs+"|"+state.nextTitle+"|"+
