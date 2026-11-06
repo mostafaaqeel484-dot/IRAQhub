@@ -26,6 +26,8 @@ public final class SoftwareVideoActivity extends HubActivity {
     private VLCVideoLayout videoLayout;
     private TextView status;
     private boolean released;
+    private LiveTsRelay satelliteRelay;
+    private final java.util.concurrent.ExecutorService relayThread=java.util.concurrent.Executors.newSingleThreadExecutor();
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -56,12 +58,58 @@ public final class SoftwareVideoActivity extends HubActivity {
         root.addView(tracks, trackParams);
         setContentView(root);
 
+        long dvbChannel=getIntent().getLongExtra("dvb_channel",-1L);
+        if(dvbChannel>=0){startSatellite(dvbChannel);return;}
         String uri = getIntent().getStringExtra("media_uri");
         if (uri == null || uri.trim().isEmpty()) {
             status.setText(tx("رابط الوسائط غير موجود", "Media URI is missing"));
             return;
         }
         open(uri);
+    }
+
+    private void startSatellite(long channelId){
+      status.setText(tx("تهيئة قناة DVB لـ4:2:2 داخل IRAQhub…","Preparing satellite channel for software 4:2:2…"));
+      relayThread.execute(()->{
+        try{
+          ReceiverCatalog db=ReceiverCatalog.get(this);
+          db.ensure();
+          ReceiverCatalog.Channel channel=db.channel(channelId);
+          if(channel==null)throw new java.io.IOException("CHANNEL_NOT_FOUND");
+          if(channel.ca!=0||channel.tv!=0)throw new java.io.IOException("SOFTWARE_FTA_ONLY");
+          ReceiverSignalReading tuner=DvbTuner.ensure(this,channel);
+          org.json.JSONObject request=DvbPlayRequest.create(channel.data,(int)channel.id,channel.sid,
+              channel.angle,channel.frequency,channel.pol,channel.symbolRate,tuner.tp,0,false);
+          request.put("tp_id",tuner.tp);
+          if(released)return;
+          LiveTsRelay relay=new LiveTsRelay(this,channel,request,new LiveTsRelay.Listener(){
+            @Override public void ready(String uri){
+              if(released)return;
+              android.content.SharedPreferences.Editor prefsEdit=prefs().edit();
+              prefsEdit.putBoolean("software_dvb_422_active",true)
+                .putString("decoder_channel","DVB:"+channel.physical()).apply();
+              SatelliteState previous=SatelliteState.read(SoftwareVideoActivity.this);
+              SatelliteState next=previous.copy();
+              next.channelId="DVB:"+channel.physical();
+              next.channelName=channel.name;
+              next.source="DVB · IRAQhub · LibVLC";
+              next.observedAt=System.currentTimeMillis();
+              next.save(SoftwareVideoActivity.this);
+              status.setText(tx("التقاط بث DVB نشط؛ جارٍ فك الفيديو عبر LibVLC…",
+                 "DVB MPEG-TS capture active; decoding via LibVLC…"));
+              open(uri);
+            }
+            @Override public void error(String cause){
+              if(!released)status.setText(tx("تعذر التقاط MPEG-TS: ","MPEG-TS capture failed: ")+cause);
+            }
+          });
+          satelliteRelay=relay;
+          relay.start();
+        }catch(Exception e){
+          String reason=e.getMessage()==null?"DVB_CAPTURE_UNAVAILABLE":e.getMessage();
+          runOnUiThread(()->{if(!released)status.setText(tx("فشل تشغيل 4:2:2: ","4:2:2 playback failed: ")+reason);});
+        }
+      });
     }
 
     private void open(String source) {
@@ -217,6 +265,10 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override protected void onDestroy() {
         released = true;
+        prefs().edit().putBoolean("software_dvb_422_active",false).apply();
+        LiveTsRelay capture=satelliteRelay;
+        if(capture!=null)new Thread(capture::close,"iraqhub-capture-stop").start();
+        relayThread.shutdownNow();
         if (mediaPlayer != null) {
             try { mediaPlayer.stop(); } catch (Throwable ignored) {}
             try { mediaPlayer.detachViews(); } catch (Throwable ignored) {}
