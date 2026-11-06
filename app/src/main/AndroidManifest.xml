@@ -31,6 +31,7 @@
   <activity android:name=".ReceiverAntennaMenuActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".ReceiverFastScanMenuActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".ReceiverDeveloperMenuActivity" android:exported="false" android:screenOrientation="landscape"/>
+  <activity android:name=".ArtworkDiagnosticsActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".ReceiverChannelMenuActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".ReceiverViewingMenuActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".CompatibilityActivity" android:exported="false" android:screenOrientation="landscape"/>
