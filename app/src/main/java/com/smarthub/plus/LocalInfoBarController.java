@@ -24,7 +24,7 @@ final class LocalInfoBarController implements AutoCloseable {
  private final NowNextView bar;
  private final Handler main=new Handler(Looper.getMainLooper());
  private final SharedPreferences prefs;
- private final ExecutorService io=Executors.newSingleThreadExecutor();
+ private final ExecutorService io=Executors.newFixedThreadPool(2);
  private final FactoryProvider chmax;
  private final PublishedEpgArtwork published;
  private String logoKey="",imageKey="";
@@ -88,7 +88,7 @@ final class LocalInfoBarController implements AutoCloseable {
    logoRetry=0;
    if(!state.channelName.isEmpty()){
     final String expected=logos;
-    LogoRepository.get(host).request(state.channelName,new LogoRepository.Listener(){
+    LogoRepository.get(host).request(state.channelName,state.channelId,new LogoRepository.Listener(){
      @Override public void channel(Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
        channelLogo=image;paint();
