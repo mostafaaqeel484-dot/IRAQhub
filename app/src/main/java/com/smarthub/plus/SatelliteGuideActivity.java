@@ -35,6 +35,7 @@ public final class SatelliteGuideActivity extends HubActivity {
         LinearLayout input=card(body);
         note(input,tx("الدليل مستقل عن قوائم IPTV ولا يحتاج رابط بث. تُحفظ فقط البرامج ذات العنوان ووقت البداية والنهاية المعروفين. عند حجب EPG من نظام الرسيفر يمكنك استيراد XMLTV الخاص بك. لا تعني بيانات الدليل تأكيد البث الفعلي أو التحكم بتغيير القناة.","This guide is separate from IPTV and needs no stream URL. Only programmes with a known title, start and end time are stored. If the receiver hides its EPG, import your own XMLTV. Guide times do not prove what is actually being broadcast and do not control channel tuning."));
         source=text(repository.sourceSummary(),14,false);input.addView(source);
+        action(input,tx("اكتشاف واختيار مصادر EPGShare للقناة الحالية","Discover/select EPGShare source for current channel"),this::chooseEpgShare);
         url=field(input,tx("رابط HTTPS لملف XMLTV أو XMLTV.gz","HTTPS URL for XMLTV or XMLTV.gz"),prefs().getString("satellite_xmltv_url",""));url.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
         action(input,tx("جلب واستيراد XMLTV من الرابط","Fetch and import XMLTV URL"),this::importUrl);
         action(input,tx("استيراد ملف XMLTV بترميز UTF-8","Import UTF-8 XMLTV file"),()->{if(busy)return;launchDocument(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),XMLTV_FILE);});
@@ -49,6 +50,32 @@ public final class SatelliteGuideActivity extends HubActivity {
         action(find,tx("البحث في دليل البرامج","Search programme guide"),()->search(false));
         action(find,tx("قائمة البرامج التي أتابعها","Watched programme list"),()->search(true));
         status=text("",15,false);find.addView(status);results=col();find.addView(results);search(false);
+    }
+    private void chooseEpgShare(){
+      if(current.channelName.trim().isEmpty()){
+        toast(tx("اختر قناة أولاً","Select a channel first"));return;
+      }
+      status.setText(tx("قراءة فهرس ملفات EPGShare…","Loading EPGShare feed index…"));
+      io.execute(()->{
+        List<String> found=EpgShareFeedDirectory.discover(this);
+        runOnUiThread(()->{
+          if(destroyed)return;
+          if(found.isEmpty()){
+            status.setText(tx("فهرس المصادر غير متاح حالياً، احتفظنا بالربط القديم",
+              "Feed index unavailable; saved mapping remains unchanged"));return;
+          }
+          String[] choices=new String[found.size()];
+          for(int i=0;i<choices.length;i++)choices[i]="epg_ripper_"+found.get(i)+".xml.gz";
+          new AlertDialog.Builder(this).setTitle(tx("EPGShare · اختيار مصدر القناة","EPGShare · channel source"))
+            .setItems(choices,(d,pos)->{
+              String feed=found.get(pos);
+              EpgShareFeedDirectory.selectForChannel(this,current.channelName,feed);
+              status.setText(tx("اختير المصدر: ","Selected feed: ")+feed+
+                tx(" · سيُستخدم للقناة الحالية بعد جلب XMLTV", " · will refresh from XMLTV"));
+              IraqHubSyncScheduler.runNow(this);
+            }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
+        });
+      });
     }
     private void showAliases(){Map<String,List<String>> aliases=repository.channelAliases();List<String> ids=new ArrayList<>(aliases.keySet());if(ids.isEmpty()){toast(tx("لم تُستورد قنوات XMLTV بعد","No XMLTV channels imported"));return;}int count=Math.min(500,ids.size());String[] labels=new String[count];for(int i=0;i<count;i++)labels[i]=ids.get(i)+" · "+String.join(" / ",aliases.get(ids.get(i)));new AlertDialog.Builder(this).setTitle(tx("اختر معرّف القناة · أول 500","Choose channel ID · first 500")).setItems(labels,(d,index)->mapping.setText(ids.get(index))).setNegativeButton(tx("إلغاء","Cancel"),null).show();}
     private void importUrl(){if(busy)return;String address=url.getText().toString().trim();try{URI uri=new URI(address);if(!"https".equalsIgnoreCase(uri.getScheme())||uri.getHost()==null)throw new IllegalArgumentException();}catch(Exception e){toast(tx("أدخل رابط HTTPS صحيحاً","Enter a valid HTTPS URL"));return;}busy=true;int token=++generation;status.setText(tx("جلب XMLTV والتحقق منه…","Fetching and validating XMLTV…"));job=io.submit(()->{try{String xml=SatelliteGuideRepository.fetchXml(address);if(!active(token))return;String host=URI.create(address).getHost();repository.importXml(xml,"XMLTV · "+host);prefs().edit().putString("satellite_xmltv_url",address).apply();runOnUiThread(()->{if(!active(token))return;busy=false;source.setText(repository.sourceSummary());toast(tx("استُورد الدليل؛ حُفظت المطابقة والتوقيت من المصدر","Guide imported with source times and identifiers"));search(false);});}catch(Exception e){failed(token,e);}});}
