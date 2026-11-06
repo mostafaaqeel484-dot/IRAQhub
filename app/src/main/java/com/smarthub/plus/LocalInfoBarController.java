@@ -149,6 +149,7 @@ final class LocalInfoBarController implements AutoCloseable {
   if(title==null||title.trim().isEmpty())return null;
   String href=url;
   if(href==null||href.isEmpty())href=PublishedEpgArtwork.image(host,s,title);
+  if(href==null||href.isEmpty())href=UnifiedArtworkPrefetch.cachedUrl(host,s,title);
   // Only verified programme-associated HTTPS artwork; never use name guesses.
   if(href==null||!href.startsWith("https://")||href.length()>2048)return null;
   try{
