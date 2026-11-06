@@ -50,7 +50,13 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
   if(report==null)return;
   AurumScanSummary.Result r=AurumScanSummary.Result.fromJson(
     prefs().getString("native_scan_last_result",""));
-  if(r==null){report.setText(tx("لا توجد نتيجة بحث أصلية مرصودة بعد.","No OEM scan results observed yet."));return;}
+  if(r==null){
+   report.setText(tx("لا توجد نتيجة بحث أصلية مرصودة بعد.","No OEM scan results observed yet.")+
+     "\nOEM launch: "+prefs().getString("native_search_launch_status","NOT_TESTED")+
+     "\nOEM error: "+prefs().getString("oem_last_open_error",
+       prefs().getString("native_search_launch_error","NONE")));
+   return;
+  }
   report.setText(tx("آخر بحث: تلفزيون ","Last scan: TV ")+r.tv+
     tx(" · راديو "," · Radio ")+r.radio+
     tx(" · مفتوحة "," · Free ")+r.free+
