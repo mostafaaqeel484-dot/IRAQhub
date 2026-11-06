@@ -123,7 +123,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  }
 
  private void capture(int id)throws Exception {
-  File file=new File(root,(id==firstId?"a":"b")+".ts");
+  if(closed)throw new IOException("CAPTURE_CANCELLED");
+  File file=new File(root,(id==firstId?"a":"b")+"-"+files.size()+".ts");
   if(file.exists()&&!file.delete())throw new IOException("CAPTURE_FILE_BUSY");
   JSONObject packet=new JSONObject(body.toString())
    .put("iProgId",id).put("path_dir",root.getAbsolutePath())
@@ -140,8 +141,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
   // Next Pvr capture is started before the old one is stopped.
   int old=currentId,next=old==firstId?secondId:firstId;
   capture(next);
-  if(NativeCapture.stop(old))
-    prefs().edit().putBoolean(old==firstId?"capture_active_a":"capture_active_b",false).apply();
+  if(!NativeCapture.stop(old))throw new IOException("CAPTURE_STOP_NOT_CONFIRMED");
+  prefs().edit().putBoolean(old==firstId?"capture_active_a":"capture_active_b",false).apply();
  }
 
  private static boolean sync(File file){
@@ -183,6 +184,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  private void stream(OutputStream out)throws IOException {
   int fileIndex=0;long offset=0,lastData=SystemClock.elapsedRealtime();
   byte[] buffer=new byte[TS*128];
+  TsSplice.Continuity continuity=new TsSplice.Continuity();
   while(!closed){
    File source;
    synchronized(lock){
@@ -196,8 +198,10 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     int count=(int)(Math.min(buffer.length,Math.max(0,available))/TS)*TS;
     if(count>0){
      data.seek(offset);
-     int got=data.read(buffer,0,count);
+     data.readFully(buffer,0,count);
+     int got=count;
      if(got>0){
+      continuity.rewrite(buffer,got);
       out.write(Integer.toHexString(got).getBytes(StandardCharsets.US_ASCII));
       out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
       out.write(buffer,0,got);
@@ -235,7 +239,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
   if(root!=null&&root.getName().equals("software-live-"+session)){
    File[] contents=root.listFiles();
    if(contents!=null)for(File file:contents){
-    if(file.isFile()&&file.getName().matches("[ab]\\.ts"))file.delete();
+    if(file.isFile()&&file.getName().matches("[ab]-[0-9]+\\.ts"))file.delete();
    }
    root.delete();
   }
