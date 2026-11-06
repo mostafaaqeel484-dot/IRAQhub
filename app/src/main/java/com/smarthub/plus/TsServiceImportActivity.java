@@ -39,6 +39,7 @@ public final class TsServiceImportActivity extends HubActivity {
   note(input,tx("الملف يجب أن يكون تسجيلاً حقيقياً من نفس القمر والتردد الذي تحدده. البرنامج لا يستنتج تردد الصحن من الفيديو ولا يخترع أسماء القنوات.",
    "Select the exact satellite and RF of a genuine DVB MPEG-TS recording. The file alone cannot prove the dish RF; programme names are never invented."));
   action(input,tx("اختيار ملف .ts من USB أو التخزين","Select DVB .ts recording from USB/storage"),this::choose);
+  action(input,tx("تحليل تسجيل PVR محفوظ في IRAQhub","Scan IRAQhub saved PVR recording"),this::scanOwnRecording);
   action(input,tx("حفظ البرامج المكتشفة داخل IRAQhub","Save verified services in IRAQhub"),this::confirm);
   status=text(tx("اختر القمر والتردد ثم ملف TS","Choose satellite, TP and TS file"),15,false);
   results=text("",14,false);input.addView(status);input.addView(results);
@@ -81,6 +82,55 @@ public final class TsServiceImportActivity extends HubActivity {
     tpSelector.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names));
     status.setText(tx("ترددات القمر: ","Available TPs: ")+found.size());
    });
+  });
+ }
+ private void scanOwnRecording(){
+  if(busy||sats.isEmpty()||tps.isEmpty())return;
+  if(!prefs().getString("iraqhub_pvr_session","").isEmpty()){
+   toast(tx("أوقف التسجيل أولاً","Stop active recording first"));return;
+  }
+  java.io.File movies=getExternalFilesDir(android.os.Environment.DIRECTORY_MOVIES);
+  if(movies==null){toast(tx("التخزين غير متاح","Storage unavailable"));return;}
+  java.io.File folder=new java.io.File(movies,"IRAQhub-Recordings");
+  java.io.File[] files=folder.listFiles(file->file.isFile()
+   &&file.getName().matches("DVB-[0-9]{8}-[0-9]{6}-SID[0-9]{1,5}\\.ts")
+   &&file.length()>1880);
+  if(files==null||files.length==0){
+   toast(tx("ماكو تسجيل TS محفوظ","No saved TS recording"));return;
+  }
+  java.util.Arrays.sort(files,java.util.Comparator.comparingLong(java.io.File::lastModified).reversed());
+  int limit=Math.min(files.length,15);String[] choices=new String[limit];
+  for(int i=0;i<limit;i++)
+   choices[i]=files[i].getName()+"  ·  "+String.format(java.util.Locale.ROOT,"%.1f MB",files[i].length()/1048576d);
+  new AlertDialog.Builder(this).setTitle(tx("اختر التسجيل","Select recording"))
+   .setItems(choices,(dialog,which)->scanLocal(files[which]))
+   .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+ }
+ private void scanLocal(java.io.File source){
+  int si=satSelector.getSelectedItemPosition(),ti=tpSelector.getSelectedItemPosition();
+  if(busy||si<0||si>=sats.size()||ti<0||ti>=tps.size())return;
+  ReceiverCatalog.Sat sat=sats.get(si);ReceiverCatalog.Tp tp=tps.get(ti);
+  busy=true;pending=null;
+  status.setText(tx("تحليل تسجيل PVR…","Scanning PVR recording…"));results.setText("");
+  io.execute(()->{
+   try(InputStream stream=new java.io.FileInputStream(source)){
+    DvbPsiScan.Result parsed=DvbPsiScan.scan(stream);
+    runOnUiThread(()->{if(closed)return;
+     pending=parsed;sourceSat=sat.id;sourceTp=tp.id;
+     busy=false;status.setText(tx("خدمات حقيقية: ","Verified services: ")+parsed.services.length());
+     StringBuilder display=new StringBuilder();
+     for(int i=0;i<Math.min(60,parsed.services.length());i++){
+      org.json.JSONObject row=parsed.services.optJSONObject(i);
+      if(row!=null)display.append(row.optInt("sid")).append(" · ")
+        .append(row.optString("name")).append(" · ")
+        .append(row.optInt("ca")==0?"FTA":"CA").append("\n");
+     }
+     results.setText(display.toString());
+    });
+   }catch(Exception error){
+    String message=error.getMessage()==null?"PVR_PSI_UNAVAILABLE":error.getMessage();
+    runOnUiThread(()->{if(!closed){busy=false;status.setText(message);}});
+   }
   });
  }
  private void choose(){
