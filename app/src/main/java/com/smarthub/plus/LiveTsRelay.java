@@ -181,17 +181,25 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  private static int videoClearState(File file,int videoPid){
   if(videoPid<16||videoPid>=8191||file==null)return 0;
   try(RandomAccessFile in=new RandomAccessFile(file,"r")){
-   long packets=Math.min(4096,in.length()/TS);
-   byte[] packet=new byte[TS];int clean=0;
-   for(long i=0;i<packets;i++){
+   long total=in.length()/TS;
+   if(total<16)return 0;
+   // Only inspect the live tail: early encrypted packets must not permanently
+   // reject a receiver which authorises a BISS service moments later.
+   long from=Math.max(0,total-3072);
+   in.seek(from*TS);
+   byte[] packet=new byte[TS];
+   int clear=0,scrambled=0;
+   for(long i=from;i<total;i++){
     in.readFully(packet);
     if(packet[0]!=(byte)0x47)break;
     int pid=((packet[1]&31)<<8)|(packet[2]&255);
     if(pid!=videoPid||(packet[3]&0x10)==0)continue;
-    if((packet[3]&0xc0)!=0)return -1;
-    clean++;
+    if((packet[3]&0xc0)!=0)scrambled++;
+    else clear++;
    }
-   return clean>=8?1:0;
+   if(clear>=12&&scrambled==0)return 1;
+   if(scrambled>=8)return -1;
+   return 0;
   }catch(Exception unavailable){return 0;}
  }
  private static boolean sync(File file){
