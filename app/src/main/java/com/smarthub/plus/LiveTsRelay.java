@@ -33,6 +33,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  private final java.util.concurrent.ConcurrentHashMap<Socket,Integer> cursors=new java.util.concurrent.ConcurrentHashMap<>();
  private final String session=UUID.randomUUID().toString();
  private final List<File> files=new ArrayList<>();
+ private long retiredSegmentBytes; // total bytes in successfully deleted old TS segments
  private final int firstId,secondId;
  private volatile boolean closed,started;
  private volatile ServerSocket server;
@@ -124,8 +125,11 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     }catch(SocketTimeoutException ignored){}
     if(SystemClock.elapsedRealtime()-lastSignal>2500){
      lastSignal=SystemClock.elapsedRealtime();
-     long bytes=0;
-     synchronized(lock){for(File segment:files)bytes+=Math.max(0,segment.length());}
+     long bytes;
+     synchronized(lock){
+      bytes=retiredSegmentBytes;
+      for(File segment:files)if(segment!=null)bytes+=Math.max(0,segment.length());
+     }
      long elapsed=lastSignal-priorMeasure;
      if(elapsed>=1000&&bytes>priorBytes){
       long bps=Math.min(1000000000L,(bytes-priorBytes)*8000L/elapsed);
@@ -243,8 +247,10 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     keepFrom=Math.min(keepFrom,reading);
    for(int i=0;i<keepFrom;i++){
     File old=files.get(i);
-    if(old!=null&&old!=current&&old.exists()&&old.delete())
-     files.set(i,null);
+    if(old!=null&&old!=current&&old.exists()){
+     long size=old.length();
+     if(old.delete()){retiredSegmentBytes+=size;files.set(i,null);}
+    }
    }
   }
  }
