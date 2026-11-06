@@ -31,6 +31,15 @@ final class IraqHubSyncScheduler {
   manager.enqueueUniqueWork(DVB+"-manual",ExistingWorkPolicy.REPLACE,
     new OneTimeWorkRequest.Builder(DvbEpgRefreshWorker.class).build());
  }
+ static void programmeChanged(Context context){
+  // Debounce channel switches; the worker checks the currently observed event.
+  Constraints internet=online();
+  WorkManager.getInstance(context.getApplicationContext())
+    .enqueueUniqueWork(POSTERS+"-programme",ExistingWorkPolicy.REPLACE,
+      new OneTimeWorkRequest.Builder(PosterRefreshWorker.class)
+        .setInitialDelay(4,TimeUnit.SECONDS)
+        .setConstraints(internet).build());
+ }
  static void ensure(Context context){
   WorkManager manager=WorkManager.getInstance(context.getApplicationContext());
   Constraints internet=online();
