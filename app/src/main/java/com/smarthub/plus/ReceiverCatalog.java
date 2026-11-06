@@ -32,15 +32,16 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
  private static final String JOIN="SELECT c._id,c.name,c.provider,c.sid,c.tv,c.ca,c.data,t._id,t.freq,t.pol,t.sr,t.fec,s._id,s.name,s.angle,s.band FROM ch c JOIN tp t ON t._id=c.tp_id JOIN sat s ON s._id=t.sat_id";
  List<Sat> satellites(){List<Sat> out=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT _id,name,angle,band FROM sat ORDER BY _id",null)){while(c.moveToNext())out.add(new Sat(c.getLong(0),c.getString(1),c.getInt(2),c.getString(3)));}return out;}
  int count(){return (int)DatabaseUtils.longForQuery(getReadableDatabase(),"SELECT COUNT(*) FROM ch",null);}
- /** Visible satellite-local channel numbers are independent of imported CHL IDs.
-  * Count every service within its satellite, starting at 1. Called off the UI thread. */
+ /** Number visible TV and radio lists independently from 1 per satellite.
+  * Imported CHL IDs are not user-visible channel numbers. Called off the UI thread. */
  Map<Long,Integer> satelliteNumbers(){
-  Map<Long,Integer> out=new HashMap<>();long previous=Long.MIN_VALUE;int ordinal=0;
+  Map<Long,Integer> out=new HashMap<>();long previous=Long.MIN_VALUE;int previousType=-1,ordinal=0;
   try(Cursor c=getReadableDatabase().rawQuery(
-    "SELECT c._id,t.sat_id FROM ch c JOIN tp t ON c.tp_id=t._id "+
-    "ORDER BY t.sat_id,c.order_index,c._id",null)){
+    "SELECT c._id,t.sat_id,c.tv FROM ch c JOIN tp t ON c.tp_id=t._id "+
+    "ORDER BY t.sat_id,c.tv,c.order_index,c._id",null)){
    while(c.moveToNext()){
-    long sat=c.getLong(1);if(sat!=previous){ordinal=0;previous=sat;}
+    long sat=c.getLong(1);int type=c.getInt(2);
+    if(sat!=previous||type!=previousType){ordinal=0;previous=sat;previousType=type;}
     out.put(c.getLong(0),++ordinal);
    }
   }return out;
@@ -51,8 +52,8 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
     new String[]{Long.toString(active.id)})){if(!c.moveToFirst())return 0;order=c.getInt(0);}
   try(Cursor c=getReadableDatabase().rawQuery(
     "SELECT COUNT(*) FROM ch c JOIN tp t ON c.tp_id=t._id "+
-    "WHERE t.sat_id=? AND (c.order_index<? OR (c.order_index=? AND c._id<=?))",
-    new String[]{Integer.toString(active.satId),Integer.toString(order),
+    "WHERE t.sat_id=? AND c.tv=? AND (c.order_index<? OR (c.order_index=? AND c._id<=?))",
+    new String[]{Integer.toString(active.satId),Integer.toString(active.tv),Integer.toString(order),
       Integer.toString(order),Long.toString(active.id)})){
    return c.moveToFirst()?c.getInt(0):0;
   }catch(Exception unavailable){return 0;}
