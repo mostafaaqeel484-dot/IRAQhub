@@ -65,6 +65,8 @@ public final class ArtworkDiagnosticsActivity extends HubActivity {
    "\n"+tx("تفعيل بوسترات InfoBar: ","InfoBar posters enabled: ")+p.getBoolean("osd_posters",true)+
    "\n"+tx("خدمة المصنع: ","Factory connection: ")+p.getString("factory_status","FACTORY_NOT_CONNECTED")+
    "\nCHMAX: "+p.getString("chl_chmax_status","NOT_TESTED")+
+   "\nCHMAX visible icon: "+p.getString("chmax_observe_status","NOT_OBSERVED")+
+   "\nAurum accessibility: "+p.getBoolean("satellite_accessibility_connected",false)+
    "\n"+tx("شعار المصنع: ","Factory logo: ")+p.getString("factory_logo_status","NO_VERIFIED_LOGO")+
    "\n"+tx("شعار محلي أو مرصود: ","Observed/native logo: ")+(last>0?"CACHE_UPDATED":"NOT_CAPTURED")+
    "\nEPG Android TV: "+p.getString("published_epg_status","NOT_TESTED")+
