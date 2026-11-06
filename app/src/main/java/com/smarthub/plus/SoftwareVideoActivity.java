@@ -78,6 +78,7 @@ public final class SoftwareVideoActivity extends HubActivity {
           if(channel==null)throw new java.io.IOException("CHANNEL_NOT_FOUND");
           if(channel.ca!=0||channel.tv!=0)throw new java.io.IOException("SOFTWARE_FTA_ONLY");
           ReceiverSignalReading tuner=DvbTuner.ensure(this,channel);
+          prefs().edit().putBoolean("dvb_tuning",false).apply();
           org.json.JSONObject request=DvbPlayRequest.create(channel.data,(int)channel.id,channel.sid,
               channel.angle,channel.frequency,channel.pol,channel.symbolRate,tuner.tp,0,false);
           request.put("tp_id",tuner.tp);
@@ -106,6 +107,7 @@ public final class SoftwareVideoActivity extends HubActivity {
           satelliteRelay=relay;
           relay.start();
         }catch(Exception e){
+          prefs().edit().putBoolean("dvb_tuning",false).apply();
           String reason=e.getMessage()==null?"DVB_CAPTURE_UNAVAILABLE":e.getMessage();
           runOnUiThread(()->{if(!released)status.setText(tx("فشل تشغيل 4:2:2: ","4:2:2 playback failed: ")+reason);});
         }
@@ -265,7 +267,7 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override protected void onDestroy() {
         released = true;
-        prefs().edit().putBoolean("software_dvb_422_active",false).apply();
+        prefs().edit().putBoolean("software_dvb_422_active",false).putBoolean("dvb_tuning",false).apply();
         LiveTsRelay capture=satelliteRelay;
         if(capture!=null)new Thread(capture::close,"iraqhub-capture-stop").start();
         relayThread.shutdownNow();
