@@ -410,14 +410,19 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override protected void onPause() {
         if(localInfo!=null)localInfo.dismiss();
-        if (mediaPlayer != null && mediaPlayer.isPlaying()) mediaPlayer.pause();
+        if(mediaPlayer!=null&&mediaPlayer.isPlaying())mediaPlayer.pause();
+        // Returning to normal DVB must not leave the OEM decoder audio muted.
+        NativeSatelliteAudioGate.restore(this,nativeAudioToken);
+        nativeAudioToken=0;
         super.onPause();
     }
 
     @Override protected void onResume() {
         super.onResume();
+        if(getIntent().getLongExtra("dvb_channel",-1)>=0&&nativeAudioToken==0)
+          nativeAudioToken=NativeSatelliteAudioGate.suppress(this);
         NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
-        if (mediaPlayer != null && !released) mediaPlayer.play();
+        if(mediaPlayer!=null&&!released)mediaPlayer.play();
     }
 
     @Override protected void onDestroy() {
