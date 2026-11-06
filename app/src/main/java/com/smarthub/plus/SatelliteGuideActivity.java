@@ -36,6 +36,8 @@ public final class SatelliteGuideActivity extends HubActivity {
         note(input,tx("الدليل مستقل عن قوائم IPTV ولا يحتاج رابط بث. تُحفظ فقط البرامج ذات العنوان ووقت البداية والنهاية المعروفين. عند حجب EPG من نظام الرسيفر يمكنك استيراد XMLTV الخاص بك. لا تعني بيانات الدليل تأكيد البث الفعلي أو التحكم بتغيير القناة.","This guide is separate from IPTV and needs no stream URL. Only programmes with a known title, start and end time are stored. If the receiver hides its EPG, import your own XMLTV. Guide times do not prove what is actually being broadcast and do not control channel tuning."));
         source=text(repository.sourceSummary(),14,false);input.addView(source);
         action(input,tx("اكتشاف واختيار مصادر EPGShare للقناة الحالية","Discover/select EPGShare source for current channel"),this::chooseEpgShare);
+        action(input,tx("حالة تحديث EPG والبوسترات","EPG and poster refresh status"),this::showUnifiedStatus);
+        action(input,tx("تحديث XMLTV والبوسترات وDVB EPG الآن","Refresh XMLTV, posters and DVB EPG now"),()->{IraqHubSyncScheduler.runNow(this);toast(tx("تمت جدولة تحديثات منفصلة، من دون إيقاف البث","Independent refresh tasks queued without stopping playback"));});
         url=field(input,tx("رابط HTTPS لملف XMLTV أو XMLTV.gz","HTTPS URL for XMLTV or XMLTV.gz"),prefs().getString("satellite_xmltv_url",""));url.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
         action(input,tx("جلب واستيراد XMLTV من الرابط","Fetch and import XMLTV URL"),this::importUrl);
         action(input,tx("استيراد ملف XMLTV بترميز UTF-8","Import UTF-8 XMLTV file"),()->{if(busy)return;launchDocument(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),XMLTV_FILE);});
@@ -50,6 +52,31 @@ public final class SatelliteGuideActivity extends HubActivity {
         action(find,tx("البحث في دليل البرامج","Search programme guide"),()->search(false));
         action(find,tx("قائمة البرامج التي أتابعها","Watched programme list"),()->search(true));
         status=text("",15,false);find.addView(status);results=col();find.addView(results);search(false);
+    }
+    private void showUnifiedStatus(){
+      android.content.SharedPreferences p=prefs();
+      String report=tx("المصادر المختارة: ","Selected feeds: ")+EpgShareFeedDirectory.selected(this)
+        +"\nXMLTV · "+when(p.getLong("online_epg_sync_at",0))
+        +" · "+p.getString("online_epg_status","NOT_UPDATED")
+        +"\nDVB EIT · "+when(p.getLong("native_epg_sync_success_at",0))
+        +" · "+p.getString("native_epg_sync_status","NOT_OBSERVED")
+        +" · events "+p.getInt("native_epg_sync_events",0)
+        +"\nPoster · "+when(p.getLong("poster_sync_success_at",0))
+        +" · "+p.getString("poster_sync_status","NOT_UPDATED")
+        +" · verified images "+p.getInt("poster_sync_verified_prefetch",0)
+        +"\nEPGShare index · "+p.getString("epgshare_discovery_status","NOT_CHECKED")
+        +"\n"+tx("تتأجل المهام الثقيلة عند تشغيل 4:2:2، ولا تُحذف البيانات السابقة عند فشل المصدر.",
+         "Heavy tasks defer during 4:2:2. Previous valid EPG and artwork are kept when a source fails.");
+      new AlertDialog.Builder(this)
+        .setTitle(tx("مصادر EPG والبوسترات","EPG and poster sources"))
+        .setMessage(report).setPositiveButton("OK",null).show();
+    }
+    private static String when(long ms){
+      if(ms<=0)return "—";
+      java.text.SimpleDateFormat format=new java.text.SimpleDateFormat(
+        "yyyy-MM-dd HH:mm",java.util.Locale.ROOT);
+      format.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Baghdad"));
+      return format.format(new java.util.Date(ms));
     }
     private void chooseEpgShare(){
       if(current.channelName.trim().isEmpty()){
