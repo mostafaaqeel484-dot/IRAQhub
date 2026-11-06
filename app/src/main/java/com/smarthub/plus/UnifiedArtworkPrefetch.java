@@ -37,10 +37,44 @@ final class UnifiedArtworkPrefetch {
     if(key.isEmpty())continue;
     long before=prefs.getLong("verified_poster_until:"+key,0);
     if(before>System.currentTimeMillis()&&!prefs.getString("verified_poster_url:"+key,"").isEmpty())continue;
-    JSONObject match=provider.resolve(title,id,type,"",0);
-    if(!"matched".equals(match.optString("status"))||!id.equals(match.optString("id"))
-       ||!type.equals(match.optString("type")))continue;
-    String address=match.optString("poster","");
+    String address="",posterSource="",imdb="";
+    // Verify chosen TMDB identity first. Different providers fail independently.
+    try{
+     ProviderSecrets secrets=ProviderSecrets.read(context);
+     if(secrets!=null&&!secrets.tmdb.isEmpty()){
+      JSONObject tmdb=new TmdbProvider(context,secrets.tmdb).resolve(title,id,type,"",0);
+      if("matched".equals(tmdb.optString("status"))&&id.equals(tmdb.optString("id"))
+         &&type.equals(tmdb.optString("type"))){
+       address=tmdb.optString("poster","");
+       imdb=tmdb.optString("imdbId","");
+       posterSource="TMDB";
+      }
+     }
+    }catch(Exception unavailable){/* Preserve other providers. */}
+    try{
+     JSONObject better=provider.resolve(title,id,type,imdb,0);
+     if("matched".equals(better.optString("status"))&&id.equals(better.optString("id"))
+       &&type.equals(better.optString("type"))&&validUrl(better.optString("poster",""))){
+      address=better.optString("poster","");
+      posterSource="BetterPosters";
+      if(imdb.isEmpty())imdb=better.optString("imdbId","");
+     }
+    }catch(Exception unavailable){/* TMDB remains usable. */}
+    if(imdb.matches("tt[0-9]{7,10}")&&prefs.getBoolean("betterposters_direct_enabled",true)){
+     try{
+      String direct=BetterPostersDirect.poster(context,imdb);
+      if(validUrl(direct)){address=direct;posterSource="BetterPosters · IMDb";}
+     }catch(Exception unavailable){/* Fall back. */}
+    }
+    if(!validUrl(address)&&"series".equals(type)&&imdb.matches("tt[0-9]{7,10}"))
+     try{
+      JSONObject maze=new TvmazeProvider(context).resolve(title,imdb);
+      if("matched".equals(maze.optString("status"))&&imdb.equals(maze.optString("imdbId"))
+        &&validUrl(maze.optString("poster",""))){
+       address=maze.optString("poster","");
+       posterSource="TVmaze";
+      }
+     }catch(Exception unavailable){/* Keep verified images only. */}
     if(!validUrl(address))continue;
     byte[] bytes=ArtworkCache.fetch(context,new URL(address),5*1024*1024);
     if(bytes==null||bytes.length<200)continue;
@@ -51,6 +85,7 @@ final class UnifiedArtworkPrefetch {
     SharedPreferences.Editor edit=prefs.edit()
      .putString("verified_poster_url:"+key,address).putString("verified_poster_id:"+key,id)
      .putString("verified_poster_type:"+key,type)
+     .putString("verified_poster_source:"+key,posterSource)
      .putLong("verified_poster_until:"+key,Math.min(end+60000,System.currentTimeMillis()+MAX_AGE))
      .putLong("verified_poster_at:"+key,System.currentTimeMillis())
      .putLong("epg_art_changed_at",System.currentTimeMillis());
@@ -77,7 +112,7 @@ final class UnifiedArtworkPrefetch {
    if(!"https".equals(uri.getScheme())||uri.getRawUserInfo()!=null
       ||uri.getRawFragment()!=null||source.length()>2048)return false;
    String host=uri.getHost();
-   return "btttr.cc".equals(host)||"image.tmdb.org".equals(host);
+   return "btttr.cc".equals(host)||"image.tmdb.org".equals(host)||"static.tvmaze.com".equals(host);
   }catch(Exception invalid){return false;}
  }
 }
