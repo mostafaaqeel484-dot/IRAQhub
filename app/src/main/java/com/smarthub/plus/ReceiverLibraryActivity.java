@@ -38,10 +38,22 @@ public class ReceiverLibraryActivity extends HubActivity {
   finish();
  }
  private void playSoftware(ReceiverCatalog.Channel ch){
-  if(ch.ca!=0||ch.tv!=0){
-   toast(tx("LibVLC البرمجي للقنوات التلفزيونية المفتوحة فقط","LibVLC software DVB requires free-to-air TV"));
+  if(ch.tv!=0||ch.ca<0){
+   toast(tx("يتطلب تشغيل 4:2:2 قناة تلفزيونية ببيانات DVB صالحة",
+      "4:2:2 requires a DVB TV service with complete metadata"));
    return;
   }
+  if(ch.ca!=0){
+   new AlertDialog.Builder(this).setTitle(tx("تجربة بث مشفّر 4:2:2","Try encrypted 4:2:2"))
+    .setMessage(tx("سيُستخدم فك BISS/CA المصرّح الموجود في الرسيفر فقط. إذا خرجت حزم TS مشفرة سيوقفها IRAQhub؛ مفتاح BISS المحلي لا يُحقن في خدمات المصنع.",
+      "Uses only the receiver's existing authorised CA/BISS handling. If captured video is still scrambled, IRAQhub will reject it. Local BISS keys are not injected into firmware."))
+    .setPositiveButton(tx("تجربة","Try"),(dialog,which)->launchSoftware(ch))
+    .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+   return;
+  }
+  launchSoftware(ch);
+ }
+ private void launchSoftware(ReceiverCatalog.Channel ch){
   new ChannelScope("",satellite,ch.tv,favoritesOnly,alphabetical,group).save(this);
   startActivity(new Intent(this,SoftwareVideoActivity.class).putExtra("dvb_channel",ch.id));
   finish();
