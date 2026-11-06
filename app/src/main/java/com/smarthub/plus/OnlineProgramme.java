@@ -13,18 +13,25 @@ final class OnlineProgramme {
  private OnlineProgramme(MediaRepository.Item i,Bitmap p){item=i;poster=p;}
  static OnlineProgramme fetch(Context context,String raw)throws Exception{return load(context,SatelliteState.read(context),raw,"","","");}
  static OnlineProgramme fetch(Context context,SatelliteState event,String raw)throws Exception{return load(context,event,raw,"","","");}
+ static OnlineProgramme fetch(Context context,SatelliteState event,String raw,boolean upcoming)throws Exception{return load(context,event,raw,"","","",upcoming);}
  static OnlineProgramme fetch(Context context,String raw,String imdb)throws Exception{return load(context,SatelliteState.read(context),raw,"","",imdb);}
  static OnlineProgramme selected(Context context,String raw,Candidate candidate)throws Exception{return load(context,SatelliteState.read(context),raw,candidate.id,candidate.type,"");}
  static OnlineProgramme selected(Context context,SatelliteState event,String raw,Candidate candidate)throws Exception{return load(context,event,raw,candidate.id,candidate.type,"");}
+ static OnlineProgramme selected(Context context,SatelliteState event,String raw,Candidate candidate,boolean upcoming)throws Exception{return load(context,event,raw,candidate.id,candidate.type,"",upcoming);}
  private static OnlineProgramme load(Context context,SatelliteState event,String raw,String id,String type,String imdb)throws Exception{
   if(event==null)event=SatelliteState.read(context);
-  long start=raw.equals(event.title)?event.startMs:raw.equals(event.nextTitle)?event.nextStartMs:0,
-       end=raw.equals(event.title)?event.endMs:raw.equals(event.nextTitle)?event.nextEndMs:0;
+  return load(context,event,raw,id,type,imdb,!raw.equals(event.title)&&raw.equals(event.nextTitle));
+ }
+ private static OnlineProgramme load(Context context,SatelliteState event,String raw,String id,String type,String imdb,boolean upcoming)throws Exception{
+  if(event==null)event=SatelliteState.read(context);
+  boolean same=raw.equals(upcoming?event.nextTitle:event.title);
+  long start=same?(upcoming?event.nextStartMs:event.startMs):0,
+       end=same?(upcoming?event.nextEndMs:event.endMs):0;
   double duration=start>0&&end>start?(end-start)/60000.0:0;
   String tmdbKey="";
   try{tmdbKey=ProviderSecrets.read(context).tmdb;}catch(Exception unavailable){/* Another poster source remains usable. */}
   if(id.isEmpty()&&imdb.isEmpty()&&!tmdbKey.isEmpty()){
-   JSONObject remembered=PosterSelection.read(context,event,raw);
+   JSONObject remembered=PosterSelection.read(context,event,raw,upcoming);
    id=remembered.optString("id");type=remembered.optString("type");
   }
   JSONObject j=new JSONObject().put("status","not_found");
@@ -41,8 +48,8 @@ final class OnlineProgramme {
    JSONObject other=new TvmazeProvider(context).resolve(raw,imdb);
    if("matched".equals(other.optString("status")))j=other;
   }catch(Exception unavailable){/* Preserve verified EPG artwork. */}
-  if(!"matched".equals(j.optString("status")))return epg(context,event,raw);
-  PosterSelection.save(context,event,raw,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));item.id=tmdb?(item.imdbId.isEmpty()?j.optString("id"):"tmdb:"+item.imdbId):(better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · حقوق الصور لأصحابها";item.imageCredit=tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
+  if(!"matched".equals(j.optString("status")))return epg(context,event,raw,upcoming);
+  PosterSelection.save(context,event,raw,upcoming,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));item.id=tmdb?(item.imdbId.isEmpty()?j.optString("id"):"tmdb:"+item.imdbId):(better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · حقوق الصور لأصحابها";item.imageCredit=tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
   String address=j.optString("poster");Bitmap bitmap=posterBitmap(context,address);
   if(bitmap==null&&tmdb)try{
    // Reuse verified TMDB/IMDb identity; never pick a different named movie.
@@ -67,7 +74,7 @@ final class OnlineProgramme {
     if(alternative!=null){bitmap=alternative;address=direct;item.imageCredit="BetterPosters · IMDb";item.imageLicense="BetterPosters · حقوق الصور لأصحابها";}
    }catch(Exception unavailable){}
   if(bitmap==null){
-   bitmap=EpgArtwork.load(context,event,raw);
+   bitmap=EpgArtwork.load(context,event,raw,upcoming);
    if(bitmap!=null){item.imageKind="epg";item.imageCredit="EPG";item.imageLicense="EPG · حقوق الصور لأصحابها";}
   }
   // Do not let an unusable metadata-only result block open-image fallbacks.
@@ -75,7 +82,7 @@ final class OnlineProgramme {
   item.image="epg".equals(item.imageKind)?"":address;
   return new OnlineProgramme(item,bitmap);
  }
- private static OnlineProgramme epg(Context context,SatelliteState event,String raw)throws Exception{Bitmap picture=EpgArtwork.load(context,event,raw);if(picture==null)return null;MediaRepository.Item item=new MediaRepository.Item();item.id="epg:"+EpgArtwork.key(event.channelName,raw);item.title=raw;item.imageKind="epg";item.imageCredit="EPG";item.imageLicense="EPG · حقوق الصور لأصحابها";item.fetchedAt=System.currentTimeMillis();return new OnlineProgramme(item,picture);}
+ private static OnlineProgramme epg(Context context,SatelliteState event,String raw,boolean upcoming)throws Exception{Bitmap picture=EpgArtwork.load(context,event,raw,upcoming);if(picture==null)return null;MediaRepository.Item item=new MediaRepository.Item();item.id="epg:"+EpgArtwork.key(event.channelName,raw);item.title=raw;item.imageKind="epg";item.imageCredit="EPG";item.imageLicense="EPG · حقوق الصور لأصحابها";item.fetchedAt=System.currentTimeMillis();return new OnlineProgramme(item,picture);}
  private static Bitmap posterBitmap(Context context,String address){
   if(address==null||address.isEmpty())return null;
   try{
