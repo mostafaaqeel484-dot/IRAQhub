@@ -53,7 +53,29 @@ final class UnifiedArtworkPrefetch {
      }catch(Exception unavailable){/* Do not assign uncertain titles. */}
     }
     if(!id.matches("tmdb:[1-9][0-9]{0,10}")||
-       (!"movie".equals(type)&&!"series".equals(type)))continue;
+       (!"movie".equals(type)&&!"series".equals(type))){
+     // Key-free TVmaze is safe for explicitly numbered episodes only.
+     BroadcastTitle episode=BroadcastTitle.parse(title);
+     if(episode.season>0||episode.episode>0)try{
+      JSONObject show=new TvmazeProvider(context).resolve(title,"");
+      String image=show.optString("poster","");
+      String key=PosterSelection.key(event,title);
+      if("matched".equals(show.optString("status"))&&
+         "series".equals(show.optString("type"))&&
+         !key.isEmpty()&&imageAvailable(context,image)){
+       long now=System.currentTimeMillis();
+       prefs.edit().putString("verified_poster_url:"+key,image)
+         .putString("verified_poster_source:"+key,"TVmaze · exact episodic title")
+         .putString("verified_poster_id:"+key,"tvmaze:"+show.optString("id"))
+         .putString("verified_poster_type:"+key,"series")
+         .putLong("verified_poster_until:"+key,Math.min(end+60000,now+MAX_AGE))
+         .putLong("verified_poster_at:"+key,now)
+         .putLong("epg_art_changed_at",now).apply();
+       done++;continue;
+      }
+     }catch(Exception unavailable){/* No guessed episode artwork. */}
+     continue;
+    }
     String key=PosterSelection.key(event,title);
     if(key.isEmpty())continue;
     long before=prefs.getLong("verified_poster_until:"+key,0);
