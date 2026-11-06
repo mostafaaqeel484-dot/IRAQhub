@@ -30,7 +30,9 @@ final class DvbTuner {
   if(satellite==null||(!"H".equals(polarity)&&!"V".equals(polarity)))
     throw new IOException("INVALID_TRANSPONDER");
   SharedPreferences prefs=context.getSharedPreferences("smarthub",0);
-  if(prefs.getBoolean("dvb_player_visible",false)||prefs.getBoolean("software_dvb_422_active",false))
+  if(prefs.getBoolean("dvb_player_visible",false)||prefs.getBoolean("software_dvb_422_active",false)
+     ||!prefs.getString("iraqhub_pvr_session","").isEmpty()
+     ||!prefs.getString("capture_session","").isEmpty())
     throw new IOException("STOP_VIDEO_BEFORE_MANUAL_TUNE");
   String saved=prefs.getString(LnbProfile.key(satellite.angle,satellite.band),"");
   if(saved.isEmpty())throw new IOException("DVB_TUNING_PROFILE_REQUIRED");
