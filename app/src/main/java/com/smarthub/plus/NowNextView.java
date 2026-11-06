@@ -13,7 +13,9 @@ final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
  private final TextView currentTitle,nextTitle,heading,nowLine,nextLine,status,clock;
  private final TextView broadcast,remaining,technical,weather,strengthLabel,qualityLabel,signalDetail,signalSource,encryptionLine,providerName,providerCaption;
- private final LinearLayout providerPanel,resolutionStrip;
+ private final LinearLayout providerPanel,resolutionStrip,caStrip;
+ private final TextView[] caChips=new TextView[7];
+ private static final String[] CA_TYPES={"FTA","IR","BISS","VI","NDS","CONAX","NAGRA"};
  private final TextView[] resolutionChips=new TextView[5];
  private final ProgressBar progress,strengthBar,qualityBar;
  private final android.content.SharedPreferences prefs;
