@@ -23,7 +23,7 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
   ReceiverTileMenu.pair(this,body,
    new ReceiverTileMenu.Tile("03",tx("ربط CHMAX وEPG","Factory EPG & CHMAX"),
      tx("فحص اتصال الخدمات والصور","Read-only service and artwork status"),
-     ()->open(FactorySettingsActivity.class)),
+     ()->open(ArtworkDiagnosticsActivity.class)),
    new ReceiverTileMenu.Tile("04",tx("مراقبة الإشارة","Signal monitoring"),
      tx("القفل وBER وSNR","Tuner lock, BER and SNR"),
      ()->open(SignalInformationActivity.class)));
@@ -42,10 +42,7 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
   updateReport();
  }
  private void open(Class<?> cls){startActivity(new Intent(this,cls));}
- private void openNative(){
-  try{startActivity(new Intent("com.tosmart.action.NavHost").setPackage("com.tosmart.aurum"));}
-  catch(RuntimeException rejected){toast(tx("الروم لم يسمح بفتح القائمة؛ استخدم ريموت الرسيفر.","OEM menu entry was denied; use the receiver remote."));}
- }
+ private void openNative(){NativeSearchNavigation.open(this);}
  @Override protected void onResume(){super.onResume();updateReport();}
  private void updateReport(){
   if(report==null)return;

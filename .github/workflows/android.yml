@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ main, 'fix/x5m-422-video-health-20261106', 'fix/x5m-unified-posters-20261106', 'feature/aurum-native-search-results-20261106', 'feature/x5m-remote-menus-422-audio-20261106' ]
+    branches: [ main, 'fix/x5m-422-video-health-20261106', 'fix/x5m-unified-posters-20261106', 'feature/aurum-native-search-results-20261106', 'feature/x5m-remote-menus-422-audio-20261106', 'fix/x5m-real-artwork-menu-20261106' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:

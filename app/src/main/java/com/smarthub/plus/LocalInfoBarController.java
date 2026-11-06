@@ -29,7 +29,7 @@ final class LocalInfoBarController implements AutoCloseable {
  private final PublishedEpgArtwork published;
  private String logoKey="",imageKey="";
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
- private long logoRetry;
+ private long logoRetry,posterRetryAt;
  private volatile boolean closed;
  private boolean visible;
  private int seq;
@@ -109,21 +109,20 @@ final class LocalInfoBarController implements AutoCloseable {
   String art=id+"|"+state.title+"|"+state.startMs+"|"+state.nextTitle+"|"+
     state.nextStartMs+"|"+state.image+"|"+state.nextImage+"|"+
     prefs.getLong("epg_art_changed_at",0);
-  if(!art.equals(imageKey)){
-   imageKey=art;
+  boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
+    (!state.nextTitle.isEmpty()&&nextPoster==null);
+  if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
+   imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
    currentPoster=null;nextPoster=null;
-   final String check=art;
-   final SatelliteState snap=state.copy();
+   final String expected=art;
+   final SatelliteState snapshot=state.copy();
+   // Two independent pipelines: a slow TMDB movie lookup must not delay NEXT.
    io.execute(()->{
-    try{
-     published.refresh(snap,System.currentTimeMillis());
-     Bitmap now=poster(snap,snap.title,snap.image);
-     Bitmap next=poster(snap,snap.nextTitle,snap.nextImage);
-     main.post(()->{if(!closed&&check.equals(imageKey)){
-      currentPoster=now;nextPoster=next;paint();
-     }});
-    }catch(Exception ignored){}
+    try{published.refresh(snapshot,System.currentTimeMillis());}
+    catch(Exception ignored){}
+    loadPoster(snapshot,false,expected);
    });
+   io.execute(()->loadPoster(snapshot,true,expected));
   }
   if(System.currentTimeMillis()>=logoRetry&&!state.channelName.isEmpty()){
    logoRetry=System.currentTimeMillis()+60000;
@@ -145,27 +144,52 @@ final class LocalInfoBarController implements AutoCloseable {
   paint();
  }
 
- private Bitmap poster(SatelliteState s,String title,String url){
+ private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
+  String title=upcoming?snapshot.nextTitle:snapshot.title;
+  if(title==null||title.trim().isEmpty())return;
+  Bitmap image=poster(snapshot,upcoming);
+  if(image!=null)publishPoster(expected,upcoming,image);
+  if(image==null&&!prefs.getBoolean("software_dvb_422_active",false)&&
+     !prefs.getBoolean("dvb_tuning",false)){
+    image=onlinePoster(snapshot,upcoming);
+    if(image!=null)publishPoster(expected,upcoming,image);
+  }
+ }
+ private void publishPoster(String expected,boolean upcoming,Bitmap image){
+  main.post(()->{
+   if(closed||!expected.equals(imageKey))return;
+   if(upcoming)nextPoster=image;else currentPoster=image;
+   paint();
+  });
+ }
+ private Bitmap poster(SatelliteState state,boolean upcoming){
+  String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().isEmpty())return null;
-  String href=url;
-  if(href==null||href.isEmpty())href=PublishedEpgArtwork.image(host,s,title);
-  if(href==null||href.isEmpty())href=UnifiedArtworkPrefetch.cachedUrl(host,s,title);
-  if(href==null||href.isEmpty())try{return EpgArtwork.load(host,s,title);}catch(Exception missing){return null;}
-  // Only verified programme-associated HTTPS artwork; never use name guesses.
-  if(href==null||!href.startsWith("https://")||href.length()>2048)return null;
   try{
-   URL verified=new URL(href);
-   byte[] bytes=prefs.getBoolean("software_dvb_422_active",false)?ArtworkCache.cached(host,verified,5*1024*1024):ArtworkCache.fetch(host,verified,5*1024*1024);
-   if(bytes==null)return null;
-   BitmapFactory.Options probe=new BitmapFactory.Options();
-   probe.inJustDecodeBounds=true;
-   BitmapFactory.decodeByteArray(bytes,0,bytes.length,probe);
-   if(probe.outWidth<50||probe.outHeight<50||
-     probe.outWidth>10000||probe.outHeight>10000)return null;
-   probe.inJustDecodeBounds=false;
-   probe.inSampleSize=Math.max(1,Math.max(probe.outWidth/480,probe.outHeight/720));
-   return BitmapFactory.decodeByteArray(bytes,0,bytes.length,probe);
-  }catch(Exception unavailable){return null;}
+   Bitmap image=EpgArtwork.load(host,state,title,upcoming);
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+     image==null?"NO_VERIFIED_EPG_ART":"EPG_POSTER_OK").apply();
+   return image;
+  }catch(Exception failed){
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+     "EPG_"+failed.getClass().getSimpleName()).apply();
+   return null;
+  }
+ }
+ private Bitmap onlinePoster(SatelliteState state,boolean upcoming){
+  String title=upcoming?state.nextTitle:state.title;
+  if(title==null||title.trim().length()<3)return null;
+  try{
+   OnlineProgramme programme=OnlineProgramme.fetch(host,state,title,upcoming);
+   Bitmap image=programme==null?null:programme.poster;
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      image==null?"NO_VERIFIED_TMDB_BETTER_TVMAZE_MATCH":"ONLINE_POSTER_OK").apply();
+   return image;
+  }catch(Exception error){
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+     "ONLINE_"+error.getClass().getSimpleName()).apply();
+   return null;
+  }
  }
 
  private void paint(){

@@ -27,9 +27,5 @@ public final class ReceiverFastScanMenuActivity extends HubActivity {
     "OEM fast scan is performed in Aurum; IRAQhub's TP sweep is not a real Fast/Blind scan."));
  }
  private void open(Class<?> destination){startActivity(new Intent(this,destination));}
- private void openNative(){
-  try{startActivity(new Intent("com.tosmart.action.NavHost").setPackage("com.tosmart.aurum"));}
-  catch(RuntimeException rejected){toast(tx("لا يسمح إصدار الروم بفتح Aurum من التطبيق؛ افتح قائمة التركيب بالريموت.",
-    "Firmware refused OEM navigation; open Aurum Installation with the remote."));}
- }
+ private void openNative(){NativeSearchNavigation.open(this);}
 }

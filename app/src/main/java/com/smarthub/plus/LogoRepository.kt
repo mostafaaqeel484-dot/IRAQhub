@@ -50,7 +50,7 @@ class LogoRepository private constructor(context:Context){
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
  fun requestCached(name:String,physical:String?,listener:Listener){
   val known=db.channel(name)
-  listener.channel(observed(name,physical)?:cache.read(channelKey(name,known,physical)))
+  listener.channel(observed(name,physical)?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.read(channelKey(name,known,physical)))
   val provider=network(name,known)
   val cached=observed(name,physical,true)?:provider?.let{cache.read("provider:"+db.key(it))}
   listener.provider(observedProviderName(name,physical,provider?.name?:""),cached)
@@ -64,7 +64,7 @@ class LogoRepository private constructor(context:Context){
   val known=db.channel(name)
   val key=channelKey(name,known,physical)
   val native=observed(name,physical)
-  val cached=native?:cache.peek(key)
+  val cached=native?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.peek(key)
   val network=network(name,known)
   val nativeProvider=observed(name,physical,true)
   val providerCached=nativeProvider?:network?.let{cache.peek("provider:"+db.key(it))}
@@ -81,13 +81,20 @@ class LogoRepository private constructor(context:Context){
     val ambiguous=(addon.snapshot()?.candidates(name)?.map{it.physicalKey}?.distinct()?.size?:0)>1
     val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled())
         addon.resolvePhysical(physical,channels) else null
-    exact?:if(ambiguous)null else {
+    // Prioritise a VERIFIED receiver-scoped CHMAX logo when one is available.
+    // The general name resolver may otherwise consume a fallback placeholder
+    // before the real manufacturer logo is considered.
+    val factory=if(physical!=null&&physical.isNotBlank()&&
+       app.getSharedPreferences("smarthub",0).getBoolean("osd_chmax_logos",true)&&
+       app.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true))
+      FactoryProvider.logo(app,name,physical) else null
+    factory?:exact?:if(ambiguous)null else {
       val local=if(entry==null&&addon.enabled())
         addon.unique(name)?.let{addon.resolve(it,channels)}?:channels.resolve(name)
       else channels.resolve(name)
       local?:try{
-        // Last resort: direct receiver/CHMAX image then public verified logo index.
-        // This must not apply to ambiguous same-name satellites.
+        // Last resort: public service-specific artwork; never guess between
+        // duplicate names on different satellites.
         OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")
       }catch(_:Exception){null}
     }

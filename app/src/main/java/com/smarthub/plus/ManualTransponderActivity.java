@@ -45,7 +45,9 @@ public final class ManualTransponderActivity extends HubActivity {
   result=text(tx("جاهز للبحث","Ready for search"),17,true);panel.addView(result);
   services=text("",14,false);panel.addView(services);
 
-  action(panel,tx("بدء البحث اليدوي · قفل الإشارة","Start manual search · tuner lock"),this::confirmTune);
+  action(panel,tx("فحص إشارة التردد · ضبط التونر","Check transponder signal · tune"),this::confirmTune);
+  action(panel,tx("فتح البحث اليدوي الكامل في Aurum الأصلي","Open native Aurum full manual channel search"),
+    ()->NativeSearchNavigation.open(this));
   action(panel,tx("حفظ التردد في IRAQhub","Save this transponder"),this::saveTransponder);
   action(panel,tx("قراءة معرّفات الخدمات SID إن توفرت","Check observed service IDs (SID)"),this::readSids);
   note(panel,tx("قوة الإشارة وSID ليست أسماء القنوات أو PID للصورة والصوت. حفظ القنوات الجديدة يتطلب استخراج بيانات PAT/PMT/SDT من بث TS حقيقي.",
