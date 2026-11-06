@@ -132,7 +132,7 @@ final class ReceiverSqliteImport {
     "OR pol NOT IN ('H','V','L','R') OR fec IS NULL","DB_INVALID_TP");
    requireNone(source,"SELECT COUNT(*) FROM ch WHERE _id<0 OR _id>1000000 "+
     "OR sid NOT BETWEEN 0 AND 65535 OR tv NOT BETWEEN 0 AND 2 "+
-    "OR ca NOT BETWEEN -1 AND 1 OR name IS NULL "+
+    "OR typeof(ca)!=\'integer\' OR name IS NULL "+
     "OR length(name) NOT BETWEEN 1 AND 200 OR provider IS NULL "+
     "OR length(provider)>200 OR data IS NULL OR length(data)>65536 "+
     "OR search_key IS NULL OR length(search_key)>512 OR order_index<0",
