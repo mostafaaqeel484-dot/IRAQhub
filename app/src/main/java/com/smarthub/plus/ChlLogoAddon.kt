@@ -28,10 +28,35 @@ class ChlLogoAddon private constructor(private val context:Context){
   load()
   val actual=physical.removePrefix("DVB:")
   if(!physical.startsWith("DVB:")||actual.length>100||!enabled())return null
-  val matching=index?.services?.filter{it.physicalKey==actual}?.distinctBy{it.physicalKey}?:return null
-  val single=matching.singleOrNull()?:return null
+  val single=index?.byPhysical(actual)?:return null
+  if(!supportedSession())return null
   return resolve(single,loader)
  }
+
+ @Volatile private var sessionCheckedUntil=0L
+ @Volatile private var sessionSupported=false
+ /**
+  * The signed CHMAX icon service requires an authorised compatibility profile.
+  * Never send repeated remote requests with an absent profile on every scroll.
+  */
+ fun supportedSession():Boolean{
+  val now=System.currentTimeMillis()
+  if(now<sessionCheckedUntil)return sessionSupported
+  synchronized(this){
+   if(now<sessionCheckedUntil)return sessionSupported
+   sessionSupported=try{
+    val state=FactoryVault.read(context)
+    val has=state.optString("chmaxProfile").length in 8..24&&
+      state.optString("accessToken").isNotEmpty()
+    if(!has)prefs.edit().putString("chl_chmax_status",
+      "FACTORY_CHMAX_PROFILE_REQUIRED").apply()
+    has
+   }catch(_:Exception){false}
+   sessionCheckedUntil=now+60_000L
+   return sessionSupported
+  }
+ }
+ fun invalidateSession(){sessionCheckedUntil=0L}
  fun enabled()=prefs.getBoolean("chl_chmax_enabled",prefs.getBoolean("factory_enabled",true)&&prefs.getBoolean("osd_chmax_logos",true))
  fun statusLabel():String=when(prefs.getString("chl_chmax_status","")){
   "CHMAX_LOGO_OK"->"تم جلب شعار مطابق من CHMAX"
