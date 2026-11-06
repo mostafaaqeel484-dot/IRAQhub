@@ -50,7 +50,7 @@ class LogoRepository private constructor(context:Context){
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
  fun requestCached(name:String,physical:String?,listener:Listener){
   val known=db.channel(name)
-  listener.channel(observed(name,physical)?:cache.read(channelKey(name,known,physical)))
+  listener.channel(observed(name,physical)?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.read(channelKey(name,known,physical)))
   val provider=network(name,known)
   val cached=observed(name,physical,true)?:provider?.let{cache.read("provider:"+db.key(it))}
   listener.provider(observedProviderName(name,physical,provider?.name?:""),cached)
@@ -64,7 +64,7 @@ class LogoRepository private constructor(context:Context){
   val known=db.channel(name)
   val key=channelKey(name,known,physical)
   val native=observed(name,physical)
-  val cached=native?:cache.peek(key)
+  val cached=native?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.peek(key)
   val network=network(name,known)
   val nativeProvider=observed(name,physical,true)
   val providerCached=nativeProvider?:network?.let{cache.peek("provider:"+db.key(it))}
