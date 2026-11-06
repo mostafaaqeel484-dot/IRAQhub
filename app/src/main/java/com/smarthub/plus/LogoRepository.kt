@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 
 class LogoRepository private constructor(context:Context){
+ private val app=context.applicationContext
  private val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
  private val db=ChannelAliasDatabase(context)
  private val cache=ChannelLogoCache(context)
@@ -54,8 +55,14 @@ class LogoRepository private constructor(context:Context){
     val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled())
         addon.resolvePhysical(physical,channels) else null
     exact?:if(ambiguous)null else {
-      if(entry==null&&addon.enabled())addon.unique(name)?.let{addon.resolve(it,channels)}?:channels.resolve(name)
+      val local=if(entry==null&&addon.enabled())
+        addon.unique(name)?.let{addon.resolve(it,channels)}?:channels.resolve(name)
       else channels.resolve(name)
+      local?:try{
+        // Last resort: direct receiver/CHMAX image then public verified logo index.
+        // This must not apply to ambiguous same-name satellites.
+        OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")
+      }catch(_:Exception){null}
     }
    }}
    launch{val bitmap=image.await();withContext(Dispatchers.Main){listener.channel(bitmap)}}
