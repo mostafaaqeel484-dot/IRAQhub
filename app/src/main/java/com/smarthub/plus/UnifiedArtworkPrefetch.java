@@ -32,7 +32,28 @@ final class UnifiedArtworkPrefetch {
     if(existing!=null&&!existing.isEmpty())continue;
     JSONObject chosen=PosterSelection.read(context,event,title);
     String id=chosen.optString("id"),type=chosen.optString("type");
-    if(!id.matches("tmdb:[1-9][0-9]{0,10}")||(!"movie".equals(type)&&!"series".equals(type)))continue;
+    JSONObject auto=null;
+    if(id.isEmpty()&&title.trim().length()>=5){
+     // Strict TMDB provider rejects ambiguous or weak titles; do not guess.
+     try{
+      ProviderSecrets secrets=ProviderSecrets.read(context);
+      if(!secrets.tmdb.isEmpty()){
+       JSONObject candidate=new TmdbProvider(context,secrets.tmdb)
+         .resolve(title,"","","",0);
+       if("matched".equals(candidate.optString("status"))&&
+         candidate.optString("id").matches("tmdb:[1-9][0-9]{0,10}")&&
+         ("movie".equals(candidate.optString("type"))||
+          "series".equals(candidate.optString("type")))){
+        auto=candidate;
+        id=candidate.optString("id");
+        type=candidate.optString("type");
+        PosterSelection.save(context,event,title,candidate);
+       }
+      }
+     }catch(Exception unavailable){/* Do not assign uncertain titles. */}
+    }
+    if(!id.matches("tmdb:[1-9][0-9]{0,10}")||
+       (!"movie".equals(type)&&!"series".equals(type)))continue;
     String key=PosterSelection.key(event,title);
     if(key.isEmpty())continue;
     long before=prefs.getLong("verified_poster_until:"+key,0);
@@ -42,7 +63,8 @@ final class UnifiedArtworkPrefetch {
     try{
      ProviderSecrets secrets=ProviderSecrets.read(context);
      if(secrets!=null&&!secrets.tmdb.isEmpty()){
-      JSONObject tmdb=new TmdbProvider(context,secrets.tmdb).resolve(title,id,type,"",0);
+      JSONObject tmdb=auto!=null?auto:
+        new TmdbProvider(context,secrets.tmdb).resolve(title,id,type,"",0);
       if("matched".equals(tmdb.optString("status"))&&id.equals(tmdb.optString("id"))
          &&type.equals(tmdb.optString("type"))){
        address=tmdb.optString("poster","");
