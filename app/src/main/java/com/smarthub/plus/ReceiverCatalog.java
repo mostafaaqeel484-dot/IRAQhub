@@ -92,6 +92,90 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
    return deleted;
   }finally{db.endTransaction();}
  }
+
+ /** Editable data in IRAQhub's own database; never writes to the OEM programme DB. */
+ static final class Tp {
+  final long id,satellite;final int frequency,symbolRate;final String polarity,fec;
+  Tp(long id,long satellite,int frequency,String polarity,int symbolRate,String fec){
+   this.id=id;this.satellite=satellite;this.frequency=frequency;this.polarity=polarity;
+   this.symbolRate=symbolRate;this.fec=fec;
+  }
+  String label(){return frequency+" "+polarity+"  ·  "+symbolRate+(fec.isEmpty()?"":"  ·  "+fec);}
+ }
+ List<Tp> tpRows(long satellite){
+  List<Tp> out=new ArrayList<>();
+  try(Cursor c=getReadableDatabase().rawQuery(
+    "SELECT _id,sat_id,freq,pol,sr,fec FROM tp WHERE sat_id=? ORDER BY freq,pol,sr",
+    new String[]{Long.toString(satellite)})){
+   while(c.moveToNext())out.add(new Tp(c.getLong(0),c.getLong(1),c.getInt(2),
+     c.getString(3),c.getInt(4),c.getString(5)));
+  }
+  return out;
+ }
+ synchronized long addSatelliteLocal(String name,int angle,String band)throws IOException{
+  String n=name==null?"":name.trim(),b=band==null?"":band.toUpperCase(Locale.ROOT);
+  if(n.isEmpty()||n.length()>80||n.chars().anyMatch(c->c<32)
+    ||angle<0||angle>=3600||(!b.equals("KU")&&!b.equals("C")))
+   throw new IOException("INVALID_SATELLITE");
+  SQLiteDatabase db=getWritableDatabase();
+  if(DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat WHERE angle=? AND band=?",
+    new String[]{Integer.toString(angle),b})>0)throw new IOException("SATELLITE_ALREADY_EXISTS");
+  long id=DatabaseUtils.longForQuery(db,"SELECT COALESCE(MAX(_id),-1)+1 FROM sat",null);
+  if(id>1000000)throw new IOException("SATELLITE_LIMIT");
+  ContentValues values=new ContentValues();
+  values.put("_id",id);values.put("name",n);values.put("angle",angle);values.put("band",b);
+  if(db.insert("sat",null,values)<0)throw new IOException("SATELLITE_INSERT_FAILED");
+  context.getSharedPreferences("smarthub",0).edit().putLong("installation_changed_at",System.currentTimeMillis()).apply();
+  return id;
+ }
+ synchronized boolean renameSatelliteLocal(long id,String name){
+  String n=name==null?"":name.trim();
+  if(n.isEmpty()||n.length()>80||n.chars().anyMatch(c->c<32))return false;
+  ContentValues values=new ContentValues();values.put("name",n);
+  boolean changed=getWritableDatabase().update("sat",values,"_id=?",new String[]{Long.toString(id)})>0;
+  if(changed)context.getSharedPreferences("smarthub",0).edit().putLong("installation_changed_at",System.currentTimeMillis()).apply();
+  return changed;
+ }
+ synchronized long addTransponderLocal(long satellite,int freq,String pol,int sr)throws IOException{
+  String p=pol==null?"":pol.toUpperCase(Locale.ROOT);
+  if(freq<100||freq>100000||sr<1||sr>100000||(!p.equals("H")&&!p.equals("V")))
+   throw new IOException("INVALID_TRANSPONDER");
+  SQLiteDatabase db=getWritableDatabase();
+  if(DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat WHERE _id=?",
+      new String[]{Long.toString(satellite)})!=1)throw new IOException("SATELLITE_NOT_FOUND");
+  if(DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM tp WHERE sat_id=? AND freq=? AND pol=? AND sr=?",
+    new String[]{Long.toString(satellite),Integer.toString(freq),p,Integer.toString(sr)})>0)
+   throw new IOException("TRANSPONDER_ALREADY_EXISTS");
+  long id=DatabaseUtils.longForQuery(db,"SELECT COALESCE(MAX(_id),-1)+1 FROM tp",null);
+  if(id>1000000)throw new IOException("TRANSPONDER_LIMIT");
+  ContentValues v=new ContentValues();
+  v.put("_id",id);v.put("sat_id",satellite);v.put("freq",freq);v.put("pol",p);v.put("sr",sr);v.put("fec","");
+  if(db.insert("tp",null,v)<0)throw new IOException("TRANSPONDER_INSERT_FAILED");
+  context.getSharedPreferences("smarthub",0).edit().putLong("installation_changed_at",System.currentTimeMillis()).apply();
+  return id;
+ }
+ synchronized boolean removeEmptyTpLocal(long id){
+  SQLiteDatabase db=getWritableDatabase();
+  if(DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM ch WHERE tp_id=?",
+      new String[]{Long.toString(id)})>0)return false;
+  boolean deleted=db.delete("tp","_id=?",new String[]{Long.toString(id)})>0;
+  if(deleted)context.getSharedPreferences("smarthub",0).edit().putLong("installation_changed_at",System.currentTimeMillis()).apply();
+  return deleted;
+ }
+ synchronized boolean renameChannelLocal(long id,String name){
+  String n=name==null?"":name.trim();
+  if(n.isEmpty()||n.length()>120||n.chars().anyMatch(c->c<32))return false;
+  SQLiteDatabase db=getWritableDatabase();
+  String provider="";
+  try(Cursor c=db.rawQuery("SELECT provider FROM ch WHERE _id=?",new String[]{Long.toString(id)})){
+   if(!c.moveToFirst())return false;provider=c.getString(0);
+  }
+  ContentValues v=new ContentValues();v.put("name",n);
+  v.put("search_key",ReceiverChannelRepository.searchKey(n+" "+provider));
+  boolean changed=db.update("ch",v,"_id=?",new String[]{Long.toString(id)})>0;
+  if(changed)context.getSharedPreferences("smarthub",0).edit().putLong("receiver_local_edits_at",System.currentTimeMillis()).apply();
+  return changed;
+ }
  void favorite(long id,boolean enabled){if(enabled){ContentValues v=new ContentValues();v.put("channel_id",id);getWritableDatabase().insertWithOnConflict("favorite",null,v,SQLiteDatabase.CONFLICT_IGNORE);}else getWritableDatabase().delete("favorite","channel_id=?",new String[]{Long.toString(id)});}
  boolean favorite(long id){return DatabaseUtils.longForQuery(getReadableDatabase(),"SELECT COUNT(*) FROM favorite WHERE channel_id=?",new String[]{Long.toString(id)})>0;}
  synchronized void ensure(){if(count()>0)return;ChlChannelIndex old=ChlLogoAddon.get(context).snapshot();if(old!=null)replaceCompact(old);}
