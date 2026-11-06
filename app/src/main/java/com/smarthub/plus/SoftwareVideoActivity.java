@@ -31,6 +31,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     private long lastBufferStatus;
     private final android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
     private LiveTsRelay satelliteRelay;
+    private long nativeAudioToken;
     private LocalInfoBarController localInfo;
     private final java.util.concurrent.ExecutorService relayThread=java.util.concurrent.Executors.newSingleThreadExecutor();
 
@@ -70,23 +71,15 @@ public final class SoftwareVideoActivity extends HubActivity {
         FrameLayout.LayoutParams trackParams =
                 new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
         root.addView(tracks, trackParams);
-        long channelId=getIntent().getLongExtra("dvb_channel",-1L);
-        if(channelId>=0){
-            android.widget.Button biss=button("BISS");
-            biss.setContentDescription(tx("القائمة العائمة لإدخال شفرة BISS",
-                    "Floating BISS key input"));
-            biss.setTextColor(0xffffd86c);
-            FrameLayout.LayoutParams options=new FrameLayout.LayoutParams(
-                    dp(104),dp(47),Gravity.BOTTOM|Gravity.START);
-            options.setMargins(dp(14),dp(10),dp(10),dp(15));
-            root.addView(biss,options);
-            biss.setOnClickListener(view->showBiss());
-        }
         setContentView(root);
         localInfo=new LocalInfoBarController(this,root);
 
         long dvbChannel=getIntent().getLongExtra("dvb_channel",-1L);
-        if(dvbChannel>=0){startSatellite(dvbChannel);return;}
+        if(dvbChannel>=0){
+            // Silence OEM Play audio only; never stop the tuner or TS capture.
+            nativeAudioToken=NativeSatelliteAudioGate.suppress(this);
+            startSatellite(dvbChannel);return;
+        }
         String uri = getIntent().getStringExtra("media_uri");
         if (uri == null || uri.trim().isEmpty()) {
             status.setText(tx("رابط الوسائط غير موجود", "Media URI is missing"));
@@ -140,6 +133,7 @@ public final class SoftwareVideoActivity extends HubActivity {
               next.observedAt=System.currentTimeMillis();
               next.save(SoftwareVideoActivity.this);
               prefs().edit().putString("software_422_runtime","TS_READY").apply();
+              NativeSatelliteAudioGate.enforce(SoftwareVideoActivity.this,nativeAudioToken);
               status.setText(tx(channel.ca==0?"التقاط بث DVB نشط؛ جارٍ فك الفيديو عبر LibVLC…":"تم التحقق من بث TS غير مشفر بعد معالجة الرسيفر؛ جارٍ تشغيل LibVLC…",
                  "DVB MPEG-TS capture active; decoding via LibVLC…"));
               open(uri);
@@ -190,6 +184,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                         }
                         break;
                     case MediaPlayer.Event.Playing:
+                        NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
                         if(localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1L)>=0)localInfo.show();
                         status.setText(tx("LibVLC يعمل برمجياً · تحقق من ظهور صورة فعلية · "+Software422Profile.current(this),
                            "Software decoder running · verify visible picture · "+Software422Profile.current(this)));
@@ -394,8 +389,14 @@ public final class SoftwareVideoActivity extends HubActivity {
             if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)choosePerformance();
             return true;
         }
-        if(k==android.view.KeyEvent.KEYCODE_F3){
+        if(k==android.view.KeyEvent.KEYCODE_PAGE_DOWN||k==android.view.KeyEvent.KEYCODE_F3){
             if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)showBiss();
+            return true;
+        }
+        if(k==android.view.KeyEvent.KEYCODE_PAGE_UP){
+            if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)
+                startActivity(new android.content.Intent(this,ReceiverChannelsActivity.class)
+                    .putExtra("encrypted_only",true).putExtra("type",0));
             return true;
         }
         if(k==android.view.KeyEvent.KEYCODE_INFO||k==android.view.KeyEvent.KEYCODE_PROG_BLUE||k==1202){
@@ -414,6 +415,7 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
         if (mediaPlayer != null && !released) mediaPlayer.play();
     }
 
@@ -427,6 +429,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         relayThread.shutdownNow();
         main.removeCallbacksAndMessages(null);
         closeDecoder();
+        NativeSatelliteAudioGate.restore(this,nativeAudioToken);
         super.onDestroy();
     }
 }
