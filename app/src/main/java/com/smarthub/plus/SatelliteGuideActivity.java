@@ -37,6 +37,7 @@ public final class SatelliteGuideActivity extends HubActivity {
         source=text(repository.sourceSummary(),14,false);input.addView(source);
         action(input,tx("اكتشاف واختيار مصادر EPGShare للقناة الحالية","Discover/select EPGShare source for current channel"),this::chooseEpgShare);
         action(input,tx("حالة تحديث EPG والبوسترات","EPG and poster refresh status"),this::showUnifiedStatus);
+        action(input,tx("ربط بوستر Wikimedia مُرخّص بالبرنامج الحالي","Attach licensed Wikimedia image to current programme"),this::chooseCommonsPoster);
         action(input,tx("تحديث XMLTV والبوسترات وDVB EPG الآن","Refresh XMLTV, posters and DVB EPG now"),()->{IraqHubSyncScheduler.runNow(this);toast(tx("تمت جدولة تحديثات منفصلة، من دون إيقاف البث","Independent refresh tasks queued without stopping playback"));});
         url=field(input,tx("رابط HTTPS لملف XMLTV أو XMLTV.gz","HTTPS URL for XMLTV or XMLTV.gz"),prefs().getString("satellite_xmltv_url",""));url.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
         action(input,tx("جلب واستيراد XMLTV من الرابط","Fetch and import XMLTV URL"),this::importUrl);
@@ -77,6 +78,60 @@ public final class SatelliteGuideActivity extends HubActivity {
         "yyyy-MM-dd HH:mm",java.util.Locale.ROOT);
       format.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Baghdad"));
       return format.format(new java.util.Date(ms));
+    }
+    private void chooseCommonsPoster(){
+      SatelliteState active=SatelliteState.read(this);
+      if(active.channelId.isEmpty()||active.title.trim().isEmpty()||
+        active.startMs<=0||active.endMs<=active.startMs){
+        toast(tx("لا يوجد برنامج EPG حالي بهوية ووقت مؤكدين","Current programme has no verified EPG identity/time"));
+        return;
+      }
+      EditText file=new EditText(this);
+      file.setSingleLine(true);
+      file.setHint("File:Example.jpg");
+      new AlertDialog.Builder(this)
+        .setTitle(tx("ملف Wikimedia Commons","Wikimedia Commons exact file"))
+        .setMessage(tx("اكتب اسم ملف Commons الدقيق. سيتم فحص الترخيص والمصدر وحفظ النسبة. لا يُختار ملف بالاسم التقريبي.",
+          "Enter the exact Commons File: title. Licence and attribution will be checked; no fuzzy match."))
+        .setView(file)
+        .setPositiveButton(tx("فحص وربط","Verify and attach"),(d,which)->{
+          String entered=file.getText().toString().trim();
+          status.setText(tx("التحقق من ترخيص الصورة…","Verifying image licence…"));
+          io.execute(()->{
+            try{
+              org.json.JSONObject item=CommonsArtworkProvider.exactFile(this,entered);
+              String address=item.getString("poster");
+              byte[] bytes=ArtworkCache.fetch(this,new java.net.URL(address),5*1024*1024);
+              android.graphics.BitmapFactory.Options dimensions=new android.graphics.BitmapFactory.Options();
+              dimensions.inJustDecodeBounds=true;
+              android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length,dimensions);
+              if(dimensions.outWidth<90||dimensions.outHeight<90||
+                dimensions.outWidth>10000||dimensions.outHeight>10000)
+                throw new java.io.IOException("WIKIMEDIA_INVALID_IMAGE");
+              String key=PosterSelection.key(active,active.title);
+              if(key.isEmpty())throw new java.io.IOException("EPG_PROGRAMME_ID_MISSING");
+              long now=System.currentTimeMillis();
+              getSharedPreferences("smarthub",0).edit()
+                .putString("verified_poster_url:"+key,address)
+                .putString("verified_poster_id:"+key,item.optString("file"))
+                .putString("verified_poster_type:"+key,"commons")
+                .putString("verified_poster_source:"+key,"Wikimedia Commons · user-selected")
+                .putString("verified_poster_attribution:"+key,item.optString("artist")+" · "+item.optString("credit"))
+                .putString("verified_poster_license:"+key,item.optString("license"))
+                .putString("verified_poster_license_url:"+key,item.optString("licenseUrl"))
+                .putString("verified_poster_reference:"+key,item.optString("source"))
+                .putLong("verified_poster_until:"+key,Math.min(active.endMs+60000,now+3L*86400000))
+                .putLong("verified_poster_at:"+key,now)
+                .putLong("epg_art_changed_at",now).apply();
+              runOnUiThread(()->{if(!destroyed)status.setText(
+                tx("الصورة مرتبطة بالبرنامج · الترخيص: ","Image linked · licence: ")+item.optString("license"));});
+            }catch(Exception error){
+              String reason=error.getMessage()==null?"COMMONS_SOURCE_UNAVAILABLE":error.getMessage();
+              runOnUiThread(()->{if(!destroyed)status.setText(reason);});
+            }
+          });
+        })
+        .setNegativeButton(tx("إلغاء","Cancel"),null).show();
     }
     private void chooseEpgShare(){
       if(current.channelName.trim().isEmpty()){
