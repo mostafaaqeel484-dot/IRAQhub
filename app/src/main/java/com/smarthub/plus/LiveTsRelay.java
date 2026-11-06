@@ -186,10 +186,10 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     int pid=((packet[1]&31)<<8)|(packet[2]&255);
     if(pid!=videoPid||(packet[3]&0x10)==0)continue;
     if((packet[3]&0xc0)!=0)return -1;
-    if(++clean>=8)return 1;
+    clean++;
    }
+   return clean>=8?1:0;
   }catch(Exception unavailable){return 0;}
-  return 0;
  }
  private static boolean sync(File file){
   try(RandomAccessFile in=new RandomAccessFile(file,"r")){
