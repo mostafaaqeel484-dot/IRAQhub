@@ -50,8 +50,11 @@ class LogoSourcesActivity:HubActivity(){
   options.addView(text(tx("المصدر المستقل يعمل حتى لو رفض CHMAX المصادقة. ملف CHL لا يحتوي صوراً، لذا لا بد من مصدر شعار فعلي.",
    "Independent logos work without CHMAX authorisation. CHL contains channel identities, not image bytes."),14,false))
   val imports=card(body)
-  imports.addView(text(tx("ملفات CHL والنسخ الاحتياطية","CHL & backups"),20,true))
+  imports.addView(text(tx("ملفات القنوات · SQLite DB وCHL","Channel lists · SQLite DB & CHL"),20,true))
+  action(imports,tx("استيراد قاعدة قنوات SQLite .db (سريع)","Fast SQLite .db channel import"),Runnable{open(5)})
   action(imports,tx("استيراد ملف قنوات CHL","Import CHL channel list"),Runnable{open(3)})
+  imports.addView(text(tx("يدعم DB بنية receiver-catalog.db الخاصة بـIRAQhub. استيراد DB يستبدل قائمة IRAQhub والمفضلة، ولا يغيّر قاعدة Aurum؛ احفظ نسخة احتياطية أولاً.",
+    "Accepts IRAQhub receiver-catalog.db schema only. Replaces local channels and favourites; does not touch Aurum. Back up first."),13,false))
   action(imports,tx("استقبال ملف CHL من الكمبيوتر/الهاتف","Receive CHL over local network"),Runnable{startReceiver()})
   receiving=text(tx("الاستقبال المحلي متوقف","Local receiver stopped"),13,false)
   receiving.textDirection=android.view.View.TEXT_DIRECTION_LTR
@@ -86,11 +89,11 @@ class LogoSourcesActivity:HubActivity(){
   })
   refresh()
  }
- private fun open(code:Int){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);if(intent.resolveActivity(packageManager)==null&&code==3){message("لا يوجد منتقي ملفات؛ افتح الرابط المحلي من الكمبيوتر أو الهاتف");startReceiver()}else startActivityForResult(intent,code)}
+ private fun open(code:Int){val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);if(intent.resolveActivity(packageManager)==null&&(code==3||code==5)){message("لا يوجد منتقي ملفات؛ اختر الملف عبر منتقي Android");if(code==3)startReceiver()}else startActivityForResult(intent,code)}
  private fun startReceiver(){stopReceiver();scope.launch{try{val pair=withContext(Dispatchers.IO){val server=ChlImportServer{input->val parsed=ChlLogoAddon.get(this@LogoSourcesActivity).importFile(input.reader(Charsets.UTF_8));LogoRepository.get(this@LogoSourcesActivity).invalidate();runOnUiThread{if(!isDestroyed)refresh()};"تم استيراد "+parsed.services.size+" قناة دون تعديل قائمة الرسيفر"};server to server.localAddress()};if(!foreground||pair.second.isEmpty()){pair.first.close();return@launch};receiver=pair.first;receiving.text="افتح الرابط من جهاز على الشبكة نفسها واختر CHL. يغلق عند مغادرة الصفحة.\n"+pair.second}catch(_:Exception){message("تعذر بدء استقبال الملف عبر الشبكة المحلية")}}}
  private fun stopReceiver(){receiver?.close();receiver=null;if(::receiving.isInitialized)receiving.text="الاستقبال المحلي متوقف"}
  private fun message(s:String){Toast.makeText(this,s,Toast.LENGTH_LONG).show()}
- private fun refresh(){scope.launch{val summary=withContext(Dispatchers.IO){val a=ChlLogoAddon.get(this@LogoSourcesActivity);val i=a.snapshot();if(i==null)"لا يوجد ملف CHL مستورد" else "قنوات CHL: "+i.services.size+"\nالأقمار: "+i.satellites+" · الترددات: "+i.transponders+"\nقنوات لها مزود: "+i.services.count{it.provider.isNotBlank()}+"\nلا يحتوي الملف صور شعارات."};state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()}}
+ private fun refresh(){scope.launch{val summary=withContext(Dispatchers.IO){val a=ChlLogoAddon.get(this@LogoSourcesActivity);val i=a.snapshot();if(i==null){if(getSharedPreferences("smarthub",0).getString("receiver_catalog_format","")=="SQLITE_DB")"قاعدة SQLite DB مستوردة · القنوات: "+ReceiverCatalog.get(this@LogoSourcesActivity).count() else "لا يوجد ملف CHL مستورد"} else "قنوات CHL: "+i.services.size+"\nالأقمار: "+i.satellites+" · الترددات: "+i.transponders+"\nقنوات لها مزود: "+i.services.count{it.provider.isNotBlank()}+"\nلا يحتوي الملف صور شعارات."};state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()}}
  private fun testChmax(){
   val selected=SatelliteState.read(this)
   if(!selected.channelId.startsWith("DVB:")||selected.channelName.isBlank()){
@@ -145,6 +148,35 @@ class LogoSourcesActivity:HubActivity(){
  }
  override fun onActivityResult(request:Int,result:Int,data:Intent?){
   super.onActivityResult(request,result,data);val uri=data?.data?:return;if(result!=RESULT_OK)return
+  if(request==5){
+   android.app.AlertDialog.Builder(this)
+    .setTitle(tx("استيراد قاعدة SQLite DB؟","Import SQLite DB?"))
+    .setMessage(tx("سيتم استبدال قنوات IRAQhub ومفضلتها بالقنوات الموجودة في ملف DB. قاعدة قنوات Aurum لا تتغير. هل أكملت النسخ الاحتياطي؟",
+      "Replaces local IRAQhub channels and favourites with the SQLite snapshot. Aurum channels are untouched. Backed up?"))
+    .setPositiveButton(tx("استيراد","Import")){_,_->
+     scope.launch{
+      try{
+       state.text=tx("جارٍ فحص SQLite واستيراد القنوات…","Validating and importing SQLite DB…")
+       val total=withContext(Dispatchers.IO){
+        val count=contentResolver.openInputStream(uri)!!.use{
+         ReceiverSqliteImport.importStream(this@LogoSourcesActivity,it)
+        }
+        ChlLogoAddon.get(this@LogoSourcesActivity).databaseImported()
+        count
+       }
+       LogoRepository.get(this@LogoSourcesActivity).invalidate()
+       message(tx("تم استيراد ","Imported ")+total+tx(" قناة من DB"," channels from DB"))
+       refresh()
+      }catch(failure:Exception){
+       val reason=failure.message?:"DB_IMPORT_FAILED"
+       state.text=tx("لم يُقبل DB؛ بقيت قاعدة IRAQhub السابقة: ",
+         "DB rejected; previous IRAQhub catalogue preserved: ")+reason
+       message(tx("فشل استيراد DB. راجع رسالة الخطأ","SQLite DB import failed. Check error."))
+      }
+     }
+    }.setNegativeButton(tx("إلغاء","Cancel"),null).show()
+   return
+  }
   scope.launch{try{
    when(request){
     4->{
