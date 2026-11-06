@@ -85,6 +85,8 @@ public final class ManualTransponderActivity extends HubActivity {
     String[] names=new String[satellites.size()];
     for(int i=0;i<names.length;i++)names[i]=satellites.get(i).label();
     satellite.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names));
+    long target=getIntent().getLongExtra("satellite",-1L);
+    for(int i=0;i<satellites.size();i++)if(satellites.get(i).id==target){satellite.setSelection(i);break;}
    });
   });
  }
