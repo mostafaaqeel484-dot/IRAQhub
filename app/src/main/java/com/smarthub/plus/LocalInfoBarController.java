@@ -92,7 +92,7 @@ final class LocalInfoBarController implements AutoCloseable {
     LogoRepository.Listener images=new LogoRepository.Listener(){
      @Override public void channel(Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
-       channelLogo=image;paint();
+       if(image!=null)channelLogo=image;paint();
       }});
      }
      @Override public void provider(String name,Bitmap image){
