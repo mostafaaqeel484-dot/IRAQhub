@@ -23,6 +23,11 @@ final class ChannelControls {
    if(!ManufacturerFeatures.open(c,e))android.widget.Toast.makeText(c,ar?"تعذر فتح واجهة المصنع":"Firmware interface unavailable",android.widget.Toast.LENGTH_LONG).show();
   })).setNegativeButton(ar?"رجوع":"Back",null).show();
  }
+ /** Opens native Patch > BISS editor; secrets are entered and stored only by firmware. */
+ static boolean openBiss(Activity c){
+  ManufacturerFeatures.Entry entry=ManufacturerFeatures.find(c,"patch");
+  return entry!=null&&ManufacturerFeatures.open(c,entry);
+ }
  static void motor(Activity c){
   ManufacturerFeatures.Entry entry=ManufacturerFeatures.find(c,"motor");boolean ar=c.getSharedPreferences("smarthub",0).getBoolean("arabic",true);
   if(entry==null||!ManufacturerFeatures.open(c,entry))android.widget.Toast.makeText(c,ar?"تحكم الموتور غير متاح عبر واجهة المصنع":"Firmware motor controls unavailable",android.widget.Toast.LENGTH_LONG).show();
