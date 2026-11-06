@@ -114,33 +114,15 @@ final class LocalInfoBarController implements AutoCloseable {
   if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
    imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
    currentPoster=null;nextPoster=null;
-   final String check=art;
-   final SatelliteState snap=state.copy();
+   final String expected=art;
+   final SatelliteState snapshot=state.copy();
+   // Two independent pipelines: a slow TMDB movie lookup must not delay NEXT.
    io.execute(()->{
-    try{
-     published.refresh(snap,System.currentTimeMillis());
-     Bitmap now=poster(snap,false);
-     Bitmap next=poster(snap,true);
-     // Snapshot before any online resolution; avoid stale or captured mutable values.
-     final Bitmap initialNow=now,initialNext=next;
-     main.post(()->{if(!closed&&check.equals(imageKey)){
-      currentPoster=initialNow;nextPoster=initialNext;paint();
-     }});
-     // TMDB, BetterPosters and TVmaze can be resolved on-demand;
-     // the four-hour worker alone cannot serve a newly tuned channel.
-     if(!prefs.getBoolean("software_dvb_422_active",false)&&
-        !prefs.getBoolean("dvb_tuning",false)){
-      if(now==null)now=onlinePoster(snap,false);
-      if(next==null)next=onlinePoster(snap,true);
-      final Bitmap current=now,upcoming=next;
-      main.post(()->{if(!closed&&check.equals(imageKey)){
-       currentPoster=current;nextPoster=upcoming;paint();
-      }});
-     }
-    }catch(Exception failure){
-     prefs.edit().putString("osd_poster_status","POSTER_TASK_"+failure.getClass().getSimpleName()).apply();
-    }
+    try{published.refresh(snapshot,System.currentTimeMillis());}
+    catch(Exception ignored){}
+    loadPoster(snapshot,false,expected);
    });
+   io.execute(()->loadPoster(snapshot,true,expected));
   }
   if(System.currentTimeMillis()>=logoRetry&&!state.channelName.isEmpty()){
    logoRetry=System.currentTimeMillis()+60000;
@@ -162,6 +144,24 @@ final class LocalInfoBarController implements AutoCloseable {
   paint();
  }
 
+ private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
+  String title=upcoming?snapshot.nextTitle:snapshot.title;
+  if(title==null||title.trim().isEmpty())return;
+  Bitmap image=poster(snapshot,upcoming);
+  if(image!=null)publishPoster(expected,upcoming,image);
+  if(image==null&&!prefs.getBoolean("software_dvb_422_active",false)&&
+     !prefs.getBoolean("dvb_tuning",false)){
+    image=onlinePoster(snapshot,upcoming);
+    if(image!=null)publishPoster(expected,upcoming,image);
+  }
+ }
+ private void publishPoster(String expected,boolean upcoming,Bitmap image){
+  main.post(()->{
+   if(closed||!expected.equals(imageKey))return;
+   if(upcoming)nextPoster=image;else currentPoster=image;
+   paint();
+  });
+ }
  private Bitmap poster(SatelliteState state,boolean upcoming){
   String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().isEmpty())return null;
