@@ -16,12 +16,19 @@ class ChlLogoAddon private constructor(private val context:Context){
  private val prefs=context.getSharedPreferences("smarthub",0)
  @Synchronized fun load(){if(loaded)return;selectionSeed=LogoSelection.seed(context);index=try{val f=File(context.filesDir,"chl-logo-index.bin");if(f.isFile&&f.length()<=8*1024*1024)f.inputStream().use{ChlChannelIndex.read(it)}else null}catch(_:Exception){null};loaded=true}
  @Synchronized fun importFile(reader:Reader):ChlChannelIndex {val raw=ReceiverCatalog.readText(reader);val parsed=ChlChannelIndex.parse(java.io.StringReader(raw));val catalog=ReceiverCatalog.get(context);try{catalog.importText(raw)}catch(_:Exception){catalog.replaceCompact(parsed)};val atomic=AtomicFile(File(context.filesDir,"chl-logo-index.bin"));val out=atomic.startWrite();try{parsed.write(out);atomic.finishWrite(out)}catch(e:Exception){atomic.failWrite(out);throw e};File(context.filesDir,"chl-logo-index.json").delete();selectionSeed=LogoSelection.seed(context);val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();index=parsed;loaded=true;changed();return parsed}
- /** A full native SQLite catalogue replaces CHL identity data, but never touches OEM records. */
+ /** After importing a native DB, rebuild the logo source once from indexed SQLite.
+  * Keeps physical CHMAX lookups without reparsing CHL at every process start.
+  */
  @Synchronized fun databaseImported(){
-  AtomicFile(File(context.filesDir,"chl-logo-index.bin")).delete()
+  val parsed=ChlChannelIndex.fromReceiverDatabase(context)
+  val atomic=AtomicFile(File(context.filesDir,"chl-logo-index.bin"))
+  val out=atomic.startWrite()
+  try{parsed.write(out);atomic.finishWrite(out)}
+  catch(e:Exception){atomic.failWrite(out);throw e}
   AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete()
-  index=null
+  index=parsed
   loaded=true
+  selectionSeed=LogoSelection.seed(context)
   val edit=prefs.edit()
   prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)}
   edit.apply()
