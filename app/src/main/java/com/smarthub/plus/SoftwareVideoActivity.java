@@ -90,9 +90,16 @@ public final class SoftwareVideoActivity extends HubActivity {
               if(released)return;
               android.content.SharedPreferences.Editor prefsEdit=prefs().edit();
               prefsEdit.putBoolean("software_dvb_422_active",true)
-                .putString("decoder_channel","DVB:"+channel.physical()).apply();
+                .putString("decoder_channel","DVB:"+channel.physical())
+                .remove("decoder_bitrate").remove("decoder_width").remove("decoder_height")
+                .putString("own_ca_channel","DVB:"+channel.physical())
+                .putInt("own_ca_flag",0).putString("own_ca_systems","").apply();
               SatelliteState previous=SatelliteState.read(SoftwareVideoActivity.this);
               SatelliteState next=previous.copy();
+              if(!previous.channelId.equals("DVB:"+channel.physical())){
+                next.title="";next.nextTitle="";next.image="";next.nextImage="";
+                next.startMs=0;next.endMs=0;next.nextStartMs=0;next.nextEndMs=0;
+              }
               next.channelId="DVB:"+channel.physical();
               next.channelName=channel.name;
               next.source="DVB · IRAQhub · LibVLC";
