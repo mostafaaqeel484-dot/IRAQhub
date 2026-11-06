@@ -98,7 +98,26 @@ class LogoSourcesActivity:HubActivity(){
  private fun startReceiver(){stopReceiver();scope.launch{try{val pair=withContext(Dispatchers.IO){val server=ChlImportServer{input->val parsed=ChlLogoAddon.get(this@LogoSourcesActivity).importFile(input.reader(Charsets.UTF_8));LogoRepository.get(this@LogoSourcesActivity).invalidate();runOnUiThread{if(!isDestroyed)refresh()};"تم استيراد "+parsed.services.size+" قناة دون تعديل قائمة الرسيفر"};server to server.localAddress()};if(!foreground||pair.second.isEmpty()){pair.first.close();return@launch};receiver=pair.first;receiving.text="افتح الرابط من جهاز على الشبكة نفسها واختر CHL. يغلق عند مغادرة الصفحة.\n"+pair.second}catch(_:Exception){message("تعذر بدء استقبال الملف عبر الشبكة المحلية")}}}
  private fun stopReceiver(){receiver?.close();receiver=null;if(::receiving.isInitialized)receiving.text="الاستقبال المحلي متوقف"}
  private fun message(s:String){Toast.makeText(this,s,Toast.LENGTH_LONG).show()}
- private fun refresh(){scope.launch{val summary=withContext(Dispatchers.IO){val a=ChlLogoAddon.get(this@LogoSourcesActivity);val i=a.snapshot();if(i==null)"لا توجد قاعدة قنوات مستوردة" else if(getSharedPreferences("smarthub",0).getString("receiver_catalog_format","")=="SQLITE_DB")"قنوات SQLite DB: "+i.services.size else "قنوات CHL: "+i.services.size+"\nالأقمار: "+i.satellites+" · الترددات: "+i.transponders+"\nقنوات لها مزود: "+i.services.count{it.provider.isNotBlank()}+"\nلا يحتوي الملف صور شعارات."};state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()}}
+ private fun refresh(){
+  scope.launch{
+   val summary=withContext(Dispatchers.IO){
+    val addon=ChlLogoAddon.get(this@LogoSourcesActivity)
+    val index=addon.snapshot()
+    if(index==null)tx("لا يوجد فهرس قنوات مستورد","No imported channel index")
+    else{
+     val native=getSharedPreferences("smarthub",0)
+       .getString("receiver_catalog_format","")=="SQLITE_DB"
+     val header=if(native)"SQLite DB" else "CHL"
+     header+" · "+tx("القنوات: ","Channels: ")+index.services.size+
+       "\n"+tx("الأقمار: ","Satellites: ")+index.satellites+
+       " · "+tx("الترددات: ","Transponders: ")+index.transponders+
+       "\n"+tx("مزودو الخدمة: ","Providers: ")+
+       index.services.count{it.provider.isNotBlank()}
+    }
+   }
+   state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()
+  }
+ }
  private fun testChmax(){
   val selected=SatelliteState.read(this)
   if(!selected.channelId.startsWith("DVB:")||selected.channelName.isBlank()){
@@ -225,7 +244,7 @@ class LogoSourcesActivity:HubActivity(){
     1->{val json=withContext(Dispatchers.IO){val out=java.io.ByteArrayOutputStream();contentResolver.openInputStream(uri)!!.use{val buf=ByteArray(8192);while(true){val n=it.read(buf);if(n<0)break;require(out.size()+n<=2*1024*1024);out.write(buf,0,n)}};out.toString("UTF-8")};LogoRepository.get(this@LogoSourcesActivity).replaceMapping(json,this@LogoSourcesActivity);message("تم التحقق من المطابقات وحفظها")}
     2->{withContext(Dispatchers.IO){val file=java.io.File(filesDir,"logo-mapping.json");val bytes=if(file.exists())file.readBytes()else assets.open("logo-resolver/mapping.json").use{it.readBytes()};contentResolver.openOutputStream(uri,"wt")!!.use{it.write(bytes)}};message("تم تصدير القاعدة")}
    }
-  }catch(_:Exception){message(if(request==3)"لم يُقبل CHL: تنسيق غير مدعوم أو مرجع تردد غير صالح. بقيت البيانات السابقة." else "لم يُقبل الملف: تحقق من JSON والمطابقات وروابط HTTPS")}}
+  }catch(problem:Exception){val reason=problem.message?:"UNAVAILABLE";state.text=reason;message(when(request){3->"لم يُقبل CHL: تنسيق غير مدعوم أو مرجع تردد غير صالح.";6->"تعذر تصدير SQLite DB: "+reason;else->"لم يُقبل الملف: تحقق من المحتوى والمطابقات."})}}
  }
  override fun onStart(){super.onStart();foreground=true}
  override fun onStop(){foreground=false;stopReceiver();super.onStop()}
