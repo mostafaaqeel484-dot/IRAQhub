@@ -73,7 +73,8 @@ final class UnifiedArtworkPrefetch {
       }
      }
     }catch(Exception unavailable){/* Preserve other providers. */}
-    try{
+    if(validUrl(address)&&!imageAvailable(context,address))address="";
+    if(!validUrl(address))try{
      JSONObject better=provider.resolve(title,id,type,imdb,0);
      if("matched".equals(better.optString("status"))&&id.equals(better.optString("id"))
        &&type.equals(better.optString("type"))&&validUrl(better.optString("poster",""))){
@@ -82,12 +83,15 @@ final class UnifiedArtworkPrefetch {
       if(imdb.isEmpty())imdb=better.optString("imdbId","");
      }
     }catch(Exception unavailable){/* TMDB remains usable. */}
-    if(imdb.matches("tt[0-9]{7,10}")&&prefs.getBoolean("betterposters_direct_enabled",true)){
+    if(validUrl(address)&&!imageAvailable(context,address))address="";
+    if(!validUrl(address)&&imdb.matches("tt[0-9]{7,10}")&&
+       prefs.getBoolean("betterposters_direct_enabled",true)){
      try{
       String direct=BetterPostersDirect.poster(context,imdb);
       if(validUrl(direct)){address=direct;posterSource="BetterPosters · IMDb";}
      }catch(Exception unavailable){/* Fall back. */}
     }
+    if(validUrl(address)&&!imageAvailable(context,address))address="";
     if(!validUrl(address)&&"series".equals(type)&&imdb.matches("tt[0-9]{7,10}"))
      try{
       JSONObject maze=new TvmazeProvider(context).resolve(title,imdb);
@@ -127,6 +131,18 @@ final class UnifiedArtworkPrefetch {
   if(p.getLong("verified_poster_until:"+key,0)<=System.currentTimeMillis())return "";
   String source=p.getString("verified_poster_url:"+key,"");
   return validUrl(source)?source:"";
+ }
+ private static boolean imageAvailable(Context context,String address){
+  if(!validUrl(address))return false;
+  try{
+   byte[] bytes=ArtworkCache.fetch(context,new URL(address),5*1024*1024);
+   if(bytes==null||bytes.length<200)return false;
+   BitmapFactory.Options probe=new BitmapFactory.Options();
+   probe.inJustDecodeBounds=true;
+   BitmapFactory.decodeByteArray(bytes,0,bytes.length,probe);
+   return probe.outWidth>=90&&probe.outHeight>=90&&
+      probe.outWidth<=10000&&probe.outHeight<=10000;
+  }catch(Exception unavailable){return false;}
  }
  private static boolean validUrl(String source){
   try{
