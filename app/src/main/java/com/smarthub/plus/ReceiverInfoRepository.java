@@ -53,6 +53,9 @@ final class ReceiverInfoRepository {
     private static String published(SharedPreferences p,String channel,String field){long age=System.currentTimeMillis()-p.getLong("native_"+field+"_seen:"+channel,0);if(age<0||age>=120000)return "";String v=p.getString("native_"+field+":"+channel,"").trim();return v.length()<=100&&!v.chars().anyMatch(n->n<32)?v:"";}
     static final class Info {
         final String provider,badge,broadcast,encryption,bitrate,strength,quality,snr,ber;
+        Info(String provider,String badge,String broadcast,String encryption,String strength,String quality,String snr,String ber){
+            this(provider,badge,broadcast,encryption,"",strength,quality,snr,ber);
+        }
         Info(String provider,String badge,String broadcast,String encryption,String bitrate,String strength,String quality,String snr,String ber){this.provider=provider;this.badge=badge;this.broadcast=broadcast;this.encryption=encryption;this.bitrate=bitrate;this.strength=strength;this.quality=quality;this.snr=snr;this.ber=ber;}
         String signalDetail(){return "SNR "+(snr.isEmpty()?"—":snr)+"  ·  BER "+(ber.isEmpty()?"—":ber);}
     }
