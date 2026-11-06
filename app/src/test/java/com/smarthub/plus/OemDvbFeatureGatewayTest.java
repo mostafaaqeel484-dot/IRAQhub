@@ -14,6 +14,7 @@ public class OemDvbFeatureGatewayTest {
         assertEquals("motor", OemDvbFeatureGateway.Feature.OEM_MOTOR.manufacturerId);
         assertEquals("edit_tv", OemDvbFeatureGateway.Feature.OEM_EDIT_TV.manufacturerId);
         assertEquals("edit_favorites", OemDvbFeatureGateway.Feature.OEM_FAVOURITES.manufacturerId);
+        assertEquals("patch", OemDvbFeatureGateway.Feature.OEM_BISS_INPUT.manufacturerId);
         assertTrue(OemDvbFeatureGateway.Feature.OEM_NET_UPDATE.confirmationRequired);
         assertTrue(OemDvbFeatureGateway.Feature.OEM_FILE_UPDATE.confirmationRequired);
     }
