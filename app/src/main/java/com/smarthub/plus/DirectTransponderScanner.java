@@ -67,9 +67,13 @@ final class DirectTransponderScanner implements AutoCloseable {
   // No invented PIDs or programme names. 0x1FFF means "not a selected stream".
   // The OEM must explicitly support whole-TP recording for this to work.
   JSONObject request=wholeTransponderRequest(sat,freq,pol,sr,lock.tp,captureId,folder,capture);
-  attempted=true;
-  if(!NativeCapture.record(captureId,request))
-   throw new IOException("FIRMWARE_FULL_TS_CAPTURE_REJECTED");
+  synchronized(NativeCapture.CONTROL){
+   if(closed||!owner||!token.equals(prefs.getString("capture_session",""))||
+       Thread.currentThread().isInterrupted())throw new IOException("MANUAL_SCAN_CANCELLED");
+   attempted=true;
+   if(!NativeCapture.record(captureId,request))
+    throw new IOException("FIRMWARE_FULL_TS_CAPTURE_REJECTED");
+  }
 
   long started=SystemClock.elapsedRealtime(),nextCheck=started+1200;
   int snapshot=0,stable=0,previousServices=-1;
@@ -125,7 +129,11 @@ final class DirectTransponderScanner implements AutoCloseable {
     .put("tp_freq",freq).put("tp_pol","H".equals(pol)?0:1)
     .put("tp_symbolrate",sr).put("tp_type",0)
     .put("iVideoPid",8191).put("iPcrPid",8191).put("pmt_pid",8191)
-    .put("iAudioNum",0).put("stAudioInfo",new JSONArray())
+    .put("iAudioNum",0).put("iAudioSelected",0)
+    .put("stAudioInfo",new JSONArray()).put("stSubInfo",new JSONArray())
+    .put("iSubtitleSelected",-1).put("iTVType",0)
+    .put("iTtxPid",8191).put("iCAType",0).put("iVolume",0)
+    .put("plpid",0).put("stream_id",0).put("tp_onid",0)
     .put("uiSIDCount",0).put("pucSids","").put("pucPmtPids","")
     .put("path_dir",root.getAbsolutePath())
     .put("path",output.getAbsolutePath())
