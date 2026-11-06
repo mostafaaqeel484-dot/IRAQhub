@@ -54,11 +54,26 @@ public final class ManualTransponderActivity extends HubActivity {
   action(other,tx("اكتشاف وحفظ قنوات من تسجيل TS لهذه الترددات","Discover/import channels from an actual DVB TS recording"),
     ()->{
      Selection selected=selection();
-     if(selected==null)return;
-     startActivity(new Intent(this,TsServiceImportActivity.class)
-      .putExtra("satellite",selected.sat.id)
-      .putExtra("frequency",selected.frequency).putExtra("polarity",selected.pol)
-      .putExtra("symbol_rate",selected.rate));
+     if(selected==null||!busy.compareAndSet(false,true))return;
+     io.execute(()->{
+      String error="";
+      try{ReceiverCatalog.get(this).addTransponderLocal(
+        selected.sat.id,selected.frequency,selected.pol,selected.rate);
+      }catch(Exception failed){
+       error=failed.getMessage()==null?"INVALID_TP":failed.getMessage();
+       if("TRANSPONDER_ALREADY_EXISTS".equals(error))error="";
+      }
+      String reason=error;
+      runOnUiThread(()->{
+       busy.set(false);
+       if(closed)return;
+       if(!reason.isEmpty()){result.setText(reason);return;}
+       startActivity(new Intent(this,TsServiceImportActivity.class)
+        .putExtra("satellite",selected.sat.id)
+        .putExtra("frequency",selected.frequency).putExtra("polarity",selected.pol)
+        .putExtra("symbol_rate",selected.rate));
+      });
+     });
     });
   action(other,tx("إعدادات الصحن · LNB / DiSEqC","LNB / DiSEqC"),
     ()->startActivity(new Intent(this,TunerSettingsActivity.class)));
