@@ -71,8 +71,8 @@ final class ReceiverTechnicalBadges {
    if("FTA".equals(value))return "FTA";
    if("ENCRYPTED".equals(value)){
     String type=p.getString("native_ca_type:"+id,"");
-    long typed=System.currentTimeMillis()-p.getLong("native_ca_type_seen:"+id,0);
-    return typed>=0&&typed<120000&&!type.isEmpty()?"CA · "+type:"CA";
+    long caAge=System.currentTimeMillis()-p.getLong("native_ca_type_seen:"+id,0);
+    return caAge>=0&&caAge<120000&&!type.isEmpty()?"CA · "+type:"CA";
    }
   }
   return "";
