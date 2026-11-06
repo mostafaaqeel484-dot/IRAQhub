@@ -45,5 +45,28 @@ public final class ReceiverToolsActivity extends HubActivity {
   note(body,tx("قائمة البحث الأصلية في Aurum تبقى مسؤولة عن حفظ قنوات المصنع؛ IRAQhub لا يغيّر قاعدة النظام من دون الصلاحيات الرسمية.",
     "Aurum's original scan saves OEM channels. IRAQhub does not alter protected firmware databases."));
  }
- private void open(Class<?> next){startActivity(new Intent(this,next));}
+ @Override public boolean dispatchKeyEvent(android.view.KeyEvent event){
+  if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
+   int code=event.getKeyCode();
+   if(code==android.view.KeyEvent.KEYCODE_1||code==android.view.KeyEvent.KEYCODE_NUMPAD_1){
+    open(ManualTransponderActivity.class);return true;
+   }
+   if(code==android.view.KeyEvent.KEYCODE_2||code==android.view.KeyEvent.KEYCODE_NUMPAD_2){
+    open(ReceiverAntennaMenuActivity.class);return true;
+   }
+   if(code==android.view.KeyEvent.KEYCODE_3||code==android.view.KeyEvent.KEYCODE_NUMPAD_3){
+    open(ReceiverFastScanMenuActivity.class);return true;
+   }
+   if(code==android.view.KeyEvent.KEYCODE_4||code==android.view.KeyEvent.KEYCODE_NUMPAD_4){
+    open(ReceiverDeveloperMenuActivity.class);return true;
+   }
+  }
+  return super.dispatchKeyEvent(event);
+ }
+ private void open(Class<?> next){
+  try{startActivity(new Intent(this,next));}
+  catch(RuntimeException unavailable){
+   toast(tx("تعذّر فتح هذه الصفحة؛ راجع تشخيص التطبيق","Unable to open this page; check diagnostics"));
+  }
+ }
 }
