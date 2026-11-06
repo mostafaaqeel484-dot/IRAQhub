@@ -263,7 +263,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
        "Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n")
        .getBytes(StandardCharsets.US_ASCII));
    if(head){out.flush();return;}
-   stream(out);
+   stream(out,client);
   }catch(Exception ignored){}
  }
  private static void respond(Socket client,String headers)throws IOException{
