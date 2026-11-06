@@ -127,8 +127,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
      lastSignal=SystemClock.elapsedRealtime();
      long bytes;
      synchronized(lock){
-      bytes=retiredSegmentBytes;
-      for(File segment:files)if(segment!=null)bytes+=Math.max(0,segment.length());
+      bytes=measuredBytes(files,retiredSegmentBytes);
      }
      long elapsed=lastSignal-priorMeasure;
      if(elapsed>=1000&&bytes>priorBytes){
@@ -253,6 +252,12 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     }
    }
   }
+ }
+ /** Pruned TS segments become null; protect the bitrate meter from NPE. */
+ static long measuredBytes(List<File> fragments,long retired){
+  long bytes=Math.max(0,retired);
+  if(fragments!=null)for(File file:fragments)if(file!=null)bytes+=Math.max(0,file.length());
+  return bytes;
  }
  private void serve(Socket client){
   try{
