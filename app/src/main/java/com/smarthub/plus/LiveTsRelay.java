@@ -21,7 +21,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  interface Listener {void ready(String url);void error(String cause);}
  private static final long ROTATE=24L*1024*1024;
  private static final long RESERVED_DISK=128L*1024*1024;
- private static final long MAX_DURATION=2L*60*60*1000;
+ private static final long MAX_DURATION=8L*60*60*1000;
  private static final int TS=188;
  private final Context context;
  private final ReceiverCatalog.Channel channel;
@@ -30,6 +30,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  private final Handler main=new Handler(Looper.getMainLooper());
  private final Object lock=new Object();
  private final AtomicInteger clients=new AtomicInteger();
+ private final java.util.concurrent.ConcurrentHashMap<Socket,Integer> cursors=new java.util.concurrent.ConcurrentHashMap<>();
  private final String session=UUID.randomUUID().toString();
  private final List<File> files=new ArrayList<>();
  private final int firstId,secondId;
@@ -56,6 +57,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  }
  private SharedPreferences prefs(){return context.getSharedPreferences("smarthub",Context.MODE_PRIVATE);}
 
+ boolean running(){return started&&!closed&&server!=null&&!server.isClosed();}
  synchronized void start(){
   if(started)return;
   started=true;
@@ -86,11 +88,11 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
    long deadline=SystemClock.elapsedRealtime()+12000;
    while(!closed&&SystemClock.elapsedRealtime()<deadline){
     File file=current;
-    if(file!=null&&file.length()>=TS*10&&sync(file))break;
+    if(file!=null&&file.length()>=TS*384&&sync(file))break;
     Thread.sleep(150);
    }
    if(closed)return;
-   if(current==null||current.length()<TS*10||!sync(current))
+   if(current==null||current.length()<TS*384||!sync(current))
     throw new IOException("CAPTURE_NO_MPEG_TS");
    if(channel.ca!=0){
     // Only the OEM's already-authorised descrambler may clear DVB packets.
@@ -99,8 +101,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     long clearUntil=SystemClock.elapsedRealtime()+8000;
     while(!closed&&SystemClock.elapsedRealtime()<clearUntil){
      observed=videoClearState(current,videoPid);
-     if(observed!=0)break;
-     Thread.sleep(180);
+     if(observed==1)break;
+     Thread.sleep(230);
     }
     if(observed<0)throw new IOException("BISS_FIRMWARE_CAPTURE_STILL_SCRAMBLED");
     if(observed==0)throw new IOException("BISS_FIRMWARE_CLEAR_TS_NOT_VERIFIED");
@@ -115,6 +117,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
      Socket client=server.accept();
      if(clients.incrementAndGet()>2){clients.decrementAndGet();client.close();continue;}
      new Thread(()->{try{serve(client);}finally{
+      cursors.remove(client);
       try{client.close();}catch(IOException ignored){}
       clients.decrementAndGet();
      }},"iraqhub-ts-client").start();
@@ -136,7 +139,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
      if(signal.locked!=1||signal.tp!=body.optInt("tp_id",-1))
       throw new IOException("CAPTURE_TUNER_CHANGED_OR_UNLOCKED");
      File file=current;
-     if(file!=null&&file.length()>ROTATE)rotate();
+     if(file!=null&&file.length()>ROTATE){rotate();trimOldSegments();}
      if(root.getUsableSpace()<RESERVED_DISK)throw new IOException("CAPTURE_SPACE_REQUIRED");
     }
    }
@@ -200,6 +203,28 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
   }catch(Exception missing){return false;}
  }
 
+ /**
+  * A live TV relay must not fill the receiver storage. Keep recent TS segments
+  * plus anything still being read by a client; disconnect clients that lag
+  * farther than eight 24MB segments.
+  */
+ private void trimOldSegments(){
+  synchronized(lock){
+   int latest=files.size()-1;
+   for(java.util.Map.Entry<Socket,Integer> client:cursors.entrySet()){
+    if(client.getValue()<latest-8)try{client.getKey().close();}
+     catch(IOException ignored){}
+   }
+   int keepFrom=Math.max(0,latest-5);
+   for(Integer reading:cursors.values())
+    keepFrom=Math.min(keepFrom,reading);
+   for(int i=0;i<keepFrom;i++){
+    File old=files.get(i);
+    if(old!=null&&old!=current&&old.exists()&&old.delete())
+     files.set(i,null);
+   }
+  }
+ }
  private void serve(Socket client){
   try{
    client.setSoTimeout(3500);
