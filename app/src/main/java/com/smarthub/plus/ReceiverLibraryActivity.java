@@ -55,7 +55,11 @@ public class ReceiverLibraryActivity extends HubActivity {
     tx("معلومات القناة","Channel details"),
     tx("إعدادات القناة داخل IRAQhub","IRAQhub channel settings"),
     tx("LNB وDiSEqC","LNB and DiSEqC"),
-    tx("الموتور وUSALS","Motor / USALS")
+    tx("الموتور وUSALS","Motor / USALS"),
+    tx("جعلها قناة بدء تشغيل IRAQhub","Set as IRAQhub startup channel"),
+    tx("نقل القناة للأعلى بقائمتي","Move channel up in my list"),
+    tx("نقل القناة للأسفل بقائمتي","Move channel down in my list"),
+    tx("حذف القناة من قائمتي فقط","Delete channel from my local list")
   };
   ReceiverPanelStyle.choose(this,ch.name+" · "+ch.rf(),items,0,index->{
    switch(index){
@@ -66,12 +70,47 @@ public class ReceiverLibraryActivity extends HubActivity {
     case 5:ChannelControls.open(this,ch);break;
     case 6:startActivity(new Intent(this,TunerSettingsActivity.class).putExtra("satellite",(long)ch.satId));break;
     case 7:startActivity(new Intent(this,MotorCenterActivity.class).putExtra("satellite",(long)ch.satId));break;
+    case 8:
+     prefs().edit().putBoolean("own_dvb_startup_enabled",true)
+      .putLong("own_dvb_startup",ch.id).apply();
+     toast(tx("تم تعيين قناة البدء في IRAQhub","IRAQhub startup channel saved"));break;
+    case 9:moveLocal(ch,-1);break;
+    case 10:moveLocal(ch,1);break;
+    case 11:deleteLocal(ch);break;
     default:new AlertDialog.Builder(this).setTitle(ch.name)
        .setMessage(ch.provider+"\\n"+ch.rf()+"\\nSID "+ch.sid+" · "+
          (ch.ca<0?"—":ch.ca==0?"FTA":tx("مشفرة","Encrypted")))
        .setPositiveButton("OK",null).show();
    }
   });
+ }
+ private void moveLocal(ReceiverCatalog.Channel channel,int direction){
+  io.execute(()->{
+   boolean changed=catalog.moveLocal(channel.id,direction);
+   main.post(()->{
+    if(closed)return;
+    if(changed)search(false);
+    else toast(tx("القناة في بداية أو نهاية القائمة","Channel is already at the list boundary"));
+   });
+  });
+ }
+ private void deleteLocal(ReceiverCatalog.Channel channel){
+  new AlertDialog.Builder(this).setTitle(tx("حذف من قائمة IRAQhub","Delete from IRAQhub catalogue"))
+    .setMessage(tx("سيُحذف هذا السجل من قاعدة IRAQhub فقط؛ قاعدة قنوات Aurum والروم لا تتغير. يمكن إعادة استيراده من ملف CHL إذا احتجته.",
+       "Only the IRAQhub catalogue entry will be deleted. The firmware database is unchanged. Reimport CHL to restore it.")+
+       "\\n"+channel.name+" · "+channel.rf())
+    .setPositiveButton(tx("حذف","Delete"),(d,w)->io.execute(()->{
+      boolean deleted=catalog.deleteLocal(channel.id);
+      if(deleted&&prefs().getLong("own_dvb_startup",-1)==channel.id)
+       prefs().edit().remove("own_dvb_startup").putBoolean("own_dvb_startup_enabled",false).apply();
+      main.post(()->{
+       if(closed)return;
+       toast(deleted?tx("حُذفت من قائمتي","Removed from local list"):
+          tx("ما أگدر أحذف آخر قناة","Cannot delete the final channel"));
+       search(false);
+      });
+    }))
+    .setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
  private void refreshSignal(){SatelliteState s=SatelliteState.read(this);if(reader!=null)reader.refresh(s);ReceiverInfoRepository.Info info=ReceiverInfoRepository.get(this).info(s);liveTitle.setText(s.channelName);String liveKey=s.channelId+"|"+s.title+"|"+(System.currentTimeMillis()/30000);if(!lastLiveTitle.equals(liveKey)){lastLiveTitle=liveKey;list.invalidateViews();}rf.setText(info.broadcast);strength.setProgress(percent(info.strength),true);quality.setProgress(percent(info.quality),true);strength.setVisibility(info.strength.isEmpty()?View.INVISIBLE:View.VISIBLE);quality.setVisibility(info.quality.isEmpty()?View.INVISIBLE:View.VISIBLE);signalDetail.setText("S: "+(info.strength.isEmpty()?"—":info.strength)+"     Q: "+(info.quality.isEmpty()?"—":info.quality)+"     "+info.signalDetail());}
  private static int percent(String s){try{return (int)Float.parseFloat(s.replace("%",""));}catch(Exception no){return 0;}}
