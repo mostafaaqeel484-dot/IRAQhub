@@ -162,6 +162,89 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   if(deleted)context.getSharedPreferences("smarthub",0).edit().putLong("installation_changed_at",System.currentTimeMillis()).apply();
   return deleted;
  }
+ /** Saves only complete PSI-discovered services, with their verified RF context
+  * supplied by the user. Never touches the OEM programme content provider.
+  * Existing CHL data, channel order, groups, and favourites are preserved.
+  */
+ static final class PsiImportResult {
+  final int added,duplicates,invalid;
+  PsiImportResult(int added,int duplicates,int invalid){
+   this.added=added;this.duplicates=duplicates;this.invalid=invalid;
+  }
+ }
+ synchronized PsiImportResult savePsiServices(long satelliteId,int frequency,String polarity,
+     int symbolRate,DvbPsiScan.Result report)throws Exception{
+  if(report==null||report.services.length()==0||report.services.length()>512
+     ||frequency<100||frequency>100000||symbolRate<1||symbolRate>100000
+     ||(!"H".equals(polarity)&&!"V".equals(polarity)))
+   throw new IOException("TS_IMPORT_INVALID");
+  SQLiteDatabase db=getWritableDatabase();
+  String satKey=Long.toString(satelliteId);
+  if(DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat WHERE _id=?",
+      new String[]{satKey})!=1)throw new IOException("TS_IMPORT_SATELLITE_NOT_FOUND");
+  int added=0,duplicates=0,invalid=0;
+  db.beginTransaction();
+  try{
+   long tpId=-1;
+   try(Cursor existing=db.rawQuery(
+       "SELECT _id FROM tp WHERE sat_id=? AND freq=? AND pol=? AND sr=? LIMIT 1",
+       new String[]{satKey,Integer.toString(frequency),polarity,Integer.toString(symbolRate)})){
+    if(existing.moveToFirst())tpId=existing.getLong(0);
+   }
+   if(tpId<0){
+    tpId=DatabaseUtils.longForQuery(db,"SELECT COALESCE(MAX(_id),-1)+1 FROM tp",null);
+    if(tpId>1000000)throw new IOException("TS_IMPORT_TP_LIMIT");
+    ContentValues tp=new ContentValues();tp.put("_id",tpId);tp.put("sat_id",satelliteId);
+    tp.put("freq",frequency);tp.put("pol",polarity);tp.put("sr",symbolRate);tp.put("fec","");
+    db.insertOrThrow("tp",null,tp);
+   }
+   long channelId=DatabaseUtils.longForQuery(db,"SELECT COALESCE(MAX(_id),0) FROM ch",null);
+   long rank=DatabaseUtils.longForQuery(db,"SELECT COALESCE(MAX(order_index),0) FROM ch",null);
+   for(int i=0;i<report.services.length();i++){
+    JSONObject service=report.services.optJSONObject(i);
+    if(service==null){invalid++;continue;}
+    int sid=service.optInt("sid",-1),pmt=service.optInt("pmt",-1),
+      pcr=service.optInt("pcr",-1),video=service.optInt("videoPid",-1),
+      tv=service.optInt("tv",-1),ca=service.optInt("ca",-1);
+    String name=service.optString("name","").trim(),provider=service.optString("provider","").trim();
+    String codec=service.optString("videoType","");
+    JSONArray audio=service.optJSONArray("audio");
+    if(sid<1||sid>65535||pmt<1||pmt>=8191||pcr<1||pcr>=8191
+       ||name.isEmpty()||name.length()>120||provider.length()>120
+       ||name.chars().anyMatch(c->c<32)||provider.chars().anyMatch(c->c<32)
+       ||(tv!=0&&tv!=1)||(ca!=0&&ca!=1)
+       ||(tv==0&&(video<1||video>=8191||DvbPlayRequest.video(codec)<0))
+       ||(tv==1&&(audio==null||audio.length()==0))){
+     invalid++;continue;
+    }
+    if(DatabaseUtils.longForQuery(db,
+       "SELECT COUNT(*) FROM ch WHERE tp_id=? AND sid=?",
+       new String[]{Long.toString(tpId),Integer.toString(sid)})>0){duplicates++;continue;}
+    if(channelId>=1000000)throw new IOException("TS_IMPORT_CHANNEL_ID_LIMIT");
+    JSONObject metadata=new JSONObject();
+    metadata.put("PmtPID",pmt).put("PcrPID",pcr)
+      .put("VideoPID",tv==1?8191:video).put("VideoType",tv==1?"":codec)
+      .put("Audio",audio==null?new JSONArray():audio).put("Sub",new JSONArray())
+      .put("CaSystemIdList",service.optJSONArray("caIds")==null
+          ?new JSONArray():service.optJSONArray("caIds"))
+      .put("Tsid",report.transportId).put("Onid",report.networkId)
+      .put("Discovery","MPEG-TS PAT/PMT/SDT");
+    ContentValues channel=new ContentValues();
+    channel.put("_id",++channelId);channel.put("order_index",++rank);
+    channel.put("tp_id",tpId);channel.put("name",name);channel.put("provider",provider);
+    channel.put("sid",sid);channel.put("tv",tv);channel.put("ca",ca);
+    channel.put("data",metadata.toString());
+    channel.put("search_key",ReceiverChannelRepository.searchKey(name+" "+provider));
+    db.insertOrThrow("ch",null,channel);added++;
+   }
+   db.setTransactionSuccessful();
+  }finally{db.endTransaction();}
+  if(added>0)context.getSharedPreferences("smarthub",0).edit()
+     .putLong("receiver_catalog_imported_at",System.currentTimeMillis())
+     .putLong("installation_changed_at",System.currentTimeMillis())
+     .putInt("psi_import_added",added).apply();
+  return new PsiImportResult(added,duplicates,invalid);
+ }
  /**
   * Manual PID editor for the app-owned channel profile. The firmware DB and CA
   * authorisation remain unchanged. Playback reads this same JSON via DvbPlayRequest.
