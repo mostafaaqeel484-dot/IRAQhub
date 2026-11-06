@@ -85,7 +85,7 @@ public final class TransponderSweepActivity extends HubActivity {
      }
      saved.put(item);done++;
      String message=tp.label()+" · "+(item.optBoolean("lock")?"LOCK":"NO LOCK")+" · Q "+
-      item.optString("quality","—")+" · SID "+item.optJSONArray("sid").length();
+      item.optString("quality","—")+" · SID "+(item.optJSONArray("sid")==null?0:item.optJSONArray("sid").length());
      int found=locked,checked=done;
      runOnUiThread(()->{if(!closed){results.append(message+"\n");
       progress.setText(checked+"/"+rows.size()+" · "+tx("ناجحة: ","Locked: ")+found);}});
