@@ -80,6 +80,13 @@ public final class TsServiceImportActivity extends HubActivity {
     tps=found;String[] names=new String[found.size()];
     for(int i=0;i<found.size();i++)names[i]=found.get(i).label();
     tpSelector.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names));
+    int frequency=getIntent().getIntExtra("frequency",-1);
+    int symbolRate=getIntent().getIntExtra("symbol_rate",-1);
+    String polarity=getIntent().getStringExtra("polarity");
+    for(int i=0;i<found.size();i++)if(found.get(i).frequency==frequency&&
+       found.get(i).symbolRate==symbolRate&&found.get(i).polarity.equals(polarity)){
+       tpSelector.setSelection(i);break;
+    }
     status.setText(tx("ترددات القمر: ","Available TPs: ")+found.size());
    });
   });
