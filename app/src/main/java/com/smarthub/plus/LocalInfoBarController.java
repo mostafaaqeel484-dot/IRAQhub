@@ -88,7 +88,8 @@ final class LocalInfoBarController implements AutoCloseable {
    logoRetry=0;
    if(!state.channelName.isEmpty()){
     final String expected=logos;
-    LogoRepository.get(host).request(state.channelName,state.channelId,new LogoRepository.Listener(){
+    LogoRepository repository=LogoRepository.get(host);
+    LogoRepository.Listener logos=new LogoRepository.Listener(){
      @Override public void channel(Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
        channelLogo=image;paint();
@@ -99,7 +100,10 @@ final class LocalInfoBarController implements AutoCloseable {
        providerLogo=image;paint();
       }});
      }
-    });
+    };
+    if(prefs.getBoolean("software_dvb_422_active",false))
+      repository.requestCached(state.channelName,state.channelId,logos);
+    else repository.request(state.channelName,state.channelId,logos);
    }
   }
   String art=id+"|"+state.title+"|"+state.startMs+"|"+state.nextTitle+"|"+
@@ -128,7 +132,7 @@ final class LocalInfoBarController implements AutoCloseable {
    io.execute(()->{
     chmax.enrich(snap);
     if(!prefs.getBoolean("osd_chmax_logos",true)||!prefs.getBoolean("factory_enabled",true))return;
-    Bitmap logo=FactoryProvider.logo(host,snap.channelName,snap.channelId);
+    Bitmap logo=prefs.getBoolean("software_dvb_422_active",false)?null:FactoryProvider.logo(host,snap.channelName,snap.channelId);
     if(logo==null)logo=CHMAXIntegration.logo(host,snap,false);
     if(logo!=null){
      Bitmap result=logo;
@@ -148,7 +152,9 @@ final class LocalInfoBarController implements AutoCloseable {
   // Only verified programme-associated HTTPS artwork; never use name guesses.
   if(href==null||!href.startsWith("https://")||href.length()>2048)return null;
   try{
-   byte[] bytes=ArtworkCache.fetch(host,new URL(href),5*1024*1024);
+   URL verified=new URL(href);
+   byte[] bytes=prefs.getBoolean("software_dvb_422_active",false)?ArtworkCache.cached(host,verified,5*1024*1024):ArtworkCache.fetch(host,verified,5*1024*1024);
+   if(bytes==null)return null;
    BitmapFactory.Options probe=new BitmapFactory.Options();
    probe.inJustDecodeBounds=true;
    BitmapFactory.decodeByteArray(bytes,0,bytes.length,probe);
