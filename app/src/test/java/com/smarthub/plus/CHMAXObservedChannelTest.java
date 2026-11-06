@@ -24,6 +24,13 @@ public class CHMAXObservedChannelTest {
   visible.put("detail_info_tv_program_name","Eastern News Channel");
   assertEquals("",CHMAXIntegration.visibleChannelName(visible,channel()));
  }
+ @Test public void originalAurumInfobarLogoIdsAreIncluded(){
+  assertTrue(CHMAXIntegration.CHANNEL_LOGO_IDS.contains("channel_icon"));
+  assertTrue(CHMAXIntegration.CHANNEL_LOGO_IDS.contains("iv_channel_icon"));
+  assertTrue(CHMAXIntegration.CHANNEL_LOGO_IDS.contains("detail_info_tv_program_logo"));
+  // Guide grid shows unrelated services; never auto-capture a random EPG icon.
+  assertFalse(CHMAXIntegration.CHANNEL_LOGO_IDS.contains("epg_grid_channel_icon"));
+ }
  @Test public void exactDetailChannelCanBeUsedWhenBannerIsHidden(){
   Map<String,String> visible=new HashMap<>();
   visible.put("detail_info_tv_program_name","AL SHARQIYA NEWS HD");
