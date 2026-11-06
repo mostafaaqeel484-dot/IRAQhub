@@ -88,7 +88,7 @@ public class ReceiverLibraryActivity extends HubActivity {
   io.execute(()->{
    boolean changed=catalog.moveLocal(channel.id,direction);
    main.post(()->{
-    if(closed)return;
+    if(destroyed)return;
     if(changed)search(false);
     else toast(tx("القناة في بداية أو نهاية القائمة","Channel is already at the list boundary"));
    });
@@ -98,13 +98,13 @@ public class ReceiverLibraryActivity extends HubActivity {
   new AlertDialog.Builder(this).setTitle(tx("حذف من قائمة IRAQhub","Delete from IRAQhub catalogue"))
     .setMessage(tx("سيُحذف هذا السجل من قاعدة IRAQhub فقط؛ قاعدة قنوات Aurum والروم لا تتغير. يمكن إعادة استيراده من ملف CHL إذا احتجته.",
        "Only the IRAQhub catalogue entry will be deleted. The firmware database is unchanged. Reimport CHL to restore it.")+
-       "\\n"+channel.name+" · "+channel.rf())
+       "\n"+channel.name+" · "+channel.rf())
     .setPositiveButton(tx("حذف","Delete"),(d,w)->io.execute(()->{
       boolean deleted=catalog.deleteLocal(channel.id);
       if(deleted&&prefs().getLong("own_dvb_startup",-1)==channel.id)
        prefs().edit().remove("own_dvb_startup").putBoolean("own_dvb_startup_enabled",false).apply();
       main.post(()->{
-       if(closed)return;
+       if(destroyed)return;
        toast(deleted?tx("حُذفت من قائمتي","Removed from local list"):
           tx("ما أگدر أحذف آخر قناة","Cannot delete the final channel"));
        search(false);
