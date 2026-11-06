@@ -46,7 +46,9 @@ class LogoRepository private constructor(context:Context){
     SatelliteUiParser.normalized(current.channelName)==SatelliteUiParser.normalized(name)
   val manual=!provider&&app.getSharedPreferences("smarthub",0).getString(
     "native_logo_source:"+CHMAXIntegration.identity(state),"")=="MANUAL_CHANNEL_IMAGE"
-  return if(exact||manual)CHMAXIntegration.logo(app,state,provider) else null
+  // Exact physical DVB IDs are validated by the verified native-logo bridge.
+  // Allow channel-list rows to use that same bound logo while another channel plays.
+  return if(exact||manual||physical.startsWith("DVB:"))CHMAXIntegration.logo(app,state,provider) else null
  }
  private fun observedProviderName(name:String,physical:String?,fallback:String):String{
   if(physical.isNullOrBlank())return fallback
