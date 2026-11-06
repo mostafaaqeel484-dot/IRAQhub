@@ -69,7 +69,7 @@ public final class SatelliteGuideActivity extends HubActivity {
           new AlertDialog.Builder(this).setTitle(tx("EPGShare · اختيار مصدر القناة","EPGShare · channel source"))
             .setItems(choices,(d,pos)->{
               String feed=found.get(pos);
-              EpgShareFeedDirectory.selectForChannel(this,current.channelName,feed);
+              EpgShareFeedDirectory.selectForChannel(this,current.channelName,current.channelId,feed);
               status.setText(tx("اختير المصدر: ","Selected feed: ")+feed+
                 tx(" · سيُستخدم للقناة الحالية بعد جلب XMLTV", " · will refresh from XMLTV"));
               IraqHubSyncScheduler.runNow(this);
