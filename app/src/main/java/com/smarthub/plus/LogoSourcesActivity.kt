@@ -32,6 +32,7 @@ class LogoSourcesActivity:HubActivity(){
   state=text(tx("قراءة حالة المصادر…","Loading source status…"),15,false)
   panel.addView(state)
   action(panel,tx("جلب شعار القناة من CHMAX أو مصدر مستقل","Find current channel logo"),Runnable{testCurrent()})
+  action(panel,tx("اختبار تنزيل CHMAX الأصلي المصرّح","Test authorised CHMAX icon download"),Runnable{testChmax()})
   action(panel,tx("ربط شعار PNG/JPEG من USB بالقناة الحالية","Assign PNG/JPEG from USB"),Runnable{open(4)})
   action(panel,tx("ربط هوية الرسيفر بخدمة CHMAX الأصلية","Connect authorised CHMAX account"),Runnable{
    startActivity(Intent(this,FactorySettingsActivity::class.java))
@@ -90,6 +91,48 @@ class LogoSourcesActivity:HubActivity(){
  private fun stopReceiver(){receiver?.close();receiver=null;if(::receiving.isInitialized)receiving.text="الاستقبال المحلي متوقف"}
  private fun message(s:String){Toast.makeText(this,s,Toast.LENGTH_LONG).show()}
  private fun refresh(){scope.launch{val summary=withContext(Dispatchers.IO){val a=ChlLogoAddon.get(this@LogoSourcesActivity);val i=a.snapshot();if(i==null)"لا يوجد ملف CHL مستورد" else "قنوات CHL: "+i.services.size+"\nالأقمار: "+i.satellites+" · الترددات: "+i.transponders+"\nقنوات لها مزود: "+i.services.count{it.provider.isNotBlank()}+"\nلا يحتوي الملف صور شعارات."};state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()}}
+ private fun testChmax(){
+  val selected=SatelliteState.read(this)
+  if(!selected.channelId.startsWith("DVB:")||selected.channelName.isBlank()){
+   message(tx("اختر قناة DVB من قائمة IRAQhub أولاً","Choose an IRAQhub DVB channel first"))
+   return
+  }
+  val addon=ChlLogoAddon.get(this)
+  if(!addon.enabled()){
+   message(tx("فعّل CHMAX من المفتاح الاختياري أولاً","Enable optional CHMAX source first"))
+   return
+  }
+  if(!addon.supportedSession()){
+   state.text=tx("لا توجد جلسة CHMAX مع ملف توافق صادر من المصنع. استخدم مصادر الشعارات المستقلة أو اربط حساباً مخولاً.",
+     "CHMAX icon authorisation/profile unavailable. Use independent logos or connect a licensed receiver account.")
+   return
+  }
+  state.text=tx("جارٍ فحص خدمة CHMAX للقناة: ","Checking authorised CHMAX for ")+selected.channelName
+  scope.launch{
+   val result=withContext(Dispatchers.IO){
+    try{
+     val resolver=ChannelLogoResolver(this@LogoSourcesActivity,
+       ChannelAliasDatabase(this@LogoSourcesActivity))
+     val bitmap=addon.resolvePhysical(selected.channelId,resolver)
+     if(bitmap!=null){
+      ChannelLogoCache(this@LogoSourcesActivity)
+        .save("channel:physical:"+selected.channelId,bitmap)
+      CHMAXIntegration.saveObservedLogo(this@LogoSourcesActivity,
+        selected.channelId,selected.channelName,bitmap)
+      getSharedPreferences("smarthub",0).edit()
+       .putString("native_logo_source:"+CHMAXIntegration.identity(selected),"CHMAX_AUTHORISED")
+       .putLong("native_logos_changed_at",System.currentTimeMillis()).apply()
+     }
+     bitmap!=null
+    }catch(_:Exception){false}
+   }
+   if(isDestroyed)return@launch
+   if(result){
+    LogoRepository.get(this@LogoSourcesActivity).invalidate()
+    state.text=tx("تم تنزيل وتخزين شعار CHMAX للقناة: ","CHMAX icon cached for ")+selected.channelName
+   }else state.text=addon.statusLabel()
+  }
+ }
  private fun testCurrent(){
   val channel=SatelliteState.read(this)
   val name=channel.channelName
