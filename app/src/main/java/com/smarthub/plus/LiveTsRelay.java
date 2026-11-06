@@ -94,7 +94,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
    if(closed)return;
    if(current==null||current.length()<TS*384||!sync(current))
     throw new IOException("CAPTURE_NO_MPEG_TS");
-   if(channel.ca!=0){
+   if(channel.ca!=0||BissKeyVault.has(context,channel)){
     // Only the OEM's already-authorised descrambler may clear DVB packets.
     // Never feed scrambled video to VLC or pretend a stored BISS key was applied.
     int videoPid=channel.data.optInt("VideoPID",-1),observed=0;
@@ -167,10 +167,19 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  }
 
  private void rotate()throws Exception{
-  // Next Pvr capture is started before the old one is stopped.
   int old=currentId,next=old==firstId?secondId:firstId;
-  capture(next);
-  if(!NativeCapture.stop(old))throw new IOException("CAPTURE_STOP_NOT_CONFIRMED");
+  try{
+   // Zero-gap switch if the DVB firmware permits concurrent PVR capture.
+   capture(next);
+   if(!NativeCapture.stop(old))throw new IOException("CAPTURE_STOP_NOT_CONFIRMED");
+  }catch(IOException duplicate){
+   if(!"CAPTURE_REJECTED".equals(duplicate.getMessage()))throw duplicate;
+   // Some receivers allow just one PVR session. Continue with a short gap
+   // instead of aborting software video after the first 24MB segment.
+   if(!NativeCapture.stop(old))throw new IOException("CAPTURE_STOP_NOT_CONFIRMED");
+   prefs().edit().putBoolean(old==firstId?"capture_active_a":"capture_active_b",false).apply();
+   capture(next);
+  }
   prefs().edit().putBoolean(old==firstId?"capture_active_a":"capture_active_b",false).apply();
  }
 
@@ -236,6 +245,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  private void serve(Socket client){
   try{
    client.setSoTimeout(3500);
+   client.setTcpNoDelay(true);
    BufferedReader reader=new BufferedReader(
       new InputStreamReader(client.getInputStream(),StandardCharsets.US_ASCII));
    String first=reader.readLine();
@@ -336,6 +346,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     if(p.getBoolean("capture_active_a",false))NativeCapture.stop(firstId);
     if(p.getBoolean("capture_active_b",false))NativeCapture.stop(secondId);
     p.edit().remove("capture_session").remove("capture_id_a").remove("capture_id_b")
+      .remove("software_ts_channel").remove("software_ts_bitrate").remove("software_ts_bitrate_at")
       .putBoolean("capture_active_a",false).putBoolean("capture_active_b",false).apply();
    }
   }
