@@ -44,6 +44,8 @@ public final class CompatibilityActivity extends HubActivity {
             String mime=p.getString("decoder_input_mime","");String codecs=p.getString("decoder_input_codecs","");
             if(!mime.isEmpty()||!codecs.isEmpty())b.append("\nInput: ").append(mime).append(" · ").append(codecs).append(" · ").append(p.getInt("decoder_input_width",0)).append("×").append(p.getInt("decoder_input_height",0));
             b.append("\n4:2:2 status: ").append(p.getString("decoder_422_verification","NO_SESSION"));
+            b.append("\nDVB VDEC frame health: ").append(p.getString("decoder_video_health","NOT_MEASURED"));
+            b.append(ar?"\nهذه قراءة عداد الإطارات من النظام ولا تثبت ظهور صورة 4:2:2 سليمة. عدم توفرها لا يعني فشل فك الشفرة.":"\nFirmware-wide frame telemetry does not prove a visible 4:2:2 picture. Missing telemetry is not a decode or BISS failure.");
             if(p.getLong("decoder_first_frame_at",0)>0)b.append("\nFirst frame rendered: yes");else b.append("\nFirst frame rendered: not confirmed");
             long processed=p.getLong("decoder_processed_frames",0);
             long offset=p.getLong("decoder_processing_offset_us",0);

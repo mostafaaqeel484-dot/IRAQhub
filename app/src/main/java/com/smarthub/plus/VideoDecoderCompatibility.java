@@ -35,7 +35,7 @@ final class VideoDecoderCompatibility {
      MediaCodecInfo.CodecCapabilities caps;
      try{caps=codec.getCapabilitiesForType(mime);}catch(Exception ignored){continue;}
      for(MediaCodecInfo.CodecProfileLevel pl:caps.profileLevels){
-      String profile=profileName(pl.profile);
+      String profile=profileName(mime,pl.profile);
       if(profile.isEmpty())continue;
       String entry=codec.getName()+" · "+mime+" · "+profile;
       List<String> target=hardware?result.hardware422:result.software422;
@@ -57,28 +57,25 @@ final class VideoDecoderCompatibility {
   String name=codec.getName().toLowerCase(Locale.ROOT);
   return !(name.contains("google")||name.contains("android")||name.contains("software")||name.contains("ffmpeg")||name.contains("dav1d"));
  }
- private static String profileName(int value){
-  String[] names={"HEVCMain422_10","HEVCMain422_12","HEVCProfileMain422_10","HEVCProfileMain422_12","AVCProfileHigh422"};
+ private static String profileName(String mime,int value){
+  // Numeric profiles are MIME-specific. AVC and HEVC profile values must never be conflated.
+  if("video/avc".equalsIgnoreCase(mime))
+   return value==MediaCodecInfo.CodecProfileLevel.AVCProfileHigh422?"AVCProfileHigh422":"";
+  if(!"video/hevc".equalsIgnoreCase(mime))return "";
+  String[] names={"HEVCMain422_10","HEVCMain422_12","HEVCProfileMain422_10","HEVCProfileMain422_12"};
   for(String name:names)try{
    Field field=MediaCodecInfo.CodecProfileLevel.class.getField(name);
    if(field.getInt(null)==value)return name;
   }catch(Exception ignored){}
   return "";
  }
- /** Codec-string profile hints. This identifies the stream profile, not decoder support. */
+ /** True only for an explicit H.264 High 4:2:2 codec profile hint.
+  * HEVC RExt profile_idc 4..7 alone does not establish chroma_format_idc=2.
+  * Neither result asserts actual hardware support or successful playback.
+  */
  static boolean isKnown422CodecString(String codec){
   if(codec==null)return false;
-  String value=codec.trim().toLowerCase(Locale.ROOT);
-  try{
-   if(value.startsWith("hvc1.")||value.startsWith("hev1.")){
-    String[] parts=value.split("\\.");
-    if(parts.length>1){int profile=Integer.parseInt(parts[1].replaceAll("[^0-9].*$",""));return profile==4||profile==5||profile==6||profile==7;}
-   }
-   if(value.startsWith("avc1.")||value.startsWith("avc3.")){
-    String p=value.substring(value.indexOf('.')+1);
-    if(p.length()>=2)return Integer.parseInt(p.substring(0,2),16)==122;
-   }
-  }catch(Exception ignored){}
-  return false;
+  return codec.trim().toLowerCase(Locale.ROOT).matches("^(avc1|avc3)\\.7a[0-9a-f]{4}$");
  }
+
 }
