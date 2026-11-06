@@ -22,6 +22,7 @@ final class NativeSearchNavigation {
   }catch(Exception e){error=e.getClass().getSimpleName();}
   try{
    Intent home=host.getPackageManager().getLaunchIntentForPackage("com.tosmart.aurum");
+   if(home==null)home=host.getPackageManager().getLeanbackLaunchIntentForPackage("com.tosmart.aurum");
    if(home!=null){
     host.startActivity(home);
     host.toast(host.tx("فتحت Aurum. اختر التركيب ثم نوع البحث بالريموت.",
