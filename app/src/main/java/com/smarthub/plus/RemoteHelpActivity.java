@@ -23,6 +23,9 @@ public final class RemoteHelpActivity extends HubActivity {
   tips.addView(text(tx("الحلول السريعة","Quick fixes"),22,true));
   note(tips,tx("إذا ما اشتغل التردد: افتح ضبط LNB؛ أقمار Ku تستخدم 9750/10600 افتراضياً. إذا ما ظهر شعار: اختبره بمصادر الشعارات. إذا ما طلع بوستر: تأكد من معلومات EPG والمفتاح أو هوية IMDb/TMDB؛ ما نستبدل بوستر صحيح بصورة عشوائية.",
     "For no tuner lock: check LNB (Ku defaults to 9750/10600). For missing channel logos: check logo sources. Missing posters require a valid EPG programme and verified content identity; no random artwork is assigned."));
+  note(tips,tx("BISS: افتح القناة واضغط زر BISS الظاهر أسفل الشاشة، أو F3 إذا كان مدعوماً. البحث اليدوي من التركيب ويظل منفصلاً عن BISS.",
+   "BISS: press the on-screen BISS button or F3 on supported remotes. Manual search has a separate Installation screen."));
+  action(tips,tx("البحث اليدوي","Manual satellite scan"),()->startActivity(new Intent(this,ManualTransponderActivity.class)));
   action(tips,tx("إعداد LNB","LNB settings"),()->startActivity(new Intent(this,TunerSettingsActivity.class)));
   action(tips,tx("إصلاح شعارات القنوات","Channel logo sources"),()->startActivity(new Intent(this,LogoSourcesActivity.class)));
   action(tips,tx("دليل EPG","Programme guide"),()->startActivity(new Intent(this,SatelliteGuideActivity.class)));
