@@ -2,9 +2,12 @@ package com.smarthub.plus;
 import org.junit.Test;
 import static org.junit.Assert.*;
 public class VideoDecoderCompatibilityTest {
- @Test public void detectsHevcMain422Profiles(){
-  assertTrue(VideoDecoderCompatibility.isKnown422CodecString("hvc1.4.4.L120.B0"));
-  assertTrue(VideoDecoderCompatibility.isKnown422CodecString("hev1.6.4.L153.B0"));
+ @Test public void detectsPossibleHevcRangeExtensionWithoutGuessingChroma(){
+  assertTrue(VideoDecoderCompatibility.isPossible422CodecString("hvc1.4.4.L120.B0"));
+  assertTrue(VideoDecoderCompatibility.isPossible422CodecString("hev1.A5.4.L153.B0"));
+  assertFalse(VideoDecoderCompatibility.isKnown422CodecString("hvc1.4.4.L120.B0"));
+  assertFalse(VideoDecoderCompatibility.isPossible422CodecString("hev1.6.4.L153.B0"));
+  assertFalse(VideoDecoderCompatibility.isPossible422CodecString("hvc1.2.4.L120.B0"));
  }
  @Test public void detectsAvcHigh422Profile(){
   assertTrue(VideoDecoderCompatibility.isKnown422CodecString("avc1.7A001F"));
