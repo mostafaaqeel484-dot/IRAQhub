@@ -22,7 +22,10 @@ final class BetterPostersDirect {
   if(!folder.isDirectory()&&!folder.mkdirs())return "";
   File cached=new File(folder,verifiedImdb+"-ar.jpg");
   if(cached.isFile()&&System.currentTimeMillis()-cached.lastModified()<7L*86400000
-     &&valid(read(cached,5*1024*1024)))return address;
+     &&valid(read(cached,5*1024*1024))){
+   ArtworkCache.saveVerified(context,new URL(address),read(cached,5*1024*1024));
+   return address;
+  }
   HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();
   connection.setInstanceFollowRedirects(false);
   connection.setConnectTimeout(6000);
@@ -43,7 +46,10 @@ final class BetterPostersDirect {
    ArtworkCache.saveVerified(context,new URL(address),bytes);
    return address;
   }catch(Exception failure){
-   if(cached.isFile()&&valid(read(cached,5*1024*1024)))return address;
+   if(cached.isFile()&&valid(read(cached,5*1024*1024))){
+    ArtworkCache.saveVerified(context,new URL(address),read(cached,5*1024*1024));
+    return address;
+   }
    return "";
   }finally{connection.disconnect();}
  }
