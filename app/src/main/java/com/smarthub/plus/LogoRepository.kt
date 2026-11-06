@@ -18,6 +18,15 @@ class LogoRepository private constructor(context:Context){
  private val pending=ConcurrentHashMap<String,Deferred<Bitmap?>>()
  private val failures=ConcurrentHashMap<String,Long>()
  private val providerResolver=ProviderResolver(db)
+ @Volatile private var videoPriority=false
+ /** Prioritize DVB/4:2:2: cancel app-owned download tasks and drop RAM images, never touch OEM services. */
+ fun pauseForVideo(){
+  videoPriority=true
+  synchronized(pending){pending.values.forEach{it.cancel()};pending.clear()}
+  cache.clearRam()
+  failures.clear()
+ }
+ fun resumeAfterVideo(){videoPriority=false}
  interface Listener{fun channel(bitmap:Bitmap?);fun provider(name:String,bitmap:Bitmap?)}
  init{scope.launch{db.load()};scope.launch{addon.load()}}
  private fun network(name:String,known:ChannelAliasDatabase.Entry?)=providerResolver.resolve(known)?:db.providerByName(addon.provider(name))
@@ -61,6 +70,7 @@ class LogoRepository private constructor(context:Context){
   * name-only source. Duplicate CHL names never select a random satellite.
   */
  fun request(name:String,physical:String?,listener:Listener){
+  if(videoPriority){requestCached(name,physical,listener);return}
   val known=db.channel(name)
   val key=channelKey(name,known,physical)
   val native=observed(name,physical)

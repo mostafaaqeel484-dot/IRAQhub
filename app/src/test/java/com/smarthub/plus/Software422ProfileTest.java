@@ -12,7 +12,8 @@ public class Software422ProfileTest {
   assertTrue(options.contains("--avcodec-skip-frame=0"));
   assertTrue(options.contains("--avcodec-skip-idct=0"));
   assertFalse(options.contains("--skip-frames"));
-  assertTrue(options.contains("--network-caching=1350"));
+  assertTrue(options.contains("--network-caching=850"));
+  assertTrue(options.contains("--live-caching=700"));
  }
  @Test public void qualityRetainsFullFiltering(){
   ArrayList<String> options=Software422Profile.buildOptions(Software422Profile.QUALITY);

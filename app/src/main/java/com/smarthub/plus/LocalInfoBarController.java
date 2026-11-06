@@ -129,6 +129,7 @@ final class LocalInfoBarController implements AutoCloseable {
    final String expected=logoKey;
    final SatelliteState snap=state.copy();
    io.execute(()->{
+    if(prefs.getBoolean("software_dvb_422_active",false))return;
     chmax.enrich(snap);
     if(!prefs.getBoolean("osd_chmax_logos",true)||!prefs.getBoolean("factory_enabled",true))return;
     Bitmap logo=prefs.getBoolean("software_dvb_422_active",false)?null:FactoryProvider.logo(host,snap.channelName,snap.channelId);
@@ -145,6 +146,11 @@ final class LocalInfoBarController implements AutoCloseable {
  }
 
  private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
+  if(prefs.getBoolean("software_dvb_422_active",false)){
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      "VIDEO_PRIORITY_POSTERS_SUSPENDED").apply();
+   return;
+  }
   String title=upcoming?snapshot.nextTitle:snapshot.title;
   if(title==null||title.trim().isEmpty())return;
   Bitmap image=poster(snapshot,upcoming);

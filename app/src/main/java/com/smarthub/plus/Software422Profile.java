@@ -32,6 +32,8 @@ final class Software422Profile {
   // Leave some CPU time for live TS capture, audio, remote and the UI.
   return Math.min(4,Math.max(1,cores>2?cores-1:cores));
  }
+ static int networkCacheMs(String mode){return QUALITY.equals(mode)?1500:SMOOTH.equals(mode)?850:1050;}
+ static int liveCacheMs(String mode){return QUALITY.equals(mode)?1150:SMOOTH.equals(mode)?700:850;}
  static ArrayList<String> options(Context context){return buildOptions(current(context));}
  static ArrayList<String> buildOptions(String mode){
   if(!BALANCED.equals(mode)&&!SMOOTH.equals(mode)&&!QUALITY.equals(mode))
@@ -52,8 +54,8 @@ final class Software422Profile {
   options.add("--drop-late-frames");
   // Do not use VLC --skip-frames: it causes choppy picture during sports feeds.
   // Bound live latency without forcing LibVLC's file demuxer on an MPEG-TS HTTP stream.
-  options.add("--network-caching="+(QUALITY.equals(mode)?1700:SMOOTH.equals(mode)?1350:1250));
-  options.add("--live-caching="+(QUALITY.equals(mode)?1600:SMOOTH.equals(mode)?1150:1200));
+  options.add("--network-caching="+networkCacheMs(mode));
+  options.add("--live-caching="+liveCacheMs(mode));
   return options;
  }
  static String status(Context context){

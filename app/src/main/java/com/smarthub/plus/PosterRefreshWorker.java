@@ -15,7 +15,8 @@ public final class PosterRefreshWorker extends Worker {
   if(p.getBoolean("software_dvb_422_active",false)||p.getBoolean("dvb_tuning",false)
      ||!p.getString("iraqhub_pvr_session","").isEmpty()){
    p.edit().putString("poster_sync_status","DEFERRED_VIDEO_PRIORITY").apply();
-   return Result.retry();
+   // No repeated background retry loop while the tuner / 4:2:2 decoder needs CPU.
+   return Result.success();
   }
   try{
    BetterPostersProvider provider=new BetterPostersProvider(c);

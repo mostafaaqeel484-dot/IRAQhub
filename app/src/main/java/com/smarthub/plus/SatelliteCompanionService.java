@@ -72,6 +72,14 @@ public final class SatelliteCompanionService extends Service {
         // window. Never draw a second global overlay on top of that infobar.
         if(prefs.getBoolean("dvb_player_visible",false)||
            prefs.getBoolean("software_dvb_422_active",false)){
+            // A separate DVB player owns InfoBar: discard duplicate bitmap
+            // references and ignore stale background poster callbacks.
+            if(wasVisible||expanded||busy||channelBitmap!=null||
+               providerBitmap!=null||artwork!=null||nextArtwork!=null){
+              cancelRequest();identity="";nextArtworkKey="";epgPreviewKey="";
+              channelBitmap=null;providerBitmap=null;artwork=null;nextArtwork=null;
+              selectedWork=null;nextWork=null;
+            }
             removeOverlay();wasVisible=false;return;
         }
         if(!Settings.canDrawOverlays(this)){prefs.edit().putString("satellite_companion_error","Display-over-apps permission was revoked").apply();stopSelf();return;}
