@@ -162,6 +162,40 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   if(deleted)context.getSharedPreferences("smarthub",0).edit().putLong("installation_changed_at",System.currentTimeMillis()).apply();
   return deleted;
  }
+ /**
+  * Manual PID editor for the app-owned channel profile. The firmware DB and CA
+  * authorisation remain unchanged. Playback reads this same JSON via DvbPlayRequest.
+  */
+ synchronized boolean editPidsLocal(long channelId,int videoPid,int pcrPid,int pmtPid,
+    String videoCodec,int audioPid,String audioCodec)throws Exception{
+  if(videoPid<1||videoPid>=8191||pcrPid<1||pcrPid>=8191
+     ||pmtPid<1||pmtPid>=8191||DvbPlayRequest.video(videoCodec)<0
+     ||(audioPid!=-1&&(audioPid<1||audioPid>=8191||DvbPlayRequest.audio(audioCodec)<0)))
+   throw new IOException("INVALID_PID_OR_CODEC");
+  SQLiteDatabase db=getWritableDatabase();
+  String stored;
+  try(Cursor cursor=db.rawQuery("SELECT data FROM ch WHERE _id=?",
+        new String[]{Long.toString(channelId)})){
+   if(!cursor.moveToFirst())return false;
+   stored=cursor.getString(0);
+  }
+  JSONObject metadata=new JSONObject(stored);
+  metadata.put("VideoPID",videoPid).put("PcrPID",pcrPid).put("PmtPID",pmtPid)
+    .put("VideoType",videoCodec);
+  if(audioPid>0){
+   JSONArray tracks=metadata.optJSONArray("Audio");if(tracks==null)tracks=new JSONArray();
+   JSONObject track=tracks.optJSONObject(0);
+   if(track==null)track=new JSONObject();
+   track.put("PID",audioPid).put("Type",audioCodec);
+   if(tracks.length()==0)tracks.put(track);else tracks.put(0,track);
+   metadata.put("Audio",tracks);
+  }
+  ContentValues values=new ContentValues();values.put("data",metadata.toString());
+  boolean updated=db.update("ch",values,"_id=?",new String[]{Long.toString(channelId)})>0;
+  if(updated)context.getSharedPreferences("smarthub",0).edit()
+    .putLong("receiver_local_edits_at",System.currentTimeMillis()).apply();
+  return updated;
+ }
  synchronized boolean renameChannelLocal(long id,String name){
   String n=name==null?"":name.trim();
   if(n.isEmpty()||n.length()>120||n.chars().anyMatch(c->c<32))return false;
