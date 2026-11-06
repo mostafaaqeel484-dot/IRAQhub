@@ -238,7 +238,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     if(client.getValue()<latest-8)try{client.getKey().close();}
      catch(IOException ignored){}
    }
-   int keepFrom=Math.max(0,latest-5);
+   int keepFrom=Math.max(0,latest-3);
    for(Integer reading:cursors.values())
     keepFrom=Math.min(keepFrom,reading);
    for(int i=0;i<keepFrom;i++){
@@ -281,9 +281,9 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
   synchronized(lock){fileIndex=Math.max(0,files.size()-2);}
   cursors.put(client,fileIndex);
   long offset=0,lastData=SystemClock.elapsedRealtime();
-  final byte[] buffer=new byte[TS*256];
+  final byte[] buffer=new byte[TS*128];
   final TsSplice.Continuity continuity=new TsSplice.Continuity();
-  final OutputStream out=new BufferedOutputStream(destination,TS*512);
+  final OutputStream out=new BufferedOutputStream(destination,TS*256);
   RandomAccessFile input=null;
   File opened=null;
   try{
