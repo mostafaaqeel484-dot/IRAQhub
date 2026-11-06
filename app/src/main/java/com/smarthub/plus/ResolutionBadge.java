@@ -1,5 +1,5 @@
 package com.smarthub.plus;import android.content.*;import java.util.regex.*;final class ResolutionBadge{
-static String dimensions(int width,int height){if(width<=0||height<=0)return "";if(height>=2160)return "4K / UHD";if(height>=1080)return "FULL HD";if(height>=720)return "HD";return "SD";}
-static int asset(String s){switch(s){case "HD":return R.drawable.badge_hd;case "FULL HD":return R.drawable.badge_full_hd;case "4K / UHD":return R.drawable.badge_uhd;default:return R.drawable.badge_sd;}}
-static int color(String s){switch(s){case "HD":return 0xff47dfa5;case "FULL HD":return 0xff59b9ff;case "4K / UHD":return 0xfff8cf69;default:return 0xffaab6c2;}}
+static String dimensions(int width,int height){return ReceiverTechnicalBadges.tier(width,height);}
+static int asset(String s){switch(s){case "HD":return R.drawable.badge_hd;case "FHD":case "FULL HD":return R.drawable.badge_full_hd;case "4K":case "4K / UHD":case "8K":return R.drawable.badge_uhd;default:return R.drawable.badge_sd;}}
+static int color(String s){return s==null||s.isEmpty()?0xff9099a1:0xffffd56e;}
 static String label(Context c,SatelliteState state){android.content.SharedPreferences p=c.getSharedPreferences("smarthub",0);if(state.source.startsWith("IPTV")||state.channelId.startsWith("DVB:")){if(!state.channelId.equals(p.getString("decoder_channel","")))return "";return dimensions(p.getInt("decoder_width",0),p.getInt("decoder_height",0));}String key=CHMAXIntegration.identity(state);if(System.currentTimeMillis()-p.getLong("broadcast_resolution_seen:"+key,0)>120000)return "";Matcher m=Pattern.compile("([0-9]{3,4})[×xX]([0-9]{3,4})").matcher(p.getString("broadcast_resolution:"+key,""));return m.find()?dimensions(Integer.parseInt(m.group(1)),Integer.parseInt(m.group(2))):"";}}
