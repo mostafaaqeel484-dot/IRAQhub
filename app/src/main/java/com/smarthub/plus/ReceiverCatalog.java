@@ -32,6 +32,33 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
  private static final String JOIN="SELECT c._id,c.name,c.provider,c.sid,c.tv,c.ca,c.data,t._id,t.freq,t.pol,t.sr,t.fec,s._id,s.name,s.angle,s.band FROM ch c JOIN tp t ON t._id=c.tp_id JOIN sat s ON s._id=t.sat_id";
  List<Sat> satellites(){List<Sat> out=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT _id,name,angle,band FROM sat ORDER BY _id",null)){while(c.moveToNext())out.add(new Sat(c.getLong(0),c.getString(1),c.getInt(2),c.getString(3)));}return out;}
  int count(){return (int)DatabaseUtils.longForQuery(getReadableDatabase(),"SELECT COUNT(*) FROM ch",null);}
+ /** Number visible TV and radio lists independently from 1 per satellite.
+  * Imported CHL IDs are not user-visible channel numbers. Called off the UI thread. */
+ Map<Long,Integer> satelliteNumbers(){
+  Map<Long,Integer> out=new HashMap<>();long previous=Long.MIN_VALUE;int previousType=-1,ordinal=0;
+  try(Cursor c=getReadableDatabase().rawQuery(
+    "SELECT c._id,t.sat_id,c.tv FROM ch c JOIN tp t ON c.tp_id=t._id "+
+    "ORDER BY t.sat_id,c.tv,c.order_index,c._id",null)){
+   while(c.moveToNext()){
+    long sat=c.getLong(1);int type=c.getInt(2);
+    if(sat!=previous||type!=previousType){ordinal=0;previous=sat;previousType=type;}
+    out.put(c.getLong(0),++ordinal);
+   }
+  }return out;
+ }
+ int satelliteNumber(Channel active){
+  if(active==null)return 0;int order=0;
+  try(Cursor c=getReadableDatabase().rawQuery("SELECT order_index FROM ch WHERE _id=?",
+    new String[]{Long.toString(active.id)})){if(!c.moveToFirst())return 0;order=c.getInt(0);}
+  try(Cursor c=getReadableDatabase().rawQuery(
+    "SELECT COUNT(*) FROM ch c JOIN tp t ON c.tp_id=t._id "+
+    "WHERE t.sat_id=? AND c.tv=? AND (c.order_index<? OR (c.order_index=? AND c._id<=?))",
+    new String[]{Integer.toString(active.satId),Integer.toString(active.tv),Integer.toString(order),
+      Integer.toString(order),Long.toString(active.id)})){
+   return c.moveToFirst()?c.getInt(0):0;
+  }catch(Exception unavailable){return 0;}
+ }
+
  List<String> transponders(long satellite){List<String> out=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT freq,pol,sr,fec FROM tp WHERE sat_id=? ORDER BY freq,pol",new String[]{Long.toString(satellite)})){while(c.moveToNext())out.add(c.getInt(0)+" "+c.getString(1)+" · "+c.getInt(2)+(c.getString(3).isEmpty()?"":" · "+c.getString(3)));}return out;}
  Set<Long> favorites(){Set<Long> out=new HashSet<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT channel_id FROM favorite",null)){while(c.moveToNext())out.add(c.getLong(0));}return out;}
  long uniqueChannel(String name){if(name==null||name.isEmpty())return -1;try(Cursor c=getReadableDatabase().rawQuery("SELECT _id FROM ch WHERE name=? COLLATE NOCASE LIMIT 2",new String[]{name})){if(!c.moveToFirst())return -1;long id=c.getLong(0);return c.moveToNext()?-1:id;}}
@@ -39,7 +66,10 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
  List<Channel> sameTransponder(Channel active){List<Channel> out=new ArrayList<>();Set<String> seen=new HashSet<>();String sql=JOIN+" WHERE s.angle=? AND s.band=? AND t.freq=? AND t.pol=? AND t.sr=? AND c.tv=0 AND c.ca=0 ORDER BY c._id";try(Cursor c=getReadableDatabase().rawQuery(sql,new String[]{Integer.toString(active.angle),active.band,Integer.toString(active.frequency),active.pol,Integer.toString(active.symbolRate)})){while(c.moveToNext())try{Channel row=new Channel(c);if(seen.add(row.physical()))out.add(row);}catch(Exception invalid){}}return out;}
  List<Channel> channels(String query,long satellite,int type,boolean favorite,boolean alphabetical){return channels(query,satellite,type,favorite,alphabetical,0);}
  List<Channel> channels(String query,long satellite,int type,boolean favorite,boolean alphabetical,int offset){return channels(query,satellite,type,favorite,alphabetical,offset,-1);}
- List<Channel> channels(String query,long satellite,int type,boolean favorite,boolean alphabetical,int offset,long group){StringBuilder sql=new StringBuilder(JOIN+" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");List<String> args=new ArrayList<>();args.add(ReceiverChannelRepository.searchKey(query));if(satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(satellite));}if(type>=0){sql.append(" AND c.tv=?");args.add(Integer.toString(type));}if(favorite)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");if(group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(group));}sql.append(alphabetical?" ORDER BY c.name COLLATE NOCASE,c._id":group>=0?" ORDER BY (SELECT m.ordinal FROM fav_member m WHERE m.channel_id=c._id AND m.group_id="+group+"),c._id":" ORDER BY c.order_index,c._id");sql.append(" LIMIT 120 OFFSET ").append(Math.max(0,offset));List<Channel> out=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery(sql.toString(),args.toArray(new String[0]))){while(c.moveToNext())try{out.add(new Channel(c));}catch(Exception malformed){}}return out;}
+ List<Channel> channels(String query,long satellite,int type,boolean favorite,boolean alphabetical,int offset,long group){
+  return channels(query,satellite,type,favorite,alphabetical,offset,group,false);
+ }
+ List<Channel> channels(String query,long satellite,int type,boolean favorite,boolean alphabetical,int offset,long group,boolean encryptedOnly){StringBuilder sql=new StringBuilder(JOIN+" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");List<String> args=new ArrayList<>();args.add(ReceiverChannelRepository.searchKey(query));if(satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(satellite));}if(type>=0){sql.append(" AND c.tv=?");args.add(Integer.toString(type));}if(encryptedOnly)sql.append(" AND c.ca>0");if(favorite)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");if(group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(group));}sql.append(alphabetical?" ORDER BY c.name COLLATE NOCASE,c._id":group>=0?" ORDER BY (SELECT m.ordinal FROM fav_member m WHERE m.channel_id=c._id AND m.group_id="+group+"),c._id":" ORDER BY c.order_index,c._id");sql.append(" LIMIT 120 OFFSET ").append(Math.max(0,offset));List<Channel> out=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery(sql.toString(),args.toArray(new String[0]))){while(c.moveToNext())try{out.add(new Channel(c));}catch(Exception malformed){}}return out;}
  int pageFor(Channel channel){return pageFor(channel,new ChannelScope("",channel.satId,channel.tv,false,false,-1));}
  Channel adjacent(Channel active,int direction){return adjacent(active,direction,new ChannelScope("",active.satId,active.tv,false,false,-1));}
  private String scopeWhere(ChannelScope scope,List<String> args){StringBuilder sql=new StringBuilder(" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");args.add(ReceiverChannelRepository.searchKey(scope.query));if(scope.satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(scope.satellite));}sql.append(" AND c.tv=?");args.add(Integer.toString(scope.type));if(scope.favorites)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");if(scope.group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(scope.group));}return sql.toString();}
@@ -48,6 +78,9 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
  List<Long> navigationIds(ChannelScope scope){List<String> args=new ArrayList<>();String where=scopeWhere(scope,args);List<Long> ids=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT c._id FROM ch c JOIN tp t ON t._id=c.tp_id JOIN sat s ON s._id=t.sat_id"+where+scopeOrder(scope),args.toArray(new String[0]))){while(c.moveToNext())ids.add(c.getLong(0));}return ids;}
  int pageFor(Channel channel,ChannelScope scope){int index=navigationIds(scope).indexOf(channel.id);return index<0?0:index/120*120;}
  Channel adjacent(Channel active,int direction,ChannelScope scope){
+  return adjacent(active,direction,scope,1);
+ }
+ Channel adjacent(Channel active,int direction,ChannelScope scope,int steps){
   if(active==null)return null;
   ChannelScope tuned=scope==null?new ChannelScope("",-1,active.tv,false,false,-1):scope;
   if(tuned.type!=active.tv)tuned=tuned.kind(active.tv);
@@ -61,7 +94,7 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   }
   if(ids.isEmpty())return null;
   int index=position<0?(direction>0?0:ids.size()-1):
-    Math.floorMod(position+(direction>0?1:-1),ids.size());
+    Math.floorMod(position+(direction>0?1:-1)*Math.min(Math.max(1,steps),50),ids.size());
   return channel(ids.get(index));
  }
  JSONArray transportServices(Channel ch)throws Exception{JSONArray out=new JSONArray();try(Cursor cursor=getReadableDatabase().rawQuery(JOIN+" WHERE s.angle=? AND s.band=? AND t.freq=? AND t.pol=? AND t.sr=? ORDER BY c._id LIMIT 512",new String[]{Integer.toString(ch.angle),ch.band,Integer.toString(ch.frequency),ch.pol,Integer.toString(ch.symbolRate)})){while(cursor.moveToNext()){Channel s=new Channel(cursor);out.put(new JSONObject().put("sid",s.sid).put("pmt",s.data.optInt("PmtPID",8191)).put("ca",s.ca));}}return out;}

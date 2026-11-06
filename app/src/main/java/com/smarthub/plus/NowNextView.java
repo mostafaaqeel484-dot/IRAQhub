@@ -12,10 +12,8 @@ import java.util.*;
 final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
  private final TextView currentTitle,nextTitle,heading,nowLine,nextLine,status,clock;
- private final TextView broadcast,remaining,technical,weather,strengthLabel,qualityLabel,signalDetail,signalSource,encryptionLine,providerName,providerCaption;
- private final LinearLayout providerPanel,resolutionStrip,caStrip;
- private final TextView[] caChips=new TextView[7];
- private static final String[] CA_TYPES={"FTA","IR","BISS","VI","NDS","CONAX","NAGRA"};
+ private final TextView broadcast,remaining,technical,weather,strengthLabel,qualityLabel,signalDetail,signalSource,encryptionLine,bitrateLabel,providerName,providerCaption;
+ private final LinearLayout providerPanel,resolutionStrip;
  private final TextView[] resolutionChips=new TextView[5];
  private final ProgressBar progress,strengthBar,qualityBar;
  private final android.content.SharedPreferences prefs;
@@ -39,13 +37,11 @@ final class NowNextView extends FrameLayout {
    resolutionChips[i]=item;
   }
   head.addView(resolutionStrip);
-  caStrip=new LinearLayout(context);
-  for(int i=0;i<CA_TYPES.length;i++){TextView chip=label(CA_TYPES[i],8,true);caStrip.addView(chip);caChips[i]=chip;}
-  head.addView(caStrip);
+  // Encryption is displayed exactly once in the bottom status row.
   clock=label("",compact?13:16,true);clock.setGravity(Gravity.RIGHT);clock.setSingleLine(false);clock.setMaxLines(2);head.addView(clock);bar.addView(head);
   LinearLayout content=new LinearLayout(context);content.setGravity(Gravity.CENTER_VERTICAL);bar.addView(content,new LinearLayout.LayoutParams(-1,0,1));LinearLayout branding=column();branding.setGravity(Gravity.CENTER);logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);branding.addView(logo,new LinearLayout.LayoutParams(dp(compact?74:98),dp(compact?36:59)));content.addView(branding,new LinearLayout.LayoutParams(dp(compact?84:110),-2));
   LinearLayout lines=column();lines.setPadding(dp(14),0,dp(18),0);content.addView(lines,new LinearLayout.LayoutParams(0,-2,1));progress=new ProgressBar(context,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(1000);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff505050));LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,dp(3));pp.bottomMargin=dp(compact?3:6);lines.addView(progress,pp);nowLine=label("",compact?11:14,false);lines.addView(nowLine);nextLine=label("",compact?10:13,false);nextLine.setTextColor(0xffc7cdd0);nextLine.setPadding(0,dp(3),0,0);lines.addView(nextLine);remaining=label("",compact?9:10,true);remaining.setTextColor(0xfff4d270);remaining.setPadding(0,dp(2),0,0);lines.addView(remaining);status=label("",10,false);status.setTextColor(muted);status.setVisibility(GONE);lines.addView(status);
-  LinearLayout meters=column();content.addView(meters,new LinearLayout.LayoutParams(dp(compact?185:220),-2));LinearLayout sr=new LinearLayout(context);sr.setGravity(Gravity.CENTER_VERTICAL);strengthLabel=label("S: —",10,false);sr.addView(strengthLabel,new LinearLayout.LayoutParams(dp(47),-2));strengthBar=meter(0xff39cbe9);sr.addView(strengthBar,new LinearLayout.LayoutParams(0,dp(4),1));meters.addView(sr);LinearLayout qr=new LinearLayout(context);qr.setGravity(Gravity.CENTER_VERTICAL);qualityLabel=label("Q: —",10,false);qr.addView(qualityLabel,new LinearLayout.LayoutParams(dp(47),-2));qualityBar=meter(0xffcf31ce);qr.addView(qualityBar,new LinearLayout.LayoutParams(0,dp(4),1));meters.addView(qr);signalSource=label("",8,false);signalSource.setTextColor(muted);meters.addView(signalSource);weather=label("",10,false);weather.setSingleLine(false);weather.setMaxLines(2);weather.setTextColor(muted);meters.addView(weather);
+  LinearLayout meters=column();content.addView(meters,new LinearLayout.LayoutParams(dp(compact?185:220),-2));LinearLayout sr=new LinearLayout(context);sr.setGravity(Gravity.CENTER_VERTICAL);strengthLabel=label("S: —",10,false);sr.addView(strengthLabel,new LinearLayout.LayoutParams(dp(47),-2));strengthBar=meter(0xff39cbe9);sr.addView(strengthBar,new LinearLayout.LayoutParams(0,dp(4),1));meters.addView(sr);LinearLayout qr=new LinearLayout(context);qr.setGravity(Gravity.CENTER_VERTICAL);qualityLabel=label("Q: —",10,false);qr.addView(qualityLabel,new LinearLayout.LayoutParams(dp(47),-2));qualityBar=meter(0xffcf31ce);qr.addView(qualityBar,new LinearLayout.LayoutParams(0,dp(4),1));meters.addView(qr);signalSource=label("",8,false);signalSource.setTextColor(muted);meters.addView(signalSource);bitrateLabel=label("Bitrate —",compact?9:11,true);bitrateLabel.setTextColor(0xfff0d48d);meters.addView(bitrateLabel);weather=label("",10,false);weather.setSingleLine(false);weather.setMaxLines(2);weather.setTextColor(muted);meters.addView(weather);
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);providerPanel.setPadding(dp(12),0,0,0);content.addView(providerPanel,new LinearLayout.LayoutParams(dp(compact?68:85),-2));providerCaption=label(tx("المزود","PROVIDER"),8,false);providerCaption.setTextColor(0xffe5cd7d);providerCaption.setGravity(Gravity.CENTER);providerPanel.addView(providerCaption);providerLogo=new ImageView(context);providerLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(compact?36:44),dp(compact?19:25)));providerLogo.setVisibility(GONE);providerName=label("",12,true);providerName.setSingleLine(false);providerName.setMaxLines(2);providerName.setGravity(Gravity.CENTER);providerPanel.addView(providerName);
   LinearLayout bottom=new LinearLayout(context);bottom.setGravity(Gravity.CENTER_VERTICAL);bar.addView(bottom);technical=label("",compact?8:10,false);technical.setTextColor(0xffc4cbd0);bottom.addView(technical,new LinearLayout.LayoutParams(0,-2,1));signalDetail=label("",compact?8:10,false);signalDetail.setTextDirection(View.TEXT_DIRECTION_LTR);signalDetail.setGravity(Gravity.CENTER);bottom.addView(signalDetail,new LinearLayout.LayoutParams(dp(compact?185:220),-2));encryptionLine=label("",compact?8:10,true);encryptionLine.setTextColor(0xffd9db86);encryptionLine.setGravity(Gravity.RIGHT);bottom.addView(encryptionLine,new LinearLayout.LayoutParams(dp(compact?125:145),-2));
   if(tickerH>0){ticker=new MatchTickerView(context);LayoutParams tick=new LayoutParams(-1,tickerH,Gravity.BOTTOM);tick.setMargins(dp(10),0,dp(10),barH);addView(ticker,tick);}if(prefs.getBoolean("osd_swap_posters",false)){((LayoutParams)left.getLayoutParams()).gravity=Gravity.RIGHT|Gravity.BOTTOM;((LayoutParams)right.getLayoutParams()).gravity=Gravity.LEFT|Gravity.BOTTOM;}setAlpha(0);animate().alpha(1).setDuration(180).start();
@@ -72,7 +68,13 @@ final class NowNextView extends FrameLayout {
   currentPoster.setImageBitmap(current);nextPoster.setImageBitmap(next);
   if(current==null)currentPoster.setImageDrawable(null);if(next==null)nextPoster.setImageDrawable(null);currentPoster.setAlpha(current==null?.2f:1);nextPoster.setAlpha(next==null?.2f:1);
   currentPoster.setContentDescription(tx("الآن · ","NOW · ")+s.title);nextPoster.setContentDescription(tx("التالي · ","NEXT · ")+s.nextTitle);currentTitle.setText(tx("الآن · ","NOW · ")+shortTime(s.startMs));nextTitle.setText(tx("التالي · ","NEXT · ")+shortTime(s.nextStartMs));
-  String number=s.channelId.replaceFirst("^Aurum:","");if(s.channelId.startsWith("DVB:")){long id=prefs.getLong("own_dvb_channel",-1);number=id>=0?Long.toString(id+1):"";}if(!number.matches("[0-9]+"))number="";
+  String number=s.channelId.replaceFirst("^Aurum:","");
+  if(s.channelId.startsWith("DVB:")){
+   int ordinal=prefs.getInt("own_dvb_sat_number",0);
+   number=ordinal>0&&s.channelId.equals(prefs.getString("own_dvb_sat_number_channel",""))?
+     Integer.toString(ordinal):"";
+  }
+  if(!number.matches("[0-9]+"))number="";
   heading.setText((number.isEmpty()?"":number+"  ·  ")+(s.channelName.isEmpty()?"IRAQhub":s.channelName));
   String provider=info.provider;providerName.setText(provider.isEmpty()?"":provider.replace(" (CHL)",""));providerCaption.setText(tx("المزود","PROVIDER")+(provider.endsWith(" (CHL)")?" · CHL":""));providerPanel.setContentDescription(tx("مزود الخدمة: ","Service provider: ")+provider);
   nowLine.setText(tx("الآن  ","NOW  ")+(s.title.isEmpty()?tx("بيانات البرنامج غير متاحة","Programme unavailable"):s.title)+range(s.startMs,s.endMs));
@@ -85,7 +87,6 @@ final class NowNextView extends FrameLayout {
   String strength=ReceptionData.value(getContext(),s,"strength"),quality=ReceptionData.value(getContext(),s,"quality");strengthLabel.setText("S: "+(strength.isEmpty()?"—":strength));qualityLabel.setText("Q: "+(quality.isEmpty()?"—":quality));strengthBar.setProgress(percent(strength),true);qualityBar.setProgress(percent(quality),true);strengthBar.setVisibility(strength.isEmpty()?INVISIBLE:VISIBLE);qualityBar.setVisibility(quality.isEmpty()?INVISIBLE:VISIBLE);
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   String ca=info.encryption;
-  for(int i=0;i<caChips.length;i++){caChips[i].setTextColor(ca.contains(CA_TYPES[i])?0xffffd36c:0xff8999a6);}
   boolean encrypted=!ca.isEmpty()&&!ca.startsWith("FTA")&&!ca.contains("مفتوحة");
   encryptionLine.setText(ca.isEmpty()?tx("CA —","CA —"):encrypted?"🔒 "+ca:"🔓 "+ca);
   GradientDrawable caBackground=new GradientDrawable();
@@ -97,7 +98,9 @@ final class NowNextView extends FrameLayout {
   encryptionLine.setGravity(Gravity.CENTER);
   encryptionLine.setContentDescription(ca.isEmpty()?tx("معلومات التشفير غير متاحة","CA information unknown"):ca);
   ArrayList<String> details=new ArrayList<>();
-  details.add("BITRATE "+(info.bitrate.isEmpty()?"—":info.bitrate));
+  bitrateLabel.setText("Bitrate  "+(info.bitrate.isEmpty()?"—":info.bitrate));
+  bitrateLabel.setContentDescription(tx("معدل البت: ","Bitrate: ")+
+     (info.bitrate.isEmpty()?tx("غير متاح","unavailable"):info.bitrate));
   if(!info.broadcast.isEmpty())details.add(info.broadcast);
   if(s.source.startsWith("IPTV")){String audio=prefs.getString("osd_audio","");if(!audio.isEmpty())details.add(audio);}
   if(s.channelId.equals(prefs.getString("subtitle_channel_id",""))&&s.startMs==prefs.getLong("subtitle_event_start_ms",0)&&prefs.getBoolean("overlay_caption",false))details.add("SUB · "+prefs.getString("subtitle_provider","")+String.format(Locale.ROOT," %+.3f s",prefs.getLong("subtitle_offset",0)/1000.0));
