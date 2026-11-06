@@ -19,6 +19,7 @@ class LogoSourcesActivity:Activity(){
   text("IRAQhub · مصادر الشعارات وإضافات CHL",24f)
   text("الشعارات المستقلة هي المصدر الأساسي. ملفات CHL تضيف أسماء القنوات ومزوديها ومعرّفات البث، ولا تغيّر قائمة الرسيفر. لا تُعتبر بيانات الملف قياسات حية للإشارة أو الدقة.")
   fun button(label:String,run:()->Unit){val b=Button(this);b.text=label;b.setOnClickListener{try{run()}catch(_:Exception){message("تعذر فتح متصفح الملفات")}};body.addView(b)}
+  button("تعيين شعار PNG/JPEG للقناة الحالية من USB"){open(4)}
   button("استيراد ملف قنوات CHL"){open(3)}
   state=text("جارٍ قراءة الإضافات…")
   button("استقبال CHL من الكمبيوتر أو الهاتف"){startReceiver()}
@@ -26,7 +27,7 @@ class LogoSourcesActivity:Activity(){
   button("إيقاف استقبال الملفات"){stopReceiver()}
   chmax=CheckBox(this);chmax.text="إضافة CHMAX الاختيارية: الشعارات عبر معرّفات CHL";chmax.setTextColor(-1);chmax.isChecked=ChlLogoAddon.get(this).enabled();body.addView(chmax)
   chmax.setOnCheckedChangeListener{_,checked->ChlLogoAddon.get(this).enable(checked);LogoRepository.get(this).invalidate();refresh()}
-  text("تتطلب إضافة CHMAX مصادقة الرسيفر وملف توافق محفوظاً على الجهاز. الأسماء المكررة يُختار لها شعار مطابق عشوائياً مرة واحدة ويثبت في Cache. لا تُحمّل قائمة الشعارات كاملة.")
+  text("إضافة CHMAX اختيارية وتحتاج بيانات رسيفر صحيحة. عند تكرار أسماء القنوات لا نختار شعاراً عشوائياً؛ اختر شعاراً يدوياً أو استخدم معرف DVB الدقيق.")
   button("اختبار شعار القناة الحالية"){testCurrent()}
   button("إزالة بيانات CHL المستوردة"){scope.launch{withContext(Dispatchers.IO){ChlLogoAddon.get(this@LogoSourcesActivity).clear()};chmax.isChecked=false;LogoRepository.get(this@LogoSourcesActivity).invalidate();refresh()}}
   button("استيراد قاعدة الأسماء ومصادر الصور JSON"){open(1)}
@@ -44,7 +45,7 @@ class LogoSourcesActivity:Activity(){
   val name=SatelliteState.read(this).channelName
   if(name.isBlank()){message("القناة الحالية غير معروفة");return}
   scope.launch{val a=ChlLogoAddon.get(this@LogoSourcesActivity);withContext(Dispatchers.IO){a.load()};val matches=a.snapshot()?.candidates(name)?:emptyList()
-   if(a.enabled()&&matches.size>1&&a.unique(name)==null)message("الاسم مكرر؛ سيُختار أحد شعارات الاسم نفسه تلقائياً ويُحفظ")
+   if(a.enabled()&&matches.size>1&&a.unique(name)==null)message("الاسم مكرر؛ اختر شعاراً يدوياً أو استخدم معرف DVB الصحيح")
    state.text="جارٍ البحث · "+name
    LogoRepository.get(this@LogoSourcesActivity).request(name,object:LogoRepository.Listener{override fun channel(bitmap:android.graphics.Bitmap?){state.text=name+" · "+(if(bitmap==null)"لم يتوفر شعار مطابق" else "شعار جاهز "+bitmap.width+"×"+bitmap.height)+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()};override fun provider(name:String,bitmap:android.graphics.Bitmap?){}})
   }
@@ -53,6 +54,34 @@ class LogoSourcesActivity:Activity(){
   super.onActivityResult(request,result,data);val uri=data?.data?:return;if(result!=RESULT_OK)return
   scope.launch{try{
    when(request){
+    4->{
+      val channel=SatelliteState.read(this@LogoSourcesActivity)
+      require(channel.channelId.isNotBlank()&&channel.channelName.isNotBlank()){"NO_ACTIVE_CHANNEL"}
+      withContext(Dispatchers.IO){
+       val bytes=contentResolver.openInputStream(uri)!!.use { stream->
+        val output=java.io.ByteArrayOutputStream()
+        val block=ByteArray(8192)
+        while(true){val count=stream.read(block);if(count<0)break
+         require(output.size()+count<=4*1024*1024){"IMAGE_TOO_LARGE"}
+         output.write(block,0,count)
+        }
+        output.toByteArray()
+       }
+       val probe=android.graphics.BitmapFactory.Options().apply{inJustDecodeBounds=true}
+       android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.size,probe)
+       require(probe.outWidth in 32..4096&&probe.outHeight in 24..4096){"INVALID_IMAGE"}
+       val bitmap=android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.size)
+         ?:throw java.io.IOException("IMAGE_DECODE_FAILED")
+       try{CHMAXIntegration.saveObservedLogo(this@LogoSourcesActivity,channel.channelId,channel.channelName,bitmap)}
+       finally{bitmap.recycle()}
+       getSharedPreferences("smarthub",0).edit()
+         .putString("native_logo_source:"+CHMAXIntegration.identity(channel),"MANUAL_CHANNEL_IMAGE")
+         .putLong("native_logos_changed_at",System.currentTimeMillis()).apply()
+      }
+      LogoRepository.get(this@LogoSourcesActivity).invalidate()
+      message("حُفظ شعار القناة المحددة داخل IRAQhub")
+      refresh()
+    }
     3->{val index=withContext(Dispatchers.IO){contentResolver.openInputStream(uri)!!.bufferedReader(Charsets.UTF_8).use{ChlLogoAddon.get(this@LogoSourcesActivity).importFile(it)}};LogoRepository.get(this@LogoSourcesActivity).invalidate();message("تم استيراد "+index.services.size+" قناة دون تعديل الرسيفر");refresh()}
     1->{val json=withContext(Dispatchers.IO){val out=java.io.ByteArrayOutputStream();contentResolver.openInputStream(uri)!!.use{val buf=ByteArray(8192);while(true){val n=it.read(buf);if(n<0)break;require(out.size()+n<=2*1024*1024);out.write(buf,0,n)}};out.toString("UTF-8")};LogoRepository.get(this@LogoSourcesActivity).replaceMapping(json,this@LogoSourcesActivity);message("تم التحقق من المطابقات وحفظها")}
     2->{withContext(Dispatchers.IO){val file=java.io.File(filesDir,"logo-mapping.json");val bytes=if(file.exists())file.readBytes()else assets.open("logo-resolver/mapping.json").use{it.readBytes()};contentResolver.openOutputStream(uri,"wt")!!.use{it.write(bytes)}};message("تم تصدير القاعدة")}
