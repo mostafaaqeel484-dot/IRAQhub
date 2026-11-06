@@ -80,11 +80,11 @@ class LogoSourcesActivity:HubActivity(){
     message(tx("تمت استعادة المطابقات","Logo mapping restored"))
    }catch(_:Exception){message(tx("تعذرت استعادة القاعدة","Could not restore mapping"))}}
   })
-  action(imports,tx("حذف بيانات CHL المستوردة","Clear imported CHL"),Runnable{
+  action(imports,tx("حذف قائمة IRAQhub المحلية · CHL/DB","Clear IRAQhub local CHL/DB catalogue"),Runnable{
    android.app.AlertDialog.Builder(this)
-    .setTitle(tx("إزالة ملف CHL؟","Remove CHL file?"))
-    .setMessage(tx("سيتم حذف بيانات القنوات المستوردة من IRAQhub. لن تتغير قنوات المصنع.",
-      "This deletes IRAQhub's imported channel data, not firmware channels."))
+    .setTitle(tx("حذف قاعدة القنوات المحلية؟","Remove local channel database?"))
+    .setMessage(tx("سيتم حذف قنوات IRAQhub المستوردة من CHL أو DB والمفضلة. لن تتغير قنوات Aurum الأصلية.",
+      "Deletes IRAQhub local CHL/DB channels and favourites, not firmware channels."))
     .setPositiveButton(tx("حذف","Delete")){_,_->
      scope.launch{
       withContext(Dispatchers.IO){ChlLogoAddon.get(this@LogoSourcesActivity).clear()}
@@ -98,7 +98,7 @@ class LogoSourcesActivity:HubActivity(){
  private fun startReceiver(){stopReceiver();scope.launch{try{val pair=withContext(Dispatchers.IO){val server=ChlImportServer{input->val parsed=ChlLogoAddon.get(this@LogoSourcesActivity).importFile(input.reader(Charsets.UTF_8));LogoRepository.get(this@LogoSourcesActivity).invalidate();runOnUiThread{if(!isDestroyed)refresh()};"تم استيراد "+parsed.services.size+" قناة دون تعديل قائمة الرسيفر"};server to server.localAddress()};if(!foreground||pair.second.isEmpty()){pair.first.close();return@launch};receiver=pair.first;receiving.text="افتح الرابط من جهاز على الشبكة نفسها واختر CHL. يغلق عند مغادرة الصفحة.\n"+pair.second}catch(_:Exception){message("تعذر بدء استقبال الملف عبر الشبكة المحلية")}}}
  private fun stopReceiver(){receiver?.close();receiver=null;if(::receiving.isInitialized)receiving.text="الاستقبال المحلي متوقف"}
  private fun message(s:String){Toast.makeText(this,s,Toast.LENGTH_LONG).show()}
- private fun refresh(){scope.launch{val summary=withContext(Dispatchers.IO){val a=ChlLogoAddon.get(this@LogoSourcesActivity);val i=a.snapshot();if(i==null){if(getSharedPreferences("smarthub",0).getString("receiver_catalog_format","")=="SQLITE_DB")"قاعدة SQLite DB مستوردة · القنوات: "+ReceiverCatalog.get(this@LogoSourcesActivity).count() else "لا يوجد ملف CHL مستورد"} else "قنوات CHL: "+i.services.size+"\nالأقمار: "+i.satellites+" · الترددات: "+i.transponders+"\nقنوات لها مزود: "+i.services.count{it.provider.isNotBlank()}+"\nلا يحتوي الملف صور شعارات."};state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()}}
+ private fun refresh(){scope.launch{val summary=withContext(Dispatchers.IO){val a=ChlLogoAddon.get(this@LogoSourcesActivity);val i=a.snapshot();if(i==null)"لا توجد قاعدة قنوات مستوردة" else if(getSharedPreferences("smarthub",0).getString("receiver_catalog_format","")=="SQLITE_DB")"قنوات SQLite DB: "+i.services.size else "قنوات CHL: "+i.services.size+"\nالأقمار: "+i.satellites+" · الترددات: "+i.transponders+"\nقنوات لها مزود: "+i.services.count{it.provider.isNotBlank()}+"\nلا يحتوي الملف صور شعارات."};state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()}}
  private fun testChmax(){
   val selected=SatelliteState.read(this)
   if(!selected.channelId.startsWith("DVB:")||selected.channelName.isBlank()){
