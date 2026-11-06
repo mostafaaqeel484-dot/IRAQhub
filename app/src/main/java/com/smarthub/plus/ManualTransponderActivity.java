@@ -191,9 +191,14 @@ public final class ManualTransponderActivity extends HubActivity {
   directTask=io.submit(()->{
    try(DirectTransponderScanner session=scanner){
     DvbPsiScan.Result report=session.scan(selected.sat,selected.frequency,
-       selected.pol,selected.rate,status->runOnUiThread(()->{
-        if(!closed&&activeScan==session)result.setText("DVB · "+status);
-       }));
+       selected.pol,selected.rate,status->{
+        prefs().edit().putString("manual_direct_scan_status",status).apply();
+        runOnUiThread(()->{
+         if(!closed&&activeScan==session)result.setText("DVB · "+status);
+        });
+       });
+    prefs().edit().putString("manual_direct_scan_status","SERVICES_VERIFIED")
+      .putInt("manual_direct_scan_count",report.services.length()).apply();
     runOnUiThread(()->{
      if(closed)return;
      directResults=report;resultSelection=selected;
@@ -212,6 +217,8 @@ public final class ManualTransponderActivity extends HubActivity {
     });
    }catch(Exception problem){
     String reason=problem.getMessage()==null?"MANUAL_PSI_SCAN_UNAVAILABLE":problem.getMessage();
+    prefs().edit().putString("manual_direct_scan_status",reason)
+      .putInt("manual_direct_scan_count",0).apply();
     runOnUiThread(()->{
      if(closed)return;
      result.setText(tx("لم تكتمل قراءة القنوات: ","Live channel scan unavailable: ")+reason);
