@@ -227,8 +227,8 @@ final class DvbPsiScan {
    String audio=audioType(streamType,data,offset+5,end);
    if(!video.isEmpty()&&service.videoPid<0){service.videoPid=elementaryPid;service.videoType=video;}
    else if(!audio.isEmpty()&&service.audio.length()<12){
-    service.audio.put(new JSONObject().put("PID",elementaryPid).put("Type",audio)
-     .put("Lang",language(data,offset+5,end)));
+    try{service.audio.put(new JSONObject().put("PID",elementaryPid).put("Type",audio)
+     .put("Lang",language(data,offset+5,end)));}catch(Exception invalid){/* malformed descriptor */}
    }
    offset=end;
   }
