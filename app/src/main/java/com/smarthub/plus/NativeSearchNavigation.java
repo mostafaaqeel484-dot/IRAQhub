@@ -34,6 +34,8 @@ final class NativeSearchNavigation {
    Intent direct=new Intent(Intent.ACTION_MAIN)
      .setClassName("com.tosmart.aurum","com.tosmart.dvb.common.NavHostActivity");
    host.startActivity(direct);
+   host.prefs().edit().putString("native_search_launch_status","OEM_NAVHOST_OPENED")
+     .remove("native_search_launch_error").apply();
    return true;
   }catch(Exception e){error=e.getClass().getSimpleName();}
   try{
@@ -41,6 +43,8 @@ final class NativeSearchNavigation {
    if(home==null)home=host.getPackageManager().getLeanbackLaunchIntentForPackage("com.tosmart.aurum");
    if(home!=null){
     host.startActivity(home);
+    host.prefs().edit().putString("native_search_launch_status","OEM_HOME_OPENED")
+      .remove("native_search_launch_error").apply();
     host.toast(host.tx("فتحت Aurum. اختر التركيب ثم نوع البحث بالريموت.",
       "Aurum opened. Select Installation and scan mode with the remote."));
     return true;
