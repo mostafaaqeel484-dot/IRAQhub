@@ -48,11 +48,8 @@ public final class ChmaxControlCenterActivity extends HubActivity {
   cloud.addView(text(tx("قوائم القنوات السحابية في Aurum","Original Aurum cloud channel lists"),20,true));
   note(cloud,tx("يملك Aurum وظائف حفظ/تحميل قوائم CHMAX وتحديثها تلقائياً، لكنها داخل ChmService وواجهات المصنع الخاصة. لا توجد صلاحية موثقة لكتابة قاعدة قنوات الجهاز من IRAQhub.",
      "Aurum contains cloud save/load and automatic update flows in private OEM components. IRAQhub cannot call undocumented writes to the firmware channel database."));
-  action(cloud,tx("فتح إدارة القنوات الأصلية: حفظ/تحميل CHMAX","Open native channel management for CHMAX cloud"),
-    ()->openParent("xml:channel","edit_tv"));
-  action(cloud,tx("فتح قوائم المصنع الأخرى: إعدادات CHMAX إن توفرت",
-     "Open OEM settings for CHMAX auto-update, if offered"),
-    ()->openParent("xml:other","server"));
+  note(cloud,tx("مزامنة قوائم CHMAX السحابية غير منفذة داخل IRAQhub. لن تفتح هذه الشاشة Aurum؛ يلزم API مصرح بها لإضافة الوظيفة.",
+    "Cloud channel list synchronization is not implemented inside IRAQhub. This screen never opens Aurum; an authorised API is required."));
 
   LinearLayout diag=card(body);
   diag.addView(text(tx("حالة الاتصال الحقيقية","Connection status"),20,true));
@@ -74,11 +71,5 @@ public final class ChmaxControlCenterActivity extends HubActivity {
     tx("حالة شعار CHMAX: ","CHMAX logo status: ")+logo+"\n"+
     tx("مزامنة قاعدة القنوات السحابية: غير منفذة عبر IRAQhub",
        "Cloud channel database sync: not implemented through IRAQhub"));
- }
- private void openParent(String id,String fallback){
-  ManufacturerFeatures.Entry destination=ManufacturerFeatures.find(this,id);
-  if(destination==null)destination=ManufacturerFeatures.find(this,fallback);
-  if(destination==null||!ManufacturerFeatures.open(this,destination))
-   toast(tx("واجهة القنوات الأصلية غير متاحة","Native receiver menu unavailable"));
  }
 }
