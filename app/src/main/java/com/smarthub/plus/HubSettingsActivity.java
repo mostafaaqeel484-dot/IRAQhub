@@ -14,6 +14,7 @@ public final class HubSettingsActivity extends HubActivity {
   LinearLayout satellite=card(page);
   satellite.addView(text(tx("الطبق والقنوات","Dish and channels"),22,true));
   open(satellite,tx("تركيب الأقمار والترددات والبحث","Satellite setup and scanning"),ReceiverToolsActivity.class);
+  open(satellite,tx("بحث التردد اليدوي · قائمة مستقلة","Manual search · separate screen"),ManualTransponderActivity.class);
   open(satellite,tx("ضبط LNB — Universal 9750/10600","LNB — universal 9750/10600"),TunerSettingsActivity.class);
   open(satellite,tx("ترتيب وإدارة القنوات","Sort and manage channels"),ChannelManageActivity.class);
   LinearLayout viewing=card(page);
