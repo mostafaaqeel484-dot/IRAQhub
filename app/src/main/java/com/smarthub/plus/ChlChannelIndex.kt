@@ -18,6 +18,9 @@ class ChlChannelIndex private constructor(val services:List<Service>,val satelli
   fun query()=JSONArray().put(JSONObject().put("sat",sat.toString()).put("band",band).put("tps",JSONArray().put(JSONObject().put("tp","$frequency:$polarity:$symbolRate").put("chs",JSONArray().put(JSONObject().put("sid",sid.toString()))))))
  }
  private val names=services.groupBy{normalize(it.name)}
+ private val byPhysical=services.groupBy{it.physicalKey}
+ fun byPhysical(physical:String):Service?=byPhysical[physical]?.distinctBy{it.physicalKey}?.singleOrNull()
+
  fun candidates(name:String)=names[normalize(name)]?:emptyList()
  fun unique(name:String):Service? {val rows=candidates(name).distinctBy{it.physicalKey};return rows.singleOrNull()}
  fun choices(name:String,seed:String):List<Service>{val rows=candidates(name).distinctBy{it.physicalKey}.sortedBy{it.physicalKey};if(rows.isEmpty())return emptyList();val start=LogoSelection.index(seed,normalize(name),rows.size);return rows.drop(start)+rows.take(start)}
