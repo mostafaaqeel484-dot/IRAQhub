@@ -56,11 +56,11 @@ final class OnlineProgramme {
    String verified=item.imdbId;
    JSONObject betterArt=new BetterPostersProvider(context).resolve(raw,
      verified.isEmpty()?j.optString("id"):"",j.optString("type"),verified,duration);
-   boolean same="matched".equals(betterArt.optString("status"))&&
+   boolean sameIdentity="matched".equals(betterArt.optString("status"))&&
      (verified.matches("tt[0-9]{7,10}")?verified.equals(betterArt.optString("imdbId")):
        j.optString("id").equals(betterArt.optString("id")))&&
      j.optString("type").equals(betterArt.optString("type"));
-   if(same){
+   if(sameIdentity){
     String candidate=betterArt.optString("poster");
     Bitmap alternative=posterBitmap(context,candidate);
     if(alternative!=null){bitmap=alternative;address=candidate;item.imageCredit="BetterPosters";item.imageLicense="BetterPosters · حقوق الصور لأصحابها";}
