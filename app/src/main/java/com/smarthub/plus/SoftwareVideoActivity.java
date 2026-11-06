@@ -222,7 +222,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         media.addOption(":avcodec-hw=none");
         media.addOption(":codec=avcodec");
         int cache=Software422Profile.QUALITY.equals(Software422Profile.current(this))?1700:
-          Software422Profile.SMOOTH.equals(Software422Profile.current(this))?950:1250;
+          Software422Profile.SMOOTH.equals(Software422Profile.current(this))?1350:1250;
         if(source.startsWith("http://127.0.0.1:")){
             media.addOption(":network-caching="+cache);
             media.addOption(":live-caching="+Math.max(750,cache-150));
