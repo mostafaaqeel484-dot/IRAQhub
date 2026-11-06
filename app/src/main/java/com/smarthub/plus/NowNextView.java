@@ -39,6 +39,9 @@ final class NowNextView extends FrameLayout {
    resolutionChips[i]=item;
   }
   head.addView(resolutionStrip);
+  caStrip=new LinearLayout(context);
+  for(int i=0;i<CA_TYPES.length;i++){TextView chip=label(CA_TYPES[i],8,true);caStrip.addView(chip);caChips[i]=chip;}
+  head.addView(caStrip);
   clock=label("",compact?13:16,true);clock.setGravity(Gravity.RIGHT);clock.setSingleLine(false);clock.setMaxLines(2);head.addView(clock);bar.addView(head);
   LinearLayout content=new LinearLayout(context);content.setGravity(Gravity.CENTER_VERTICAL);bar.addView(content,new LinearLayout.LayoutParams(-1,0,1));LinearLayout branding=column();branding.setGravity(Gravity.CENTER);logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);branding.addView(logo,new LinearLayout.LayoutParams(dp(compact?74:98),dp(compact?36:59)));content.addView(branding,new LinearLayout.LayoutParams(dp(compact?84:110),-2));
   LinearLayout lines=column();lines.setPadding(dp(14),0,dp(18),0);content.addView(lines,new LinearLayout.LayoutParams(0,-2,1));progress=new ProgressBar(context,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(1000);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff505050));LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,dp(3));pp.bottomMargin=dp(compact?3:6);lines.addView(progress,pp);nowLine=label("",compact?11:14,false);lines.addView(nowLine);nextLine=label("",compact?10:13,false);nextLine.setTextColor(0xffc7cdd0);nextLine.setPadding(0,dp(3),0,0);lines.addView(nextLine);remaining=label("",compact?9:10,true);remaining.setTextColor(0xfff4d270);remaining.setPadding(0,dp(2),0,0);lines.addView(remaining);status=label("",10,false);status.setTextColor(muted);status.setVisibility(GONE);lines.addView(status);
