@@ -281,9 +281,20 @@ final class DvbPsiScan {
   if(size<=0||size>200)return "";
   String name;
   int marker=d[off]&255;
-  if(marker==0x15&&size>1)name=new String(d,off+1,size-1,StandardCharsets.UTF_8);
-  else if(marker<0x20)return "";
-  else name=new String(d,off,size,StandardCharsets.ISO_8859_1);
+  try{
+   if(marker==0x15&&size>1)name=new String(d,off+1,size-1,StandardCharsets.UTF_8);
+   else if(marker==0x11&&size>2&&size%2==1)
+    name=new String(d,off+1,size-1,StandardCharsets.UTF_16BE);
+   else if(marker==0x10&&size>3&&(d[off+1]&255)==0){
+    int n=d[off+2]&255;
+    if(n<1||n>15||n==12)return "";
+    name=new String(d,off+3,size-3,java.nio.charset.Charset.forName("ISO-8859-"+n));
+   }else if(marker>=1&&marker<=11){
+    int n=marker+4;if(n==12)return "";
+    name=new String(d,off+1,size-1,java.nio.charset.Charset.forName("ISO-8859-"+n));
+   }else if(marker<0x20)return "";
+   else name=new String(d,off,size,StandardCharsets.ISO_8859_1);
+  }catch(Exception unsupported){return "";}
   name=name.trim();
   if(name.length()>120)return "";
   for(int i=0;i<name.length();i++)if(Character.isISOControl(name.charAt(i)))return "";
