@@ -24,6 +24,7 @@ public final class ManualTransponderActivity extends HubActivity {
  private volatile String observedFrequency="";
  private volatile DirectTransponderScanner activeScan;
  private volatile Future<?> directTask;
+ private volatile boolean directMayMoveMotor;
  private volatile DvbPsiScan.Result directResults;
  private volatile Selection resultSelection;
 
@@ -187,6 +188,7 @@ public final class ManualTransponderActivity extends HubActivity {
   result.setText(tx("ضبط التردد وقراءة القنوات من بث TS الحقيقي…",
      "Tuning and extracting real DVB services…"));
   DirectTransponderScanner scanner=new DirectTransponderScanner(this);
+  directMayMoveMotor=DvbTuner.usalsEnabled(this,selected.sat.angle,selected.sat.band);
   activeScan=scanner;
   directTask=io.submit(()->{
    try(DirectTransponderScanner session=scanner){
@@ -231,6 +233,7 @@ public final class ManualTransponderActivity extends HubActivity {
     });
    }finally{
     activeScan=null;
+    directMayMoveMotor=false;
     runOnUiThread(()->busy.set(false));
    }
   });
@@ -291,8 +294,13 @@ public final class ManualTransponderActivity extends HubActivity {
  private void cancelDirectScan(){
   DirectTransponderScanner active=activeScan;
   Future<?> job=directTask;
-  if(job!=null&&!job.isDone())job.cancel(true);
-  if(active!=null)new Thread(active::close,"manual-dvb-scan-stop").start();
+  if(job==null||job.isDone())return;
+  boolean stopMotor=directMayMoveMotor;
+  job.cancel(true);
+  new Thread(()->{
+   if(active!=null)active.close();
+   if(stopMotor)DvbTuner.stopMotor();
+  },"manual-dvb-scan-stop").start();
  }
  private void saveTransponder(){
   Selection current=selection();if(current==null||!busy.compareAndSet(false,true))return;
