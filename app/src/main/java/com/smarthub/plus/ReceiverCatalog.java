@@ -61,6 +61,32 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
 
  List<String> transponders(long satellite){List<String> out=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT freq,pol,sr,fec FROM tp WHERE sat_id=? ORDER BY freq,pol",new String[]{Long.toString(satellite)})){while(c.moveToNext())out.add(c.getInt(0)+" "+c.getString(1)+" · "+c.getInt(2)+(c.getString(3).isEmpty()?"":" · "+c.getString(3)));}return out;}
  Set<Long> favorites(){Set<Long> out=new HashSet<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT channel_id FROM favorite",null)){while(c.moveToNext())out.add(c.getLong(0));}return out;}
+ /**
+  * Resolve an Aurum logo to exactly one imported DVB physical service. Frequency,
+  * polarization, symbol rate and service name must match. Never use the list
+  * position or an Aurum channel number as SID.
+  */
+ String uniquePhysicalForObservedLogo(String name,int frequency,String polarity,int symbolRate){
+  if(name==null||name.isEmpty()||frequency<1000||frequency>50000||
+     symbolRate<1000||symbolRate>70000||!Arrays.asList("H","V","L","R").contains(polarity))return "";
+  String wanted=ChannelCatalogue.normalized(name),found="";
+  String sql="SELECT c.name,s.angle,s.band,t.freq,t.pol,t.sr,c.sid "+
+    "FROM ch c JOIN tp t ON c.tp_id=t._id JOIN sat s ON t.sat_id=s._id "+
+    "WHERE t.freq=? AND t.pol=? AND t.sr=? LIMIT 2049";
+  int visited=0;
+  try(Cursor c=getReadableDatabase().rawQuery(sql,new String[]{
+      Integer.toString(frequency),polarity,Integer.toString(symbolRate)})){
+   while(c.moveToNext()){
+    if(++visited>2048)return "";
+    if(!wanted.equals(ChannelCatalogue.normalized(c.getString(0))))continue;
+    String physical="DVB:"+c.getInt(1)+":"+c.getString(2)+":"+
+      c.getInt(3)+":"+c.getString(4)+":"+c.getInt(5)+":"+c.getInt(6);
+    if(!found.isEmpty()&&!found.equals(physical))return "";
+    found=physical;
+   }
+  }catch(RuntimeException unavailable){return "";}
+  return found;
+ }
  long uniqueChannel(String name){if(name==null||name.isEmpty())return -1;try(Cursor c=getReadableDatabase().rawQuery("SELECT _id FROM ch WHERE name=? COLLATE NOCASE LIMIT 2",new String[]{name})){if(!c.moveToFirst())return -1;long id=c.getLong(0);return c.moveToNext()?-1:id;}}
  String currentTransponder(String name){if(name==null||name.isEmpty())return "";try(Cursor c=getReadableDatabase().rawQuery("SELECT DISTINCT s.angle,s.band,t.freq,t.pol,t.sr FROM ch c JOIN tp t ON c.tp_id=t._id JOIN sat s ON t.sat_id=s._id WHERE c.name=? COLLATE NOCASE LIMIT 2",new String[]{name})){if(!c.moveToFirst())return "";String key=c.getInt(0)+":"+c.getString(1)+":"+c.getInt(2)+":"+c.getString(3)+":"+c.getInt(4);return c.moveToNext()?"":key;}}
  List<Channel> sameTransponder(Channel active){List<Channel> out=new ArrayList<>();Set<String> seen=new HashSet<>();String sql=JOIN+" WHERE s.angle=? AND s.band=? AND t.freq=? AND t.pol=? AND t.sr=? AND c.tv=0 AND c.ca=0 ORDER BY c._id";try(Cursor c=getReadableDatabase().rawQuery(sql,new String[]{Integer.toString(active.angle),active.band,Integer.toString(active.frequency),active.pol,Integer.toString(active.symbolRate)})){while(c.moveToNext())try{Channel row=new Channel(c);if(seen.add(row.physical()))out.add(row);}catch(Exception invalid){}}return out;}
