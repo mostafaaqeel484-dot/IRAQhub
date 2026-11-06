@@ -7,8 +7,9 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Best-effort isolation of the OEM satellite decoder's AUDIO path while
@@ -22,9 +23,12 @@ import java.util.concurrent.Executors;
  * UDP send is NOT proof that the OEM service applied either command.
  */
 final class NativeSatelliteAudioGate {
- private static final ExecutorService IO=Executors.newSingleThreadExecutor(r->{
-  Thread t=new Thread(r,"iraqhub-native-audio-gate");t.setDaemon(true);return t;
- });
+ // The short-lived OEM audio worker exits after 30s idle; never kill the
+ // tuner or Aurum, which may also be serving the native television picture.
+ private static final ThreadPoolExecutor IO=new ThreadPoolExecutor(
+  0,1,30L,TimeUnit.SECONDS,new LinkedBlockingQueue<>(),r->{
+   Thread t=new Thread(r,"iraqhub-native-audio-gate");t.setDaemon(true);return t;
+  });
  private static final Object LOCK=new Object();
  private static long serial,active;
  private NativeSatelliteAudioGate(){}
