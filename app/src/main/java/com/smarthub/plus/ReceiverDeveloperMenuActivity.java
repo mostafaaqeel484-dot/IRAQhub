@@ -37,6 +37,8 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
   observe.setOnCheckedChangeListener((v,on)->prefs().edit()
     .putBoolean("native_scan_observation_enabled",on).apply());
   report=text("",14,false);nativePanel.addView(report);
+  action(nativePanel,tx("أدوات المصنع الأصلية · تركيب وقنوات","Original Aurum installation & channel tools"),
+    ()->open(ManufacturerToolsActivity.class));
   note(nativePanel,tx("الرصد يحتاج تفعيل IRAQhub Accessibility من إعدادات أندرويد. لا تُستدعى أوامر بحث المصنع أو موتور الطبق في الخلفية.",
     "Enable the IRAQhub Accessibility bridge manually. Monitoring issues no OEM scan or motor commands."));
   updateReport();
@@ -54,6 +56,9 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
     tx(" · مفتوحة "," · Free ")+r.free+
     tx(" · مشفرة "," · Encrypted ")+r.encrypted+
     tx("\nمن واجهة Aurum، ولم تُستورد القنوات إلى قاعدة IRAQhub.",
-       "\nFrom the Aurum UI only; channels have not been imported into IRAQhub."));
+       "\nFrom the Aurum UI only; channels have not been imported into IRAQhub.")+
+    "\nOEM launch: "+prefs().getString("native_search_launch_status","NOT_TESTED")+
+    "\nOEM error: "+prefs().getString("oem_last_open_error",
+      prefs().getString("native_search_launch_error","NONE")));
  }
 }
