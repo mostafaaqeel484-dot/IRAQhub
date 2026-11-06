@@ -98,6 +98,41 @@ final class ReceiverSqliteImport {
  }
 
  /** Validate a fixed, known schema, not random manufacturer's SQLite layouts. */
+ /** Snapshot export also captures WAL-committed channel changes without copying live -wal files.
+  * VACUUM INTO requires a modern SQLite runtime (available on the owner's Android 14).
+  */
+ static long exportStream(Context context,OutputStream output)throws Exception{
+  if(context==null||output==null)throw new IOException("DB_OUTPUT_REQUIRED");
+  File snapshot=new File(context.getCacheDir(),
+    "iraqhub-db-export-"+UUID.randomUUID()+".db");
+  try{
+   ReceiverCatalog catalog=ReceiverCatalog.get(context);
+   synchronized(catalog){
+    SQLiteDatabase db=catalog.getWritableDatabase();
+    if(snapshot.exists()&&!snapshot.delete())throw new IOException("DB_EXPORT_EXISTS");
+    try{
+     db.execSQL("VACUUM INTO ?",new Object[]{snapshot.getAbsolutePath()});
+    }catch(android.database.sqlite.SQLiteException unsupported){
+     throw new IOException("DB_EXPORT_VACUUM_INTO_UNAVAILABLE",unsupported);
+    }
+   }
+   if(!snapshot.isFile()||snapshot.length()<4096||snapshot.length()>LIMIT)
+    throw new IOException("DB_EXPORT_SIZE_INVALID");
+   validate(snapshot);
+   try(InputStream source=new BufferedInputStream(new FileInputStream(snapshot))){
+    byte[] block=new byte[32768];int count;
+    while((count=source.read(block))!=-1){
+     if(Thread.currentThread().isInterrupted())throw new IOException("DB_EXPORT_CANCELLED");
+     output.write(block,0,count);
+    }
+   }
+   output.flush();
+   return snapshot.length();
+  }finally{
+   if(snapshot.exists())snapshot.delete();
+  }
+ }
+
  private static int validate(File file)throws Exception{
   SQLiteDatabase source=null;
   try{
