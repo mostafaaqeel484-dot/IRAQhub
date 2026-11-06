@@ -70,13 +70,18 @@ final class EpgShareFeedDirectory {
     .getString("epgshare_selected_feeds","AE1,ALJAZEERA1,BEIN1");
  }
  static void selectForChannel(Context context,String channel,String feed){
+  selectForChannel(context,channel,"",feed);
+ }
+ static void selectForChannel(Context context,String channel,String physicalId,String feed){
   String code=feed==null?"":feed.toUpperCase(java.util.Locale.ROOT);
   if(!code.matches("[A-Z0-9_]{1,32}"))throw new IllegalArgumentException("INVALID_EPG_FEED");
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
   Set<String> codes=new LinkedHashSet<>(parse(selected(context)));
   codes.add(code);
-  p.edit().putString("online_epg_channel_feed:"+StreamingXmlTv.channelKey(channel),code)
-    .putString("epgshare_selected_feeds",String.join(",",codes))
+  SharedPreferences.Editor editor=p.edit();
+  if(physicalId!=null&&!physicalId.isEmpty())editor.putString("online_epg_channel_feed_id:"+physicalId,code);
+  else editor.putString("online_epg_channel_feed:"+StreamingXmlTv.channelKey(channel),code);
+  editor.putString("epgshare_selected_feeds",String.join(",",codes))
     .putLong("epgshare_mapping_changed_at",System.currentTimeMillis()).apply();
  }
 }
