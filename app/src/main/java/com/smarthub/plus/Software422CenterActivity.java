@@ -22,7 +22,24 @@ public final class Software422CenterActivity extends HubActivity {
   info.addView(text(tx("مشغل LibVLC موجود في IRAQhub 3.7.0","LibVLC is already included in IRAQhub 3.7.0"),20,true));
   note(info,tx("يمكن تجربة MPEG-2 وAVC High422 وHEVC RExt من رابط بث مباشر. قدرة المعالج تحدد سلاسة التشغيل. القنوات الفضائية تحتاج تصدير MPEG-TS من خدمة التونر؛ وجود المكتبة وحده لا يكفي.",
     "Try MPEG-2, AVC High422 and HEVC RExt from a genuine stream URL. Performance depends on CPU. Satellite DVB requires a real tuner MPEG-TS output; LibVLC alone cannot access the tuner."));
-  EditText url=new EditText(this);
+  LinearLayout performance=card(body);
+  performance.addView(text(tx("أداء معالج X5M وفك 4:2:2","X5M CPU / software 4:2:2"),20,true));
+  note(performance,Software422Profile.status(this));
+  action(performance,tx("اختيار وضع الأداء: سريع / متوازن / جودة","Performance mode: smooth / balanced / quality"),()->{
+   String[] modes={Software422Profile.SMOOTH,Software422Profile.BALANCED,Software422Profile.QUALITY};
+   String[] labels={tx("سريع · مناسب لبث ثقيل","Smooth · heavy feeds"),
+     tx("متوازن · التشغيل الاعتيادي","Balanced · standard"),
+     tx("جودة · فك كل الإطارات","Quality · decode all frames")};
+   int current=1;
+   for(int i=0;i<modes.length;i++)if(modes[i].equals(Software422Profile.current(this)))current=i;
+   new AlertDialog.Builder(this).setTitle(tx("وضع 4:2:2","4:2:2 mode"))
+     .setSingleChoiceItems(labels,current,(d,selected)->{
+      Software422Profile.save(this,modes[selected]);d.dismiss();
+      toast(tx("حُفظ نمط التشغيل","Playback mode saved"));
+      recreate();
+     }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
+  });
+    EditText url=new EditText(this);
   url.setSingleLine(true);
   url.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
   url.setHint("https://.../channel.ts  ·  udp://239.x.x.x:port");
@@ -38,8 +55,8 @@ public final class Software422CenterActivity extends HubActivity {
 
   LinearLayout status=card(body);
   status.addView(text(tx("قنوات DVB الفضائية","DVB satellite channels"),20,true));
-  note(status,tx("تحتاج 4:2:2 الفضائية إلى تسليم بيانات الفيديو الخام من التونر إلى LibVLC. ملف 3.7.0 المجمع فيه LiveTsRelay وNativeCapture، لكن سورس 3.7.0 الموجود بالمستودع لا يحتويهما. لن أضيف زر قناة 4:2:2 وهمياً قبل إعادة دمج مسار TS والتحقق من الإشارة.",
-    "DVB 4:2:2 needs MPEG-TS delivery from the tuner to LibVLC. The compiled 3.7.0 APK contains LiveTsRelay/NativeCapture, but the corresponding 3.7.0 source branch lacks them. Native DVB software decoding requires restoring that bridge and verifying stream access."));
+  note(status,tx("تم ربط التقاط TS المحلي من التونر بمشغل LibVLC، مع تخزين مؤقت محدود وحماية 4:2:2 من انقطاع الصوت. نجاح فك الصورة يعتمد على دعم الرسيفر الحقيقي وبيانات PID؛ المشفرة تحتاج فك BISS مُصرّحاً به داخل الجهاز قبل عرضها برمجياً.",
+    "The native tuner TS capture is connected to LibVLC. Playback still requires real PIDs, receiver-authorised descrambling for encrypted feeds and sufficient CPU. Software 4:2:2 cannot guarantee smooth 1080i/4K on this chipset."));
   action(status,tx("قنوات IRAQhub الفضائية","IRAQhub satellite channels"),
    ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)));
   action(status,tx("معلومات دعم Decoder والتوافق","Decoder capabilities"),
