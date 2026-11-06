@@ -33,6 +33,21 @@ final class BissKeyDialog {
     "قائمة عائمة داخل IRAQhub. تُخزَّن الشفرة محلياً بتشفير Android Keystore، ولا تُرسل إلى خادم. فتح القناة يحتاج أن تكون خدمة فك BISS مُفعّلة ومُصرّحاً بها على الرسيفر؛ LibVLC وحده لا يفك BISS.",
     "In-player menu. Keys are encrypted locally using Android Keystore and never sent to a server. Playback requires the receiver's authorised BISS descrambler; LibVLC alone cannot descramble BISS."),13,false);
   form.addView(guide);
+  if(host instanceof DvbPlaybackActivity&&channel.tv==0){
+   android.widget.Button trial=host.button(host.tx("تجربة تشغيل 4:2:2 باستخدام فك BISS الموجود بالرسيفر",
+      "Try software 4:2:2 with receiver-authorised BISS"));
+   form.addView(trial);
+   trial.setOnClickListener(v->{
+    new AlertDialog.Builder(host).setTitle(host.tx("تجربة 4:2:2","Try 4:2:2"))
+     .setMessage(host.tx("هذه التجربة تعتمد على إخراج بث غير مشفر من جهاز الاستقبال. إذا بقيت حزم الفيديو مشفرة، لن يعمل LibVLC.",
+       "This requires the receiver to output clear TS packets. LibVLC cannot decode still-scrambled DVB video."))
+     .setPositiveButton(host.tx("تشغيل","Start"),(d,w)->{
+      host.startActivity(new android.content.Intent(host,SoftwareVideoActivity.class)
+        .putExtra("dvb_channel",channel.id));
+      host.finish();
+     }).setNegativeButton(host.tx("إلغاء","Cancel"),null).show();
+   });
+  }
   AlertDialog menu=new AlertDialog.Builder(host)
     .setTitle(host.tx("إدخال BISS · القناة الحالية","BISS key · current channel"))
     .setView(form)
