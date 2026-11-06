@@ -16,6 +16,8 @@ public final class ReceiverToolsActivity extends HubActivity {
   dish.addView(text(tx("الطبق والتونر","Dish and tuner"),21,true));
   action(dish,tx("مركز الموتور وUSALS","Motor and USALS centre"),
    ()->startActivity(new Intent(this,MotorCenterActivity.class)));
+  action(dish,tx("بحث يدوي للتردد وفحص الإشارة","Manual transponder tune / signal search"),
+   ()->startActivity(new Intent(this,ManualTransponderActivity.class)));
   action(dish,tx("ملفات LNB وDiSEqC","LNB and DiSEqC settings"),
    ()->startActivity(new Intent(this,TunerSettingsActivity.class)));
   action(dish,tx("الأقمار والترددات المستوردة","Imported satellites and transponders"),
