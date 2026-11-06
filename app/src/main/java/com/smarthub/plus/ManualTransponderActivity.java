@@ -31,6 +31,10 @@ public final class ManualTransponderActivity extends HubActivity {
   symbolRate=input(panel,tx("معدل الترميز (مثال 27500)","Symbol rate, e.g. 27500"),"27500");
   polarity=new Spinner(this);
   polarity.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"H","V"}));
+  int requestedFrequency=getIntent().getIntExtra("frequency",-1),requestedRate=getIntent().getIntExtra("symbol_rate",-1);
+  if(requestedFrequency>0)frequency.setText(Integer.toString(requestedFrequency));
+  if(requestedRate>0)symbolRate.setText(Integer.toString(requestedRate));
+  if("V".equals(getIntent().getStringExtra("polarity")))polarity.setSelection(1);
   panel.addView(polarity,new LinearLayout.LayoutParams(-1,dp(52)));
   result=text("",16,false);
   panel.addView(result);
