@@ -3,6 +3,7 @@ package com.smarthub.plus;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 /** IRAQhub installation tree corresponding to the inspected Aurum navigation graph. */
 public final class ReceiverToolsActivity extends HubActivity {
@@ -11,7 +12,15 @@ public final class ReceiverToolsActivity extends HubActivity {
   LinearLayout body=page(tx("التركيب · IRAQhub","Installation · IRAQhub"),
    tx("التركيب، البحث، إدارة القنوات وإعدادات الطبق كلها داخل واجهتك.",
       "Satellite setup, tune sweep and local channel management, entirely in IRAQhub."));
-  LinearLayout installation=card(body);
+  SatelliteState tuned=SatelliteState.read(this);
+  LinearLayout live=card(body);
+  live.addView(text(tx("لوحة الرسيفر · القناة الحالية","Receiver panel · active channel"),18,true));
+  TextView liveName=text(tuned.channelName.isEmpty()?tx("لا توجد قناة نشطة","No active channel"):
+     tuned.channelName,23,true);
+  liveName.setTextColor(0xffffd36c);
+  live.addView(liveName);
+  if(!tuned.title.isEmpty())live.addView(text(tx("الآن: ","Now: ")+tuned.title,14,false));
+    LinearLayout installation=card(body);
   installation.addView(text(tx("تركيب الصحن والأقمار","Dish installation"),22,true));
   open(installation,tx("الأقمار والترددات · إضافة وتعديل","Satellite / TP add and edit"),
     InstallationEditorActivity.class);
