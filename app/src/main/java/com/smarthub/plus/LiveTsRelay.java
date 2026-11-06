@@ -76,7 +76,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     prefs().edit().putString("capture_session",session)
       .putInt("capture_id_a",firstId).putInt("capture_id_b",secondId)
       .putLong("capture_heartbeat",SystemClock.elapsedRealtime())
-      .putBoolean("capture_active_a",false).putBoolean("capture_active_b",false).apply();
+      .putBoolean("capture_active_a",false).putBoolean("capture_active_b",false)
+      .remove("software_ts_channel").remove("software_ts_bitrate").remove("software_ts_bitrate_at").apply();
    }
    token=UUID.randomUUID().toString().replace("-","");
    server=new ServerSocket(0,2,InetAddress.getByName("127.0.0.1"));
@@ -94,6 +95,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
    String url="http://127.0.0.1:"+server.getLocalPort()+"/"+token+".ts";
    main.post(()->{if(!closed)callback.ready(url);});
    long lastSignal=SystemClock.elapsedRealtime();
+   long priorBytes=0;
+   long priorMeasure=lastSignal;
    while(!closed&&SystemClock.elapsedRealtime()-begin<MAX_DURATION){
     try{
      Socket client=server.accept();
@@ -105,6 +108,16 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     }catch(SocketTimeoutException ignored){}
     if(SystemClock.elapsedRealtime()-lastSignal>2500){
      lastSignal=SystemClock.elapsedRealtime();
+     long bytes=0;
+     synchronized(lock){for(File segment:files)bytes+=Math.max(0,segment.length());}
+     long elapsed=lastSignal-priorMeasure;
+     if(elapsed>=1000&&bytes>priorBytes){
+      long bps=Math.min(1000000000L,(bytes-priorBytes)*8000L/elapsed);
+      prefs().edit().putString("software_ts_channel","DVB:"+channel.physical())
+       .putLong("software_ts_bitrate",bps)
+       .putLong("software_ts_bitrate_at",System.currentTimeMillis()).apply();
+     }
+     priorBytes=bytes;priorMeasure=lastSignal;
      prefs().edit().putLong("capture_heartbeat",lastSignal).apply();
      ReceiverSignalReading signal=DvbTuner.read();
      if(signal.locked!=1||signal.tp!=body.optInt("tp_id",-1))
