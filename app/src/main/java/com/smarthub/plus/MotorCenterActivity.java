@@ -73,7 +73,7 @@ public final class MotorCenterActivity extends HubActivity {
     try{
      prefs().edit().putString("own_usals_location",position.json())
       .putBoolean("own_usals_enabled:"+target.angle+":"+target.band,enabled.isChecked())
-      .putInt("own_dvb_mapping_version",0)
+      .putInt("own_dvb_mapping_version",0).remove("verified_native_tuner_tp").remove("verified_native_tuner_rf").remove("own_dvb_profile_tag")
       .putString("motor_status",enabled.isChecked()?"CONFIGURED_NOT_MOVED":"DISABLED")
       .apply();
      refresh(index);
