@@ -19,12 +19,15 @@ public final class PosterRefreshWorker extends Worker {
   }
   try{
    BetterPostersProvider provider=new BetterPostersProvider(c);
-   JSONObject manifest=provider.refreshManifest();
+   boolean manifestOk=false;
+   try{manifestOk=provider.refreshManifest()!=null;}catch(Exception ignored){
+    // Failure of BetterPosters must not block TMDB, TVmaze or cached artwork.
+   }
    int verified=UnifiedArtworkPrefetch.currentAndNext(c,provider);
-   p.edit().putString("poster_sync_status","MANIFEST_READY")
+   p.edit().putString("poster_sync_status",manifestOk?"POSTERS_READY":"BTTTR_UNAVAILABLE_OTHER_SOURCES_ACTIVE")
     .putLong("poster_sync_success_at",System.currentTimeMillis())
     .putInt("poster_sync_verified_prefetch",verified)
-    .putBoolean("iraqhub_unified_poster_manifest_ok",manifest!=null).apply();
+    .putBoolean("iraqhub_unified_poster_manifest_ok",manifestOk).apply();
    return Result.success();
   }catch(Exception unavailable){
    p.edit().putString("poster_sync_status",
