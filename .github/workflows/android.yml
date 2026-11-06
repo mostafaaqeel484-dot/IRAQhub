@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ main, 'fix/x5m-422-video-health-20261106' ]
+    branches: [ main, 'fix/x5m-422-video-health-20261106', 'fix/x5m-unified-posters-20261106' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
