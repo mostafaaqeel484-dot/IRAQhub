@@ -46,6 +46,8 @@ final class ReceiverTileMenu {
   TextView caption=host.text(item.description,12,false);
   caption.setMaxLines(2);caption.setTextColor(0xffa9c2ce);box.addView(caption);
   box.setOnClickListener(v->item.action.run());
+  // TV remotes need the first meaningful action focused, not a distant Back button.
+  if("01".equals(item.number))box.post(box::requestFocus);
   LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,host.dp(134),1);
   params.setMargins(host.dp(5),0,host.dp(5),0);row.addView(box,params);
  }
