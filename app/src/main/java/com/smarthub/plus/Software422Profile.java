@@ -20,7 +20,7 @@ final class Software422Profile {
   String hw=((Build.HARDWARE==null?"":Build.HARDWARE)+" "+
     (Build.BOARD==null?"":Build.BOARD)+" "+(Build.MODEL==null?"":Build.MODEL))
     .toLowerCase(Locale.ROOT);
-  return hw.contains("x5m")||hw.contains("s905x5m")?AUTO:BALANCED;
+  return AUTO; // Auto starts conservatively and learns from receiver measurements.
  }
  static void save(Context context,String mode){
   if(!AUTO.equals(mode)&&!BALANCED.equals(mode)&&!SMOOTH.equals(mode)&&!QUALITY.equals(mode)&&!STABLE.equals(mode))
