@@ -12,6 +12,7 @@ import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
 import org.videolan.libvlc.MediaPlayer;
 import org.videolan.libvlc.util.VLCVideoLayout;
+import org.videolan.libvlc.interfaces.IMedia;
 
 import java.util.ArrayList;
 
@@ -44,6 +45,120 @@ public final class SoftwareVideoActivity extends HubActivity {
     private long lastBufferStatus;
     private boolean videoOutputSeen;
     private long decoderOpenedAt;
+    private boolean decoderBuffering;
+    private boolean preferredSubtitleChecked;
+    private int selectedSubtitlePid(){
+      long id=getIntent().getLongExtra("dvb_channel",-1);
+      if(id<0)return -1;
+      ReceiverCatalog.Channel channel=ReceiverCatalog.get(this).channel(id);
+      if(channel==null)return -1;
+      return prefs().getInt("subtitle_preferred_pid:"+channel.physical(),-1);
+    }
+    /** Apply only when a REAL, listed player track matches the DB transport PID.
+     * An OEM "Sub" metadata entry is NOT proof the firmware can render it. */
+    private void applyPreferredLibVlcSubtitle(){
+      if(preferredSubtitleChecked||mediaPlayer==null)return;
+      int pid=selectedSubtitlePid();
+      if(pid<0)return;
+      try{
+        MediaPlayer.TrackDescription[] subtitles=mediaPlayer.getSpuTracks();
+        if(subtitles==null||subtitles.length==0)return;
+        preferredSubtitleChecked=true;
+        for(MediaPlayer.TrackDescription track:subtitles){
+          if(track.id!=pid)continue;
+          boolean ok=mediaPlayer.setSpuTrack(track.id);
+          prefs().edit().putString("native_subtitle_status",
+            ok?"LIBVLC_MATCHED_TS_PID_"+pid:"LIBVLC_PID_SELECT_FAILED_"+pid).apply();
+          return;
+        }
+        prefs().edit().putString("native_subtitle_status",
+          "LIBVLC_PID_NOT_PRESENT_"+pid).apply();
+      }catch(Throwable unsupported){
+        prefs().edit().putString("native_subtitle_status",
+          "LIBVLC_SUBTITLE_TRACKS_UNAVAILABLE").apply();
+      }
+    }
+    private long lastPictureProgressAt,videoStatsAt;
+    private long previousDisplayed=-1,previousDecoded=-1,previousAudio=-1,previousDemux=-1;
+    private long audioSincePicture,demuxSincePicture,decodedSincePicture;
+    private boolean videoStallEngineSwitchUsed;
+    private final Runnable frameHealth=new Runnable(){
+      @Override public void run(){
+        if(released||backgroundStopped)return;
+        if(mediaPlayer!=null&&satelliteRelay!=null&&satelliteRelay.running())
+          sampleDecoderFrames();
+        main.postDelayed(this,2600);
+      }
+    };
+    /** Stats are measured by LibVLC, not inferred from Vout, TS bitrate or audio.
+     * A real renderer stall is repaired without retuning the satellite. */
+    private void sampleDecoderFrames(){
+      IMedia live=null;
+      try{
+        if(!mediaPlayer.isPlaying())return;
+        live=mediaPlayer.getMedia();
+        if(live==null)return;
+        IMedia.Stats stats=live.getStats();
+        if(stats==null)return;
+        long now=android.os.SystemClock.elapsedRealtime();
+        long display=stats.displayedPictures,decoded=stats.decodedVideo,
+          audio=stats.decodedAudio,demux=stats.demuxReadBytes;
+        if(previousDisplayed<0||display<previousDisplayed||decoded<previousDecoded){
+          lastPictureProgressAt=now;videoStatsAt=now;
+          audioSincePicture=0;demuxSincePicture=0;decodedSincePicture=0;
+        }else{
+          audioSincePicture+=Math.max(0,audio-previousAudio);
+          demuxSincePicture+=Math.max(0,demux-previousDemux);
+          decodedSincePicture+=Math.max(0,decoded-previousDecoded);
+          if(display>previousDisplayed){
+            lastPictureProgressAt=now;
+            audioSincePicture=0;demuxSincePicture=0;decodedSincePicture=0;
+          }
+        }
+        previousDisplayed=display;previousDecoded=decoded;
+        previousAudio=audio;previousDemux=demux;videoStatsAt=now;
+        prefs().edit().putLong("libvlc_displayed_pictures",display)
+          .putLong("libvlc_decoded_video",decoded)
+          .putLong("libvlc_decoded_audio",audio)
+          .putLong("libvlc_demux_read_bytes",demux)
+          .putLong("libvlc_last_picture_advanced_ms",lastPictureProgressAt)
+          .apply();
+        boolean stuck=VideoFrameStallPolicy.stalled(lastPictureProgressAt,now,
+          demuxSincePicture,audioSincePicture,0,decodedSincePicture,true,decoderBuffering,
+          videoOutputSeen);
+        boolean render=VideoFrameStallPolicy.rendererStalled(lastPictureProgressAt,now,
+          demuxSincePicture,audioSincePicture,0,decodedSincePicture,true,
+          decoderBuffering,videoOutputSeen);
+        if(stuck||render){
+          String reason=render?"LIBVLC_DISPLAY_STALL_AUDIO_ACTIVE":
+            "LIBVLC_DECODE_STALL_AUDIO_ACTIVE";
+          prefs().edit().putString("decoder_video_health",reason)
+            .putString("decoder_last_error",reason)
+            .putString("decoder_422_verification","VIDEO_STALLED_AFTER_FIRST_PICTURE")
+            .apply();
+          status.setText(tx("توقف تحديث صورة 4:2:2 والصوت مستمر · محاولة استعادة الفيديو",
+            "4:2:2 video stalled while audio continued · recovering video"));
+          lastPictureProgressAt=now;audioSincePicture=0;
+          demuxSincePicture=0;decodedSincePicture=0;
+          if(streamRetries<2)recoverStream();
+          else if(!videoStallEngineSwitchUsed&&!mpvFallbackUsed){
+            videoStallEngineSwitchUsed=true;
+            mpvSelected=true;
+            open(playbackUri); // Switch engine once, retaining tuned TS relay.
+          }
+        }
+      }catch(Throwable unavailable){
+        prefs().edit().putString("libvlc_stats_status",
+          unavailable.getClass().getSimpleName()).apply();
+      }finally{
+        if(live!=null)try{live.release();}catch(Throwable ignored){}
+      }
+    }
+    private void resetVideoStats(){
+      previousDisplayed=-1;previousDecoded=-1;previousAudio=-1;previousDemux=-1;
+      lastPictureProgressAt=0;videoStatsAt=0;audioSincePicture=0;
+      demuxSincePicture=0;decodedSincePicture=0;decoderBuffering=false;
+    }
     private final android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
     private LiveTsRelay satelliteRelay;
     private long nativeAudioToken;
@@ -190,6 +305,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         if(released||backgroundStopped)return;
         playbackUri=source;
         streamRetries=0;
+        resetVideoStats();preferredSubtitleChecked=false;
         if(mpvSelected&&!mpvFallbackUsed){
           videoLayout.setVisibility(android.view.View.GONE);
           if(openMpv(source))return;
@@ -225,6 +341,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                         status.setText(tx("فتح البث…", "Opening stream…"));
                         break;
                     case MediaPlayer.Event.Buffering:
+                        decoderBuffering=event.getBuffering()<96f;
                         if(android.os.SystemClock.elapsedRealtime()-lastBufferStatus>650){
                             lastBufferStatus=android.os.SystemClock.elapsedRealtime();
                             status.setText(tx("مزامنة بيانات الفيديو والصوت…","Synchronising video and audio…"));
@@ -245,6 +362,8 @@ public final class SoftwareVideoActivity extends HubActivity {
                         }
                         break;
                     case MediaPlayer.Event.Playing:
+                        decoderBuffering=false;
+                        main.postDelayed(this::applyPreferredLibVlcSubtitle,1500);
                         NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
                         if(!videoOutputSeen)main.postDelayed(voutWatchdog,14000L);
                         prefs().edit().putString("software_422_runtime",
@@ -277,6 +396,8 @@ public final class SoftwareVideoActivity extends HubActivity {
             mediaPlayer.setMedia(media);
             media.release();
             mediaPlayer.play();
+            main.removeCallbacks(frameHealth);
+            main.postDelayed(frameHealth,2600);
         } catch (Throwable failure) {
             main.removeCallbacks(voutWatchdog);
             prefs().edit().putString("software_422_runtime","LIBVLC_STARTUP_FAILED")
@@ -301,6 +422,8 @@ public final class SoftwareVideoActivity extends HubActivity {
             NativeSatelliteAudioGate.enforce(SoftwareVideoActivity.this,nativeAudioToken);
             status.setText(tx("mpv يعمل · افحص الصورة والألوان","mpv loaded · verify picture and colours"));
             if(localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1L)>=0)localInfo.show();
+            int pid=selectedSubtitlePid();
+            if(pid>=0&&mpvRenderer!=null)mpvRenderer.selectPreferredPid(pid);
           }
           @Override public void failed(String reason){
             if(released||backgroundStopped||mpvFallbackUsed)return;
@@ -338,6 +461,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                 Media reload=new Media(libVLC,Uri.parse(playbackUri));
                 configure(reload,playbackUri);
                 mediaPlayer.stop();
+                resetVideoStats();videoOutputSeen=false;
                 mediaPlayer.setMedia(reload);
                 reload.release();
                 status.setText(tx("إعادة وصل بث DVB "+attempt+"/2","Reconnecting DVB stream "+attempt+"/2"));
@@ -399,6 +523,8 @@ public final class SoftwareVideoActivity extends HubActivity {
           }).setNegativeButton(tx("رجوع","Close"),null).show();
     }
     private void closeDecoder(){
+        main.removeCallbacks(frameHealth);
+        resetVideoStats();
         main.removeCallbacks(voutWatchdog);
         if(mpvRenderer!=null){
           try{mpvRenderer.close();}catch(Throwable ignored){}
@@ -417,6 +543,10 @@ public final class SoftwareVideoActivity extends HubActivity {
         }
     }
     private void showTrackMenu() {
+        if(mpvRenderer!=null&&!mpvFallbackUsed){
+           showMpvSubtitleTracks();
+           return;
+        }
         if (mediaPlayer == null || released || !mediaPlayer.hasMedia()) {
             status.setText(tx("انتظر حتى يبدأ البث", "Wait until playback starts"));
             return;
@@ -435,6 +565,28 @@ public final class SoftwareVideoActivity extends HubActivity {
                 .show();
     }
 
+    private void showMpvSubtitleTracks(){
+      if(mpvRenderer==null)return;
+      java.util.List<Mpv422Renderer.Sub> tracks=mpvRenderer.subtitleTracks();
+      if(tracks.isEmpty()){
+        status.setText(tx("لم ينشر mpv مسارات DVB subtitle قابلة للاختيار",
+            "mpv reported no selectable embedded subtitle track"));
+        return;
+      }
+      String[] labels=new String[tracks.size()+1];
+      labels[0]=tx("إيقاف الترجمة","Disable subtitles");
+      for(int i=0;i<tracks.size();i++)labels[i+1]=tracks.get(i).label;
+      new android.app.AlertDialog.Builder(this)
+        .setTitle(tx("مسارات الترجمة من البث الفعلي","Actual stream subtitles"))
+        .setItems(labels,(dialog,index)->{
+          int id=index==0?-1:tracks.get(index-1).id;
+          boolean ok=mpvRenderer!=null&&mpvRenderer.selectSubtitle(id);
+          prefs().edit().putString("native_subtitle_status",
+            ok?"MPV_USER_SELECTED_"+id:"MPV_SUBTITLE_SELECTION_UNAVAILABLE").apply();
+          status.setText(ok?tx("تم اختيار الترجمة في mpv","mpv subtitle track selected"):
+            tx("لم يتمكن mpv من اختيار المسار","mpv subtitle selection unavailable"));
+        }).show();
+    }
     private void showAudioTracks() {
         MediaPlayer.TrackDescription[] tracks;
         try { tracks = mediaPlayer.getAudioTracks(); }

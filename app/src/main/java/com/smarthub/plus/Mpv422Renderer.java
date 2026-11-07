@@ -67,6 +67,55 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    return false;
   }
  }
+ /** libmpv returns real playable track IDs; demux-id identifies DVB PIDs. */
+ static final class Sub {
+  final int id,demuxId;final String label;
+  Sub(int id,int demuxId,String label){this.id=id;this.demuxId=demuxId;this.label=label;}
+ }
+ java.util.List<Sub> subtitleTracks(){
+  java.util.ArrayList<Sub> result=new java.util.ArrayList<>();
+  if(destroyed||mpv==null||!loaded)return result;
+  try{
+   Integer size=mpv.getPropertyInt("track-list/count");
+   int count=size==null?0:Math.min(64,Math.max(0,size));
+   for(int i=0;i<count;i++){
+    if(!"sub".equals(mpv.getPropertyString("track-list/"+i+"/type")))continue;
+    Integer id=mpv.getPropertyInt("track-list/"+i+"/id");
+    Integer demux=mpv.getPropertyInt("track-list/"+i+"/demux-id");
+    if(id==null||id<=0)continue;
+    String language=mpv.getPropertyString("track-list/"+i+"/lang");
+    String title=mpv.getPropertyString("track-list/"+i+"/title");
+    result.add(new Sub(id,demux==null?-1:demux,
+      (language==null?"und":language)+" · "+
+      (title==null?"subtitle":title)+" · PID "+(demux==null?"?":demux)));
+   }
+  }catch(Throwable ignored){}
+  return result;
+ }
+ boolean selectSubtitle(int id){
+  if(mpv==null||destroyed||!loaded)return false;
+  try{
+   if(id>=0){
+    boolean found=false;
+    for(Sub track:subtitleTracks())if(track.id==id){found=true;break;}
+    if(!found)return false;
+   }
+   mpv.setPropertyString("sid",id<0?"no":Integer.toString(id));
+   return true;
+  }catch(Throwable error){return false;}
+ }
+ void selectPreferredPid(int pid){
+  if(pid<0)return;
+  for(Sub track:subtitleTracks())if(track.demuxId==pid){
+   if(selectSubtitle(track.id)){
+    context.getSharedPreferences("smarthub",0).edit()
+      .putString("native_subtitle_status","MPV_MATCHED_DEMUX_PID_"+pid).apply();
+   }
+   return;
+  }
+  context.getSharedPreferences("smarthub",0).edit()
+    .putString("native_subtitle_status","MPV_SUBTITLE_PID_NOT_IN_STREAM_"+pid).apply();
+ }
  void close(){
   destroyed=true;main.removeCallbacksAndMessages(null);
   try{view.getHolder().removeCallback(this);}catch(Throwable ignored){}

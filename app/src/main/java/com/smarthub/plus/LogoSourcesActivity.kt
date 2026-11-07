@@ -62,6 +62,8 @@ class LogoSourcesActivity:HubActivity(){
       .setType("application/octet-stream")
       .putExtra(Intent.EXTRA_TITLE,"IRAQhub_channels.db"),6)
   })
+  action(imports,tx("إصلاح · استيراد لوغوات من حزمة USB ADB ZIP بهويات DVB",
+    "Fix · Import USB ADB logo ZIP with exact DVB IDs"),Runnable{open(8)})
   action(imports,tx("استيراد ملف قنوات CHL","Import CHL channel list"),Runnable{open(3)})
   imports.addView(text(tx("الاستيراد الكامل يستبدل قائمة IRAQhub فقط. خيار الدمج الجديد يقرأ قاعدة Aurum المصدّرة، يفحصها، ويضيف القنوات غير الموجودة حسب القمر/التردد/SID مع حفظ ترتيب ومفضلة القنوات الحالية. احفظ نسخة احتياطية أولاً.",
     "Full import replaces only the IRAQhub list. Merge validates an exported Aurum DB and adds missing satellite/TP/SID identities while preserving existing order and favourites. Back up first."),13,false))
@@ -177,6 +179,26 @@ class LogoSourcesActivity:HubActivity(){
  }
  override fun onActivityResult(request:Int,result:Int,data:Intent?){
   super.onActivityResult(request,result,data);val uri=data?.data?:return;if(result!=RESULT_OK)return
+  if(request==8){
+   scope.launch{
+    try{
+     state.text=tx("فحص حزمة لوغوات ADB وهويات DVB…","Validating ADB logo ZIP and DVB identities…")
+     val summary=withContext(Dispatchers.IO){
+      contentResolver.openInputStream(uri)!!.use{
+       AdbLogoBundleImporter.importUserSelected(this@LogoSourcesActivity,it)
+      }
+     }
+     if(isDestroyed)return@launch
+     state.text=tx("تم استيراد ","Imported ")+summary.imported+
+       tx(" شعار؛ غير موجودة: "," logos; missing: ")+summary.missing+
+       tx("؛ غير صالحة: ","; invalid: ")+summary.invalid
+     refresh()
+    }catch(e:Exception){
+     state.text=tx("حزمة USB ADB غير صالحة: ","USB ADB logo ZIP invalid: ")+(e.message?:"INVALID_ZIP")
+    }
+   }
+   return
+  }
   if(request==7){
    scope.launch{
     try{

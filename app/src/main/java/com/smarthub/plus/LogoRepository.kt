@@ -41,7 +41,8 @@ class LogoRepository private constructor(context:Context){
  private fun observed(name:String,physical:String?,provider:Boolean=false):Bitmap?{
   if(physical.isNullOrBlank()||name.isBlank())return null
   if(!provider&&physical.startsWith("DVB:")&&
-    app.getSharedPreferences("smarthub",0).contains("commons_logo_selected:"+physical)){
+    (app.getSharedPreferences("smarthub",0).contains("commons_logo_selected:"+physical)||
+     app.getSharedPreferences("smarthub",0).getBoolean("adb_logo_imported:"+physical,false))){
    cache.read("channel:physical:"+physical)?.let{return it}
   }
   val state=SatelliteState()
@@ -68,25 +69,28 @@ class LogoRepository private constructor(context:Context){
  /** Show RAM hits instantly. Disk decode and verified receiver branding run
   * on the bounded IO pool, never on D-Pad scroll or InfoBar render threads. */
  fun requestCached(name:String,physical:String?,listener:Listener){
-  val known=db.channel(name)
+  // Exact DVB identity determines key without a database query on scroll.
+  val identityBound=physical?.startsWith("DVB:")==true
+  val known=if(identityBound)null else db.channel(name)
   val key=channelKey(name,known,physical)
-  val provider=network(name,known)
+  val provider=if(identityBound)null else network(name,known)
   val cached=cache.peek(key)
   val providerCached=provider?.let{cache.peek("provider:"+db.key(it))}
   listener.channel(cached)
-  listener.provider(observedProviderName(name,physical,provider?.name?:""),providerCached)
+  listener.provider(provider?.name?:"",providerCached) // No CHMAX disk/provider work on D-Pad thread.
   if(cached!=null&&providerCached!=null)return
   scope.launch{
    val image=slots.withPermit{
     observed(name,physical)?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.read(key)
    }
+   val chosen=provider?:network(name,db.channel(name))
    val icon=slots.withPermit{
-    observed(name,physical,true)?:provider?.let{cache.read("provider:"+db.key(it))}
+    observed(name,physical,true)?:chosen?.let{cache.read("provider:"+db.key(it))}
    }
    withContext(Dispatchers.Main){
     if(image!=null)listener.channel(image)
     if(icon!=null)listener.provider(
-      observedProviderName(name,physical,provider?.name?:""),icon)
+      observedProviderName(name,physical,chosen?.name?:""),icon)
    }
   }
  }

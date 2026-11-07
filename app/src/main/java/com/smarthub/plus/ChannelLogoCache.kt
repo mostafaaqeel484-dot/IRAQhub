@@ -32,7 +32,7 @@ class ChannelLogoCache(context:Context){
  fun save(key:String,bitmap:Bitmap){
   dir.mkdirs()
   val ratio=512f/kotlin.math.max(bitmap.width,bitmap.height)
-  val output=if(ratio>=1f)bitmap else Bitmap.createScaledBitmap(bitmap,
+  val output=if(ratio>=1f)bitmap.copy(Bitmap.Config.ARGB_8888,false) else Bitmap.createScaledBitmap(bitmap,
    kotlin.math.max(1,kotlin.math.round(bitmap.width*ratio).toInt()),
    kotlin.math.max(1,kotlin.math.round(bitmap.height*ratio).toInt()),true)
   val file=AtomicFile(File(dir,digest(key)+".png"))

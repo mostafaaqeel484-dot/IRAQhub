@@ -56,7 +56,7 @@ public class LauncherActivity extends HubActivity {
   usbAdbButton.setTextSize(11);
   usbAdbButton.setContentDescription(tx("تصحيح USB · إعدادات المطور",
     "USB ADB debugging · developer options"));
-  usbAdbButton.setOnClickListener(v->UsbAdbSetup.show(this));
+  usbAdbButton.setOnClickListener(v->startActivity(new android.content.Intent(this,ReceiverHardwareBridgeActivity.class)));
   header.addView(usbAdbButton,new LinearLayout.LayoutParams(dp(compact?86:105),dp(39)));
   Button appearance=button(tx("المظهر","Appearance"));
   appearance.setTextSize(12);appearance.setOnClickListener(v->themes());
