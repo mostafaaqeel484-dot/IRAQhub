@@ -20,34 +20,143 @@ final class NowNextView extends FrameLayout {
  private final int ink=0xfff1f1f5,muted=0xffafbdc9;
  private boolean compact;private float textScale=1;private int accent=0xffdc49ec;private MatchTickerView ticker;
  NowNextView(Context context){
-  super(context);prefs=context.getSharedPreferences("smarthub",0);accent=RxSkin.accent(context);try{accent=Color.parseColor(prefs.getString("osd_accent",String.format(java.util.Locale.ROOT,"#%06X",accent&0xffffff)));}catch(Exception ignored){}setLayoutDirection(View.LAYOUT_DIRECTION_LTR);int barH=OsdGeometry.bar(context),tickerH=prefs.getBoolean("sports_ticker",false)?dp(68):0;compact=barH<dp(126);textScale=Math.max(.90f,Math.min(1.12f,barH/(150f*getResources().getDisplayMetrics().density)));
-  LinearLayout left=column(),right=column();currentTitle=label(tx("الآن","NOW"),11,true);nextTitle=label(tx("التالي","NEXT"),11,true);currentTitle.setTextColor(0xfff7d97a);nextTitle.setTextColor(0xfff7d97a);left.addView(currentTitle);right.addView(nextTitle);currentPoster=poster();nextPoster=poster();left.addView(currentPoster,new LinearLayout.LayoutParams(dp(96),dp(142)));
-  right.addView(nextPoster,new LinearLayout.LayoutParams(dp(96),dp(142)));
-  left.setPadding(dp(8),dp(6),dp(8),dp(8));right.setPadding(dp(8),dp(6),dp(8),dp(8));
-  left.setBackground(RxSkin.glass(context,false));right.setBackground(RxSkin.glass(context,false));LayoutParams lp=new LayoutParams(dp(112),-2,Gravity.LEFT|Gravity.BOTTOM);lp.setMargins(dp(22),0,0,barH+tickerH+dp(12));addView(left,lp);LayoutParams rp=new LayoutParams(dp(112),-2,Gravity.RIGHT|Gravity.BOTTOM);rp.setMargins(0,0,dp(22),barH+tickerH+dp(12));addView(right,rp);
-  LinearLayout bar=column();bar.setPadding(dp(22),dp(compact?5:10),dp(22),dp(6));int alpha=Math.max(30,Math.min(95,prefs.getInt("osd_opacity",88)))*255/100;bar.setBackground(RxSkin.bar(context,alpha));bar.setElevation(dp(6));LayoutParams bp=new LayoutParams(-1,barH,Gravity.BOTTOM);addView(bar,bp);
-  LinearLayout head=new LinearLayout(context);head.setGravity(Gravity.CENTER_VERTICAL);heading=label("IRAQhub  ·  RX",compact?16:20,true);heading.setTextColor(accent);head.addView(heading,new LinearLayout.LayoutParams(0,-2,1));broadcast=label("",10,true);broadcast.setGravity(Gravity.CENTER);LinearLayout.LayoutParams badge=new LinearLayout.LayoutParams(dp(60),dp(compact?17:21));badge.rightMargin=dp(18);head.addView(broadcast,badge);
-  broadcast.setVisibility(GONE);
+  super(context);
+  prefs=context.getSharedPreferences("smarthub",0);
+  accent=RxSkin.accent(context);
+  try{accent=Color.parseColor(prefs.getString("osd_accent",
+      String.format(Locale.ROOT,"#%06X",accent&0xffffff)));}catch(Exception ignored){}
+  setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+  // RX replaces the former stack of floating info panels with a single clean
+  // low-profile bar. Posters sit INSIDE the bar and never mask the TV picture.
+  final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
+  int barH=Math.max(dp(118),OsdGeometry.bar(context));
+  int tickerH=prefs.getBoolean("sports_ticker",false)?dp(62):0;
+  compact=barH<dp(145);
+  textScale=Math.max(.90f,Math.min(1.06f,barH/(150f*
+       getResources().getDisplayMetrics().density)));
+  int alpha=Math.max(30,Math.min(95,prefs.getInt("osd_opacity",88)))*255/100;
+  LinearLayout bar=column();bar.setGravity(Gravity.CENTER_VERTICAL);
+  bar.setPadding(dp(20),dp(9),dp(20),dp(9));
+  bar.setBackground(RxSkin.bar(context,alpha));
+  bar.setElevation(dp(6));
+  LayoutParams barPosition=new LayoutParams(-1,barH,Gravity.BOTTOM);
+  barPosition.setMargins(dp(8),0,dp(8),dp(8));
+  addView(bar,barPosition);
+
+  LinearLayout primary=new LinearLayout(context);
+  primary.setGravity(Gravity.CENTER_VERTICAL);
+  bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
+  LinearLayout brand=column();brand.setGravity(Gravity.CENTER);
+  logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(79),dp(55)));
+  providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
+  providerCaption=label(tx("المزود","PROVIDER"),9,false);
+  providerCaption.setTextColor(muted);
+  providerLogo=new ImageView(context);
+  providerLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+  providerLogo.setVisibility(GONE);
+  providerName=label("",10,false);providerName.setGravity(Gravity.CENTER);
+  providerName.setTextColor(muted);
+  providerPanel.addView(providerCaption);
+  providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(44),dp(25)));
+  providerPanel.addView(providerName);
+  providerPanel.setVisibility(detailed?VISIBLE:GONE);
+  brand.addView(providerPanel);
+  primary.addView(brand,new LinearLayout.LayoutParams(dp(detailed?104:89),-2));
+
+  LinearLayout programme=column();
+  programme.setPadding(dp(14),dp(2),dp(12),0);
+  primary.addView(programme,new LinearLayout.LayoutParams(0,-2,1.5f));
+  heading=label("IRAQhub",compact?18:22,true);
+  heading.setTextColor(ink);programme.addView(heading);
+  nowLine=label("",compact?13:16,true);
+  programme.addView(nowLine);
+  nextLine=label("",compact?11:13,false);
+  nextLine.setTextColor(0xffbac6d4);programme.addView(nextLine);
+  progress=new ProgressBar(context,null,android.R.attr.progressBarStyleHorizontal);
+  progress.setMax(1000);
+  progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+  progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff344657));
+  LinearLayout.LayoutParams progressParams=new LinearLayout.LayoutParams(-1,dp(4));
+  progressParams.topMargin=dp(6);programme.addView(progress,progressParams);
+  remaining=label("",compact?9:11,false);
+  remaining.setTextColor(accent);
+  programme.addView(remaining);
+  status=label("",10,false);status.setTextColor(muted);
+  status.setVisibility(GONE);programme.addView(status);
+
+  LinearLayout posterTray=new LinearLayout(context);
+  posterTray.setGravity(Gravity.CENTER);
+  posterTray.setPadding(dp(9),0,dp(9),0);
+  primary.addView(posterTray,new LinearLayout.LayoutParams(dp(175),-2));
+  LinearLayout left=column();left.setGravity(Gravity.CENTER);
+  currentTitle=label(tx("الآن","NOW"),9,true);
+  currentTitle.setGravity(Gravity.CENTER);currentTitle.setTextColor(accent);
+  currentPoster=poster();
+  left.addView(currentTitle);
+  left.addView(currentPoster,new LinearLayout.LayoutParams(dp(66),dp(85)));
+  posterTray.addView(left,new LinearLayout.LayoutParams(0,-2,1));
+  LinearLayout right=column();right.setGravity(Gravity.CENTER);
+  nextTitle=label(tx("التالي","NEXT"),9,true);
+  nextTitle.setGravity(Gravity.CENTER);nextTitle.setTextColor(0xffd3d7db);
+  nextPoster=poster();
+  right.addView(nextTitle);
+  right.addView(nextPoster,new LinearLayout.LayoutParams(dp(66),dp(85)));
+  posterTray.addView(right,new LinearLayout.LayoutParams(0,-2,1));
+  if(prefs.getBoolean("osd_swap_posters",false)){
+   posterTray.removeView(left);posterTray.addView(left);
+  }
+
+  LinearLayout signal=column();signal.setGravity(Gravity.CENTER_VERTICAL);
+  primary.addView(signal,new LinearLayout.LayoutParams(dp(compact?120:152),-2));
+  clock=label("",compact?15:18,true);
+  clock.setTextDirection(View.TEXT_DIRECTION_LTR);
+  clock.setGravity(Gravity.RIGHT);signal.addView(clock);
+  strengthLabel=label("S: —",10,false);
+  strengthBar=meter(0xff53cc93);
+  qualityLabel=label("Q: —",10,false);
+  qualityBar=meter(accent);
+  signal.addView(strengthLabel);
+  signal.addView(strengthBar,new LinearLayout.LayoutParams(-1,dp(4)));
+  signal.addView(qualityLabel);
+  signal.addView(qualityBar,new LinearLayout.LayoutParams(-1,dp(4)));
+
+  // Bind targets for optional RX Details mode. All data sources and getters
+  // remain intact; only their visibility changes.
+  broadcast=label("",10,true);broadcast.setVisibility(GONE);
   resolutionStrip=new LinearLayout(context);
   resolutionStrip.setGravity(Gravity.CENTER_VERTICAL);
-  for(int i=0;i<ReceiverTechnicalBadges.RESOLUTIONS.length;i++){
-   TextView item=label(ReceiverTechnicalBadges.RESOLUTIONS[i],compact?8:9,true);
-   item.setGravity(Gravity.CENTER);
-   item.setPadding(dp(3),dp(2),dp(3),dp(2));
-   LinearLayout.LayoutParams chipSize=new LinearLayout.LayoutParams(dp(i==2?42:35),dp(23));
-   chipSize.rightMargin=dp(3);
-   resolutionStrip.addView(item,chipSize);
-   resolutionChips[i]=item;
+  for(int i=0;i<resolutionChips.length;i++){
+   TextView chip=label(ReceiverTechnicalBadges.RESOLUTIONS[i],10,true);
+   chip.setGravity(Gravity.CENTER);chip.setPadding(dp(3),0,dp(3),0);
+   resolutionChips[i]=chip;
+   resolutionStrip.addView(chip,new LinearLayout.LayoutParams(dp(44),dp(23)));
   }
-  head.addView(resolutionStrip);
-  // Encryption is displayed exactly once in the bottom status row.
-  clock=label("",compact?13:16,true);clock.setGravity(Gravity.RIGHT);clock.setSingleLine(false);clock.setMaxLines(2);head.addView(clock);bar.addView(head);
-  LinearLayout content=new LinearLayout(context);content.setGravity(Gravity.CENTER_VERTICAL);bar.addView(content,new LinearLayout.LayoutParams(-1,0,1));LinearLayout branding=column();branding.setGravity(Gravity.CENTER);logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);branding.addView(logo,new LinearLayout.LayoutParams(dp(compact?74:98),dp(compact?36:59)));content.addView(branding,new LinearLayout.LayoutParams(dp(compact?84:110),-2));
-  LinearLayout lines=column();lines.setPadding(dp(14),0,dp(18),0);content.addView(lines,new LinearLayout.LayoutParams(0,-2,1));progress=new ProgressBar(context,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(1000);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff283a50));LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,dp(3));pp.bottomMargin=dp(compact?3:6);lines.addView(progress,pp);nowLine=label("",compact?11:14,false);lines.addView(nowLine);nextLine=label("",compact?10:13,false);nextLine.setTextColor(0xffc7cdd0);nextLine.setPadding(0,dp(3),0,0);lines.addView(nextLine);remaining=label("",compact?9:10,true);remaining.setTextColor(0xfff4d270);remaining.setPadding(0,dp(2),0,0);lines.addView(remaining);status=label("",10,false);status.setTextColor(muted);status.setVisibility(GONE);lines.addView(status);
-  LinearLayout meters=column();content.addView(meters,new LinearLayout.LayoutParams(dp(compact?185:220),-2));LinearLayout sr=new LinearLayout(context);sr.setGravity(Gravity.CENTER_VERTICAL);strengthLabel=label("S: —",10,false);sr.addView(strengthLabel,new LinearLayout.LayoutParams(dp(47),-2));strengthBar=meter(0xff54dd95);sr.addView(strengthBar,new LinearLayout.LayoutParams(0,dp(4),1));meters.addView(sr);LinearLayout qr=new LinearLayout(context);qr.setGravity(Gravity.CENTER_VERTICAL);qualityLabel=label("Q: —",10,false);qr.addView(qualityLabel,new LinearLayout.LayoutParams(dp(47),-2));qualityBar=meter(accent);qr.addView(qualityBar,new LinearLayout.LayoutParams(0,dp(4),1));meters.addView(qr);signalSource=label("",8,false);signalSource.setTextColor(muted);meters.addView(signalSource);bitrateLabel=label("Bitrate —",compact?9:11,true);bitrateLabel.setTextColor(0xfff0d48d);meters.addView(bitrateLabel);weather=label("",10,false);weather.setSingleLine(false);weather.setMaxLines(2);weather.setTextColor(muted);meters.addView(weather);
-  providerPanel=column();providerPanel.setGravity(Gravity.CENTER);providerPanel.setPadding(dp(12),0,0,0);content.addView(providerPanel,new LinearLayout.LayoutParams(dp(compact?68:85),-2));providerCaption=label(tx("المزود","PROVIDER"),8,false);providerCaption.setTextColor(accent);providerCaption.setGravity(Gravity.CENTER);providerPanel.addView(providerCaption);providerLogo=new ImageView(context);providerLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(compact?36:44),dp(compact?19:25)));providerLogo.setVisibility(GONE);providerName=label("",12,true);providerName.setSingleLine(false);providerName.setMaxLines(2);providerName.setGravity(Gravity.CENTER);providerPanel.addView(providerName);
-  LinearLayout bottom=new LinearLayout(context);bottom.setGravity(Gravity.CENTER_VERTICAL);bar.addView(bottom);technical=label("",compact?8:10,false);technical.setTextColor(0xffc4cbd0);bottom.addView(technical,new LinearLayout.LayoutParams(0,-2,1));signalDetail=label("",compact?8:10,false);signalDetail.setTextDirection(View.TEXT_DIRECTION_LTR);signalDetail.setGravity(Gravity.CENTER);bottom.addView(signalDetail,new LinearLayout.LayoutParams(dp(compact?185:220),-2));encryptionLine=label("",compact?8:10,true);encryptionLine.setTextColor(0xffd9db86);encryptionLine.setGravity(Gravity.RIGHT);bottom.addView(encryptionLine,new LinearLayout.LayoutParams(dp(compact?125:145),-2));
-  if(tickerH>0){ticker=new MatchTickerView(context);LayoutParams tick=new LayoutParams(-1,tickerH,Gravity.BOTTOM);tick.setMargins(dp(10),0,dp(10),barH);addView(ticker,tick);}if(prefs.getBoolean("osd_swap_posters",false)){((LayoutParams)left.getLayoutParams()).gravity=Gravity.RIGHT|Gravity.BOTTOM;((LayoutParams)right.getLayoutParams()).gravity=Gravity.LEFT|Gravity.BOTTOM;}setAlpha(0);animate().alpha(1).setDuration(180).start();
+  weather=label("",10,false);weather.setTextColor(muted);
+  signalSource=label("",10,false);signalSource.setTextColor(muted);
+  signalDetail=label("",10,false);signalDetail.setTextColor(muted);
+  bitrateLabel=label("",10,false);bitrateLabel.setTextColor(muted);
+  encryptionLine=label("",10,true);encryptionLine.setTextColor(accent);
+  technical=label("",10,false);technical.setTextColor(muted);
+  LinearLayout details=new LinearLayout(context);
+  details.setGravity(Gravity.CENTER_VERTICAL);
+  details.addView(resolutionStrip);
+  details.addView(encryptionLine);
+  details.addView(signalSource);
+  details.addView(signalDetail);
+  details.addView(bitrateLabel);
+  details.addView(weather);
+  details.addView(technical,new LinearLayout.LayoutParams(0,-2,1));
+  details.setVisibility(detailed?VISIBLE:GONE);
+  bar.addView(details,new LinearLayout.LayoutParams(-1,-2));
+
+  if(tickerH>0){
+   ticker=new MatchTickerView(context);
+   LayoutParams tick=new LayoutParams(-1,tickerH,Gravity.BOTTOM);
+   tick.setMargins(dp(10),0,dp(10),barH+dp(8));
+   addView(ticker,tick);
+  }
+  setAlpha(0f);animate().alpha(1f).setDuration(150).start();
  }
 
  void bind(SatelliteState s,Bitmap current,Bitmap next,Bitmap channelLogo,String message){
@@ -85,8 +194,11 @@ final class NowNextView extends FrameLayout {
   if(channelLogo==null)logo.setImageResource(R.drawable.channel_placeholder);else logo.setImageBitmap(channelLogo);logo.setContentDescription("Channel logo · "+s.channelName);
   long length=s.endMs-s.startMs;progress.setProgress(length>0?(int)Math.max(0,Math.min(1000,(System.currentTimeMillis()-s.startMs)*1000/length)):0);progress.setVisibility(length>0?VISIBLE:INVISIBLE);
   ProgrammeClock timer=new ProgrammeClock(s.startMs,s.endMs,System.currentTimeMillis());remaining.setText(timer.known?tx("متبقي  ","REMAINING  ")+ProgrammeClock.format(timer.remainingMs,false):"");remaining.setVisibility(timer.known?VISIBLE:GONE);
-  SimpleDateFormat day=new SimpleDateFormat("EEE dd MMM yyyy",prefs.getBoolean("arabic",true)?new Locale("ar"):Locale.ENGLISH);day.setTimeZone(TimeZone.getTimeZone("Asia/Baghdad"));clock.setText(shortTime(System.currentTimeMillis())+"\n"+day.format(new Date()));clock.setVisibility(prefs.getBoolean("osd_clock",true)?VISIBLE:GONE);
-  weather.setText(WeatherRepository.label(getContext()));weather.setVisibility(!compact&&prefs.getBoolean("osd_weather",false)?VISIBLE:GONE);
+  SimpleDateFormat day=new SimpleDateFormat("EEE dd MMM yyyy",prefs.getBoolean("arabic",true)?new Locale("ar"):Locale.ENGLISH);day.setTimeZone(TimeZone.getTimeZone("Asia/Baghdad"));clock.setText(prefs.getBoolean("osd_rx_detailed",false)?
+      shortTime(System.currentTimeMillis())+"\n"+day.format(new Date()):
+      shortTime(System.currentTimeMillis()));clock.setVisibility(prefs.getBoolean("osd_clock",true)?VISIBLE:GONE);
+  weather.setText(WeatherRepository.label(getContext()));weather.setVisibility(prefs.getBoolean("osd_rx_detailed",false)&&
+      prefs.getBoolean("osd_weather",false)?VISIBLE:GONE);
   String strength=ReceptionData.value(getContext(),s,"strength"),quality=ReceptionData.value(getContext(),s,"quality");strengthLabel.setText("S: "+(strength.isEmpty()?"—":strength));qualityLabel.setText("Q: "+(quality.isEmpty()?"—":quality));strengthBar.setProgress(percent(strength),true);qualityBar.setProgress(percent(quality),true);strengthBar.setVisibility(strength.isEmpty()?INVISIBLE:VISIBLE);qualityBar.setVisibility(quality.isEmpty()?INVISIBLE:VISIBLE);
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   String ca=info.encryption;
@@ -114,7 +226,11 @@ final class NowNextView extends FrameLayout {
  }
  void metadata(MediaRepository.Item item){if(item!=null&&!item.id.startsWith("epg:")){String detail=item.release+(item.ratings.isEmpty()?"":" · ★ "+item.ratings);if(!detail.isEmpty()){remaining.setText(remaining.getText()+" · "+detail);remaining.setVisibility(VISIBLE);}if(prefs.getBoolean("osd_description",true)&&!item.summary.isEmpty())setStatus(item.summary);}}
  void provider(Bitmap image){providerLogo.setImageBitmap(image);providerLogo.setVisibility(image==null?GONE:VISIBLE);providerName.setVisibility(image==null?VISIBLE:GONE);}
- void setStatus(String value){String text=value==null?"":value.replace('\n',' ');status.setText(text);status.setVisibility(compact||text.isEmpty()?GONE:VISIBLE);}
+ void setStatus(String value){
+  String text=value==null?"":value.replace('\n',' ');
+  status.setText(text);
+  status.setVisibility(prefs.getBoolean("osd_rx_detailed",false)&&!text.isEmpty()?VISIBLE:GONE);
+}
  private String tx(String ar,String en){return prefs.getBoolean("arabic",true)?ar:en;}
  private String range(long a,long b){return a>0?"  ·  "+shortTime(a)+(b>a?" – "+shortTime(b):""):"";}
  private static String shortTime(long at){if(at<=0)return "";SimpleDateFormat f=new SimpleDateFormat("HH:mm",Locale.ROOT);f.setTimeZone(TimeZone.getTimeZone("Asia/Baghdad"));return f.format(new Date(at));}
