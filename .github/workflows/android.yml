@@ -59,6 +59,7 @@ jobs:
       # Keep CI outputs in a PRIVATE draft release instead; no old artifacts
       # are removed and the build is not published as a production release.
       - name: Save verified Debug APK to private draft release
+        if: ${{ github.ref == 'refs/heads/fix/x5m-422-media3-resources-build-20261107' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -79,6 +80,7 @@ jobs:
         run: gradle :app:assembleRelease --no-daemon
 
       - name: Save unsigned Release APK to draft release
+        if: ${{ github.ref == 'refs/heads/fix/x5m-422-media3-resources-build-20261107' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -89,3 +91,14 @@ jobs:
           cp "$APK" "$RUNNER_TEMP/IRAQhub_3.7.3_X5M_422_Release_UNSIGNED.apk"
           gh release upload "$TAG" \
             "$RUNNER_TEMP/IRAQhub_3.7.3_X5M_422_Release_UNSIGNED.apk" --clobber
+
+      - name: Upload APK artifacts for existing branches
+        if: ${{ github.ref != 'refs/heads/fix/x5m-422-media3-resources-build-20261107' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: IRAQhub-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
