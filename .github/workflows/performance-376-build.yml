@@ -62,7 +62,7 @@ jobs:
               --notes "Draft: native libmpv Android AAR with VLC fallback and explicit 4:2:2 player selection; throttled EPG on zaps, measured decoder acknowledgements, bounded FTA recovery, channel DB backup. Requires X5M hardware tests. Production signing requires four repository secrets. Debug signature ephemeral. Manual scan firmware still returns 0 TS bytes."
           fi
           gh release upload "$TAG" dist/IRAQhub_3.7.6_MPV_FastZap_Debug.apk --clobber
-      - name: Decode optional production signing keystore
+      - name: Validate persistent IRAQhub release signing key
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.IRAQHUB_KEYSTORE_BASE64 }}
           IRAQHUB_KEY_ALIAS: ${{ secrets.IRAQHUB_KEY_ALIAS }}
@@ -70,37 +70,52 @@ jobs:
           IRAQHUB_KEY_PASSWORD: ${{ secrets.IRAQHUB_KEY_PASSWORD }}
         shell: bash
         run: |
-          if [[ -n "$SIGNING_KEYSTORE_BASE64" && -n "$IRAQHUB_KEY_ALIAS" && -n "$IRAQHUB_STORE_PASSWORD" && -n "$IRAQHUB_KEY_PASSWORD" ]]; then
-            mkdir -p "$RUNNER_TEMP/signing"
-            printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/iraqhub-release.jks"
-            echo "IRAQHUB_KEYSTORE_PATH=$RUNNER_TEMP/signing/iraqhub-release.jks" >> "$GITHUB_ENV"
-            echo "IRAQHUB_KEY_ALIAS=$IRAQHUB_KEY_ALIAS" >> "$GITHUB_ENV"
-            echo "IRAQHUB_STORE_PASSWORD=$IRAQHUB_STORE_PASSWORD" >> "$GITHUB_ENV"
-            echo "IRAQHUB_KEY_PASSWORD=$IRAQHUB_KEY_PASSWORD" >> "$GITHUB_ENV"
-            echo "Production signing configured"
-          else
-            echo "::warning::No persistent signing key configured; Release will remain UNSIGNED"
+          set -euo pipefail
+          if [[ -z "$SIGNING_KEYSTORE_BASE64" || -z "$IRAQHUB_KEY_ALIAS" || -z "$IRAQHUB_STORE_PASSWORD" || -z "$IRAQHUB_KEY_PASSWORD" ]]; then
+            echo "::error::Missing one or more required IRAQHUB signing secrets. Refusing unsigned RC."
+            exit 1
           fi
-      - name: Build RX visual Release APK (unsigned)
+          mkdir -p "$RUNNER_TEMP/signing"
+          chmod 700 "$RUNNER_TEMP/signing"
+          umask 077
+          KEYSTORE="$RUNNER_TEMP/signing/iraqhub-release.jks"
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          # Validate that the keystore, alias and store password are genuine.
+          # Never print passwords or the keystore. These are repo secrets.
+          keytool -list -keystore "$KEYSTORE" -storetype PKCS12 \
+            -alias "$IRAQHUB_KEY_ALIAS" -storepass "$IRAQHUB_STORE_PASSWORD" >/dev/null
+          {
+            echo "IRAQHUB_KEYSTORE_PATH=$KEYSTORE"
+            echo "IRAQHUB_KEY_ALIAS=$IRAQHUB_KEY_ALIAS"
+            echo "IRAQHUB_STORE_PASSWORD=$IRAQHUB_STORE_PASSWORD"
+            echo "IRAQHUB_KEY_PASSWORD=$IRAQHUB_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Validated persistent signing keystore and alias; release signing enabled."
+      - name: Build signed IRAQhub 3.7.6 Release APK
         timeout-minutes: 16
         run: gradle :app:assembleRelease --no-daemon
-      - name: Save APKs in private Draft Release
+      - name: Verify signed Release APK and publish private signing test
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG=iraqhub-376-mpv-fast-zap-preview-20261107
+          TAG=iraqhub-376-signed-rc1-20261107
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK" || { echo "::error::Signed APK absent: refusing unsigned artifact"; exit 1; }
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/IRAQhub_3.7.6_MPV_FastZap_Debug.apk
-          if test -s app/build/outputs/apk/release/app-release.apk; then
-            cp app/build/outputs/apk/release/app-release.apk dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk
-            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk
-          else
-            cp app/build/outputs/apk/release/app-release-unsigned.apk dist/IRAQhub_3.7.6_MPV_FastZap_Release_UNSIGNED.apk
+          cp "$APK" dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk | tee dist/RELEASE_CERTIFICATE.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
+          (cd dist && sha256sum IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk > SHA256SUMS.txt)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --draft --prerelease \
+              --title "IRAQhub 3.7.6 RC1 · First persistently SIGNED APK (X5M)" \
+              --notes "First APK signed by the new persistent owner-controlled IRAQhub keystore. Build CI and APK signature verified, receiver playback NOT hardware-tested. IMPORTANT: new release signing certificate differs from past Debug signatures, so Android cannot install this APK as an in-place update over a differently signed installation. Back up channel data before any uninstall. Keep original keystore and its passwords safe; future APKs must use exactly the same key. Draft release is for owner's compatibility and signing tests only."
           fi
-          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
-
-          gh release upload "$TAG" dist/*.apk dist/SHA256SUMS.txt --clobber
+          gh release upload "$TAG" dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk \
+            dist/SHA256SUMS.txt dist/RELEASE_CERTIFICATE.txt --clobber
           gh release view "$TAG" --json tagName,url,isDraft,assets
