@@ -11,7 +11,10 @@ public final class MatchDetailsView extends HubActivity {
   poster.setContentDescription(match.home+" vs "+match.away+" event artwork");
   body.addView(poster,new LinearLayout.LayoutParams(-1,dp(200)));
   TeamLogoManager.bind(this,poster,match.id,match.image);
- }else{
+ }
+ {
+  // Keep verified team/league logos visible when a valid event image URL
+  // returns an unavailable or corrupt image at runtime.
   LinearLayout logos=row();
   addVerifiedLogo(logos,match.homeId,match.homeLogo,match.home);
   addVerifiedLogo(logos,match.leagueId,match.leagueLogo,match.league);
