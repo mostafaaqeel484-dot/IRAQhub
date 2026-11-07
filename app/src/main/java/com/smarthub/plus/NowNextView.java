@@ -278,7 +278,10 @@ final class NowNextView extends FrameLayout {
    featureChips[i].setContentDescription(featureNames[i]+(featureActive[i]?" active":" inactive"));
   }
   if(ticker!=null){ArrayList<SportsMatch> selected=new ArrayList<>();for(SportsMatch m:MatchRepository.get(getContext()).snapshot()){LeagueRepository.League l=LeagueRepository.byId(m.leagueId);if(l!=null&&MatchRepository.get(getContext()).selected(l)&&m.kickoff>System.currentTimeMillis()-86400000L&&m.kickoff<System.currentTimeMillis()+2*86400000L)selected.add(m);}ticker.bind(selected);}
-  boolean show=prefs.getBoolean("osd_posters",true);currentTitle.setVisibility(s.title.isEmpty()?INVISIBLE:VISIBLE);nextTitle.setVisibility(s.nextTitle.isEmpty()?INVISIBLE:VISIBLE);currentPoster.setVisibility(s.title.isEmpty()||current==null||!show?INVISIBLE:VISIBLE);nextPoster.setVisibility(s.nextTitle.isEmpty()||next==null||!show?INVISIBLE:VISIBLE);
+  boolean show=prefs.getBoolean("osd_posters",true);
+  leftPosterBox.setVisibility(show&&current!=null&&!s.title.isEmpty()?VISIBLE:GONE);
+  rightPosterBox.setVisibility(show&&next!=null&&!s.nextTitle.isEmpty()?VISIBLE:GONE);
+  currentTitle.setVisibility(s.title.isEmpty()?INVISIBLE:VISIBLE);nextTitle.setVisibility(s.nextTitle.isEmpty()?INVISIBLE:VISIBLE);currentPoster.setVisibility(s.title.isEmpty()||current==null||!show?INVISIBLE:VISIBLE);nextPoster.setVisibility(s.nextTitle.isEmpty()||next==null||!show?INVISIBLE:VISIBLE);
   ReceiverSignalReading sample=DirectReceiverSignal.reading(s);
   boolean noSignal=s.channelId.startsWith("DVB:")&&sample!=null&&sample.locked==0&&
     !prefs.getBoolean("dvb_tuning",false)&&
