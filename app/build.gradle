@@ -2,6 +2,7 @@ plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
 android {
  namespace 'com.smarthub.plus'
  compileSdk 36
+ packaging { jniLibs { pickFirsts += ['**/libc++_shared.so'] } }
  def releaseStore = System.getenv('IRAQHUB_KEYSTORE_PATH')
  def releaseAlias = System.getenv('IRAQHUB_KEY_ALIAS')
  def releaseStorePass = System.getenv('IRAQHUB_STORE_PASSWORD')
