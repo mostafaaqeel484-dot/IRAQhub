@@ -35,7 +35,8 @@ public final class Independent422Activity extends HubActivity {
  private String renderMode=Mpv422FluidPolicy.P720;
  private int previousVoDrops=-1,poorDropSamples;
  private long previousDropSampleAt,renderStartedAt;
- private boolean autoDownshiftDone;
+ private boolean autoDownshiftDone,nativeRecoveryUsed;
+ private int rendererEpoch;
  private Mpv422Renderer renderer;
  private LiveTsRelay relay;
  private Auto422RuntimeMonitor monitor;
@@ -225,6 +226,7 @@ public final class Independent422Activity extends HubActivity {
     selectedRenderMode=modes[which];
     renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
     autoDownshiftDone=false;
+    nativeRecoveryUsed=false;
     prefs().edit().putString("independent_422_fluid_mode",selectedRenderMode)
       .remove("independent_422_auto_action").apply();
     updateRenderButton();
@@ -331,6 +333,7 @@ public final class Independent422Activity extends HubActivity {
  private void openRenderer(String url){
   if(stopped||destroyed||videoRoot==null)return;
   closeRenderer();
+  final int callbackEpoch=rendererEpoch;
   loaded=false;previousPosition=-1;previousPositionAt=0;
    previousVoDrops=-1;previousDropSampleAt=0;poorDropSamples=0;
    renderStartedAt=SystemClock.elapsedRealtime();
@@ -344,7 +347,7 @@ public final class Independent422Activity extends HubActivity {
    Mpv422Renderer next=new Mpv422Renderer(this,videoRoot,
      new Mpv422Renderer.Listener(){
       @Override public void ready(){
-       if(stopped||destroyed)return;
+       if(stopped||destroyed||callbackEpoch!=rendererEpoch)return;
        loaded=true;previousPositionAt=SystemClock.elapsedRealtime();
        prefs().edit().putString("independent_422_runtime","MPV_FILE_LOADED")
          .putString("decoder_422_verification",
@@ -363,7 +366,20 @@ public final class Independent422Activity extends HubActivity {
           status.setVisibility(View.GONE);},4600);
       }
       @Override public void failed(String reason){
-       if(stopped||destroyed)return;
+       if(stopped||destroyed||callbackEpoch!=rendererEpoch)return;
+       if(Mpv422FluidPolicy.recoverWithNative(renderMode,nativeRecoveryUsed,reason)){
+        // One attempt at the last known working MPV output. TS stays open.
+        nativeRecoveryUsed=true;
+        renderMode=Mpv422FluidPolicy.GPU_NATIVE;
+        prefs().edit().putString("independent_422_auto_action",
+          "FILTER_OPEN_FAILURE_FALLBACK_GPU_NATIVE")
+          .putString("independent_422_filter_failure",reason).apply();
+        updateRenderButton();
+        display(tx("تعذّر فتح وضع 4:2:0، تجربة إخراج GPU الأصلي",
+          "4:2:0 failed to load; retrying native GPU"));
+        restartRenderer();
+        return;
+       }
        loaded=false;
        prefs().edit().putString("independent_422_runtime","MPV_FAILURE")
         .putString("decoder_last_error",reason).apply();
@@ -404,6 +420,7 @@ public final class Independent422Activity extends HubActivity {
   openRenderer(playbackUrl); // Reuse same TS relay; no tuner retune.
  }
  private void closeRenderer(){
+  rendererEpoch++;
   Mpv422Renderer old=renderer;
   renderer=null;loaded=false;
   if(old!=null)try{old.close();}catch(Throwable ignored){}
@@ -442,6 +459,8 @@ public final class Independent422Activity extends HubActivity {
      "\nActual output path: "+Mpv422FluidPolicy.outputLabel(selectedRenderMode,renderMode)+
      "\nCPU filter: "+prefs().getString("mpv_422_output_filter","NOT_SET")+
      "\nAuto downshift: "+prefs().getString("independent_422_auto_action","NOT_TRIGGERED")+
+     "\nFirst filter failure: "+prefs().getString("independent_422_filter_failure","NONE")+
+     "\nMPV startup: "+(renderer==null?"NOT_ACTIVE":renderer.diagnosticState())+
     "\nTS: "+String.format(Locale.ROOT,"%.2f Mbit/s",bitrate/1000000.0)+
     "\nCapture: "+prefs().getString("software_ts_capture_error","NOT_TESTED")+
     "\nlibmpv FILE_LOADED: "+loaded+
