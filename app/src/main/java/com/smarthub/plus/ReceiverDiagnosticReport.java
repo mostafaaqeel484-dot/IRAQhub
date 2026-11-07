@@ -44,6 +44,13 @@ final class ReceiverDiagnosticReport {
    .append(" psi_snapshots=").append(p.getInt("manual_capture_snapshots",0)).append('\n');
   line(b,"native_search_route",p.getString("native_search_launch_status","NOT_TESTED"));
   b.append("\n[4:2:2 playback]\n");
+  line(b,"focus_mode",p.getString("video_priority_mode","NORMAL"));
+  line(b,"app_optional_work",p.getString("video_priority_jobs","NOT_TESTED"));
+  b.append("focus_ram_trim_at=").append(p.getLong("video_priority_ram_trim_at",0))
+    .append(" jobs_paused_at=").append(p.getLong("video_priority_jobs_paused_at",0))
+    .append(" jobs_restored_at=").append(p.getLong("video_priority_jobs_restored_at",0))
+    .append('\n');
+  line(b,"mpv_422_cpu_profile",p.getString("mpv_422_cpu_profile","UNTESTED"));
   line(b,"profile",Software422Profile.current(context));
   line(b,"auto_effective_next_open",Software422Profile.effective(context));
   b.append("auto_process_cpu_percent_of_one_core=")
