@@ -31,10 +31,10 @@ final class LocalInfoBarController implements AutoCloseable {
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
  private long logoRetry,posterRetryAt;
  private volatile boolean closed;
- private boolean visible;
+ private boolean visible,expanded;
  private int seq;
  private SatelliteState latest=new SatelliteState();
- private final Runnable hide=()->{visible=false;bar.setVisibility(View.GONE);
+ private final Runnable hide=()->{visible=false;expanded=false;bar.expandedPosters(false);bar.setVisibility(View.GONE);
    prefs.edit().putBoolean("now_next_visible",false).apply();};
  private final Runnable tick=new Runnable(){
   @Override public void run(){
@@ -61,6 +61,11 @@ final class LocalInfoBarController implements AutoCloseable {
   root.addView(bar,params);
  }
 
+ void onInfoKey(){
+  if(visible){expanded=!expanded;}else expanded=false;
+  bar.expandedPosters(expanded);
+  show();
+ }
  void show(){
   if(closed)return;
   visible=true;
