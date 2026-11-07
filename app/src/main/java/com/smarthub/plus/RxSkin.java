@@ -48,6 +48,12 @@ final class RxSkin {
  }
  static GradientDrawable glass(Context c,boolean emphasized){
   int accent=accent(c),radius=dp(c,emphasized?20:16);
+  if(PlaybackResourceMode.lite(c)){
+   GradientDrawable light=new GradientDrawable();
+   light.setColor(0xec0b121c);light.setCornerRadius(radius);
+   light.setStroke(dp(c,1),emphasized?accent:0x774e6a79);
+   return light; // No multi-stop gradients during live software 4:2:2.
+  }
   boolean frosted=c.getSharedPreferences("smarthub",0).getBoolean("rx_glass_effect",true);
   GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
    frosted?new int[]{0xe6293246,0xd3131b30,0xe508101d}:
@@ -57,6 +63,10 @@ final class RxSkin {
   return bg;
  }
  static GradientDrawable focused(Context c){
+  if(PlaybackResourceMode.lite(c)){
+   GradientDrawable flat=new GradientDrawable();flat.setColor(0xf01d2d36);
+   flat.setCornerRadius(dp(c,17));flat.setStroke(dp(c,2),accent(c));return flat;
+  }
   GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
    new int[]{0xf0435876,0xf025374f,0xf0182538});
   bg.setCornerRadius(dp(c,17));
@@ -71,6 +81,11 @@ final class RxSkin {
   state.addState(new int[]{},glass(c,false));return state;
  }
  static GradientDrawable bar(Context c,int opacity){
+  if(PlaybackResourceMode.lite(c)){
+   GradientDrawable flat=new GradientDrawable();
+   flat.setColor((Math.max(96,Math.min(248,opacity))<<24)|0x000b1118);
+   flat.setCornerRadius(dp(c,19));flat.setStroke(dp(c,1),accent(c));return flat;
+  }
   // Respect the existing InfoBar opacity control (30..95%): visuals only.
   int level=Math.max(64,Math.min(248,opacity));
   GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
