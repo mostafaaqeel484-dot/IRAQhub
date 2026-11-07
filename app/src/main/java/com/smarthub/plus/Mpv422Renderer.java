@@ -29,13 +29,16 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  private volatile String pendingUrl,lastNativeWarning="NONE";
  private volatile int lastEvent=-1,lastVfOptionResult=0;
  private long started;
- private final Runnable timeout=()->{
+ private final Runnable timeout=this::onFileLoadTimeout;
+ private void onFileLoadTimeout(){
+  // The callback only executes after the constructor has initialized
+  // final fluidMode, unlike field-initializer lambda capture on javac.
   if(!destroyed&&!loaded){
    String cause="MPV_NO_FILE_LOADED_"+(fluidMode==null?"15":"22")+
     "S_"+diagnosticState();
    failure(cause);
   }
- };
+ }
  private final Runnable surfaceTimeout=()->{
   if(!destroyed&&!loaded&&!playbackRequested)
    failure("MPV_SURFACE_NOT_READY_10S_"+diagnosticState());
