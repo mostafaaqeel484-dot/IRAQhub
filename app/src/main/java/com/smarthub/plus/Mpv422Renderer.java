@@ -16,7 +16,7 @@ import dev.jdtech.mpv.MPVLib;
  * Any JNI/ABI/codec failure is reported to the caller and may fall back
  * to the existing LibVLC engine.
  */
-final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserver {
+final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserver, MPVLib.LogObserver {
  interface Listener { void ready(); void failed(String reason); }
  private final Context context;
  private final SurfaceView view;
@@ -25,10 +25,20 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  private final boolean videoOnly;
  private final String fluidMode; // null for the unchanged legacy embedded engine
  private MPVLib mpv;
- private boolean destroyed,loaded;
+ private volatile boolean destroyed,loaded,initialized,attached,playbackRequested,failed;
+ private volatile String pendingUrl,lastNativeWarning="NONE";
+ private volatile int lastEvent=-1,lastVfOptionResult=0;
  private long started;
  private final Runnable timeout=()->{
-  if(!destroyed&&!loaded)failure("MPV_NO_FILE_LOADED_15S");
+  if(!destroyed&&!loaded){
+   String cause="MPV_NO_FILE_LOADED_"+(fluidMode==null?"15":"22")+
+    "S_"+diagnosticState();
+   failure(cause);
+  }
+ };
+ private final Runnable surfaceTimeout=()->{
+  if(!destroyed&&!loaded&&!playbackRequested)
+   failure("MPV_SURFACE_NOT_READY_10S_"+diagnosticState());
  };
  Mpv422Renderer(Context context,FrameLayout root,Listener listener){
   this(context,root,listener,false);
@@ -62,27 +72,36 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    mpv=MPVLib.create(context);
    if(mpv==null){failure("MPV_CREATE_RETURNED_NULL");return false;}
    mpv.addObserver(this);
+   mpv.addLogObserver(this);
+   mpv.setOptionString("msg-level","all=warn");
+   // Wait for Android's SurfaceHolder before loadfile. Upstream MPV
+   // Android launches a file only once the SurfaceView is attached.
+   mpv.setOptionString("idle","once");
+   mpv.setOptionString("force-window","no");
    mpv.setOptionString("hwdec","no");
    mpv.setOptionString("vo","gpu");
    mpv.setOptionString("profile","fast");
    if(fluidMode!=null){
-    // Android's EGL/OpenGL ES texture path is already supported by libmpv;
-    // avoid Vulkan and expensive scaling/deband/shaders on X5M Mali GPU.
-    mpv.setOptionString("gpu-context","android");
-    mpv.setOptionString("gpu-api","opengl");
-    mpv.setOptionString("opengl-es","yes");
+    // The old independent MPV build worked with Android's own GPU context.
+    // Do NOT force gpu-api/opengl-es/fbo-format during initialisation:
+    // those additional overrides preceded the X5M FILE_LOADED timeout.
+    // Keep cheap bilinear scaling and the optional FFmpeg output filter.
     mpv.setOptionString("scale","bilinear");
     mpv.setOptionString("dscale","bilinear");
     mpv.setOptionString("cscale","bilinear");
     mpv.setOptionString("deband","no");
     mpv.setOptionString("dither","no");
     mpv.setOptionString("linear-downscaling","no");
-    mpv.setOptionString("fbo-format","rgb8");
     // Convert AFTER decoding genuine 4:2:2/10-bit. Reduced frame payload
     // (YUV420P 8-bit 720p or 540p) may lower upload/GPU cost but conversion
     // itself consumes CPU. GPU-native mode is available for comparison.
     String filter=Mpv422FluidPolicy.videoFilter(fluidMode);
-    if(!filter.isEmpty())mpv.setOptionString("vf",filter);
+    if(!filter.isEmpty()){
+     lastVfOptionResult=mpv.setOptionString("vf",filter);
+     if(lastVfOptionResult<0)throw new IllegalArgumentException(
+       "MPV_VF_REJECTED_"+lastVfOptionResult+"_"+
+        (Mpv422FluidPolicy.P540.equals(fluidMode)?"540":"720"));
+    }
     mpv.setOptionString("vd-lavc-fast","no");
     context.getSharedPreferences("smarthub",0).edit()
       .putString("mpv_422_render_mode",fluidMode)
@@ -119,12 +138,14 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    mpv.setOptionString("video-sync","audio");
    mpv.setOptionString("vd-lavc-threads",Integer.toString(Auto422Policy.decoderThreads(profile,Runtime.getRuntime().availableProcessors())));
    mpv.setOptionString("audio-display","no");
+   pendingUrl=url;
    mpv.init();
-   if(view.getHolder().getSurface()!=null&&view.getHolder().getSurface().isValid())
-    mpv.attachSurface(view.getHolder().getSurface());
+   initialized=true;
    view.setVisibility(android.view.View.VISIBLE);
-   mpv.command(new String[]{"loadfile",url,"replace"});
-   main.postDelayed(timeout,15000);
+   // Some X5M versions create SurfaceHolder before/after mpv.init.
+   // Either order is handled, but attach/loadfile happen exactly once.
+   attachAndPlay(view.getHolder());
+   main.postDelayed(surfaceTimeout,10000);
    return true;
   }catch(Throwable t){
    String detail=MpvInitFailure.describe(t);
@@ -214,10 +235,46 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
       outputFormat==null?"unknown":outputFormat);
   }catch(Throwable unavailable){return null;}
  }
+ String diagnosticState(){
+  return "event="+lastEvent+"_surface="+attached+
+    "_command="+playbackRequested+"_vf="+lastVfOptionResult+
+    "_native="+safeMessage(lastNativeWarning);
+ }
+ private String safeMessage(String msg){
+  if(msg==null)return "NONE";
+  String clean=msg.replace('\n',' ').replace('\r',' ').replace(' ','_');
+  return clean.length()>130?clean.substring(0,130):clean;
+ }
+ private void attachAndPlay(SurfaceHolder holder){
+  if(destroyed||failed||!initialized||mpv==null||attached)return;
+  if(holder==null||holder.getSurface()==null||!holder.getSurface().isValid())return;
+  try{
+   mpv.attachSurface(holder.getSurface());
+   attached=true;
+   android.graphics.Rect rect=holder.getSurfaceFrame();
+   if(rect!=null&&rect.width()>0&&rect.height()>0)
+    mpv.setPropertyString("android-surface-size",
+      rect.width()+"x"+rect.height());
+   mpv.setOptionString("force-window","yes");
+   if(!playbackRequested&&pendingUrl!=null){
+    playbackRequested=true;
+    mpv.command(new String[]{"loadfile",pendingUrl,"replace"});
+    main.postDelayed(timeout,fluidMode==null?15000:22000);
+   }
+  }catch(Throwable problem){
+   String detail=MpvInitFailure.describe(problem);
+   Log.e("IRAQhub422","Surface/playback attach failed: "+detail,problem);
+   failure("MPV_SURFACE_ATTACH_"+detail);
+  }
+ }
  void close(){
   destroyed=true;main.removeCallbacksAndMessages(null);
   try{view.getHolder().removeCallback(this);}catch(Throwable ignored){}
-  try{if(mpv!=null){mpv.removeObserver(this);mpv.detachSurface();mpv.destroy();}}
+  try{if(mpv!=null){
+   mpv.removeObserver(this);mpv.removeLogObserver(this);
+   if(attached)mpv.detachSurface();
+   mpv.destroy();
+  }}
   catch(Throwable error){
    Log.w("IRAQhub422","MPV shutdown failed",error);
   }finally{mpv=null;}
@@ -226,31 +283,53 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
   if(parent instanceof FrameLayout)((FrameLayout)parent).removeView(view);
  }
  private void failure(String error){
-  if(destroyed)return;
+  if(destroyed||failed)return;
+  failed=true;
+  main.removeCallbacks(timeout);
+  main.removeCallbacks(surfaceTimeout);
+  Log.e("IRAQhub422","MPV failed: "+error);
   context.getSharedPreferences("smarthub",0).edit()
    .putString("software_422_runtime","MPV_ERROR")
    .putString("decoder_last_error",error).apply();
   main.post(()->{if(!destroyed)listener.failed(error);});
  }
  @Override public void surfaceCreated(SurfaceHolder holder){
-  try{if(mpv!=null&&holder.getSurface().isValid())mpv.attachSurface(holder.getSurface());}
-  catch(Throwable t){
-   String detail=MpvInitFailure.describe(t);
-   Log.e("IRAQhub422","MPV surface failed: "+detail,t);
-   failure("MPV_SURFACE_"+detail);
+  attachAndPlay(holder);
+ }
+ @Override public void surfaceChanged(SurfaceHolder holder,int format,int width,int height){
+  try{
+   if(initialized&&mpv!=null&&width>0&&height>0)
+    mpv.setPropertyString("android-surface-size",width+"x"+height);
+  }catch(Throwable e){Log.w("IRAQhub422","surface size",e);}
+  attachAndPlay(holder);
+ }
+ @Override public void surfaceDestroyed(SurfaceHolder holder){
+  try{if(attached&&mpv!=null){
+   mpv.setPropertyString("vo","null");
+   mpv.setPropertyString("force-window","no");
+   mpv.detachSurface();
+   attached=false;
+  }}catch(Throwable ignored){}
+ }
+ @Override public void logMessage(String prefix,int level,String message){
+  if(level<=30){
+   String msg=(prefix==null?"mpv":prefix)+": "+(message==null?"":message);
+   lastNativeWarning=msg;
+   Log.w("IRAQhub422",msg);
   }
  }
- @Override public void surfaceChanged(SurfaceHolder holder,int format,int width,int height){}
- @Override public void surfaceDestroyed(SurfaceHolder holder){
-  try{if(mpv!=null)mpv.detachSurface();}catch(Throwable ignored){}
- }
  @Override public void event(int eventId){
+  lastEvent=eventId;
   if(eventId==MPVLib.MpvEvent.MPV_EVENT_END_FILE){
-   if(loaded&&!destroyed)failure("MPV_EVENT_END_FILE");
+   if(!destroyed&&!failed)failure((loaded?
+      "MPV_EVENT_END_FILE":"MPV_END_BEFORE_FILE_LOADED")+
+      "_"+diagnosticState());
    return;
   }
   if(eventId==MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED){
-   loaded=true;main.removeCallbacks(timeout);
+   loaded=true;
+   main.removeCallbacks(timeout);
+   main.removeCallbacks(surfaceTimeout);
    context.getSharedPreferences("smarthub",0).edit()
     .putString("software_422_runtime","MPV_FILE_LOADED")
     .putString("decoder_422_verification","MPV_FILE_LOADED_PICTURE_NOT_VERIFIED")
