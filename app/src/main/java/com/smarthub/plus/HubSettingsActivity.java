@@ -26,6 +26,10 @@ public final class HubSettingsActivity extends HubActivity {
   open(viewing,tx("الـInfobar","Information bar"),OsdSettingsActivity.class);
   open(viewing,tx("دليل البرامج ومصادر EPG","EPG and feed sources"),SatelliteGuideActivity.class);
   open(viewing,tx("البوسترات ومصادر الصور","Posters and artwork providers"),ProviderSetupActivity.class);
+  LinearLayout backup=card(page);
+  backup.addView(text(tx("التحديث والاسترجاع","Updates and rollback"),22,true));
+  open(backup,tx("نسخ القنوات والإعدادات والتحديثات","Channel backups and updates"),
+    ReceiverBackupActivity.class);
   LinearLayout help=card(page);
   help.addView(text(tx("المساعدة والأدوات","Help and tools"),22,true));
   open(help,tx("لوحة المساعدة واختصارات الريموت","Remote control help"),RemoteHelpActivity.class);
