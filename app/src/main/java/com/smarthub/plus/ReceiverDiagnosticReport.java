@@ -25,7 +25,7 @@ final class ReceiverDiagnosticReport {
  }
  static String capture(Context context){
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
-  StringBuilder b=new StringBuilder("IRAQhub 3.7.3 · receiver diagnostics (app-owned)\n");
+  StringBuilder b=new StringBuilder("IRAQhub 3.7.6 · receiver diagnostics (app-owned)\n");
   b.append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT)
     .format(new Date())).append("\n");
   line(b,"Android",Build.VERSION.RELEASE+" API "+Build.VERSION.SDK_INT);
@@ -41,6 +41,8 @@ final class ReceiverDiagnosticReport {
   line(b,"native_search_route",p.getString("native_search_launch_status","NOT_TESTED"));
   b.append("\n[4:2:2 playback]\n");
   line(b,"profile",Software422Profile.current(context));
+  line(b,"preferred_engine",p.getString("software_422_preferred_engine","vlc"));
+  line(b,"mpv_last_fallback",p.getString("mpv_last_fallback","NONE"));
   line(b,"runtime",p.getString("software_422_runtime","NOT_TESTED"));
   line(b,"video_health",p.getString("decoder_video_health","NOT_MEASURED"));
   line(b,"decoder",p.getString("decoder_name","UNAVAILABLE"));
@@ -59,6 +61,14 @@ final class ReceiverDiagnosticReport {
    .append('\n');
   b.append("Note: OEM advancing frames are NOT LibVLC video outputs.\n");
   line(b,"last_decoder_error",p.getString("decoder_last_error","NONE"));
+  b.append("\n[Channel zapping and recovery]\n");
+  line(b,"stage",p.getString("zap_stage","NOT_TESTED"));
+  b.append("same_transponder=").append(p.getBoolean("zap_same_tp",false))
+   .append(" lock_ms=").append(p.getLong("zap_tune_lock_ms",-1))
+   .append(" decoder_ack_ms=").append(p.getLong("zap_decoder_ack_ms",-1))
+   .append(" firmware_frames_ms=").append(p.getLong("zap_firmware_frame_advance_ms",-1))
+   .append(" attempts=").append(p.getInt("zap_recovery_attempts",0)).append('\n');
+  line(b,"recovery_reason",p.getString("zap_recovery_reason","NONE"));
   line(b,"manual_capture_failure_analysis",
     "zero capture_bytes means no MPEG-TS delivered, PSI parsing cannot discover services");
   b.append("\n[EPG, posters and logos]\n");
