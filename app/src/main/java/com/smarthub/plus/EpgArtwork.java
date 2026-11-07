@@ -48,6 +48,11 @@ final class EpgArtwork {
   boolean current=!upcoming&&title.equals(state.title),next=upcoming&&title.equals(state.nextTitle);
   if(!current&&!next)return null;
   LinkedHashSet<String> addresses=new LinkedHashSet<>();
+  // Exact user-selected Commons File: only; keep event key and attribution.
+  if(c.getSharedPreferences("smarthub",0).getBoolean("art_source_commons_enabled",true)){
+   org.json.JSONObject commons=CommonsArtworkSelection.event(c,state,title,upcoming);
+   if(commons!=null)addresses.add(commons.optString("poster"));
+  }
   String broadcast=current?state.image:state.nextImage;
   if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
   if(!cacheOnly)try{
