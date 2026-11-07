@@ -58,8 +58,8 @@ class LogoSourcesActivity:HubActivity(){
       .putExtra(Intent.EXTRA_TITLE,"IRAQhub_channels.db"),6)
   })
   action(imports,tx("استيراد ملف قنوات CHL","Import CHL channel list"),Runnable{open(3)})
-  imports.addView(text(tx("يدعم DB بنية receiver-catalog.db الخاصة بـIRAQhub. استيراد DB يستبدل قائمة IRAQhub والمفضلة، ولا يغيّر قاعدة Aurum؛ احفظ نسخة احتياطية أولاً.",
-    "Accepts IRAQhub receiver-catalog.db schema only. Replaces local channels and favourites; does not touch Aurum. Back up first."),13,false))
+  imports.addView(text(tx("يقبل DB المصدّرة من Aurum أو قاعدة IRAQhub. يستورد القنوات وترتيبها والمفضلة محلياً، ولا يغيّر قاعدة المصنع. احفظ نسخة احتياطية أولاً.",
+    "Accepts exported Aurum DB or IRAQhub receiver-catalog.db. Replaces app-owned channels, ordering and favourites; never touches OEM firmware. Back up first."),13,false))
   action(imports,tx("استقبال ملف CHL من الكمبيوتر/الهاتف","Receive CHL over local network"),Runnable{startReceiver()})
   receiving=text(tx("الاستقبال المحلي متوقف","Local receiver stopped"),13,false)
   receiving.textDirection=android.view.View.TEXT_DIRECTION_LTR
@@ -105,8 +105,8 @@ class LogoSourcesActivity:HubActivity(){
     val index=addon.snapshot()
     if(index==null)tx("لا يوجد فهرس قنوات مستورد","No imported channel index")
     else{
-     val native=getSharedPreferences("smarthub",0)
-       .getString("receiver_catalog_format","")=="SQLITE_DB"
+     val native=(getSharedPreferences("smarthub",0)
+       .getString("receiver_catalog_format","") ?: "").startsWith("SQLITE_")
      val header=if(native)"SQLite DB" else "CHL"
      header+" · "+tx("القنوات: ","Channels: ")+index.services.size+
        "\n"+tx("الأقمار: ","Satellites: ")+index.satellites+
@@ -176,7 +176,7 @@ class LogoSourcesActivity:HubActivity(){
    android.app.AlertDialog.Builder(this)
     .setTitle(tx("استيراد قاعدة SQLite DB؟","Import SQLite DB?"))
     .setMessage(tx("سيتم استبدال قنوات IRAQhub ومفضلتها بالقنوات الموجودة في ملف DB. قاعدة قنوات Aurum لا تتغير. هل أكملت النسخ الاحتياطي؟",
-      "Replaces local IRAQhub channels and favourites with the SQLite snapshot. Aurum channels are untouched. Backed up?"))
+      "Imports an exported Aurum or IRAQhub SQLite backup into the local catalogue. Does not modify the OEM DB. Backed up?"))
     .setPositiveButton(tx("استيراد","Import")){_,_->
      scope.launch{
       try{

@@ -50,13 +50,15 @@ public final class ManualTransponderActivity extends HubActivity {
   result=text(tx("جاهز للبحث","Ready for search"),17,true);panel.addView(result);
   services=text("",14,false);panel.addView(services);
 
+  action(panel,tx("بحث Aurum اليدوي الأصلي · حفظ القنوات في الرسيفر",
+      "Original Aurum manual scan · save to receiver"),
+    ()->NativeSearchNavigation.open(this));
   action(panel,tx("فحص إشارة التردد · ضبط التونر","Check transponder signal · tune"),this::confirmTune);
   action(panel,tx("بحث مباشر عن القنوات وإضافتها · PAT / PMT / SDT",
       "Discover channels directly on this frequency · PAT / PMT / SDT"),this::confirmDirectScan);
   action(panel,tx("اختيار القنوات المكتشفة وحفظها","Choose discovered channels to save"),this::chooseDirectServices);
   action(panel,tx("إيقاف البحث المباشر","Stop direct scan"),this::cancelDirectScan);
-  action(panel,tx("بحث المصنع الأصلي (اختياري فقط)","Optional native Aurum search"),
-    ()->NativeSearchNavigation.open(this));
+
   action(panel,tx("حفظ التردد في IRAQhub","Save this transponder"),this::saveTransponder);
   action(panel,tx("قراءة معرّفات الخدمات SID إن توفرت","Check observed service IDs (SID)"),this::readSids);
   note(panel,tx("قوة الإشارة وSID ليست أسماء القنوات أو PID للصورة والصوت. حفظ القنوات الجديدة يتطلب استخراج بيانات PAT/PMT/SDT من بث TS حقيقي.",
@@ -226,10 +228,22 @@ public final class ManualTransponderActivity extends HubActivity {
      result.setText(tx("لم تكتمل قراءة القنوات: ","Live channel scan unavailable: ")+reason);
      if("FIRMWARE_FULL_TS_CAPTURE_REJECTED".equals(reason)||
         "FIRMWARE_CAPTURE_NO_TS_DATA".equals(reason))
-      services.setText(tx("الفيرموير لم يوفر تسجيل التردد الكامل. "+
-         "يمكن استعمال تسجيل TS من هذا التردد في أداة الاستيراد المنفصلة.",
-         "Firmware did not expose whole-transponder TS. You may use a "+
-         "real TS recording in the separate import tool."));
+      {
+       services.setText(tx("الفيرموير لم يوفر التقاط TS لكل القنوات. "+
+          "استخدم بحث Aurum الأصلي أو استورد ملف DB المصدّر.",
+          "Firmware rejected whole-TP capture. Use original Aurum scan "+
+          "or import an exported channel DB."));
+       new AlertDialog.Builder(this)
+        .setTitle(tx("البحث المباشر غير مدعوم في هذا الفيرموير",
+           "Firmware does not support direct full-TP capture"))
+        .setMessage(tx("ما تم اكتشاف قنوات. افتح واجهة البحث الأصلية واحفظ القنوات منها. "+
+           "يمكن بعدها استيراد DB إلى IRAQhub.",
+           "No channels were discovered. Open the OEM scan menu and save "+
+           "channels there, then import an exported DB if needed."))
+        .setPositiveButton(tx("فتح بحث Aurum","Open Aurum scan"),
+           (dialog,which)->NativeSearchNavigation.open(this))
+        .setNegativeButton(tx("إغلاق","Close"),null).show();
+      }
     });
    }finally{
     activeScan=null;

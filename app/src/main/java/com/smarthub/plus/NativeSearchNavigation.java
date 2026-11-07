@@ -31,10 +31,12 @@ final class NativeSearchNavigation {
   // and signature permissions; adb-shell success does not confer app access.
   // Verified by the owner's live ADB capture as the actual Aurum installation UI.
   try{
-   Intent direct=new Intent(Intent.ACTION_MAIN)
+   // The OEM NavHost needs installation-routing extras; a bare MAIN
+   // component intent can open the wrong page or an empty navigation host.
+   Intent direct=ManufacturerFeatures.host(false,"Search_Channel",1,0)
      .setClassName("com.tosmart.aurum","com.tosmart.dvb.common.NavHostActivity");
    host.startActivity(direct);
-   host.prefs().edit().putString("native_search_launch_status","OEM_NAVHOST_OPENED")
+   host.prefs().edit().putString("native_search_launch_status","OEM_NAVHOST_INSTALLATION_ROUTE_REQUESTED")
      .remove("native_search_launch_error").apply();
    return true;
   }catch(Exception e){error=e.getClass().getSimpleName();}
