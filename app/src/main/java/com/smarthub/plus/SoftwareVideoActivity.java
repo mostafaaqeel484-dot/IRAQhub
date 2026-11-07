@@ -92,7 +92,7 @@ public final class SoftwareVideoActivity extends HubActivity {
           .putLong("libvlc_last_picture_advanced_ms",lastPictureProgressAt)
           .apply();
         boolean stuck=VideoFrameStallPolicy.stalled(lastPictureProgressAt,now,
-          demuxSincePicture,audioSincePicture,0,0,true,decoderBuffering,
+          demuxSincePicture,audioSincePicture,0,decodedSincePicture,true,decoderBuffering,
           videoOutputSeen);
         boolean render=VideoFrameStallPolicy.rendererStalled(lastPictureProgressAt,now,
           demuxSincePicture,audioSincePicture,0,decodedSincePicture,true,
@@ -283,8 +283,6 @@ public final class SoftwareVideoActivity extends HubActivity {
         }
         videoLayout.setVisibility(android.view.View.VISIBLE);
         videoOutputSeen=false;
-        main.removeCallbacks(frameHealth);
-        main.postDelayed(frameHealth,2600);
         decoderOpenedAt=android.os.SystemClock.elapsedRealtime();
         main.removeCallbacks(voutWatchdog);
         prefs().edit().putString("software_422_runtime","LIBVLC_OPENING")
@@ -365,6 +363,8 @@ public final class SoftwareVideoActivity extends HubActivity {
             mediaPlayer.setMedia(media);
             media.release();
             mediaPlayer.play();
+            main.removeCallbacks(frameHealth);
+            main.postDelayed(frameHealth,2600);
         } catch (Throwable failure) {
             main.removeCallbacks(voutWatchdog);
             prefs().edit().putString("software_422_runtime","LIBVLC_STARTUP_FAILED")
