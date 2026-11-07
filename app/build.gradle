@@ -37,8 +37,10 @@ dependencies {
  implementation 'androidx.media3:media3-exoplayer-dash:1.5.1'
  implementation 'androidx.media3:media3-ui:1.5.1'
  implementation 'org.videolan.android:libvlc-all:3.7.0'
- // Real libmpv Android AAR, not an external player intent.
- implementation 'io.github.makd:libmpv:1.1.0'
+ // X5M compatibility trial: upstream libmpv Android 1.0.0 is the
+ // stable pre-MakD-Vulkan AAR. Same dev.jdtech.mpv.MPVLib API, but fewer
+ // new native/Vulkan dependencies for older TV ROMs. Do not ship both AARs.
+ implementation 'dev.jdtech.mpv:libmpv:1.0.0'
  implementation 'com.caverock:androidsvg-aar:1.4'
  implementation 'com.squareup.okhttp3:okhttp:4.12.0'
  implementation 'com.google.mlkit:translate:17.0.3'
