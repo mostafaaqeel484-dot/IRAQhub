@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: video422-focus-tiger-${{ github.ref }}
+  group: video422-focus-tiger-verified-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
