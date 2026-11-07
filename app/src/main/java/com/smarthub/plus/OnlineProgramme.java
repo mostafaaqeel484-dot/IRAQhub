@@ -44,7 +44,8 @@ final class OnlineProgramme {
       id,type,imdb,duration);
    if("matched".equals(other.optString("status")))j=other;
   }catch(Exception unavailable){/* Keep any existing verified candidate. */}
-  if(!"matched".equals(j.optString("status")))try{
+  if(!"matched".equals(j.optString("status"))&&context.getSharedPreferences("smarthub",0)
+    .getBoolean("art_source_tvmaze_enabled",true))try{
    JSONObject other=new TvmazeProvider(context).resolve(raw,imdb);
    if("matched".equals(other.optString("status")))j=other;
   }catch(Exception unavailable){/* Preserve verified EPG artwork. */}
