@@ -34,6 +34,8 @@ public final class Independent422Activity extends HubActivity {
  private String selectedRenderMode=Mpv422FluidPolicy.AUTO;
  private String renderMode=Mpv422FluidPolicy.P720;
  private String selectedDecoderMode=Mpv422FluidPolicy.SW;
+ private String activeDecoderMode=Mpv422FluidPolicy.SW;
+ private boolean hardwareRecoveryUsed;
  private int previousVoDrops=-1,poorDropSamples,autoDownshiftSteps;
  private long previousDropSampleAt,renderStartedAt;
  private boolean nativeRecoveryUsed;
@@ -131,6 +133,7 @@ public final class Independent422Activity extends HubActivity {
    renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
    selectedDecoderMode=Mpv422FluidPolicy.decoderMode(
      prefs().getString("independent_422_decoder_mode",Mpv422FluidPolicy.SW));
+   activeDecoderMode=selectedDecoderMode;
   if(channelId<0){
    String url=getIntent().getStringExtra("media_uri");
    if(!Software422Source.validNetwork(url)){
@@ -233,6 +236,8 @@ public final class Independent422Activity extends HubActivity {
     dialog.dismiss();
     if(chosen.equals(selectedDecoderMode))return;
     selectedDecoderMode=chosen;
+    activeDecoderMode=chosen;
+    hardwareRecoveryUsed=false;
     nativeRecoveryUsed=false;
     prefs().edit().putString("independent_422_decoder_mode",chosen).apply();
     updateDecoderButton();
@@ -263,6 +268,8 @@ public final class Independent422Activity extends HubActivity {
     selectedRenderMode=modes[which];
     renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
     autoDownshiftSteps=0;
+    activeDecoderMode=selectedDecoderMode;
+    hardwareRecoveryUsed=false;
     nativeRecoveryUsed=false;
     prefs().edit().putString("independent_422_fluid_mode",selectedRenderMode)
       .remove("independent_422_auto_action").apply();
@@ -375,12 +382,12 @@ public final class Independent422Activity extends HubActivity {
    previousVoDrops=-1;previousDropSampleAt=0;poorDropSamples=0;
    renderStartedAt=SystemClock.elapsedRealtime();
   prefs().edit().putString("independent_422_runtime","MPV_OPENING")
-    .putString("decoder_kind","LIBMPV_INDEPENDENT_REQUESTED_"+selectedDecoderMode)
+    .putString("decoder_kind","LIBMPV_INDEPENDENT_ACTIVE_REQUEST_"+activeDecoderMode)
     .putString("decoder_422_verification","MPV_FILE_NOT_YET_LOADED")
     .remove("decoder_last_error").apply();
   display(tx("MPV · إخراج ", "MPV · output ")+
      Mpv422FluidPolicy.outputLabel(selectedRenderMode,renderMode)+
-     " · "+selectedDecoderMode.toUpperCase(Locale.ROOT));
+     " · "+activeDecoderMode.toUpperCase(Locale.ROOT));
   try{
    Mpv422Renderer next=new Mpv422Renderer(this,videoRoot,
      new Mpv422Renderer.Listener(){
@@ -405,6 +412,18 @@ public final class Independent422Activity extends HubActivity {
       }
       @Override public void failed(String reason){
        if(stopped||destroyed||callbackEpoch!=rendererEpoch)return;
+       if(Mpv422FluidPolicy.HW.equals(activeDecoderMode)&&!hardwareRecoveryUsed){
+        // Hardware decode is optional. One SW retry on the SAME TS relay,
+        // before trying the unfiltered GPU path; no endless restart loops.
+        hardwareRecoveryUsed=true;
+        activeDecoderMode=Mpv422FluidPolicy.SW;
+        prefs().edit().putString("independent_422_hw_fallback_reason",reason)
+          .putString("independent_422_auto_action","HW_START_FAILURE_TO_SW").apply();
+        display(tx("فشل بدء HW؛ إعادة التشغيل بفك SW",
+          "HW startup failed; retrying SW decoder"));
+        restartRenderer();
+        return;
+       }
        if(Mpv422FluidPolicy.recoverWithNative(renderMode,nativeRecoveryUsed,reason)){
         // One attempt at the last known working MPV output. TS stays open.
         nativeRecoveryUsed=true;
@@ -442,7 +461,7 @@ public final class Independent422Activity extends HubActivity {
         .setPositiveButton(tx("موافق","OK"),null)
         .show();
       }
-     },videoOnly,renderMode,selectedDecoderMode);
+     },videoOnly,renderMode,activeDecoderMode);
    renderer=next;
    if(!next.start(url))display(tx("تعذر تحميل libmpv على هذه الروم",
      "Unable to start libmpv on this firmware"));
@@ -495,7 +514,9 @@ public final class Independent422Activity extends HubActivity {
     "\nProfile: "+Software422Profile.effective(this)+
      "\nOutput selection: "+selectedRenderMode+
      "\nDecoder requested: "+selectedDecoderMode+
-     "\nDecoder currently active: "+(m==null?"UNAVAILABLE":m.hardwareDecoder)+
+     "\nDecoder attempted: "+activeDecoderMode+
+     "\nMPV actual hwdec-current: "+(m==null?"UNAVAILABLE":m.hardwareDecoder)+
+     "\nHW fallback cause: "+prefs().getString("independent_422_hw_fallback_reason","NONE")+
      "\nActual output path: "+Mpv422FluidPolicy.outputLabel(selectedRenderMode,renderMode)+
      "\nCPU filter: "+prefs().getString("mpv_422_output_filter","NOT_SET")+
      "\nAuto downshift: "+prefs().getString("independent_422_auto_action","NOT_TRIGGERED")+
