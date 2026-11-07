@@ -34,8 +34,21 @@ final class LocalInfoBarController implements AutoCloseable {
  private boolean visible,expanded;
  private int seq;
  private SatelliteState latest=new SatelliteState();
- private final Runnable hide=()->{visible=false;bar.setVisibility(View.GONE);
-   prefs.edit().putBoolean("now_next_visible",false).apply();};
+ private final Runnable hide=new Runnable(){
+  @Override public void run(){
+   SatelliteState state=SatelliteState.read(host);
+   ReceiverSignalReading signal=DirectReceiverSignal.reading(state);
+   boolean noSignal=state.channelId.startsWith("DVB:")&&signal!=null&&
+     signal.locked==0&&!prefs.getBoolean("dvb_tuning",false)&&
+     state.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""));
+   if(!closed&&noSignal){
+    visible=true;bar.setVisibility(View.VISIBLE);main.postDelayed(this,1300);
+    return;
+   }
+   visible=false;bar.setVisibility(View.GONE);
+   prefs.edit().putBoolean("now_next_visible",false).apply();
+  }
+ };
  private final Runnable tick=new Runnable(){
   @Override public void run(){
    if(closed)return;
