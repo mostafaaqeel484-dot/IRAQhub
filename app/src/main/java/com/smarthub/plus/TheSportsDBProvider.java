@@ -43,5 +43,37 @@ final class TheSportsDBProvider implements SportsDataProvider {
   }
   return match==null?new JSONObject().put("status","not_found"):match;
  }
+ /** Free V1 player search is limited to ONE result, so reject partial names. */
+ JSONObject findPlayerPortrait(String supplied)throws Exception{
+  String query=supplied==null?"":supplied.trim();
+  if(query.length()<3||query.length()>90)throw new IOException("PLAYER_NAME_REQUIRED");
+  String url=API+"searchplayers.php?p="+java.net.URLEncoder.encode(query,"UTF-8");
+  JSONObject reply=cache.get(url,24L*3600000L).getJSONObject("data");
+  JSONArray people=reply.optJSONArray("player");
+  if(people==null)people=reply.optJSONArray("players");
+  if(people!=null)for(int i=0;i<Math.min(people.length(),1);i++){
+   JSONObject person=people.optJSONObject(i);
+   if(person==null||!person.optString("idPlayer").matches("[0-9]+"))continue;
+   if(!PlaylistRepository.normalize(person.optString("strPlayer"))
+     .equals(PlaylistRepository.normalize(query)))continue;
+   String picture=person.optString("strThumb");
+   if(picture.isEmpty())picture=person.optString("strCutout");
+   try{
+    java.net.URI uri=new java.net.URI(picture);
+    if(!"https".equalsIgnoreCase(uri.getScheme())||uri.getUserInfo()!=null
+      ||uri.getFragment()!=null||uri.getPath()==null||
+      !uri.getPath().startsWith("/images/")||
+      !Arrays.asList("www.thesportsdb.com","r2.thesportsdb.com",
+         "thesportsdb.com").contains(uri.getHost()))continue;
+   }catch(Exception invalid){continue;}
+   return new JSONObject().put("status","verified")
+      .put("player",person.optString("strPlayer"))
+      .put("id",person.optString("idPlayer"))
+      .put("poster",picture)
+      .put("provider","TheSportsDB V1 free 123")
+      .put("source","https://www.thesportsdb.com/player/"+person.optString("idPlayer"));
+  }
+  return new JSONObject().put("status","not_found");
+ }
  JSONObject details(String id,String endpoint)throws Exception{if(!id.matches("tsdb:[0-9]+"))throw new IOException("Details not supplied by this source");if(!Arrays.asList("lookupevent","lookuptimeline","lookuplineup","lookupeventstats").contains(endpoint))throw new IOException("Unsupported details endpoint");return cache.get(API+endpoint+".php?id="+id.substring(5),5*60000L);}
 }
