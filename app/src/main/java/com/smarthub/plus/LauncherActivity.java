@@ -25,23 +25,172 @@ public class LauncherActivity extends HubActivity {
  private final Runnable tick=new Runnable(){public void run(){update();if(resumed)main.postDelayed(this,1000);}};
  @Override public void onCreate(Bundle s){PlaybackResourceMode.clearStaleOnLauncherStart(this);IraqHubSyncScheduler.ensure(this);if(!prefs().getBoolean("launcher_reference_v34",false))prefs().edit().putBoolean("launcher_reference_v34",true).putInt("launcher_theme",0).putString("osd_accent","#E84C58").putLong("osd_changed_at",System.currentTimeMillis()).apply();super.onCreate(s);build();io.execute(()->{List<AppCatalogue.App> found=AppCatalogue.load(this);main.post(()->{if(!destroyed){catalogue=found;paintApps();}});});}
  private void build(){
-  render++;logoKey="";compact=getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().density<620;int theme=RxSkin.selected(this);accent=RxSkin.accent(this);
-  LinearLayout root=col();root.setLayoutDirection(ar?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR);root.setPadding(dp(compact?22:32),dp(compact?14:22),dp(compact?22:32),dp(compact?14:22));root.setBackground(RxSkin.wallpaper(this));setContentView(root);
-  LinearLayout head=row();TextView brand=text("IRAQhub  ·  RX Edition",28,true);brand.setTextColor(0xfff1f1f5);head.addView(brand,new LinearLayout.LayoutParams(0,-2,1));Button searchHome=button(tx("البحث","Search"));searchHome.setTextSize(13);searchHome.setOnClickListener(v->open(HubSearchActivity.class));head.addView(searchHome,new LinearLayout.LayoutParams(dp(110),dp(36)));connection=text("",13,false);connection.setPadding(dp(20),0,dp(20),0);head.addView(connection);clock=text("",25,true);clock.setTextDirection(View.TEXT_DIRECTION_LTR);head.addView(clock);Button wallpaper=button(tx("◈ الخلفيات","◈ Themes"));
-  wallpaper.setTextSize(12);
-  wallpaper.setOnClickListener(v->themes());
-  head.addView(wallpaper,new LinearLayout.LayoutParams(dp(125),dp(36)));
-  root.addView(head,new LinearLayout.LayoutParams(-1,dp(compact?42:48)));
-  ScrollView scroll=new ScrollView(this);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));LinearLayout body=col();body.setPadding(dp(5),0,dp(5),dp(12));scroll.addView(body);
-  section(body,tx("القنوات الفضائية","SATELLITE TELEVISION"));LinearLayout nav=row();body.addView(nav);
-  nav(nav,"tv",tx("التلفاز","Live TV"),HomeIcon.PLAY,0xff172536,this::watch);nav(nav,"receiver",tx("التركيب","Installation"),HomeIcon.SATELLITE,0xff172536,()->open(ReceiverToolsActivity.class));nav(nav,"channels",tx("القنوات","Channels"),HomeIcon.CHANNELS,0xff172536,()->open(ReceiverChannelsActivity.class));nav(nav,"dvb-settings",tx("الإعدادات","DVB settings"),HomeIcon.SETTINGS,0xff172536,()->open(HubSettingsActivity.class));nav(nav,"other",tx("إضافات","Other"),HomeIcon.APPS,0xff172536,()->open(ToolsActivity.class));
-  LinearLayout appHead=row();appHead.addView(sectionText(tx("التطبيقات","Applications")),new LinearLayout.LayoutParams(0,-2,1));Button customize=button(tx("＋ تخصيص","＋ Customize"));customize.setTextSize(13);customize.setMinHeight(0);customize.setPadding(dp(12),0,dp(12),0);customize.setOnClickListener(v->chooseApps());appHead.addView(customize,new LinearLayout.LayoutParams(dp(130),dp(34)));LinearLayout.LayoutParams ah=new LinearLayout.LayoutParams(-1,dp(compact?32:44));ah.topMargin=dp(6);body.addView(appHead,ah);
-  LinearLayout centre=row();centre.setGravity(Gravity.TOP);body.addView(centre,new LinearLayout.LayoutParams(-1,dp(compact?112:180)));
-  FrameLayout live=tile("live-tv",0xff182b40,this::watch);if(firstTile==null)firstTile=live;live.setContentDescription(tx("التلفاز المباشر","Live TV"));ImageView rxArtwork=new ImageView(this);rxArtwork.setImageResource(theme==1?R.drawable.rx_live_horizontal_light:R.drawable.rx_live_horizontal_dark);rxArtwork.setScaleType(ImageView.ScaleType.CENTER_CROP);rxArtwork.setAlpha(0.78f);live.addView(rxArtwork,new FrameLayout.LayoutParams(-1,-1));View rxShade=new View(this);rxShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xe6000000,0x99000000,0x22000000}));live.addView(rxShade,new FrameLayout.LayoutParams(-1,-1));LinearLayout.LayoutParams heroSize=new LinearLayout.LayoutParams(0,-1,1.4f);heroSize.setMargins(dp(4),dp(4),dp(8),dp(4));centre.addView(live,heroSize);
-  LinearLayout liveBody=col();liveBody.setDuplicateParentStateEnabled(true);liveBody.setGravity(Gravity.CENTER);liveBody.setPadding(dp(10),dp(compact?8:10),dp(10),dp(compact?8:10));live.addView(liveBody,new FrameLayout.LayoutParams(-1,-1));LinearLayout branding=row();branding.setDuplicateParentStateEnabled(true);branding.setGravity(Gravity.CENTER);branding.addView(icon(HomeIcon.PLAY,0xffffffff),new LinearLayout.LayoutParams(dp(compact?28:42),dp(compact?28:42)));channelLogo=new ImageView(this);channelLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);LinearLayout.LayoutParams logoSize=new LinearLayout.LayoutParams(dp(compact?60:74),dp(compact?30:42));logoSize.leftMargin=dp(15);branding.addView(channelLogo,logoSize);liveBody.addView(branding);TextView title=text(tx("التلفاز المباشر","Live TV"),compact?18:26,true);title.setGravity(Gravity.CENTER);title.setPadding(0,dp(compact?4:9),0,dp(compact?2:5));focusLabel(title);liveBody.addView(title);channel=text("",compact?12:14,true);channel.setGravity(Gravity.CENTER);channel.setSingleLine(true);channel.setEllipsize(android.text.TextUtils.TruncateAt.END);focusLabel(channel);liveBody.addView(channel,new LinearLayout.LayoutParams(-1,-2));programme=text("",compact?10:12,false);programme.setTextColor(0xfff1e4c8);programme.setMaxLines(1);programme.setEllipsize(android.text.TextUtils.TruncateAt.END);programme.setGravity(Gravity.CENTER);programme.setPadding(0,dp(3),0,0);focusLabel(programme);liveBody.addView(programme,new LinearLayout.LayoutParams(-1,-2));
-  appsGrid=col();centre.addView(appsGrid,new LinearLayout.LayoutParams(0,-1,4.6f));paintApps();section(body,tx("المفضلة والمشاهدة","YOUR SHORTCUTS"));LinearLayout favourites=row();body.addView(favourites,new LinearLayout.LayoutParams(-1,dp(compact?46:56)));dock(favourites,tx("المفضلة","Favourites"),HomeIcon.CHANNELS,()->startActivity(new Intent(this,ReceiverChannelsActivity.class).putExtra("favorites",true)));dock(favourites,tx("الراديو","Radio"),HomeIcon.PLAY,()->startActivity(new Intent(this,ReceiverChannelsActivity.class).putExtra("type",1)));dock(favourites,tx("الأقمار","Satellites"),HomeIcon.SATELLITE,()->open(SatelliteBrowserActivity.class));dock(favourites,tx("الإشارة","Signal"),HomeIcon.WIFI,()->open(SignalInformationActivity.class));dock(favourites,tx("البحث","Search"),HomeIcon.GUIDE,()->open(HubSearchActivity.class));section(body,tx("إعدادات سريعة","QUICK SETTINGS"));LinearLayout dock=row();body.addView(dock,new LinearLayout.LayoutParams(-1,dp(compact?44:56)));
-  dock(dock,tx("الإعدادات","Settings"),HomeIcon.SETTINGS,this::settings);dock(dock,tx("الشبكة","Network"),HomeIcon.WIFI,()->{try{startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));}catch(Exception e){try{startActivity(new Intent(Settings.ACTION_SETTINGS));}catch(Exception ignored){toast(tx("إعدادات الشبكة غير متاحة","Network settings unavailable"));}}});dock(dock,tx("المظهر","Appearance"),HomeIcon.THEME,this::themes);dock(dock,tx("إضافات","Other"),HomeIcon.APPS,()->open(ToolsActivity.class));
-  TextView hint=text(tx("الأسهم للتنقل   •   OK للفتح   •   تخصيص لاختيار تطبيقاتك","Arrows to navigate   •   OK to open   •   Customize to pin apps"),11,false);hint.setTextColor(0xff99a9c5);hint.setGravity(Gravity.CENTER);hint.setPadding(0,dp(6),0,0);body.addView(hint);root.post(()->{if(!destroyed)firstTile.requestFocusFromTouch();});update();
+  render++;logoKey="";
+  compact=getResources().getDisplayMetrics().heightPixels/
+    getResources().getDisplayMetrics().density<620;
+  accent=RxSkin.accent(this);
+  // The actual RX horizon hierarchy, not the old 5-button IRAQhub dashboard.
+  FrameLayout stage=new FrameLayout(this);
+  stage.setBackground(RxOriginalAssets.wallpaper(this));
+  View shade=new View(this);
+  shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+    new int[]{0x61000000,0x200b1119,0xc90b1018}));
+  stage.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+  LinearLayout root=col();
+  root.setLayoutDirection(ar?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR);
+  root.setPadding(dp(compact?26:44),dp(compact?18:29),
+    dp(compact?26:44),dp(compact?14:26));
+  stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
+  setContentView(stage);
+  // RX top edge: separate branding and clock; settings remain one button away.
+  LinearLayout header=row();header.setGravity(Gravity.CENTER_VERTICAL);
+  TextView brand=text("IRAQhub",compact?21:27,true);
+  brand.setTextColor(0xfff1f1f5);brand.setLetterSpacing(.09f);
+  header.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
+  connection=text("",12,false);connection.setPadding(dp(9),0,dp(9),0);
+  header.addView(connection);
+  Button appearance=button(tx("المظهر","Appearance"));
+  appearance.setTextSize(12);appearance.setOnClickListener(v->themes());
+  header.addView(appearance,new LinearLayout.LayoutParams(dp(110),dp(39)));
+  clock=text("",compact?25:32,true);clock.setGravity(Gravity.CENTER);
+  clock.setTextDirection(View.TEXT_DIRECTION_LTR);
+  clock.setPadding(dp(18),0,0,0);header.addView(clock);
+  root.addView(header,new LinearLayout.LayoutParams(-1,dp(compact?46:56)));
+
+  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);
+  scroll.setVerticalScrollBarEnabled(false);
+  root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+  LinearLayout body=col();body.setPadding(dp(2),dp(3),dp(2),dp(22));
+  scroll.addView(body);
+
+  TextView welcome=text(tx("مساحتك الترفيهية","Your entertainment space"),compact?26:38,true);
+  welcome.setTextColor(0xfff1f1f5);body.addView(welcome);
+  TextView subtitle=text(tx("التلفزيون والتطبيقات والمباريات في مكان واحد",
+    "Live television, apps and sports in one place"),compact?12:16,false);
+  subtitle.setTextColor(0xffbbc0d0);
+  LinearLayout.LayoutParams subParams=new LinearLayout.LayoutParams(-1,-2);
+  subParams.topMargin=dp(2);subParams.bottomMargin=dp(compact?14:22);
+  body.addView(subtitle,subParams);
+
+  LinearLayout hero=row();hero.setClipChildren(false);
+  body.addView(hero,new LinearLayout.LayoutParams(-1,dp(compact?185:255)));
+  FrameLayout live=tile("live-tv",0xff161c24,this::watch);
+  firstTile=live;live.setContentDescription(tx("التلفزيون المباشر","Live satellite TV"));
+  ImageView rxArt=new ImageView(this);rxArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
+  RxOriginalAssets.card(this,rxArt,RxSkin.selected(this)==1?"live_light":"live_dark");
+  live.addView(rxArt,new FrameLayout.LayoutParams(-1,-1));
+  View artShade=new View(this);artShade.setBackground(new GradientDrawable(
+    GradientDrawable.Orientation.BOTTOM_TOP,new int[]{0xef000000,0x8a000000,0x09000000}));
+  live.addView(artShade,new FrameLayout.LayoutParams(-1,-1));
+  LinearLayout liveInfo=col();liveInfo.setGravity(Gravity.BOTTOM);
+  liveInfo.setPadding(dp(18),dp(14),dp(17),dp(17));
+  FrameLayout.LayoutParams infoPosition=new FrameLayout.LayoutParams(-1,-1,Gravity.BOTTOM);
+  live.addView(liveInfo,infoPosition);
+  TextView liveTitle=text(tx("التلفزيون المباشر","Live TV"),compact?24:31,true);
+  liveTitle.setTextColor(0xffffffff);liveInfo.addView(liveTitle);
+  LinearLayout currentChannel=row();
+  channelLogo=new ImageView(this);channelLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+  currentChannel.addView(channelLogo,new LinearLayout.LayoutParams(dp(40),dp(28)));
+  channel=text("",compact?12:15,true);
+  channel.setTextColor(0xfff1f1f5);channel.setSingleLine(true);
+  channel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+  currentChannel.addView(channel,new LinearLayout.LayoutParams(0,-2,1));
+  liveInfo.addView(currentChannel);
+  programme=text("",compact?11:13,false);
+  programme.setTextColor(0xffd0d7e4);programme.setSingleLine(true);
+  programme.setEllipsize(android.text.TextUtils.TruncateAt.END);
+  liveInfo.addView(programme);
+  LinearLayout.LayoutParams liveSize=new LinearLayout.LayoutParams(0,-1,1.65f);
+  liveSize.setMargins(dp(3),dp(3),dp(8),dp(5));hero.addView(live,liveSize);
+  rxFeature(hero,"apps-big",tx("التطبيقات","Applications"),
+    tx("المفضلة وجميع التطبيقات","Your apps and favourites"),
+    HomeIcon.APPS,()->open(AppsActivity.class),1f);
+  rxFeature(hero,"settings-big",tx("الإعدادات","Settings"),
+    tx("القنوات والمظهر","Channels & appearance"),
+    HomeIcon.SETTINGS,this::settings,1f);
+
+  LinearLayout smallCards=row();smallCards.setClipChildren(false);
+  LinearLayout.LayoutParams smallPos=new LinearLayout.LayoutParams(-1,dp(compact?95:132));
+  smallPos.topMargin=dp(compact?10:16);body.addView(smallCards,smallPos);
+  rxFeature(smallCards,"weather-card",tx("الطقس","Weather"),
+    tx("الطقس والمعلومات","Forecast and information"),HomeIcon.WIFI,
+    ()->open(ToolsActivity.class),1f);
+  rxFeature(smallCards,"prayer-card",tx("الصلاة","Prayer"),
+    tx("المواقيت القادمة","Next prayers"),HomeIcon.GUIDE,
+    ()->open(PrayerActivity.class),1f);
+  rxFeature(smallCards,"sport-card",tx("المباريات","Matches"),
+    tx("النتائج والمواعيد","Scores and schedule"),HomeIcon.CHANNELS,
+    ()->open(SportsCenterActivity.class),1f);
+
+  // Keep the existing real favourites, apps, channel-management and quick
+  // shortcuts below the RX hero rather than deleting any app functionality.
+  section(body,tx("تطبيقاتي","MY APPLICATIONS"));
+  LinearLayout appTop=row();
+  appTop.addView(sectionText(tx("تطبيقاتك المختارة","Your pinned apps")),
+    new LinearLayout.LayoutParams(0,-2,1));
+  Button customize=button(tx("＋ تخصيص","＋ Customize"));
+  customize.setTextSize(12);customize.setOnClickListener(v->chooseApps());
+  appTop.addView(customize,new LinearLayout.LayoutParams(dp(128),dp(38)));
+  body.addView(appTop);
+  appsGrid=col();
+  body.addView(appsGrid,new LinearLayout.LayoutParams(-1,dp(compact?132:180)));
+  paintApps();
+
+  section(body,tx("القنوات والرسيفر","RECEIVER"));
+  LinearLayout nav=row();body.addView(nav);
+  nav(nav,"channels",tx("القنوات","Channels"),HomeIcon.CHANNELS,0xff172536,
+    ()->open(ReceiverChannelsActivity.class));
+  nav(nav,"receiver",tx("التركيب","Installation"),HomeIcon.SATELLITE,0xff172536,
+    ()->open(ReceiverToolsActivity.class));
+  nav(nav,"guide",tx("دليل البرامج","EPG"),HomeIcon.GUIDE,0xff172536,
+    ()->open(SatelliteGuideActivity.class));
+  nav(nav,"signal",tx("الإشارة","Signal"),HomeIcon.WIFI,0xff172536,
+    ()->open(SignalInformationActivity.class));
+  nav(nav,"other",tx("إضافات","Other"),HomeIcon.APPS,0xff172536,
+    ()->open(ToolsActivity.class));
+
+  section(body,tx("المفضلة والمشاهدة","YOUR SHORTCUTS"));
+  LinearLayout favourites=row();
+  body.addView(favourites,new LinearLayout.LayoutParams(-1,dp(compact?46:55)));
+  dock(favourites,tx("المفضلة","Favourites"),HomeIcon.CHANNELS,
+    ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)
+      .putExtra("favorites",true)));
+  dock(favourites,tx("الراديو","Radio"),HomeIcon.PLAY,
+    ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)
+      .putExtra("type",1)));
+  dock(favourites,tx("الأقمار","Satellites"),HomeIcon.SATELLITE,
+    ()->open(SatelliteBrowserActivity.class));
+  dock(favourites,tx("البحث","Search"),HomeIcon.GUIDE,
+    ()->open(HubSearchActivity.class));
+  dock(favourites,tx("المظهر","Appearance"),HomeIcon.THEME,this::themes);
+
+  TextView hint=text(tx("الأسهم للتنقل  •  OK للفتح  •  زر الرجوع يحفظ الرئيسية",
+    "Arrows navigate  •  OK opens  •  Back keeps Home"),11,false);
+  hint.setTextColor(0xffbcc3cf);hint.setGravity(Gravity.CENTER);
+  hint.setPadding(0,dp(9),0,0);body.addView(hint);
+  root.post(()->{if(!destroyed&&firstTile!=null)firstTile.requestFocus();});
+  update();
+ }
+ /** RX card geometry and remote focus, using existing IRAQhub actions. */
+ private void rxFeature(LinearLayout holder,String id,String title,String subtitle,
+                        int glyph,Runnable action,float weight){
+  FrameLayout cell=tile(id,0xff23242b,action);
+  cell.setContentDescription(title+" · "+subtitle);
+  LinearLayout inside=col();inside.setGravity(Gravity.BOTTOM);
+  inside.setPadding(dp(16),dp(14),dp(16),dp(16));
+  FrameLayout.LayoutParams fill=new FrameLayout.LayoutParams(-1,-1);
+  cell.addView(inside,fill);
+  ImageView icon=icon(glyph,0xffe2e2e8);
+  inside.addView(icon,new LinearLayout.LayoutParams(dp(compact?28:41),dp(compact?28:41)));
+  TextView label=text(title,compact?17:24,true);
+  label.setTextColor(0xfff1f1f5);inside.addView(label);
+  TextView detail=text(subtitle,compact?10:13,false);
+  detail.setTextColor(0xffc5c5cc);
+  detail.setSingleLine(true);
+  detail.setEllipsize(android.text.TextUtils.TruncateAt.END);
+  inside.addView(detail);
+  LinearLayout.LayoutParams cellSize=new LinearLayout.LayoutParams(0,-1,weight);
+  cellSize.setMargins(dp(5),dp(3),dp(5),dp(5));holder.addView(cell,cellSize);
  }
  private void section(LinearLayout parent,String title){LinearLayout wrap=row();wrap.setGravity(Gravity.CENTER_VERTICAL);View line=new View(this);line.setBackgroundColor(RxSkin.accent(this));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(3),dp(17));lp.setMargins(0,0,dp(9),0);wrap.addView(line,lp);wrap.addView(sectionText(title),new LinearLayout.LayoutParams(-1,-1));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(compact?25:32));p.topMargin=dp(5);parent.addView(wrap,p);}
  private TextView sectionText(String title){TextView v=text(title,16,true);v.setGravity((ar?Gravity.RIGHT:Gravity.LEFT)|Gravity.CENTER_VERTICAL);v.setTextColor(0xffe2e2e8);return v;}
