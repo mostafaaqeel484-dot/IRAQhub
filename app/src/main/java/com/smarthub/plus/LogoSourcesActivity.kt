@@ -179,6 +179,26 @@ class LogoSourcesActivity:HubActivity(){
  }
  override fun onActivityResult(request:Int,result:Int,data:Intent?){
   super.onActivityResult(request,result,data);val uri=data?.data?:return;if(result!=RESULT_OK)return
+  if(request==8){
+   scope.launch{
+    try{
+     state.text=tx("فحص حزمة لوغوات ADB وهويات DVB…","Validating ADB logo ZIP and DVB identities…")
+     val summary=withContext(Dispatchers.IO){
+      contentResolver.openInputStream(uri)!!.use{
+       AdbLogoBundleImporter.importUserSelected(this@LogoSourcesActivity,it)
+      }
+     }
+     if(isDestroyed)return@launch
+     state.text=tx("تم استيراد ","Imported ")+summary.imported+
+       tx(" شعار؛ غير موجودة: "," logos; missing: ")+summary.missing+
+       tx("؛ غير صالحة: ","; invalid: ")+summary.invalid
+     refresh()
+    }catch(e:Exception){
+     state.text=tx("حزمة USB ADB غير صالحة: ","USB ADB logo ZIP invalid: ")+(e.message?:"INVALID_ZIP")
+    }
+   }
+   return
+  }
   if(request==7){
    scope.launch{
     try{
