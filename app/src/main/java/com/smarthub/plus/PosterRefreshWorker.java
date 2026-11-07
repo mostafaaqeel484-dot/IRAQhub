@@ -12,7 +12,7 @@ public final class PosterRefreshWorker extends Worker {
  public PosterRefreshWorker(@NonNull Context c,@NonNull WorkerParameters p){super(c,p);}
  @NonNull @Override public Result doWork(){
   Context c=getApplicationContext();SharedPreferences p=c.getSharedPreferences("smarthub",0);
-  if(p.getBoolean("software_dvb_422_active",false)||p.getBoolean("dvb_tuning",false)
+  if(p.getBoolean("video_priority_active",false)||p.getBoolean("software_dvb_422_active",false)||p.getBoolean("dvb_tuning",false)
      ||!p.getString("iraqhub_pvr_session","").isEmpty()){
    p.edit().putString("poster_sync_status","DEFERRED_VIDEO_PRIORITY").apply();
    // No repeated background retry loop while the tuner / 4:2:2 decoder needs CPU.
