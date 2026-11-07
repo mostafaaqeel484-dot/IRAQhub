@@ -56,6 +56,11 @@ final class ReceiverSqliteImport {
    }
    if(have<16||!isSqliteHeader(prefix))throw new IOException("NOT_SQLITE_DATABASE");
    if(length<4096)throw new IOException("DB_FILE_TRUNCATED");
+   // Aurum's exported satellite DB has a distinct, verified schema.
+   // Convert from a user-selected snapshot to our own catalogue, never opening
+   // or changing the live OEM database.
+   if(ReceiverOemSqliteImport.supports(temporary))
+    return ReceiverOemSqliteImport.importFile(context,temporary);
    // Cannot import a live WAL database without its uncheckpointed -wal file.
    // Ask for a standalone, exported/closed SQLite snapshot.
    int channels=validate(temporary);
