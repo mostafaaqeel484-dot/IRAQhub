@@ -41,6 +41,8 @@ public final class ArtworkDiagnosticsActivity extends HubActivity {
   });
   action(body,tx("إعداد اتصال CHMAX وهوية الجهاز","CHMAX connection settings"),
    ()->startActivity(new Intent(this,FactorySettingsActivity.class)));
+  action(body,tx("إصلاح 12 · TVmaze / TheSportsDB / Commons","Fix 12 · artwork sources"),
+   ()->startActivity(new Intent(this,ArtworkSourcesActivity.class)));
   action(body,tx("إعدادات InfoBar والبوسترات","InfoBar poster settings"),
    ()->startActivity(new Intent(this,OsdSettingsActivity.class)));
   note(body,tx("إذا كانت حالة CHMAX تتطلب ملف المصنع أو إذن نظام، لا يمكن لتطبيق عادي قراءة /data/ChannelImgs أو تجاوز صلاحية توقيع Aurum.",

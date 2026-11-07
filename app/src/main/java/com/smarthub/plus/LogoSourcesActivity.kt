@@ -49,6 +49,15 @@ class LogoSourcesActivity:HubActivity(){
   }
   options.addView(text(tx("المصدر المستقل يعمل حتى لو رفض CHMAX المصادقة. ملف CHL لا يحتوي صوراً، لذا لا بد من مصدر شعار فعلي.",
    "Independent logos work without CHMAX authorisation. CHL contains channel identities, not image bytes."),14,false))
+  val extra=card(body)
+  extra.addView(text(tx("إصلاح 12 · مصادر الشعارات والبوسترات",
+    "Fix 12 · Logo and poster sources"),20,true))
+  extra.addView(text(tx("TVmaze للمسلسلات والحلقات، TheSportsDB لشعارات الفرق والمباريات، وWikimedia Commons لملفات محددة بترخيص موثّق.",
+    "TVmaze series and episodes, TheSportsDB sports images and Commons exact licensed files."),14,false))
+  action(extra,tx("فتح مصادر الصور · إصلاح 12",
+    "Open artwork sources · Fix 12"),Runnable{
+    startActivity(Intent(this,ArtworkSourcesActivity::class.java))
+  })
   val imports=card(body)
   imports.addView(text(tx("ملفات القنوات · SQLite DB وCHL","Channel lists · SQLite DB & CHL"),20,true))
   action(imports,tx("استيراد قاعدة قنوات SQLite .db (سريع)","Fast SQLite .db channel import"),Runnable{open(5)})

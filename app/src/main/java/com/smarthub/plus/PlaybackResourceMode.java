@@ -41,6 +41,11 @@ final class PlaybackResourceMode {
  /** Process-local lease; if Android kills and recreates this process, stale
   * SharedPreferences must not keep background EPG work suspended forever. */
  static boolean active(){synchronized(LOCK){return viewers>0;}}
+ /** Restrict simplified Tiger visuals to live DVB software decoding, not ordinary DVB/IPTV. */
+ static boolean lite(Context context){
+  return active()&&context.getSharedPreferences("smarthub",0)
+    .getBoolean("software_dvb_422_active",false);
+ }
  static void clearStaleOnLauncherStart(Context context){
   synchronized(LOCK){
    if(viewers==0)context.getApplicationContext()

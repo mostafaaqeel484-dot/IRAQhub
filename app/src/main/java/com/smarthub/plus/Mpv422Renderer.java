@@ -47,10 +47,13 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    mpv.setOptionString("vo","gpu");
    mpv.setOptionString("profile","fast");
    mpv.setOptionString("cache","yes");
-   mpv.setOptionString("cache-secs","2");
-   mpv.setOptionString("demuxer-max-bytes","16777216");
+   String profile=Software422Profile.effective(context);
+   boolean pressure=context.getSharedPreferences("smarthub",0)
+     .getBoolean("auto_422_low_memory",false);
+   mpv.setOptionString("cache-secs",pressure?"1":"2");
+   mpv.setOptionString("demuxer-max-bytes",pressure?"8388608":"16777216");
    mpv.setOptionString("video-sync","audio");
-   mpv.setOptionString("vd-lavc-threads","4");
+   mpv.setOptionString("vd-lavc-threads",Integer.toString(Auto422Policy.decoderThreads(profile,Runtime.getRuntime().availableProcessors())));
    mpv.setOptionString("audio-display","no");
    mpv.init();
    if(view.getHolder().getSurface()!=null&&view.getHolder().getSurface().isValid())

@@ -16,6 +16,7 @@ final class SportsPosterPrefetch {
  private SportsPosterPrefetch(){}
  static int prefetch(Context context){
   SharedPreferences prefs=context.getSharedPreferences("smarthub",0);
+  if(!prefs.getBoolean("artwork_sportsdb_enabled",true))return 0;
   if(PlaybackResourceMode.active()||prefs.getBoolean("software_dvb_422_active",false)
     ||prefs.getBoolean("dvb_tuning",false)
     ||!prefs.getString("iraqhub_pvr_session","").isEmpty())return 0;

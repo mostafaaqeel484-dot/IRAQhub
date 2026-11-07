@@ -31,12 +31,31 @@ final class EpgArtwork {
  static Bitmap loadCached(Context c,SatelliteState state,String raw,boolean upcoming)throws Exception{
   return load(c,state,raw,upcoming,true);
  }
+ /** Decode the same verified artwork at the actual InfoBar budget (<=512 pixels).
+  * Large 1920px frames are not retained just to draw a compact Tiger poster. */
+ static Bitmap loadInfobarCached(Context c,SatelliteState state,String raw,boolean upcoming)throws Exception{
+  return load(c,state,raw,upcoming,true,512);
+ }
+ static Bitmap loadInfobar(Context c,SatelliteState state,String raw,boolean upcoming)throws Exception{
+  return load(c,state,raw,upcoming,false,512);
+ }
  private static Bitmap load(Context c,SatelliteState state,String raw,boolean upcoming,boolean cacheOnly)throws Exception{
+  return load(c,state,raw,upcoming,cacheOnly,1920);
+ }
+ private static Bitmap load(Context c,SatelliteState state,String raw,boolean upcoming,boolean cacheOnly,int maxDimension)throws Exception{
   if(state==null||raw==null||raw.trim().isEmpty())return null;
   String title=raw.trim();
   boolean current=!upcoming&&title.equals(state.title),next=upcoming&&title.equals(state.nextTitle);
   if(!current&&!next)return null;
   LinkedHashSet<String> addresses=new LinkedHashSet<>();
+  String manualKey=PosterSelection.key(state,title,upcoming);
+  if(!manualKey.isEmpty()&&c.getSharedPreferences("smarthub",0)
+      .getString("verified_poster_source:"+manualKey,"")
+      .startsWith("Wikimedia Commons")){
+   // Only a user-selected, exact event image may override automatic art.
+   String manual=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
+   if(!manual.isEmpty())addresses.add(manual);
+  }
   String broadcast=current?state.image:state.nextImage;
   if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
   if(!cacheOnly)try{
@@ -74,7 +93,7 @@ final class EpgArtwork {
     try(InputStream in=c.getContentResolver().openInputStream(Uri.parse(address))){bytes=read(in);}
    }else continue;
    if(bytes==null)continue;
-   Bitmap picture=decode(bytes);
+   Bitmap picture=decode(bytes,maxDimension);
    if(picture!=null)return picture;
   }catch(Exception unavailable){/* Fall through to another verified programme source. */}
   // A sports fallback is an exact-event card, not a vaguely named stock poster.
@@ -85,7 +104,7 @@ final class EpgArtwork {
   }
   // Native-guide crops are name-scoped; never use one for a same-title NEXT event.
   if(upcoming&&state.title.equals(state.nextTitle))return null;
-  return loadGuide(c,state.channelName,title);
+  return loadGuide(c,state.channelName,title,maxDimension);
  }
  /** NEXT must be matched using NEXT's date/time, not the current broadcast. */
  private static SportsMatch sportsMatch(Context c,SatelliteState s,boolean upcoming){
@@ -102,7 +121,25 @@ final class EpgArtwork {
    return MatchRepository.get(c).forProgramme(event);
   }catch(Exception unavailable){return null;}
  }
- static Bitmap loadGuide(Context c,String channel,String title)throws Exception{File file=new File(directory(c),key(channel,title)+".png");if(file.isFile()&&System.currentTimeMillis()-file.lastModified()<12*3600000L)try(InputStream in=new FileInputStream(file)){return decode(read(in));}return null;}
+ static Bitmap loadGuide(Context c,String channel,String title)throws Exception{
+  return loadGuide(c,channel,title,1920);
+ }
+ private static Bitmap loadGuide(Context c,String channel,String title,int maxDimension)throws Exception{
+  File file=new File(directory(c),key(channel,title)+".png");
+  if(file.isFile()&&System.currentTimeMillis()-file.lastModified()<12*3600000L)
+   try(InputStream in=new FileInputStream(file)){return decode(read(in),maxDimension);}
+  return null;
+ }
  private static byte[] read(InputStream in)throws IOException{if(in==null)throw new IOException("No EPG artwork stream");ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(out.size()+n>5*1024*1024)throw new IOException("EPG artwork exceeds limit");out.write(b,0,n);}return out.toByteArray();}
- private static Bitmap decode(byte[] bytes){BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);if(o.outWidth<=0||o.outHeight<=0||o.outWidth>10000||o.outHeight>10000)return null;o.inSampleSize=1;while(o.outWidth/o.inSampleSize>1920||o.outHeight/o.inSampleSize>1920)o.inSampleSize*=2;o.inJustDecodeBounds=false;return BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);}
+ private static Bitmap decode(byte[] bytes){return decode(bytes,1920);}
+ private static Bitmap decode(byte[] bytes,int maxDimension){
+  BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;
+  BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);
+  if(o.outWidth<=0||o.outHeight<=0||o.outWidth>10000||o.outHeight>10000)return null;
+  int max=Math.max(128,Math.min(maxDimension,1920));
+  o.inSampleSize=1;
+  while(o.outWidth/o.inSampleSize>max||o.outHeight/o.inSampleSize>max)o.inSampleSize*=2;
+  o.inJustDecodeBounds=false;
+  return BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);
+ }
 }

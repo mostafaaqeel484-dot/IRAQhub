@@ -41,6 +41,13 @@ final class ReceiverDiagnosticReport {
   line(b,"native_search_route",p.getString("native_search_launch_status","NOT_TESTED"));
   b.append("\n[4:2:2 playback]\n");
   line(b,"profile",Software422Profile.current(context));
+  line(b,"auto_effective_next_open",Software422Profile.effective(context));
+  b.append("auto_process_cpu_percent_of_one_core=")
+   .append(p.getInt("auto_422_cpu_percent",-1))
+   .append(" low_memory=").append(p.getBoolean("auto_422_low_memory",false))
+   .append(" thermal_status=").append(p.getInt("auto_422_thermal",-1))
+   .append(" sample_at=").append(p.getLong("auto_422_sample_at",0))
+   .append(" (NOT GPU load or decoder FPS)\n");
   line(b,"runtime",p.getString("software_422_runtime","NOT_TESTED"));
   line(b,"video_health",p.getString("decoder_video_health","NOT_MEASURED"));
   line(b,"decoder",p.getString("decoder_name","UNAVAILABLE"));

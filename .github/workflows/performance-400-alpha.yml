@@ -1,0 +1,80 @@
+name: IRAQhub 4.0.0 Alpha · Lite Tiger + Auto 422 + Fast Logos
+on:
+  push:
+    branches: [ 'feature/iraqhub-400-lite-auto-logos-20261107' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+concurrency:
+  group: performance-400-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout preview branch
+        uses: actions/checkout@v4
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Install API 36
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: JVM tests (auto policy, logo image bounds and existing suites)
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Assemble Debug and unsigned Release
+        run: gradle :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify Debug signature, zipalign and version
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
+          sha256sum "$APK"
+      # GitHub Actions artifact storage quota is exhausted. Release assets
+      # are independent of the Actions artifact storage accounting.
+      - name: Publish APKs to private draft pre-release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-400-alpha1-lite-422-preview-20261107
+          DEBUG=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$DEBUG"
+          RELEASE=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -type f | head -1)
+          test -n "$RELEASE" && test -s "$RELEASE"
+          mkdir -p dist
+          cp "$DEBUG" dist/IRAQhub_4.0.0_alpha1_TigerLite_Auto422_Debug.apk
+          # Never label a signed release as unsigned or publish production-signed
+          # packages without explicit signing-key review.
+          if "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$RELEASE" >/dev/null 2>&1; then
+            echo "::error::Release APK unexpectedly signed. Refusing unsigned preview label."
+            exit 1
+          fi
+          cp "$RELEASE" dist/IRAQhub_4.0.0_alpha1_TigerLite_Auto422_Release_UNSIGNED.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub 4.0.0-alpha1 · Tiger Lite, Auto 4:2:2 & Fast Logos" \
+              --notes "DRAFT test build only. Debug signed with temporary CI key; Release UNSIGNED and not directly installable. Hardware TS capture, 4:2:2 colours, audio sync, memory and CPU performance remain unverified on X5M. PR #26; not merged to main."
+          fi
+          gh release upload "$TAG" \
+            dist/IRAQhub_4.0.0_alpha1_TigerLite_Auto422_Debug.apk \
+            dist/IRAQhub_4.0.0_alpha1_TigerLite_Auto422_Release_UNSIGNED.apk \
+            dist/SHA256SUMS.txt --clobber
+          gh release view "$TAG" --json isDraft,assets --jq '{draft:.isDraft,assets:[.assets[].name]}'
