@@ -105,8 +105,8 @@ class LogoSourcesActivity:HubActivity(){
     val index=addon.snapshot()
     if(index==null)tx("لا يوجد فهرس قنوات مستورد","No imported channel index")
     else{
-     val native=getSharedPreferences("smarthub",0)
-       .(getString("receiver_catalog_format","") ?: "").startsWith("SQLITE_")
+     val native=(getSharedPreferences("smarthub",0)
+       .getString("receiver_catalog_format","") ?: "").startsWith("SQLITE_")
      val header=if(native)"SQLite DB" else "CHL"
      header+" · "+tx("القنوات: ","Channels: ")+index.services.size+
        "\n"+tx("الأقمار: ","Satellites: ")+index.satellites+
