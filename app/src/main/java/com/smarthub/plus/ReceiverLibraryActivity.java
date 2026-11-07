@@ -251,7 +251,27 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   });
  }
  /** Read guide data around the highlighted row, not for the entire satellite. */
+ private String lastLogoPrefetch="";
+ private long lastLogoPrefetchAt;
+ private void prefetchFocusedLogo(int position){
+  if(position<0||position>=shown.size()||destroyed)return;
+  ReceiverCatalog.Channel channel=shown.get(position);
+  String identity="DVB:"+channel.physical();
+  long now=android.os.SystemClock.elapsedRealtime();
+  if(identity.equals(lastLogoPrefetch)&&now-lastLogoPrefetchAt<45000)return;
+  lastLogoPrefetch=identity;lastLogoPrefetchAt=now;
+  // Online source waterfalls are allowed only for the SELECTED channel and
+  // never block the D-Pad UI; a verified result repaints the 1 visible row.
+  LogoRepository.get(this).request(channel.name,identity,new LogoRepository.Listener(){
+   @Override public void channel(android.graphics.Bitmap image){
+    if(image!=null&&identity.equals(lastLogoPrefetch)&&!destroyed)
+      main.post(()->{if(!destroyed&&list!=null)list.invalidateViews();});
+   }
+   @Override public void provider(String name,android.graphics.Bitmap image){}
+  });
+ }
  private void loadVisibleProgramme(int position){
+  prefetchFocusedLogo(position);
   int batch=position/18;if(batch==lastProgrammeBatch||shown.isEmpty())return;
   lastProgrammeBatch=batch;
   int from=Math.max(0,position-9),until=Math.min(shown.size(),position+20);
@@ -270,18 +290,9 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   });
  }
  private void search(boolean reset){if(!loaded)return;if(reset)offset=0;scope().save(this);String q=query.getText().toString();long sat=satellite,favGroup=group;int kind=type,page=offset,token=++generation;boolean fav=favoritesOnly,alpha=alphabetical;io.execute(()->{try{List<ReceiverCatalog.Channel> rows=catalog.channelsContinuous(q,sat,kind,fav,alpha,favGroup,encryptedOnly);Set<Long> selected=catalog.favorites();Set<String> physical=new HashSet<>();for(int i=0;i<Math.min(rows.size(),96);i++)physical.add("DVB:"+rows.get(i).physical());long epgNow=System.currentTimeMillis();
- Map<String,SatelliteGuideRepository.Event> events=
-  new SatelliteGuideRepository(this).currentChannels(physical,epgNow);
- // Persist only positively timed, physically identified programmes for
- // reliable offline Infobar/channel-list fallback on the next launch.
- try{
-  UnifiedEpgIndex local=UnifiedEpgIndex.get(this);
-  local.record(events,epgNow);
-  for(String identity:physical)if(!events.containsKey(identity)){
-   SatelliteGuideRepository.Event cached=local.current(identity,epgNow);
-   if(cached!=null)events.put(identity,cached);
-  }
- }catch(Exception unavailable){/* Original guide remains authoritative. */}
+ // FIX: Do not block showing the channel list on a 96-channel EPG database
+ // query. Render names/CA/signal immediately; fetch EPG only for visible rows.
+ Map<String,SatelliteGuideRepository.Event> events=new HashMap<>();
  long current=prefs().getLong("own_dvb_channel",-1);if(!SatelliteState.read(this).channelId.startsWith("DVB:"))current=catalog.uniqueChannel(SatelliteState.read(this).channelName);long playing=current;main.post(()->{if(destroyed||token!=generation)return;shown=rows;favorites=selected;programmes=events;activeId=playing;status.setText((sat<0?tx("كل الأقمار","All satellites"):satelliteButton.getText())+
    (encryptedOnly?tx(" · مشفرة فقط"," · encrypted only"):"")+
    tx("  ·  من ","  ·  positions ")+(rows.isEmpty()?"0":"1–"+rows.size())+(alphabetical?"  A–Z":""));lastProgrammeBatch=-1;list.setAdapter(new Rows());if(!rows.isEmpty())updateFocusedProgramme(
@@ -529,7 +540,9 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
       }
      }
     };
-    LogoRepository.get(ReceiverLibraryActivity.this).request(ch.name,"DVB:"+identity,listener);
+    // Scrolling must NEVER start multi-site HTTPS searches for each transient row.
+    // Visible cached PNG/verified receiver icons can load asynchronously only.
+    LogoRepository.get(ReceiverLibraryActivity.this).requestCached(ch.name,"DVB:"+identity,listener);
    }
    return h.container;
   }
