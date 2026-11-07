@@ -59,17 +59,17 @@ jobs:
           ]
           ephemeral.sort(key=lambda a: a.get("created_at", ""), reverse=True)
           keep_ids = {int(a["id"]) for a in ephemeral[:5]}
-          cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=12)
+          cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=6)
           eligible = [
               a for a in ephemeral
               if int(a["id"]) not in keep_ids
               and dt.datetime.fromisoformat(a["created_at"].replace("Z", "+00:00")) < cutoff
           ]
-          # Oldest first: never delete more than twelve on a single run.
+          # Oldest first: never delete more than ten on a single run.
           eligible.sort(key=lambda a: a["created_at"])
           removed = 0
           freed = 0
-          for a in eligible[:12]:
+          for a in eligible[:10]:
               try:
                   api(f"/actions/artifacts/{int(a['id'])}", "DELETE")
                   removed += 1
