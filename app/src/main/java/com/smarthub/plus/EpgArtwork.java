@@ -24,6 +24,14 @@ final class EpgArtwork {
   return load(c,state,raw,state!=null&&raw!=null&&!raw.equals(state.title)&&raw.equals(state.nextTitle));
  }
  static Bitmap load(Context c,SatelliteState state,String raw,boolean upcoming)throws Exception{
+  return load(c,state,raw,upcoming,false);
+ }
+ /** Render verified already-cached programme imagery without any network/guide query.
+  * Used during active 4:2:2 software decoding: video wins over poster downloads. */
+ static Bitmap loadCached(Context c,SatelliteState state,String raw,boolean upcoming)throws Exception{
+  return load(c,state,raw,upcoming,true);
+ }
+ private static Bitmap load(Context c,SatelliteState state,String raw,boolean upcoming,boolean cacheOnly)throws Exception{
   if(state==null||raw==null||raw.trim().isEmpty())return null;
   String title=raw.trim();
   boolean current=!upcoming&&title.equals(state.title),next=upcoming&&title.equals(state.nextTitle);
@@ -31,7 +39,7 @@ final class EpgArtwork {
   LinkedHashSet<String> addresses=new LinkedHashSet<>();
   String broadcast=current?state.image:state.nextImage;
   if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
-  try{
+  if(!cacheOnly)try{
    SatelliteGuideRepository guide=new SatelliteGuideRepository(c);
    PlaylistRepository.Programme p=current?guide.currentFor(state,System.currentTimeMillis()):guide.nextFor(state,System.currentTimeMillis());
    if(p!=null&&PlaylistRepository.normalize(p.title).equals(PlaylistRepository.normalize(title))
@@ -41,9 +49,9 @@ final class EpgArtwork {
   if(published!=null&&!published.isEmpty())addresses.add(published);
   String verified=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
   if(!verified.isEmpty())addresses.add(verified);
-  if(current&&state.startMs>0)try{
-   SportsMatch match=MatchRepository.get(c).forProgramme(state);
-   if(match!=null&&match.image!=null&&!match.image.isEmpty()){
+  SportsMatch match=sportsMatch(c,state,upcoming);
+  if(match!=null&&SportsProgrammeArtwork.verified(match))try{
+   if(match.image!=null&&!match.image.isEmpty()){
     URI u=new URI(match.image);
     if("https".equalsIgnoreCase(u.getScheme())&&u.getUserInfo()==null&&
       ("www.thesportsdb.com".equalsIgnoreCase(u.getHost())||
@@ -57,19 +65,42 @@ final class EpgArtwork {
    if(source.getUserInfo()!=null||source.getFragment()!=null)continue;
    byte[] bytes;
    if("https".equalsIgnoreCase(scheme)){
-    bytes=ArtworkCache.fetch(c,source.toURL(),5*1024*1024);
-   }else if("http".equalsIgnoreCase(scheme)){
+    bytes=cacheOnly?ArtworkCache.cached(c,source.toURL(),5*1024*1024):
+      ArtworkCache.fetch(c,source.toURL(),5*1024*1024);
+   }else if(!cacheOnly&&"http".equalsIgnoreCase(scheme)){
     HttpURLConnection connection=(HttpURLConnection)source.toURL().openConnection();
     bytes=OnlineChannelLogo.read(connection,5*1024*1024);
-   }else if("content".equalsIgnoreCase(scheme)||"android.resource".equalsIgnoreCase(scheme)){
+   }else if(!cacheOnly&&("content".equalsIgnoreCase(scheme)||"android.resource".equalsIgnoreCase(scheme))){
     try(InputStream in=c.getContentResolver().openInputStream(Uri.parse(address))){bytes=read(in);}
    }else continue;
+   if(bytes==null)continue;
    Bitmap picture=decode(bytes);
    if(picture!=null)return picture;
   }catch(Exception unavailable){/* Fall through to another verified programme source. */}
+  // A sports fallback is an exact-event card, not a vaguely named stock poster.
+  // Draw only after we have a single verified sports event and real team identities.
+  if(match!=null&&SportsProgrammeArtwork.verified(match)){
+   Bitmap card=SportsProgrammeArtwork.card(c,match,cacheOnly);
+   if(card!=null)return card;
+  }
   // Native-guide crops are name-scoped; never use one for a same-title NEXT event.
   if(upcoming&&state.title.equals(state.nextTitle))return null;
   return loadGuide(c,state.channelName,title);
+ }
+ /** NEXT must be matched using NEXT's date/time, not the current broadcast. */
+ private static SportsMatch sportsMatch(Context c,SatelliteState s,boolean upcoming){
+  if(s==null)return null;
+  try{
+   SatelliteState event=s;
+   if(upcoming){
+    event=s.copy();
+    event.title=s.nextTitle;
+    event.startMs=s.nextStartMs;
+    event.endMs=s.nextEndMs;
+   }
+   if(event.startMs<=0||event.endMs<=event.startMs)return null;
+   return MatchRepository.get(c).forProgramme(event);
+  }catch(Exception unavailable){return null;}
  }
  static Bitmap loadGuide(Context c,String channel,String title)throws Exception{File file=new File(directory(c),key(channel,title)+".png");if(file.isFile()&&System.currentTimeMillis()-file.lastModified()<12*3600000L)try(InputStream in=new FileInputStream(file)){return decode(read(in));}return null;}
  private static byte[] read(InputStream in)throws IOException{if(in==null)throw new IOException("No EPG artwork stream");ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(out.size()+n>5*1024*1024)throw new IOException("EPG artwork exceeds limit");out.write(b,0,n);}return out.toByteArray();}
