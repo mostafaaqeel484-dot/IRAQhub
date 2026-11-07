@@ -1,0 +1,104 @@
+name: IRAQhub 3.7.6 Fast Zap + Embedded mpv + Backup Preview
+
+on:
+  push:
+    branches: [ 'feature/378-fast-zap-recovery-mpv-release-20261107' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rx-skin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout visual skin branch
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Unit tests including RX wallpaper catalogue
+        run: gradle :app:testDebugUnitTest --no-daemon
+      - name: Build RX visual Debug APK
+        run: gradle :app:assembleDebug --no-daemon
+      - name: Verify Debug signature, version and alignment
+        run: |
+          set -euxo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -30
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+      - name: Publish Debug APK promptly to private Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-376-mpv-fast-zap-preview-20261107
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/IRAQhub_3.7.6_MPV_FastZap_Debug.apk
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub 3.7.6 · Fast Zap + libmpv 4:2:2 + Backup (Preview)" \
+              --notes "Draft: native libmpv Android AAR with VLC fallback and explicit 4:2:2 player selection; throttled EPG on zaps, measured decoder acknowledgements, bounded FTA recovery, channel DB backup. Requires X5M hardware tests. Production signing requires four repository secrets. Debug signature ephemeral. Manual scan firmware still returns 0 TS bytes."
+          fi
+          gh release upload "$TAG" dist/IRAQhub_3.7.6_MPV_FastZap_Debug.apk --clobber
+      - name: Decode optional production signing keystore
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.IRAQHUB_KEYSTORE_BASE64 }}
+          IRAQHUB_KEY_ALIAS: ${{ secrets.IRAQHUB_KEY_ALIAS }}
+          IRAQHUB_STORE_PASSWORD: ${{ secrets.IRAQHUB_STORE_PASSWORD }}
+          IRAQHUB_KEY_PASSWORD: ${{ secrets.IRAQHUB_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -n "$SIGNING_KEYSTORE_BASE64" && -n "$IRAQHUB_KEY_ALIAS" && -n "$IRAQHUB_STORE_PASSWORD" && -n "$IRAQHUB_KEY_PASSWORD" ]]; then
+            mkdir -p "$RUNNER_TEMP/signing"
+            printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/iraqhub-release.jks"
+            echo "IRAQHUB_KEYSTORE_PATH=$RUNNER_TEMP/signing/iraqhub-release.jks" >> "$GITHUB_ENV"
+            echo "IRAQHUB_KEY_ALIAS=$IRAQHUB_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "IRAQHUB_STORE_PASSWORD=$IRAQHUB_STORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "IRAQHUB_KEY_PASSWORD=$IRAQHUB_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "Production signing configured"
+          else
+            echo "::warning::No persistent signing key configured; Release will remain UNSIGNED"
+          fi
+      - name: Build RX visual Release APK (unsigned)
+        timeout-minutes: 16
+        run: gradle :app:assembleRelease --no-daemon
+      - name: Save APKs in private Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-376-mpv-fast-zap-preview-20261107
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/IRAQhub_3.7.6_MPV_FastZap_Debug.apk
+          if test -s app/build/outputs/apk/release/app-release.apk; then
+            cp app/build/outputs/apk/release/app-release.apk dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk
+          else
+            cp app/build/outputs/apk/release/app-release-unsigned.apk dist/IRAQhub_3.7.6_MPV_FastZap_Release_UNSIGNED.apk
+          fi
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+
+          gh release upload "$TAG" dist/*.apk dist/SHA256SUMS.txt --clobber
+          gh release view "$TAG" --json tagName,url,isDraft,assets
