@@ -56,7 +56,7 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
  }
  private void open(Class<?> cls){startActivity(new Intent(this,cls));}
  private void openNative(){NativeSearchNavigation.open(this);}
- @Override protected void onResume(){super.onResume();updateReport();}
+ @Override protected void onResume(){super.onResume();updateReport();if(usbStatus!=null)usbStatus.setText(UsbAdbSetup.status(this));}
  private void updateReport(){
   if(report==null)return;
   AurumScanSummary.Result r=AurumScanSummary.Result.fromJson(
