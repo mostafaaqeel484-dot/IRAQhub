@@ -25,7 +25,7 @@ final class ReceiverDiagnosticReport {
  }
  static String capture(Context context){
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
-  StringBuilder b=new StringBuilder("IRAQhub 3.7.3 · receiver diagnostics (app-owned)\n");
+  StringBuilder b=new StringBuilder("IRAQhub 4.0.0-alpha1 · receiver diagnostics (app-owned)\n");
   b.append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT)
     .format(new Date())).append("\n");
   line(b,"Android",Build.VERSION.RELEASE+" API "+Build.VERSION.SDK_INT);
@@ -68,7 +68,14 @@ final class ReceiverDiagnosticReport {
   b.append("LibVLC video outputs=").append(p.getInt("libvlc_vout_count",0))
    .append(" first_vout_latency_ms=").append(p.getLong("libvlc_vout_latency_ms",0))
    .append('\n');
-  b.append("Note: OEM advancing frames are NOT LibVLC video outputs.\n");
+  b.append("LibVLC media stats displayed=").append(p.getLong("libvlc_displayed_pictures",-1))
+   .append(" decodedVideo=").append(p.getLong("libvlc_decoded_video",-1))
+   .append(" decodedAudio=").append(p.getLong("libvlc_decoded_audio",-1))
+   .append(" demuxBytes=").append(p.getLong("libvlc_demux_read_bytes",-1))
+   .append(" lastFrameElapsedMs=").append(p.getLong("libvlc_last_picture_advanced_ms",-1))
+   .append('\n');
+  line(b,"subtitle_binding",p.getString("native_subtitle_status","NOT_BOUND"));
+  b.append("Frame counters are from LibVLC; picture colours need device verification.\n");
   line(b,"last_decoder_error",p.getString("decoder_last_error","NONE"));
   line(b,"manual_capture_failure_analysis",
     "zero capture_bytes means no MPEG-TS delivered, PSI parsing cannot discover services");
@@ -78,6 +85,8 @@ final class ReceiverDiagnosticReport {
   line(b,"Native EIT",p.getString("native_epg_sync_status","NOT_TESTED"));
   line(b,"CHMAX",p.getString("chmax_observe_status","NOT_TESTED"));
   line(b,"Logo bridge",p.getString("native_logo_bridge_status","NOT_TESTED"));
+  b.append("ADB logo import count=").append(p.getInt("adb_logo_import_count",0))
+   .append(" timestamp=").append(p.getLong("adb_logo_import_at",0)).append('\n');
   b.append("Sports poster cached=").append(p.getInt("sports_poster_prefetch_verified",0))
    .append(" attempts=").append(p.getInt("sports_poster_prefetch_attempted",0)).append('\n');
   b.append("\n[Fast zap & recovery]\n");
@@ -97,7 +106,8 @@ final class ReceiverDiagnosticReport {
    .append(" merge_duplicates=").append(p.getInt("receiver_catalog_merge_duplicates",0)).append('\n');
   b.append("\n[Unverified hardware interfaces]\n");
   b.append("Firmware whole-TP capture: may be unavailable to third-party apps.\n");
-  b.append("Front panel display: OEM interface not proven; no sysfs writes attempted.\n");
+  b.append("Front-panel discovery:\n").append(FrontPanelBridge.diagnostics(context)).append('\n');
+  b.append("OEM front-panel WRITE protocol unverified; ADB handoff metadata only.\n");
   b.append("First-frame and codec initialization do not establish visual 4:2:2 fidelity.\n");
   return b.toString();
  }
