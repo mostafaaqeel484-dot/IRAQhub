@@ -109,10 +109,10 @@ public final class SoftwareVideoActivity extends HubActivity {
         long displayChange=lastDisplayedCount>=0?Math.max(0,display-lastDisplayedCount):0;
         long decodeChange=lastDecodedCount>=0?Math.max(0,decoded-lastDecodedCount):0;
         // Actual LibVLC frames per second, not estimated from TS bitrate/Vout.
-        int displayFps100=sampleDuration>=1000&&lastDisplayedCount>=0?
-          (int)Math.min(99999,displayChange*100000L/sampleDuration):-1;
-        int decodeFps100=sampleDuration>=1000&&lastDecodedCount>=0?
-          (int)Math.min(99999,decodeChange*100000L/sampleDuration):-1;
+        int displayFps100=VideoFrameRatePolicy.fpsX100(
+          lastDisplayedCount,display,sampleDuration);
+        int decodeFps100=VideoFrameRatePolicy.fpsX100(
+          lastDecodedCount,decoded,sampleDuration);
         if(previousDisplayed<0||display<previousDisplayed||decoded<previousDecoded){
           lastPictureProgressAt=now;videoStatsAt=now;
           audioSincePicture=0;demuxSincePicture=0;decodedSincePicture=0;
@@ -137,7 +137,7 @@ public final class SoftwareVideoActivity extends HubActivity {
           .putLong("libvlc_display_frame_delta",displayChange)
           .putLong("libvlc_decoded_frame_delta",decodeChange)
           .apply();
-        if(displayChange>=2){
+        if(VideoFrameRatePolicy.advancing(lastDisplayedCount,display)){
           prefs().edit().putString("decoder_video_health","LIBVLC_FRAMES_ADVANCING")
             .putString("decoder_422_verification","LIBVLC_FRAME_COUNTER_PROGRESS")
             .apply();
