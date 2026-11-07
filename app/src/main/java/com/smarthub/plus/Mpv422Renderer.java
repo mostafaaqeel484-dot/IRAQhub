@@ -21,6 +21,7 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  private final SurfaceView view;
  private final Handler main=new Handler(Looper.getMainLooper());
  private final Listener listener;
+ private final boolean videoOnly;
  private MPVLib mpv;
  private boolean destroyed,loaded;
  private long started;
@@ -28,8 +29,12 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
   if(!destroyed&&!loaded)failure("MPV_NO_FILE_LOADED_15S");
  };
  Mpv422Renderer(Context context,FrameLayout root,Listener listener){
+  this(context,root,listener,false);
+ }
+ Mpv422Renderer(Context context,FrameLayout root,Listener listener,boolean videoOnly){
   this.context=context;
   this.listener=listener;
+  this.videoOnly=videoOnly;
   view=new SurfaceView(context);
   view.setKeepScreenOn(true);
   view.setVisibility(android.view.View.GONE);
@@ -64,6 +69,10 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
      .getBoolean("auto_422_low_memory",false);
    mpv.setOptionString("cache-secs",pressure?"1":"2");
    mpv.setOptionString("demuxer-max-bytes",pressure?"8388608":"16777216");
+   // When audio is disabled, mpv uses its system clock for video-sync=audio.
+   // This stops audio decoding and avoids audio clock catch-up frame drops;
+   // it is an explicit performance experiment, not an alleged HW 4:2:2 path.
+   if(videoOnly)mpv.setOptionString("aid","no");
    mpv.setOptionString("video-sync","audio");
    mpv.setOptionString("vd-lavc-threads",Integer.toString(Auto422Policy.decoderThreads(profile,Runtime.getRuntime().availableProcessors())));
    mpv.setOptionString("audio-display","no");
@@ -128,12 +137,44 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
   context.getSharedPreferences("smarthub",0).edit()
     .putString("native_subtitle_status","MPV_SUBTITLE_PID_NOT_IN_STREAM_"+pid).apply();
  }
+ /** Separate-process diagnostics. Playback time is NOT proof of visual
+  * frames; frame-drop and decode properties are only libmpv counters. */
+ static final class Metrics {
+  final double position,estimatedFps;
+  final int dropped,decoderDropped,outputWidth,outputHeight;
+  final String videoFormat;
+  Metrics(double position,double estimatedFps,int dropped,int decoderDropped,
+      int outputWidth,int outputHeight,String videoFormat){
+   this.position=position;this.estimatedFps=estimatedFps;
+   this.dropped=dropped;this.decoderDropped=decoderDropped;
+   this.outputWidth=outputWidth;this.outputHeight=outputHeight;
+   this.videoFormat=videoFormat;
+  }
+ }
+ Metrics metrics(){
+  if(mpv==null||destroyed||!loaded)return null;
+  try{
+   Double pos=mpv.getPropertyDouble("time-pos");
+   Double fps=mpv.getPropertyDouble("estimated-vf-fps");
+   Integer drop=mpv.getPropertyInt("frame-drop-count");
+   Integer decoderDrop=mpv.getPropertyInt("decoder-frame-drop-count");
+   Integer width=mpv.getPropertyInt("video-out-params/w");
+   Integer height=mpv.getPropertyInt("video-out-params/h");
+   String format=mpv.getPropertyString("video-params/pixelformat");
+   return new Metrics(pos==null?-1:pos,fps==null?-1:fps,
+      drop==null?-1:drop,decoderDrop==null?-1:decoderDrop,
+      width==null?-1:width,height==null?-1:height,
+      format==null?"unknown":format);
+  }catch(Throwable unavailable){return null;}
+ }
  void close(){
   destroyed=true;main.removeCallbacksAndMessages(null);
   try{view.getHolder().removeCallback(this);}catch(Throwable ignored){}
   try{if(mpv!=null){mpv.removeObserver(this);mpv.detachSurface();mpv.destroy();}}
   catch(Throwable ignored){}finally{mpv=null;}
   view.setVisibility(android.view.View.GONE);
+  android.view.ViewParent parent=view.getParent();
+  if(parent instanceof FrameLayout)((FrameLayout)parent).removeView(view);
  }
  private void failure(String error){
   if(destroyed)return;
