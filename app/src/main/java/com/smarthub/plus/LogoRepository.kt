@@ -61,12 +61,30 @@ class LogoRepository private constructor(context:Context){
  }
  private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)=if(physical?.startsWith("DVB:")==true)"channel:physical:$physical" else "channel:"+(e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name))
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
+ /** Show RAM hits instantly. Disk decode and verified receiver branding run
+  * on the bounded IO pool, never on D-Pad scroll or InfoBar render threads. */
  fun requestCached(name:String,physical:String?,listener:Listener){
   val known=db.channel(name)
-  listener.channel(observed(name,physical)?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.read(channelKey(name,known,physical)))
+  val key=channelKey(name,known,physical)
   val provider=network(name,known)
-  val cached=observed(name,physical,true)?:provider?.let{cache.read("provider:"+db.key(it))}
-  listener.provider(observedProviderName(name,physical,provider?.name?:""),cached)
+  val cached=cache.peek(key)
+  val providerCached=provider?.let{cache.peek("provider:"+db.key(it))}
+  listener.channel(cached)
+  listener.provider(observedProviderName(name,physical,provider?.name?:""),providerCached)
+  if(cached!=null&&providerCached!=null)return
+  scope.launch{
+   val image=slots.withPermit{
+    observed(name,physical)?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.read(key)
+   }
+   val icon=slots.withPermit{
+    observed(name,physical,true)?:provider?.let{cache.read("provider:"+db.key(it))}
+   }
+   withContext(Dispatchers.Main){
+    if(image!=null)listener.channel(image)
+    if(icon!=null)listener.provider(
+      observedProviderName(name,physical,provider?.name?:""),icon)
+   }
+  }
  }
  fun request(name:String,listener:Listener){request(name,null,listener)}
  /**
@@ -77,11 +95,9 @@ class LogoRepository private constructor(context:Context){
   if(videoPriority){requestCached(name,physical,listener);return}
   val known=db.channel(name)
   val key=channelKey(name,known,physical)
-  val native=observed(name,physical)
-  val cached=native?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.peek(key)
+  val cached=cache.peek(key)
   val network=network(name,known)
-  val nativeProvider=observed(name,physical,true)
-  val providerCached=nativeProvider?:network?.let{cache.peek("provider:"+db.key(it))}
+  val providerCached=network?.let{cache.peek("provider:"+db.key(it))}
   if(cached!=null)listener.channel(cached)
   if(providerCached!=null)listener.provider(observedProviderName(name,physical,network?.name?:""),providerCached)
   if(cached!=null&&(network==null||providerCached!=null)){
@@ -91,7 +107,9 @@ class LogoRepository private constructor(context:Context){
   scope.launch{
    db.load();addon.load()
    val entry=db.channel(name)
-   val image=async{native?:get(channelKey(name,entry,physical)){
+   val image=async{
+    val native=observed(name,physical)
+    native?:get(channelKey(name,entry,physical)){
     val ambiguous=(addon.snapshot()?.candidates(name)?.map{it.physicalKey}?.distinct()?.size?:0)>1
     val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled())
         addon.resolvePhysical(physical,channels) else null
@@ -121,6 +139,7 @@ class LogoRepository private constructor(context:Context){
      provider=network(name,entry)
     }
     val selected=provider
+    val nativeProvider=observed(name,physical,true)
     val bitmap=nativeProvider?:if(selected==null)null else get("provider:"+db.key(selected)){providers.resolve(selected.id)}
     withContext(Dispatchers.Main){listener.provider(observedProviderName(name,physical,selected?.name?:""),bitmap)}
    }
