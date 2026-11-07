@@ -58,6 +58,8 @@ public final class ManualTransponderActivity extends HubActivity {
       "Discover channels directly on this frequency · PAT / PMT / SDT"),this::confirmDirectScan);
   action(panel,tx("اختيار القنوات المكتشفة وحفظها","Choose discovered channels to save"),this::chooseDirectServices);
   action(panel,tx("إيقاف البحث المباشر","Stop direct scan"),this::cancelDirectScan);
+  action(panel,tx("تقرير البحث الحقيقي و4:2:2","Search and 4:2:2 diagnostic report"),
+    ()->startActivity(new Intent(this,CompatibilityActivity.class)));
 
   action(panel,tx("حفظ التردد في IRAQhub","Save this transponder"),this::saveTransponder);
   action(panel,tx("قراءة معرّفات الخدمات SID إن توفرت","Check observed service IDs (SID)"),this::readSids);
@@ -187,6 +189,8 @@ public final class ManualTransponderActivity extends HubActivity {
  private void directScan(Selection selected){
   if(!busy.compareAndSet(false,true))return;
   directResults=null;resultSelection=null;services.setText("");
+  prefs().edit().remove("manual_direct_scan_last_error")
+   .putInt("manual_direct_scan_missing",0).putLong("manual_capture_bytes",0).apply();
   result.setText(tx("ضبط التردد وقراءة القنوات من بث TS الحقيقي…",
      "Tuning and extracting real DVB services…"));
   DirectTransponderScanner scanner=new DirectTransponderScanner(this);
@@ -225,6 +229,7 @@ public final class ManualTransponderActivity extends HubActivity {
    }catch(Exception problem){
     String reason=problem.getMessage()==null?"MANUAL_PSI_SCAN_UNAVAILABLE":problem.getMessage();
     prefs().edit().putString("manual_direct_scan_status",reason)
+      .putString("manual_direct_scan_last_error",reason)
       .putInt("manual_direct_scan_count",0).apply();
     runOnUiThread(()->{
      if(closed)return;
