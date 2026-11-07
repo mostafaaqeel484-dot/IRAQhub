@@ -71,8 +71,12 @@ final class RxSkin {
   state.addState(new int[]{},glass(c,false));return state;
  }
  static GradientDrawable bar(Context c,int opacity){
+  // Respect the existing InfoBar opacity control (30..95%): visuals only.
+  int level=Math.max(64,Math.min(248,opacity));
   GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-    new int[]{0xdc0b1220,0xf20c1525,0xe9091020});
+    new int[]{((Math.max(32,level-25))<<24)|0x000b1220,
+              (level<<24)|0x000c1525,
+              ((Math.min(255,level+8))<<24)|0x00091020});
   bg.setCornerRadius(dp(c,19));
   bg.setStroke(dp(c,1),accent(c)&0x00ffffff | 0x99000000);
   return bg;
