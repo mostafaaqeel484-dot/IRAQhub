@@ -251,6 +251,9 @@ final class NowNextView extends FrameLayout {
     s.channelId.equals(prefs.getString("decoder_channel",""));
   setStatus(noSignal?tx("لا يوجد إشارة","NO SIGNAL"):message);
  }
+ void expandedPosters(boolean expanded){
+  posterTray.setVisibility(expanded?VISIBLE:GONE);
+ }
  void metadata(MediaRepository.Item item){if(item!=null&&!item.id.startsWith("epg:")){String detail=item.release+(item.ratings.isEmpty()?"":" · ★ "+item.ratings);if(!detail.isEmpty()){remaining.setText(remaining.getText()+" · "+detail);remaining.setVisibility(VISIBLE);}if(prefs.getBoolean("osd_description",true)&&!item.summary.isEmpty())setStatus(item.summary);}}
  void provider(Bitmap image){providerLogo.setImageBitmap(image);providerLogo.setVisibility(image==null?GONE:VISIBLE);providerName.setVisibility(image==null?VISIBLE:GONE);}
  void setStatus(String value){
