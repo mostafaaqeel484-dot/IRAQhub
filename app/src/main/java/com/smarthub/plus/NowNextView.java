@@ -90,32 +90,30 @@ final class NowNextView extends FrameLayout {
   status=label("",10,false);status.setTextColor(muted);
   status.setVisibility(GONE);programme.addView(status);
 
-  LinearLayout posterTray=new LinearLayout(context);
-  posterTray.setGravity(Gravity.CENTER);
-  posterTray.setPadding(dp(9),0,dp(9),0);
-  primary.addView(posterTray,new LinearLayout.LayoutParams(dp(172),-2));
-  posterTray.setVisibility(GONE);
+  // Fix 12: EPG posters float ABOVE the InfoBar at opposite screen edges.
+  // They are children of the outer FrameLayout, not the horizontal bar.
+  // This keeps channel details, clock, tuner signal and 4:2:2 video unchanged.
   LinearLayout left=column();left.setGravity(Gravity.CENTER);
-  currentTitle=label(tx("الآن","NOW"),9,true);
+  currentTitle=label(tx("الآن","NOW"),10,true);
   currentTitle.setGravity(Gravity.CENTER);currentTitle.setTextColor(accent);
   currentPoster=poster();
   left.addView(currentTitle);
-  left.addView(currentPoster,new LinearLayout.LayoutParams(dp(66),dp(85)));
-  posterTray.addView(left,new LinearLayout.LayoutParams(0,-2,1));
+  left.addView(currentPoster,new LinearLayout.LayoutParams(dp(100),dp(135)));
   LinearLayout right=column();right.setGravity(Gravity.CENTER);
-  nextTitle=label(tx("التالي","NEXT"),9,true);
+  nextTitle=label(tx("التالي","NEXT"),10,true);
   nextTitle.setGravity(Gravity.CENTER);nextTitle.setTextColor(0xffd3d7db);
   nextPoster=poster();
   right.addView(nextTitle);
-  right.addView(nextPoster,new LinearLayout.LayoutParams(dp(66),dp(85)));
-  posterTray.addView(right,new LinearLayout.LayoutParams(0,-2,1));
-  // Expanded artwork is on opposite sides of the programme, never a paired central strip.
+  right.addView(nextPoster,new LinearLayout.LayoutParams(dp(100),dp(135)));
   leftPosterBox=left;rightPosterBox=right;
-  posterTray.removeAllViews();primary.removeView(posterTray);
   boolean swap=prefs.getBoolean("osd_swap_posters",false);
-  primary.addView(swap?right:left,1,new LinearLayout.LayoutParams(dp(98),-2));
-  primary.addView(swap?left:right,3,new LinearLayout.LayoutParams(dp(98),-2));
-  left.setVisibility(GONE);right.setVisibility(GONE);
+  LayoutParams leftPosition=new LayoutParams(dp(116),-2,Gravity.START|Gravity.BOTTOM);
+  leftPosition.setMargins(dp(20),0,0,barH+dp(17));
+  LayoutParams rightPosition=new LayoutParams(dp(116),-2,Gravity.END|Gravity.BOTTOM);
+  rightPosition.setMargins(0,0,dp(20),barH+dp(17));
+  addView(swap?right:left,leftPosition);
+  addView(swap?left:right,rightPosition);
+  leftPosterBox.setVisibility(GONE);rightPosterBox.setVisibility(GONE);
 
   LinearLayout signal=column();signal.setGravity(Gravity.CENTER_VERTICAL);
   primary.addView(signal,new LinearLayout.LayoutParams(dp(compact?120:152),-2));
@@ -180,8 +178,17 @@ final class NowNextView extends FrameLayout {
 
  void setExpanded(boolean value){
   expanded=value;
-  leftPosterBox.setVisibility(value&&prefs.getBoolean("osd_posters",true)?VISIBLE:GONE);
-  rightPosterBox.setVisibility(value&&prefs.getBoolean("osd_posters",true)?VISIBLE:GONE);
+  // Poster images show with the FIRST INFO press, not only expanded details.
+  // Empty event artwork stays invisible until its verified image is ready.
+  boolean showPosters=prefs.getBoolean("osd_posters",true);
+  leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
+  rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
+  // Keep poster corners just above the expanded/compact bar.
+  int top=dp(value?238:183)+dp(17);
+  FrameLayout.LayoutParams left=(FrameLayout.LayoutParams)leftPosterBox.getLayoutParams();
+  FrameLayout.LayoutParams right=(FrameLayout.LayoutParams)rightPosterBox.getLayoutParams();
+  if(left!=null&&left.bottomMargin!=top){left.bottomMargin=top;leftPosterBox.setLayoutParams(left);}
+  if(right!=null&&right.bottomMargin!=top){right.bottomMargin=top;rightPosterBox.setLayoutParams(right);}
   providerPanel.setVisibility(value?VISIBLE:GONE);
   FrameLayout.LayoutParams position=(FrameLayout.LayoutParams)bar.getLayoutParams();
   if(position!=null){position.height=dp(value?238:183);bar.setLayoutParams(position);}
