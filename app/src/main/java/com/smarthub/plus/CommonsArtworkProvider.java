@@ -49,9 +49,7 @@ final class CommonsArtworkProvider {
   JSONObject metadata=info.optJSONObject("extmetadata");
   if(metadata==null)throw new java.io.IOException("WIKIMEDIA_MISSING_LICENSE");
   String licence=plain(metadata.optJSONObject("LicenseShortName"));
-  String low=licence.toLowerCase(Locale.ROOT);
-  if(!(low.startsWith("cc by")||low.startsWith("cc0")
-    ||low.contains("public domain")||low.contains("gemeinfrei")))
+  if(!acceptedLicense(licence))
    throw new java.io.IOException("WIKIMEDIA_LICENSE_NOT_ACCEPTED");
   String author=plain(metadata.optJSONObject("Artist"));
   String credit=plain(metadata.optJSONObject("Credit"));
@@ -64,6 +62,16 @@ final class CommonsArtworkProvider {
    .put("licenseUrl",licenseUrl).put("artist",author)
    .put("credit",credit).put("provider","Wikimedia Commons")
    .put("verifiedAt",System.currentTimeMillis());
+ }
+ /** Accept genuinely free redistribution terms; CC-NC and CC-ND are not free. */
+ static boolean acceptedLicense(String raw){
+  String value=(raw==null?"":raw).toLowerCase(Locale.ROOT).trim();
+  if(value.contains("noncommercial")||value.contains("no derivatives")||
+     value.contains("cc by-nc")||value.contains("cc by-nd")||
+     value.contains("cc-by-nc")||value.contains("cc-by-nd"))return false;
+  return value.startsWith("cc by ")||value.startsWith("cc by-")||
+    value.equals("cc by")||value.startsWith("cc0")||
+    value.contains("public domain")||value.contains("gemeinfrei");
  }
  private static String plain(JSONObject data){
   if(data==null)return "";
