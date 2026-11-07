@@ -301,21 +301,35 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    new AlertDialog.Builder(this).setTitle(tx("تجربة بث مشفّر 4:2:2","Try encrypted 4:2:2"))
     .setMessage(tx("سيُستخدم فك BISS/CA المصرّح الموجود في الرسيفر فقط. إذا خرجت حزم TS مشفرة سيوقفها IRAQhub؛ مفتاح BISS المحلي لا يُحقن في خدمات المصنع.",
       "Uses only the receiver's existing authorised CA/BISS handling. If captured video is still scrambled, IRAQhub will reject it. Local BISS keys are not injected into firmware."))
-    .setPositiveButton(tx("تجربة","Try"),(dialog,which)->launchSoftware(ch))
+    .setPositiveButton(tx("تجربة","Try"),(dialog,which)->choose422Engine(ch))
     .setNegativeButton(tx("إلغاء","Cancel"),null).show();
    return;
   }
-  launchSoftware(ch);
+  choose422Engine(ch);
  }
- private void launchSoftware(ReceiverCatalog.Channel ch){
+ private void choose422Engine(ReceiverCatalog.Channel ch){
+  String[] engines={"LibVLC · FFmpeg", "libmpv · FFmpeg"};
+  int selected="mpv".equals(prefs().getString("decoder_422_engine","vlc"))?1:0;
+  new AlertDialog.Builder(this)
+   .setTitle(tx("مشغّل 4:2:2","Choose 4:2:2 player"))
+   .setSingleChoiceItems(engines,selected,(dialog,index)->{
+     dialog.dismiss();
+     String engine=index==1?"mpv":"vlc";
+     prefs().edit().putString("decoder_422_engine",engine).apply();
+     launchSoftware(ch,engine);
+   })
+   .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+ }
+ private void launchSoftware(ReceiverCatalog.Channel ch,String engine){
   new ChannelScope("",satellite,ch.tv,favoritesOnly,alphabetical,group).save(this);
-  startActivity(new Intent(this,SoftwareVideoActivity.class).putExtra("dvb_channel",ch.id));
+  startActivity(new Intent(this,SoftwareVideoActivity.class)
+   .putExtra("dvb_channel",ch.id).putExtra("decoder_engine",engine));
   finish();
  }
  private void details(ReceiverCatalog.Channel ch){
   String[] items=new String[]{
     tx("تشغيل القناة","Play with normal decoder"),
-    tx("تشغيل برمجي 4:2:2 · LibVLC","Software 4:2:2 · LibVLC"),
+    tx("تشغيل 4:2:2 · اختر VLC أو mpv","4:2:2 · choose VLC or mpv"),
     favorites.contains(ch.id)?tx("إزالة من المفضلة","Remove from favourites"):tx("إضافة للمفضلة","Add to favourites"),
     tx("مجموعات القناة","Channel groups"),
     tx("معلومات القناة","Channel details"),
