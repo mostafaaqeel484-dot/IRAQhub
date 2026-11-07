@@ -21,7 +21,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          # Upstream dev.jdtech.mpv:libmpv:1.0.0 publishes classfile major 65
+          # (Java 21); Java 17 javac rejects MPVLib before Android dexing.
+          java-version: '21'
       - uses: android-actions/setup-android@v4
       - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
