@@ -7,7 +7,7 @@ final class Auto422Policy {
   * Use observed CPU capacity rather than treating four threads as a universal optimum. */
  static String choose(double processCpuPercent,int cores,boolean lowMemory,int thermalStatus){
   if(lowMemory||thermalStatus>=3)return Software422Profile.SMOOTH;
-  int usable=Math.max(1,cores-1);
+  int usable=Math.max(1,Math.min(4,cores-1));
   if(processCpuPercent>=usable*75.0)return Software422Profile.SMOOTH;
   return Software422Profile.BALANCED;
  }
