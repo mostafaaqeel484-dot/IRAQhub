@@ -58,6 +58,8 @@ public final class HubSettingsActivity extends HubActivity {
   open(help,tx("لوحة المساعدة واختصارات الريموت","Remote control help"),RemoteHelpActivity.class);
   open(help,tx("الإعدادات المتقدمة — كل الخيارات السابقة","Advanced — all previous settings"),AdvancedSettingsActivity.class);
   open(help,tx("فحص الإشارة والتوافق","Signal and compatibility"),CompatibilityActivity.class);
+  open(help,tx("ربط جهاز X5M · تصحيح USB ولوحة الرسيفر",
+    "X5M hardware · USB ADB and front-panel bridge"),ReceiverHardwareBridgeActivity.class);
   action(help,tx("تصحيح USB (ADB) · خيارات المطور","USB ADB debugging · Developer options"),
     ()->UsbAdbSetup.show(this));
  }
