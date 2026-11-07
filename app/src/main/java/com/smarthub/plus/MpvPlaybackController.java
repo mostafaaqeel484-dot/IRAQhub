@@ -33,12 +33,13 @@ final class MpvPlaybackController implements SurfaceHolder.Callback,MPVLib.Event
  private String url;
  private boolean attached,loaded;
  private long openedAt;
- private final Runnable missingVideo=()->{
-  if(!stopped.get()&&!loaded)listener.failure("MPV_NO_VIDEO_CONFIG_16S");
- };
+ private final Runnable missingVideo;
 
  MpvPlaybackController(Activity activity,FrameLayout host,Listener listener){
   this.activity=activity;this.host=host;this.listener=listener;
+  this.missingVideo=()->{
+   if(!stopped.get()&&!loaded)this.listener.failure("MPV_NO_VIDEO_CONFIG_16S");
+  };
  }
  static boolean available(){
   try{Class.forName("dev.jdtech.mpv.MPVLib");return true;}
