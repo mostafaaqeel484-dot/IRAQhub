@@ -56,7 +56,13 @@ final class ReceiverOemSqliteImport {
   none(db,"SELECT COUNT(*) FROM satellite_transponder_table t LEFT JOIN satellite_table s ON t.sat_id=s.id WHERE s.id IS NULL","OEM_DB_ORPHAN_TRANSPONDER");
   none(db,"SELECT COUNT(*) FROM fav_prog_table f LEFT JOIN program_table p ON f.prog_id=p.id LEFT JOIN fav_name_table g ON f.fav_group_id=g.id WHERE p.id IS NULL OR g.id IS NULL","OEM_DB_ORPHAN_FAVOURITE");
   none(db,"SELECT COUNT(*) FROM satellite_table WHERE id<1 OR id>1000000 OR angle<0 OR angle>1800 OR sat_dir NOT IN ('0','1') OR name IS NULL OR length(name) NOT BETWEEN 1 AND 200","OEM_DB_SAT_INVALID");
-  none(db,"SELECT COUNT(*) FROM satellite_transponder_table WHERE id<1 OR id>1000000 OR freq NOT BETWEEN 100 AND 100000 OR sym_rate NOT BETWEEN 1 AND 100000 OR pol NOT IN ('0','1')","OEM_DB_TP_INVALID");
+  // Aurum exports can contain a few signed/placeholder RF frequencies.
+  // Retain those services for list parity, but never tune them.
+  // The playback request explicitly rejects frequencies outside 100..100000.
+  none(db,"SELECT COUNT(*) FROM satellite_transponder_table WHERE id<1 OR id>1000000 OR freq IS NULL OR freq < -32768 OR freq > 100000 OR sym_rate NOT BETWEEN 1 AND 100000 OR pol NOT IN ('0','1')","OEM_DB_TP_INVALID");
+  if(DatabaseUtils.longForQuery(db,
+      "SELECT COUNT(*) FROM satellite_transponder_table WHERE freq < 100",null)>16)
+   throw new IOException("OEM_DB_TOO_MANY_UNTUNABLE_TPS");
   none(db,"SELECT COUNT(*) FROM program_table WHERE id<1 OR id>1000000 OR service_id NOT BETWEEN 0 AND 65535 OR tv_type NOT IN ('0','1','2') OR name IS NULL OR length(name) NOT BETWEEN 1 AND 200","OEM_DB_CHANNEL_INVALID");
  }
  private static ContentValues values(Object... pairs){
@@ -121,7 +127,7 @@ final class ReceiverOemSqliteImport {
      try(Cursor rows=source.rawQuery(
       "SELECT p.id,p.tp_id,p.name,p.service_id,p.tv_type,p.vid_pid,p.pcr_pid,p.pmt_pid,p.vid_type,"+
       "p.ca_systemid_list,p.disp_order,p.video_width,p.video_height,p.chromaformat,p.lcn_no,"+
-      "t.ts_id,t.on_id,COALESCE((SELECT name FROM tp_network_name_table n WHERE n.tp_id=p.tp_id ORDER BY n.id LIMIT 1),'') "+
+      "t.ts_id,t.on_id,COALESCE((SELECT name FROM tp_network_name_table n WHERE n.tp_id=p.tp_id ORDER BY n.id LIMIT 1),''),t.freq "+
       "FROM program_table p JOIN satellite_transponder_table t ON t.id=p.tp_id ORDER BY p.disp_order,p.id",null)){
       while(rows.moveToNext()){
        if(Thread.currentThread().isInterrupted())throw new IOException("OEM_DB_IMPORT_CANCELLED");
@@ -141,6 +147,8 @@ final class ReceiverOemSqliteImport {
         .put("CaSystemIdList",systems)
         .put("Width",rows.getInt(11)).put("Height",rows.getInt(12))
         .put("ChromaFormat",rows.getInt(13)).put("Lcn",rows.getInt(14))
+        .put("RfFrequencyValid",rows.getInt(18)>=100&&rows.getInt(18)<=100000)
+        .put("SourceRfFrequency",rows.getInt(18))
         .put("Discovery","AURUM_EXPORTED_SQLITE");
        target.insertOrThrow("ch",null,values("_id",id,"tp_id",rows.getInt(1),
         "name",name,"provider",provider,"sid",rows.getInt(3),"tv",tv,
