@@ -37,6 +37,15 @@ public final class SoftwareVideoActivity extends HubActivity {
     private String playbackUri;
     private int streamRetries;
     private long lastBufferStatus;
+    private boolean videoOutputSeen;
+    private long decoderOpenedAt;
+    private final Runnable voutWatchdog=()->{
+       if(released||backgroundStopped||videoOutputSeen||mediaPlayer==null)return;
+       if(satelliteRelay==null||!satelliteRelay.running())return;
+       prefs().edit().putString("decoder_422_verification","NO_VIDEO_OUTPUT_AFTER_14S")
+         .putString("software_422_runtime","PLAYING_BUT_NO_VIDEO_VOUT").apply();
+       if(streamRetries<2)recoverStream();
+    };
     private final android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
     private LiveTsRelay satelliteRelay;
     private long nativeAudioToken;
@@ -172,6 +181,16 @@ public final class SoftwareVideoActivity extends HubActivity {
         if(released||backgroundStopped)return;
         playbackUri=source;
         streamRetries=0;
+        videoOutputSeen=false;
+        decoderOpenedAt=android.os.SystemClock.elapsedRealtime();
+        main.removeCallbacks(voutWatchdog);
+        prefs().edit().putString("software_422_runtime","LIBVLC_OPENING")
+          .putString("decoder_422_verification","WAITING_FOR_VIDEO_OUTPUT")
+          .putString("decoder_kind","SOFTWARE_LIBVLC_FFMPEG")
+          .putString("decoder_name","LibVLC avcodec")
+          .putLong("decoder_first_frame_at",0)
+          .putInt("libvlc_vout_count",0)
+          .putString("decoder_last_error","NONE").apply();
         try {
             closeDecoder();
             // Real 4:2:2 requires FFmpeg software decode unless the actual
@@ -194,18 +213,40 @@ public final class SoftwareVideoActivity extends HubActivity {
                             status.setText(tx("مزامنة بيانات الفيديو والصوت…","Synchronising video and audio…"));
                         }
                         break;
+                    case MediaPlayer.Event.Vout:
+                        int outputs=event.getVoutCount();
+                        prefs().edit().putInt("libvlc_vout_count",outputs).apply();
+                        if(outputs>0&&!videoOutputSeen){
+                           videoOutputSeen=true;
+                           main.removeCallbacks(voutWatchdog);
+                           prefs().edit().putString("decoder_422_verification",
+                             "LIBVLC_VIDEO_OUTPUT_PRESENT_COLOR_NOT_TESTED")
+                             .putString("software_422_runtime","LIBVLC_VOUT_READY")
+                             .putLong("decoder_first_frame_at",System.currentTimeMillis())
+                             .putLong("libvlc_vout_latency_ms",
+                               android.os.SystemClock.elapsedRealtime()-decoderOpenedAt).apply();
+                        }
+                        break;
                     case MediaPlayer.Event.Playing:
                         NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
+                        if(!videoOutputSeen)main.postDelayed(voutWatchdog,14000L);
+                        prefs().edit().putString("software_422_runtime",
+                           videoOutputSeen?"LIBVLC_VOUT_READY":"LIBVLC_PLAYING_WAIT_VOUT").apply();
                         if(localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1L)>=0)localInfo.show();
                         status.setText(tx("LibVLC يعمل برمجياً · تحقق من ظهور صورة فعلية · "+Software422Profile.current(this),
                            "Software decoder running · verify visible picture · "+Software422Profile.current(this)));
                         break;
                     case MediaPlayer.Event.EncounteredError:
+                        main.removeCallbacks(voutWatchdog);
+                        prefs().edit().putString("software_422_runtime","LIBVLC_ERROR")
+                          .putString("decoder_last_error","LIBVLC_ENCOUNTERED_ERROR").apply();
                         status.setText(tx("انقطاع بث TS أو خطأ فك الصورة، فحص إعادة الاتصال…",
                                           "TS stream or video decoding error; checking reconnect…"));
                         recoverStream();
                         break;
                     case MediaPlayer.Event.EndReached:
+                        main.removeCallbacks(voutWatchdog);
+                        prefs().edit().putString("software_422_runtime","LIBVLC_STREAM_ENDED").apply();
                         status.setText(tx("انتهى بث TS","TS stream ended"));
                         recoverStream();
                         break;
@@ -220,6 +261,9 @@ public final class SoftwareVideoActivity extends HubActivity {
             media.release();
             mediaPlayer.play();
         } catch (Throwable failure) {
+            main.removeCallbacks(voutWatchdog);
+            prefs().edit().putString("software_422_runtime","LIBVLC_STARTUP_FAILED")
+              .putString("decoder_last_error",failure.getClass().getSimpleName()).apply();
             if (status != null) {
                 String detail = failure.getMessage();
                 status.setText(tx("تعذر تشغيل LibVLC", "LibVLC startup failed")
@@ -272,11 +316,13 @@ public final class SoftwareVideoActivity extends HubActivity {
     /** Restart LibVLC only, leaving the DVB capture and tuned satellite untouched. */
     private void choosePerformance(){
         final String[] modes={Software422Profile.SMOOTH,
-            Software422Profile.BALANCED,Software422Profile.QUALITY};
+            Software422Profile.BALANCED,Software422Profile.QUALITY,
+            Software422Profile.STABLE};
         final String[] labels={
             tx("سريع · يقلل كلفة الفلترة دون حذف إطارات أساسية","Smooth · lower deblocking load, no frame skipping"),
             tx("متوازن · صورة وصوت","Balanced · picture and sound"),
             tx("جودة أعلى · يحتاج CPU أقوى","Higher quality · uses more CPU"),
+            tx("ثابت · تخزين مؤقت أكبر وحفظ الإطارات","Stable · larger buffer and preserve frames"),
             tx("تشخيص الجهاز وسرعة بث TS","Device and live TS diagnostics")
         };
         int current=1;
@@ -290,7 +336,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         new AlertDialog.Builder(this).setTitle(tx("أداء 4:2:2","4:2:2 performance"))
           .setSingleChoiceItems(labels,current,(dialog,which)->{
             dialog.dismiss();
-            if(which==3){
+            if(which==4){
                 new AlertDialog.Builder(this).setTitle(tx("فحص X5M وTS","X5M / TS diagnostics"))
                     .setMessage(diagnostics).setPositiveButton("OK",null).show();
                 return;
@@ -305,6 +351,7 @@ public final class SoftwareVideoActivity extends HubActivity {
           }).setNegativeButton(tx("رجوع","Close"),null).show();
     }
     private void closeDecoder(){
+        main.removeCallbacks(voutWatchdog);
         if(mediaPlayer!=null){
             try{mediaPlayer.setEventListener(null);}catch(Throwable ignored){}
             try{mediaPlayer.stop();}catch(Throwable ignored){}
