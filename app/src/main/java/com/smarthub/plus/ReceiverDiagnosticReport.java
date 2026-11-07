@@ -44,6 +44,13 @@ final class ReceiverDiagnosticReport {
    .append(" psi_snapshots=").append(p.getInt("manual_capture_snapshots",0)).append('\n');
   line(b,"native_search_route",p.getString("native_search_launch_status","NOT_TESTED"));
   b.append("\n[4:2:2 playback]\n");
+  line(b,"focus_mode",p.getString("video_priority_mode","NORMAL"));
+  line(b,"app_optional_work",p.getString("video_priority_jobs","NOT_TESTED"));
+  b.append("focus_ram_trim_at=").append(p.getLong("video_priority_ram_trim_at",0))
+    .append(" jobs_paused_at=").append(p.getLong("video_priority_jobs_paused_at",0))
+    .append(" jobs_restored_at=").append(p.getLong("video_priority_jobs_restored_at",0))
+    .append('\n');
+  line(b,"mpv_422_cpu_profile",p.getString("mpv_422_cpu_profile","UNTESTED"));
   line(b,"profile",Software422Profile.current(context));
   line(b,"auto_effective_next_open",Software422Profile.effective(context));
   b.append("auto_process_cpu_percent_of_one_core=")
@@ -75,7 +82,17 @@ final class ReceiverDiagnosticReport {
    .append(" lastFrameElapsedMs=").append(p.getLong("libvlc_last_picture_advanced_ms",-1))
    .append('\n');
   line(b,"subtitle_binding",p.getString("native_subtitle_status","NOT_BOUND"));
-  b.append("Frame counters are from LibVLC; picture colours need device verification.\n");
+  int displayFps=p.getInt("libvlc_display_fps_x100",-1);
+  int decodeFps=p.getInt("libvlc_decode_fps_x100",-1);
+  b.append("LibVLC DISPLAY fps=")
+    .append(displayFps<0?"UNKNOWN":String.format(Locale.ROOT,"%.2f",displayFps/100.0))
+    .append(" DECODE fps=")
+    .append(decodeFps<0?"UNKNOWN":String.format(Locale.ROOT,"%.2f",decodeFps/100.0))
+    .append(" frame_deltas=")
+    .append(p.getLong("libvlc_display_frame_delta",-1)).append("/")
+    .append(p.getLong("libvlc_decoded_frame_delta",-1))
+    .append('\n');
+  b.append("VOUT_READY alone is NOT proof of moving frames. Counters do not verify panel colours.\n");
   line(b,"last_decoder_error",p.getString("decoder_last_error","NONE"));
   line(b,"manual_capture_failure_analysis",
     "zero capture_bytes means no MPEG-TS delivered, PSI parsing cannot discover services");

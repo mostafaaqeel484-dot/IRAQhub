@@ -16,6 +16,8 @@ final class NowNextView extends FrameLayout {
  private final LinearLayout providerPanel,resolutionStrip,details,bar,leftPosterBox,rightPosterBox;
  private final TextView[] resolutionChips=new TextView[5];
  private final TextView[] featureChips=new TextView[6];
+ private final int[] resolutionDrawn=new int[5],featureDrawn=new int[6];
+ private int encryptionDrawn=-1;
  private final ProgressBar progress,strengthBar,qualityBar;
  private final android.content.SharedPreferences prefs;
  private final int ink=0xfff1f1f5,muted=0xffafbdc9;
@@ -23,14 +25,16 @@ final class NowNextView extends FrameLayout {
  NowNextView(Context context){
   super(context);
   prefs=context.getSharedPreferences("smarthub",0);
+  java.util.Arrays.fill(resolutionDrawn,-1);
+  java.util.Arrays.fill(featureDrawn,-1);
   accent=RxSkin.accent(context);
   try{accent=Color.parseColor(prefs.getString("osd_accent",
       String.format(Locale.ROOT,"#%06X",accent&0xffffff)));}catch(Exception ignored){}
   setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-  // RX replaces the former stack of floating info panels with a single clean
-  // low-profile bar. Posters sit INSIDE the bar and never mask the TV picture.
+  // Tiger reference: two-row header at the top, channel/event/signal below.
+  // Programme posters are independently placed ABOVE the black ribbon.
   final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
-  int barH=dp(detailed?238:183);
+  int barH=dp(TigerOsdMetrics.barHeightDp(detailed));
   int tickerH=prefs.getBoolean("sports_ticker",false)?dp(62):0;
   compact=barH<dp(145);
   textScale=Math.max(.90f,Math.min(1.06f,barH/(150f*
@@ -46,12 +50,24 @@ final class NowNextView extends FrameLayout {
   barPosition.setMargins(dp(8),0,dp(8),dp(8));
   addView(bar,barPosition);
 
+  // Match reference hierarchy: (channel/frequency) | (two icon rows) |
+  // (clock/date), all ABOVE the programme logo and S/Q meters.
+  LinearLayout header=new LinearLayout(context);
+  header.setGravity(Gravity.CENTER_VERTICAL);
+  LinearLayout headLeft=column();headLeft.setGravity(Gravity.CENTER_VERTICAL);
+  LinearLayout headCenter=column();headCenter.setGravity(Gravity.CENTER_VERTICAL);
+  LinearLayout headRight=column();headRight.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.2f));
+  header.addView(headCenter,new LinearLayout.LayoutParams(0,-1,.85f));
+  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,.75f));
+  bar.addView(header,new LinearLayout.LayoutParams(-1,dp(TigerOsdMetrics.headerHeightDp())));
+
   LinearLayout primary=new LinearLayout(context);
   primary.setGravity(Gravity.CENTER_VERTICAL);
   bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
   LinearLayout brand=column();brand.setGravity(Gravity.CENTER);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(79),dp(55)));
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(92),dp(72)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -65,15 +81,15 @@ final class NowNextView extends FrameLayout {
   providerPanel.addView(providerName);
   providerPanel.setVisibility(detailed?VISIBLE:GONE);
   brand.addView(providerPanel);
-  primary.addView(brand,new LinearLayout.LayoutParams(dp(detailed?104:89),-2));
+  primary.addView(brand,new LinearLayout.LayoutParams(dp(108),-2));
 
   LinearLayout programme=column();
-  programme.setPadding(dp(14),dp(2),dp(12),0);
+  programme.setPadding(dp(10),0,dp(10),0);
   primary.addView(programme,new LinearLayout.LayoutParams(0,-2,1.5f));
   heading=label("IRAQhub",compact?18:22,true);
-  heading.setTextColor(0xff3fe44d);programme.addView(heading);
+  heading.setTextColor(0xff3fe44d);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);headLeft.addView(heading);
   broadcast=label("",10,false);broadcast.setTextColor(0xffe0e0e0);
-  programme.addView(broadcast);
+  headLeft.addView(broadcast);
   nowLine=label("",compact?13:16,true);
   programme.addView(nowLine);
   nextLine=label("",compact?11:13,false);
@@ -116,10 +132,10 @@ final class NowNextView extends FrameLayout {
   leftPosterBox.setVisibility(GONE);rightPosterBox.setVisibility(GONE);
 
   LinearLayout signal=column();signal.setGravity(Gravity.CENTER_VERTICAL);
-  primary.addView(signal,new LinearLayout.LayoutParams(dp(compact?120:152),-2));
+  primary.addView(signal,new LinearLayout.LayoutParams(dp(212),-2));
   clock=label("",compact?15:18,true);
   clock.setTextDirection(View.TEXT_DIRECTION_LTR);
-  clock.setGravity(Gravity.RIGHT);signal.addView(clock);
+  clock.setGravity(Gravity.RIGHT);headRight.addView(clock);
   strengthLabel=label("S: —",10,false);
   strengthBar=meter(0xff28cbfa);
   qualityLabel=label("Q: —",10,false);
@@ -138,7 +154,7 @@ final class NowNextView extends FrameLayout {
    TextView chip=label(ReceiverTechnicalBadges.RESOLUTIONS[i],10,true);
    chip.setGravity(Gravity.CENTER);chip.setPadding(dp(3),0,dp(3),0);
    resolutionChips[i]=chip;
-   resolutionStrip.addView(chip,new LinearLayout.LayoutParams(dp(44),dp(23)));
+   resolutionStrip.addView(chip,new LinearLayout.LayoutParams(dp(TigerOsdMetrics.iconWidthDp()),dp(TigerOsdMetrics.iconHeightDp())));
   }
   weather=label("",10,false);weather.setTextColor(muted);
   signalSource=label("",10,false);signalSource.setTextColor(muted);
@@ -148,22 +164,32 @@ final class NowNextView extends FrameLayout {
   technical=label("",10,false);technical.setTextColor(muted);
   details=new LinearLayout(context);
   details.setGravity(Gravity.CENTER_VERTICAL);
-  programme.addView(resolutionStrip);
+  // Two uniform badge rows occupy the centre, as on the original receiver.
   LinearLayout featureRow=new LinearLayout(context);featureRow.setGravity(Gravity.CENTER_VERTICAL);
   String[] tags={"TXT","H265","SUB","EPG","CA","PIP"};
   for(int i=0;i<tags.length;i++){
    TextView c=label(tags[i],9,true);c.setGravity(Gravity.CENTER);c.setPadding(dp(3),dp(1),dp(3),dp(1));
-   featureChips[i]=c;featureRow.addView(c,new LinearLayout.LayoutParams(dp(43),dp(21)));
+   featureChips[i]=c;featureRow.addView(c,new LinearLayout.LayoutParams(dp(TigerOsdMetrics.iconWidthDp()),dp(TigerOsdMetrics.iconHeightDp())));
   }
-  programme.addView(featureRow);
-  details.addView(encryptionLine);
+  headCenter.addView(featureRow);
+  headCenter.addView(resolutionStrip);
   details.addView(signalSource);
   details.addView(signalDetail);
   details.addView(bitrateLabel);
   details.addView(weather);
-  details.addView(technical,new LinearLayout.LayoutParams(0,-2,1));
-  details.setVisibility(VISIBLE);
+  // Expanded-only diagnostics must not crowd the compact reference ribbon.
+  details.setVisibility(detailed?VISIBLE:GONE);
   bar.addView(details,new LinearLayout.LayoutParams(-1,-2));
+
+  // Reference bottom row: BER/SNR/aspect/bitrate at left and CA/FTA at right.
+  LinearLayout footer=new LinearLayout(context);
+  footer.setGravity(Gravity.CENTER_VERTICAL);
+  technical.setSingleLine(true);
+  technical.setEllipsize(android.text.TextUtils.TruncateAt.END);
+  technical.setTextColor(0xffd7dadd);
+  footer.addView(technical,new LinearLayout.LayoutParams(0,-1,1));
+  footer.addView(encryptionLine,new LinearLayout.LayoutParams(-2,dp(20)));
+  bar.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
 
   if(tickerH>0){
    ticker=new MatchTickerView(context);
@@ -185,17 +211,21 @@ final class NowNextView extends FrameLayout {
   leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   // Keep poster corners just above the expanded/compact bar.
-  int top=dp(value?238:183)+dp(17);
+  int top=dp(TigerOsdMetrics.posterBottomMarginDp(value));
   FrameLayout.LayoutParams left=(FrameLayout.LayoutParams)leftPosterBox.getLayoutParams();
   FrameLayout.LayoutParams right=(FrameLayout.LayoutParams)rightPosterBox.getLayoutParams();
   if(left!=null&&left.bottomMargin!=top){left.bottomMargin=top;leftPosterBox.setLayoutParams(left);}
   if(right!=null&&right.bottomMargin!=top){right.bottomMargin=top;rightPosterBox.setLayoutParams(right);}
   providerPanel.setVisibility(value?VISIBLE:GONE);
+  details.setVisibility(value?VISIBLE:GONE);
   FrameLayout.LayoutParams position=(FrameLayout.LayoutParams)bar.getLayoutParams();
-  if(position!=null){position.height=dp(value?238:183);bar.setLayoutParams(position);}
+  if(position!=null){position.height=dp(TigerOsdMetrics.barHeightDp(value));bar.setLayoutParams(position);}
  }
  void bind(SatelliteState s,Bitmap current,Bitmap next,Bitmap channelLogo,String message){
   boolean lite=PlaybackResourceMode.lite(getContext());
+  // Avoid holding two decoded programme posters while X5M must render 4:2:2.
+  // They remain on disk and reappear when the software decoder closes.
+  if(lite){current=null;next=null;}
   if(!liteApplied||lite!=lastLiteValue){
    bar.setElevation(lite?0:dp(6));
    currentPoster.setElevation(lite?0:dp(8));
@@ -209,13 +239,17 @@ final class NowNextView extends FrameLayout {
    String kind=ReceiverTechnicalBadges.RESOLUTIONS[i];
    boolean active=kind.equals(badge);
    TextView chip=resolutionChips[i];
-   chip.setTextColor(active?0xff081322:0xff9caebd);
-   GradientDrawable background=new GradientDrawable();
-   background.setColor(active?accent:0xa0263749);
-   background.setStroke(dp(1),active?0xfff1f1f5:0x66899caf);
-   background.setCornerRadius(dp(5));
-   chip.setBackground(background);
-   chip.setContentDescription(active?kind+" · "+tx("الدقة الفعلية","observed resolution"):kind+" · "+tx("غير نشط","inactive"));
+   int state=active?1:0;
+   if(resolutionDrawn[i]!=state){
+    resolutionDrawn[i]=state;
+    chip.setTextColor(active?0xff081322:0xff9caebd);
+    GradientDrawable background=new GradientDrawable();
+    background.setColor(active?accent:0xa0263749);
+    background.setStroke(dp(1),active?0xfff1f5f5:0x66899caf);
+    background.setCornerRadius(dp(4));
+    chip.setBackground(background);
+    chip.setContentDescription(active?kind+" · "+tx("الدقة الفعلية","observed resolution"):kind+" · "+tx("غير نشط","inactive"));
+   }
   }
   resolutionStrip.setContentDescription(badge.isEmpty()?tx("الدقة غير متاحة","Video resolution not available"):badge);
   broadcast.setText(info.broadcast);broadcast.setVisibility(info.broadcast.isEmpty()?GONE:VISIBLE);
@@ -237,18 +271,24 @@ final class NowNextView extends FrameLayout {
   long length=s.endMs-s.startMs;progress.setProgress(length>0?(int)Math.max(0,Math.min(1000,(System.currentTimeMillis()-s.startMs)*1000/length)):0);progress.setVisibility(length>0?VISIBLE:INVISIBLE);
   ProgrammeClock timer=new ProgrammeClock(s.startMs,s.endMs,System.currentTimeMillis());remaining.setText(timer.known?tx("متبقي  ","REMAINING  ")+ProgrammeClock.format(timer.remainingMs,false):"");remaining.setVisibility(timer.known?VISIBLE:GONE);
   SimpleDateFormat day=new SimpleDateFormat("EEE dd MMM yyyy",prefs.getBoolean("arabic",true)?new Locale("ar"):Locale.ENGLISH);day.setTimeZone(TimeZone.getTimeZone("Asia/Baghdad"));clock.setText(shortTime(System.currentTimeMillis())+"\n"+day.format(new Date()));clock.setVisibility(prefs.getBoolean("osd_clock",true)?VISIBLE:GONE);
-  weather.setText(WeatherRepository.label(getContext()));weather.setVisibility(prefs.getBoolean("osd_weather",false)?VISIBLE:GONE);
+  boolean showWeather=!lite&&prefs.getBoolean("osd_weather",false);
+  if(showWeather)weather.setText(WeatherRepository.label(getContext()));
+  weather.setVisibility(showWeather?VISIBLE:GONE);
   String strength=ReceptionData.value(getContext(),s,"strength"),quality=ReceptionData.value(getContext(),s,"quality");strengthLabel.setText("S: "+(strength.isEmpty()?"—":strength));qualityLabel.setText("Q: "+(quality.isEmpty()?"—":quality));strengthBar.setProgress(percent(strength),true);qualityBar.setProgress(percent(quality),true);strengthBar.setVisibility(strength.isEmpty()?INVISIBLE:VISIBLE);qualityBar.setVisibility(quality.isEmpty()?INVISIBLE:VISIBLE);
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   String ca=info.encryption;
   boolean encrypted=!ca.isEmpty()&&!ca.startsWith("FTA")&&!ca.contains("مفتوحة");
   encryptionLine.setText(ca.isEmpty()?tx("CA —","CA —"):encrypted?"🔒 "+ca:"🔓 "+ca);
-  GradientDrawable caBackground=new GradientDrawable();
-  caBackground.setColor(encrypted?0x704c3545:0x66314f42);
-  caBackground.setCornerRadius(dp(5));
-  caBackground.setStroke(dp(1),encrypted?0xffe3aa7f:0xff74bea1);
-  encryptionLine.setBackground(caBackground);
-  encryptionLine.setPadding(dp(6),dp(3),dp(6),dp(3));
+  int caState=encrypted?1:0;
+  if(encryptionDrawn!=caState){
+   encryptionDrawn=caState;
+   GradientDrawable caBackground=new GradientDrawable();
+   caBackground.setColor(encrypted?0x704c3545:0x66314f42);
+   caBackground.setCornerRadius(dp(4));
+   caBackground.setStroke(dp(1),encrypted?0xffe3aa7f:0xff74bea1);
+   encryptionLine.setBackground(caBackground);
+   encryptionLine.setPadding(dp(6),dp(1),dp(6),dp(1));
+  }
   encryptionLine.setGravity(Gravity.CENTER);
   encryptionLine.setContentDescription(ca.isEmpty()?tx("معلومات التشفير غير متاحة","CA information unknown"):ca);
   ArrayList<String> details=new ArrayList<>();
@@ -258,8 +298,15 @@ final class NowNextView extends FrameLayout {
   if(!info.broadcast.isEmpty())details.add(info.broadcast);
   if(s.source.startsWith("IPTV")){String audio=prefs.getString("osd_audio","");if(!audio.isEmpty())details.add(audio);}
   if(s.channelId.equals(prefs.getString("subtitle_channel_id",""))&&s.startMs==prefs.getLong("subtitle_event_start_ms",0)&&prefs.getBoolean("overlay_caption",false))details.add("SUB · "+prefs.getString("subtitle_provider","")+String.format(Locale.ROOT," %+.3f s",prefs.getLong("subtitle_offset",0)/1000.0));
-  SportsMatch related=MatchRepository.get(getContext()).forProgramme(s);if(related!=null)details.add(related.league+" · "+related.home+" "+related.score()+" "+related.away+" · "+related.state());
-  technical.setText(String.join("   ·   ",details));technical.setVisibility(details.isEmpty()?GONE:VISIBLE);
+  if(!lite){
+   SportsMatch related=MatchRepository.get(getContext()).forProgramme(s);
+   if(related!=null)details.add(related.league+" · "+related.home+" "+related.score()+" "+related.away+" · "+related.state());
+  }
+  String receiverMetrics=info.signalDetail();
+  String featureText=String.join("   ·   ",details);
+  technical.setText((receiverMetrics==null||receiverMetrics.isEmpty()?"":receiverMetrics)+
+    (featureText.isEmpty()?"":"   ·   "+featureText));
+  technical.setVisibility(VISIBLE);
   String[] featureNames={"TXT","H265","SUB","EPG","CA","PIP"};
   boolean[] featureActive={
    prefs.getBoolean("native_subtitle_teletext_active",false),
@@ -270,6 +317,9 @@ final class NowNextView extends FrameLayout {
    prefs.getBoolean("dvb_pip_active",false)
   };
   for(int i=0;i<featureChips.length;i++){
+   int state=featureActive[i]?1:0;
+   if(featureDrawn[i]==state)continue;
+   featureDrawn[i]=state;
    GradientDrawable chip=new GradientDrawable();
    chip.setColor(featureActive[i]?0xffeeeeef:0xff363638);
    chip.setCornerRadius(dp(4));
@@ -277,7 +327,19 @@ final class NowNextView extends FrameLayout {
    featureChips[i].setTextColor(featureActive[i]?0xff111114:0xff85858b);
    featureChips[i].setContentDescription(featureNames[i]+(featureActive[i]?" active":" inactive"));
   }
-  if(ticker!=null){ArrayList<SportsMatch> selected=new ArrayList<>();for(SportsMatch m:MatchRepository.get(getContext()).snapshot()){LeagueRepository.League l=LeagueRepository.byId(m.leagueId);if(l!=null&&MatchRepository.get(getContext()).selected(l)&&m.kickoff>System.currentTimeMillis()-86400000L&&m.kickoff<System.currentTimeMillis()+2*86400000L)selected.add(m);}ticker.bind(selected);}
+  if(ticker!=null){
+   ticker.setVisibility(lite?GONE:VISIBLE);
+   if(!lite){
+    ArrayList<SportsMatch> selected=new ArrayList<>();
+    for(SportsMatch m:MatchRepository.get(getContext()).snapshot()){
+     LeagueRepository.League l=LeagueRepository.byId(m.leagueId);
+     if(l!=null&&MatchRepository.get(getContext()).selected(l)&&
+      m.kickoff>System.currentTimeMillis()-86400000L&&
+      m.kickoff<System.currentTimeMillis()+2*86400000L)selected.add(m);
+    }
+    ticker.bind(selected);
+   }
+  }
   boolean show=prefs.getBoolean("osd_posters",true);
   leftPosterBox.setVisibility(show&&current!=null&&!s.title.isEmpty()?VISIBLE:GONE);
   rightPosterBox.setVisibility(show&&next!=null&&!s.nextTitle.isEmpty()?VISIBLE:GONE);

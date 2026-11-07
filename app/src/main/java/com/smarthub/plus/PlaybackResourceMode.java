@@ -20,7 +20,13 @@ final class PlaybackResourceMode {
    app.getSharedPreferences("smarthub",0).edit()
       .putBoolean("video_priority_active",true)
       .putLong("video_priority_since",System.currentTimeMillis()).apply();
+   // 4:2:2 focus: clear app-owned decoded logo bitmaps before the player
+   // begins decoding. Preserve cached files so logos/posters still work later.
    LogoRepository.get(app).pauseForVideo();
+   IraqHubSyncScheduler.suspendForVideo(app);
+   app.getSharedPreferences("smarthub",0).edit()
+     .putLong("video_priority_ram_trim_at",System.currentTimeMillis())
+     .putString("video_priority_mode","SOFTWARE_DECODER_FOCUS").apply();
   }
  }
  static void leave(Context context){
@@ -30,7 +36,9 @@ final class PlaybackResourceMode {
    Context app=context.getApplicationContext();
    LogoRepository.get(app).resumeAfterVideo();
    app.getSharedPreferences("smarthub",0).edit()
-      .putBoolean("video_priority_active",false).apply();
+      .putBoolean("video_priority_active",false)
+      .putString("video_priority_mode","NORMAL").apply();
+   IraqHubSyncScheduler.resumeAfterVideo(app);
   }
  }
  /** OnTrimMemory uses bounded LRU eviction, without forcing Java GC. */

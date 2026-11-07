@@ -19,6 +19,9 @@ public final class IraqHubSyncWorker extends Worker {
   }
   try{
    int feeds=OnlineEpgGuide.syncKnownFeeds(c);
+   if(isStopped()||PlaybackResourceMode.active()||
+     p.getBoolean("software_dvb_422_active",false))
+    return Result.success();
    p.edit().putLong("iraqhub_unified_sync_at",System.currentTimeMillis())
      .putBoolean("iraqhub_unified_epg_ok",feeds>0)
      .putString("iraqhub_unified_sync_state",feeds>0?"XMLTV_SYNC_OK":"XMLTV_NO_FEEDS")

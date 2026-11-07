@@ -112,9 +112,17 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("providers_changed_at",0)+"|"+prefs.getLong("osd_changed_at",0);
   if(!logos.equals(logoKey)){
    logoKey=logos;
-   channelLogo=CHMAXIntegration.logo(host,state,false);providerLogo=CHMAXIntegration.logo(host,state,true);
+   if(PlaybackResourceMode.active()){
+    // Avoid synchronous OEM/CHMAX logo decode on UI during decoder startup.
+    channelLogo=null;providerLogo=null;
+   }else{
+    channelLogo=CHMAXIntegration.logo(host,state,false);
+    providerLogo=CHMAXIntegration.logo(host,state,true);
+   }
    logoRetry=0;
-   if(!state.channelName.isEmpty()){
+   if(!PlaybackResourceMode.active()&&!state.channelName.isEmpty()){
+    // Video focus: disk PNG/SVG decodes and logo network jobs are nonessential.
+    // Keep verified files for the following normal satellite programme.
     final String expected=logos;
     LogoRepository repository=LogoRepository.get(host);
     LogoRepository.Listener images=new LogoRepository.Listener(){
@@ -139,7 +147,11 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("epg_art_changed_at",0);
   boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
     (!state.nextTitle.isEmpty()&&nextPoster==null);
-  if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
+  if(PlaybackResourceMode.active()){
+   // Preserve artwork on disk; free existing bitmap references and skip all
+   // poster decode/lookups while software 4:2:2 needs CPU/RAM/GPU.
+   imageKey=art;currentPoster=null;nextPoster=null;
+  }else if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
    imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
    currentPoster=null;nextPoster=null;
    final String expected=art;
@@ -185,19 +197,9 @@ final class LocalInfoBarController implements AutoCloseable {
  }
 
  private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
-  if(prefs.getBoolean("software_dvb_422_active",false)){
-   // Cached images are safe during software decoding; never perform a
-   // network request, read TV provider data, or build heavy matching indexes.
-   try{
-    String name=upcoming?snapshot.nextTitle:snapshot.title;
-    Bitmap saved=EpgArtwork.loadInfobarCached(host,snapshot,name,upcoming);
-    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
-      saved==null?"VIDEO_PRIORITY_NO_CACHED_POSTER":"VIDEO_PRIORITY_CACHED_POSTER").apply();
-    if(saved!=null)publishPoster(expected,upcoming,compactPoster(saved));
-   }catch(Exception unavailable){
-    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
-      "VIDEO_PRIORITY_CACHE_UNAVAILABLE").apply();
-   }
+  if(PlaybackResourceMode.active()||prefs.getBoolean("software_dvb_422_active",false)){
+   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+     "VIDEO_PRIORITY_DECODE_DEFERRED").apply();
    return;
   }
   String title=upcoming?snapshot.nextTitle:snapshot.title;

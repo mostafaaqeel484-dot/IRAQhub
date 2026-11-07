@@ -14,6 +14,7 @@ public class Software422ProfileTest {
   assertFalse(options.contains("--skip-frames"));
   assertTrue(options.contains("--network-caching=1050"));
   assertTrue(options.contains("--live-caching=850"));
+  assertFalse(options.contains("--no-avcodec-hurry-up"));
  }
  @Test public void qualityRetainsFullFiltering(){
   ArrayList<String> options=Software422Profile.buildOptions(Software422Profile.QUALITY);
@@ -27,6 +28,7 @@ public class Software422ProfileTest {
   assertTrue(options.contains("--no-drop-late-frames"));
   assertTrue(options.contains("--network-caching=1650"));
   assertTrue(options.contains("--live-caching=1400"));
+  assertTrue(options.contains("--no-avcodec-hurry-up"));
   assertFalse(options.contains("--skip-frames"));
  }
   @Test public void invalidProfileRejected(){

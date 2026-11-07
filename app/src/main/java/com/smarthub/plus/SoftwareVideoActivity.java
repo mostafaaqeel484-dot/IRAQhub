@@ -101,8 +101,18 @@ public final class SoftwareVideoActivity extends HubActivity {
         IMedia.Stats stats=live.getStats();
         if(stats==null)return;
         long now=android.os.SystemClock.elapsedRealtime();
+        long previousTick=videoStatsAt;
+        long lastDisplayedCount=previousDisplayed,lastDecodedCount=previousDecoded;
         long display=stats.displayedPictures,decoded=stats.decodedVideo,
           audio=stats.decodedAudio,demux=stats.demuxReadBytes;
+        long sampleDuration=now-previousTick;
+        long displayChange=lastDisplayedCount>=0?Math.max(0,display-lastDisplayedCount):0;
+        long decodeChange=lastDecodedCount>=0?Math.max(0,decoded-lastDecodedCount):0;
+        // Actual LibVLC frames per second, not estimated from TS bitrate/Vout.
+        int displayFps100=VideoFrameRatePolicy.fpsX100(
+          lastDisplayedCount,display,sampleDuration);
+        int decodeFps100=VideoFrameRatePolicy.fpsX100(
+          lastDecodedCount,decoded,sampleDuration);
         if(previousDisplayed<0||display<previousDisplayed||decoded<previousDecoded){
           lastPictureProgressAt=now;videoStatsAt=now;
           audioSincePicture=0;demuxSincePicture=0;decodedSincePicture=0;
@@ -122,7 +132,16 @@ public final class SoftwareVideoActivity extends HubActivity {
           .putLong("libvlc_decoded_audio",audio)
           .putLong("libvlc_demux_read_bytes",demux)
           .putLong("libvlc_last_picture_advanced_ms",lastPictureProgressAt)
+          .putInt("libvlc_display_fps_x100",displayFps100)
+          .putInt("libvlc_decode_fps_x100",decodeFps100)
+          .putLong("libvlc_display_frame_delta",displayChange)
+          .putLong("libvlc_decoded_frame_delta",decodeChange)
           .apply();
+        if(VideoFrameRatePolicy.advancing(lastDisplayedCount,display)){
+          prefs().edit().putString("decoder_video_health","LIBVLC_FRAMES_ADVANCING")
+            .putString("decoder_422_verification","LIBVLC_FRAME_COUNTER_PROGRESS")
+            .apply();
+        }
         boolean stuck=VideoFrameStallPolicy.stalled(lastPictureProgressAt,now,
           demuxSincePicture,audioSincePicture,0,decodedSincePicture,true,decoderBuffering,
           videoOutputSeen);
@@ -498,8 +517,19 @@ public final class SoftwareVideoActivity extends HubActivity {
         for(int n=0;n<modes.length;n++)if(modes[n].equals(Software422Profile.current(this)))current=n;
         long bitrate=prefs().getLong("software_ts_bitrate",0);
         String capture=prefs().getString("software_422_runtime","NOT_STARTED");
+        int displayedFps=prefs().getInt("libvlc_display_fps_x100",-1);
+        int decodedFps=prefs().getInt("libvlc_decode_fps_x100",-1);
+        String frames="\nLibVLC displayed FPS: "+(displayedFps<0?"—":
+             String.format(java.util.Locale.ROOT,"%.2f",displayedFps/100.0))+
+           " · decoded FPS: "+(decodedFps<0?"—":
+             String.format(java.util.Locale.ROOT,"%.2f",decodedFps/100.0))+
+           "\nDisplayed frames: "+prefs().getLong("libvlc_displayed_pictures",-1)+
+           " · decoded: "+prefs().getLong("libvlc_decoded_video",-1)+
+           "\nVideo health: "+prefs().getString("decoder_video_health","NOT_MEASURED")+
+           "\nVOUT_READY alone does NOT prove moving video.";
         String telemetry="\nTS: "+(bitrate>0?String.format(java.util.Locale.ROOT,"%.2f",bitrate/1000000.0)+" Mbit/s":"—")+
-           " · "+capture+"\nOEM audio: "+prefs().getString("software_422_native_audio","NOT_CHECKED")+
+           " · "+capture+frames+
+           "\nOEM audio: "+prefs().getString("software_422_native_audio","NOT_CHECKED")+
            "\nOEM audio commands are sent without firmware acknowledgement.";
         final String diagnostics=Software422Profile.status(this)+telemetry+
            "\nAuto CPU: "+prefs().getInt("auto_422_cpu_percent",-1)+"% of one core"+
