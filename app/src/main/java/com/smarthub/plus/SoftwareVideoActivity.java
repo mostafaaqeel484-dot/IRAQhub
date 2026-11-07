@@ -458,6 +458,9 @@ public final class SoftwareVideoActivity extends HubActivity {
         LogoRepository.get(this).resumeAfterVideo();
         prefs().edit().putBoolean("software_dvb_422_active",false)
           .putBoolean("dvb_tuning",false).putString("software_422_runtime","STOPPED").apply();
+        // A periodic poster job can be deferred for the entire 4:2:2 session.
+        // Resume once after the decoder is destroyed, not during live playback.
+        IraqHubSyncScheduler.programmeChanged(this);
         LiveTsRelay capture=satelliteRelay;
         if(capture!=null)new Thread(capture::close,"iraqhub-capture-stop").start();
         relayThread.shutdownNow();
