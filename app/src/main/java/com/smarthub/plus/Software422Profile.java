@@ -69,6 +69,10 @@ final class Software422Profile {
   // Decode all frames; only deblocking is relaxed in Smooth.
   options.add("--avcodec-skip-frame=0");
   options.add("--avcodec-skip-idct=0");
+  // The user's 3.7.0 APK contained --no-avcodec-hurry-up. Retain it
+  // ONLY for an explicit Stable diagnostic comparison: disabling VLC's
+  // hurry-up can preserve frames but costs more CPU, so Auto/Smooth omit it.
+  if(STABLE.equals(mode))options.add("--no-avcodec-hurry-up");
   // Allow frame dropping only in Smooth; Stable/Quality retain frames
    // for deinterlaced sports feeds when the CPU can keep up.
    options.add(SMOOTH.equals(mode)?"--drop-late-frames":"--no-drop-late-frames");
