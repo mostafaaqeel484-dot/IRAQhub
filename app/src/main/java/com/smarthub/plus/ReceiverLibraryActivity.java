@@ -3,19 +3,91 @@ import android.app.AlertDialog;import android.content.*;import android.graphics.
 /** Translucent channel menu over the independent decoder, backed by the real CHL catalogue. */
 public class ReceiverLibraryActivity extends HubActivity {
  private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private ReceiverCatalog catalog;private List<ReceiverCatalog.Channel> shown=Collections.emptyList();private List<ReceiverCatalog.Sat> satellites=Collections.emptyList();private List<ReceiverCatalog.Group> groups=Collections.emptyList();private Set<Long> favorites=Collections.emptySet();private Set<String> ambiguousPhysical=Collections.emptySet();private Map<String,SatelliteGuideRepository.Event> programmes=Collections.emptyMap();private Map<Long,Integer> satelliteNumbers=Collections.emptyMap();private String lastLiveTitle="";
- private EditText query;private ListView list;private TextView status,liveTitle,rf,signalDetail;private ProgressBar strength,quality;private Button satelliteButton,favoritesButton,previous,next;private boolean destroyed,loaded,favoritesOnly,alphabetical,initialPopup,encryptedOnly,wideList;private long satellite=-1,activeId=-1,group=-1;private int type=-1,offset,generation,total,nextListSelection=-1;private DirectReceiverSignal reader;
+ private EditText query;private ListView list;private TextView status,liveTitle,rf,signalDetail,focusedProgramme;private ProgressBar strength,quality;private Button satelliteButton,favoritesButton,previous,next;private boolean destroyed,loaded,favoritesOnly,alphabetical,initialPopup,encryptedOnly,wideList;private long satellite=-1,activeId=-1,group=-1;private int type=-1,offset,generation,total,nextListSelection=-1;private DirectReceiverSignal reader;
  private final Runnable filter=()->search(true);private final Runnable tick=new Runnable(){public void run(){if(!destroyed){refreshSignal();main.postDelayed(this,1000);}}};
  @Override public void onCreate(Bundle state){super.onCreate(state);getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));ChannelScope saved=ChannelScope.read(this);type=getIntent().getIntExtra("type",saved.type);satellite=getIntent().getLongExtra("satellite",saved.satellite);favoritesOnly=getIntent().getBooleanExtra("favorites",saved.favorites);encryptedOnly=getIntent().getBooleanExtra("encrypted_only",false);group=saved.group;alphabetical=saved.alphabetical;catalog=ReceiverCatalog.get(this);wideList=prefs().getBoolean("channel_list_wide_mode",false);FrameLayout backdrop=new FrameLayout(this);backdrop.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);LinearLayout root=col();root.setPadding(dp(15),dp(8),dp(15),dp(8));root.setBackground(ReceiverPanelStyle.panel(this));FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(Math.min(dp(wideList?960:620),(int)(getResources().getDisplayMetrics().widthPixels*(wideList?.86f:.58f))),-1,Gravity.LEFT);panel.setMargins(dp(14),dp(10),0,dp(10));backdrop.addView(root,panel);
   LinearLayout header=row();satelliteButton=tool(header,tx("‹  كل الأقمار  ›","‹  All satellites  ›"),this::satellites);satelliteButton.setTextColor(ReceiverPanelStyle.GOLD);satelliteButton.setTextSize(font(20));root.addView(header);
-  query=field(root,tx("البحث عن قناة","Search channels"),"");query.setTextSize(font(13));query.setPadding(dp(8),dp(3),dp(8),dp(3));query.setContentDescription("channel-search");query.setBackgroundColor(0x44384b55);query.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(30)));LinearLayout tools=row();favoritesButton=tool(tools,tx("المفضلة","Favourites"),this::groups);favoritesButton.setOnLongClickListener(v->{manageGroups();return true;});tool(tools,tx("النوع","Type"),this::types);tool(tools,"A–Z",()->{alphabetical=!alphabetical;search(true);});tool(tools,wideList?tx("واسعة ✓","Wide ✓"):tx("جانبية","Side"),this::toggleListMode);tool(tools,tx("بحث / استيراد","Import / tools"),()->startActivity(new Intent(this,ReceiverToolsActivity.class)));Button software=tool(tools,prefs().getBoolean("dvb_422_compat_all",false)?"4:2:2 ✓":"4:2:2",()->{boolean enabled=!prefs().getBoolean("dvb_422_compat_all",false);prefs().edit().putBoolean("dvb_422_compat_all",enabled).apply();recreate();});root.addView(tools);
-  status=text(tx("قراءة القنوات…","Loading channels…"),10,false);status.setTextColor(MUTED);root.addView(status);list=new ListView(this);list.setDividerHeight(0);list.setSelector(android.R.color.transparent);list.setOnItemClickListener((p,v,index,id)->play(shown.get(index)));list.setOnItemLongClickListener((p,v,index,id)->{details(shown.get(index));return true;});root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-  LinearLayout live=col();liveTitle=text("",12,true);liveTitle.setTextColor(ReceiverPanelStyle.CYAN);live.addView(liveTitle);LinearLayout meters=row();strength=meter(0xff32c9e7);quality=meter(0xffe835c9);meters.addView(strength,new LinearLayout.LayoutParams(0,dp(6),1));View gap=new View(this);meters.addView(gap,new LinearLayout.LayoutParams(dp(22),1));meters.addView(quality,new LinearLayout.LayoutParams(0,dp(6),1));live.addView(meters);signalDetail=text("",11,false);signalDetail.setTextDirection(View.TEXT_DIRECTION_LTR);signalDetail.setTextColor(WHITE);live.addView(signalDetail);rf=text("",11,false);rf.setSingleLine(true);rf.setEllipsize(TextUtils.TruncateAt.END);rf.setTextColor(0xff5ef39b);live.addView(rf);root.addView(live);
+  query=field(root,tx("البحث عن قناة","Search channels"),"");query.setTextSize(font(13));query.setPadding(dp(8),dp(3),dp(8),dp(3));query.setContentDescription("channel-search");query.setBackgroundColor(0x44384b55);query.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(30)));LinearLayout tools=row();favoritesButton=tool(tools,tx("المفضلة","Favourites"),this::groups);favoritesButton.setOnLongClickListener(v->{manageGroups();return true;});tool(tools,tx("النوع","Type"),this::types);tool(tools,"A–Z",()->{alphabetical=!alphabetical;search(true);});tool(tools,wideList?tx("Aurum ✓","Aurum ✓"):tx("DVB ✓","DVB ✓"),this::toggleListMode);tool(tools,tx("بحث / استيراد","Import / tools"),()->startActivity(new Intent(this,ReceiverToolsActivity.class)));Button software=tool(tools,prefs().getBoolean("dvb_422_compat_all",false)?"4:2:2 ✓":"4:2:2",()->{boolean enabled=!prefs().getBoolean("dvb_422_compat_all",false);prefs().edit().putBoolean("dvb_422_compat_all",enabled).apply();recreate();});root.addView(tools);
+  // OEM has two distinct channel-list controllers. Give each actual actions,
+  // not just a wider window: Aurum mode exposes TP/search; DVB mode focuses EPG.
+  LinearLayout modeTools=row();
+  if(wideList){
+   tool(modeTools,tx("تردد القناة","Selected TP"),this::focusedTransponder);
+   tool(modeTools,tx("بحث القنوات","Find channels"),this::focusSearch);
+  }else{
+   tool(modeTools,tx("دليل القناة المحددة","Selected EPG"),this::focusedGuide);
+   tool(modeTools,tx("معلومات القناة","Channel details"),this::focusedDetails);
+  }
+  root.addView(modeTools);
+  status=text(tx("قراءة القنوات…","Loading channels…"),10,false);status.setTextColor(MUTED);root.addView(status);list=new ListView(this);list.setDividerHeight(0);list.setSelector(android.R.color.transparent);list.setOnItemClickListener((p,v,index,id)->play(shown.get(index)));
+  list.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
+   @Override public void onItemSelected(AdapterView<?> parent,View view,int position,long id){
+    updateFocusedProgramme(position);
+   }
+   @Override public void onNothingSelected(AdapterView<?> parent){}
+  });list.setOnItemLongClickListener((p,v,index,id)->{details(shown.get(index));return true;});root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+  LinearLayout live=col();liveTitle=text("",12,true);liveTitle.setTextColor(ReceiverPanelStyle.CYAN);live.addView(liveTitle);
+  focusedProgramme=text("",11,false);
+  focusedProgramme.setTextColor(0xfff3d77d);live.addView(focusedProgramme);LinearLayout meters=row();strength=meter(0xff32c9e7);quality=meter(0xffe835c9);meters.addView(strength,new LinearLayout.LayoutParams(0,dp(6),1));View gap=new View(this);meters.addView(gap,new LinearLayout.LayoutParams(dp(22),1));meters.addView(quality,new LinearLayout.LayoutParams(0,dp(6),1));live.addView(meters);signalDetail=text("",11,false);signalDetail.setTextDirection(View.TEXT_DIRECTION_LTR);signalDetail.setTextColor(WHITE);live.addView(signalDetail);rf=text("",11,false);rf.setSingleLine(true);rf.setEllipsize(TextUtils.TruncateAt.END);rf.setTextColor(0xff5ef39b);live.addView(rf);root.addView(live);
   LinearLayout pager=row();previous=tool(pager,"‹",()->{offset=Math.max(0,offset-120);search(false);});tool(pager,tx("★ إضافة","★ Favourite"),()->{int p=list.getSelectedItemPosition();if(p>=0&&p<shown.size())favorite(shown.get(p));});next=tool(pager,"›",()->{offset+=120;search(false);});tool(pager,"INFO",()->{int p=list.getSelectedItemPosition();if(p>=0&&p<shown.size())details(shown.get(p));});root.addView(pager);TextView hint=text(tx("◄ ►  ±10 قنوات   ·   PAGE↓  شفرة BISS   ·   PAGE↑  المشفرة\nأحمر: مفضلة · أخضر: نوع · أصفر: A–Z · أزرق: إشارة",
   "◄ ►  ±10 channels   ·   PAGE↓  BISS   ·   PAGE↑  Encrypted\nRED: Favourites · GREEN: Type · YELLOW: A–Z · BLUE: Signal"),10,false);hint.setTextColor(ReceiverPanelStyle.GOLD);root.addView(hint);String initial=getIntent().getStringExtra("query");query.setText(initial==null?saved.query:initial);getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);backdrop.setFocusableInTouchMode(true);backdrop.requestFocus();setContentView(backdrop);query.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){main.removeCallbacks(filter);main.postDelayed(filter,160);}public void afterTextChanged(Editable e){}});
  }
  private void toggleListMode(){
   prefs().edit().putBoolean("channel_list_wide_mode",!wideList).apply();
   recreate();
+ }
+ private ReceiverCatalog.Channel focusedChannel(){
+  int selected=list==null?-1:list.getSelectedItemPosition();
+  return selected>=0&&selected<shown.size()?shown.get(selected):null;
+ }
+ private void focusSearch(){
+  if(query==null)return;
+  query.requestFocus();
+  android.view.inputmethod.InputMethodManager manager=
+   (android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+  if(manager!=null)manager.showSoftInput(query,
+    android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+ }
+ private void focusedDetails(){
+  ReceiverCatalog.Channel channel=focusedChannel();
+  if(channel!=null)details(channel);
+ }
+ private void focusedTransponder(){
+  ReceiverCatalog.Channel channel=focusedChannel();
+  if(channel==null){toast(tx("اختر قناة أولاً","Select a channel first"));return;}
+  new AlertDialog.Builder(this).setTitle(channel.name)
+   .setMessage(channel.rf()+"\\nSID "+channel.sid+" · "+channel.provider)
+   .setPositiveButton(tx("بحث يدوي على هذا التردد","Manual scan this TP"),
+    (dialog,which)->startActivity(new Intent(this,ManualTransponderActivity.class)
+       .putExtra("satellite",(long)channel.satId)
+       .putExtra("frequency",channel.frequency)
+       .putExtra("symbol_rate",channel.symbolRate)
+       .putExtra("polarity",channel.pol)))
+   .setNegativeButton(tx("إغلاق","Close"),null).show();
+ }
+ private void focusedGuide(){
+  ReceiverCatalog.Channel channel=focusedChannel();
+  if(channel==null)return;
+  SatelliteGuideRepository.Event event=programmes.get("DVB:"+channel.physical());
+  String detail=event==null?tx("لا توجد بيانات EPG مؤكدة لهذه القناة",
+      "No verified guide data for this channel"):
+      event.title+"\\n"+new java.text.SimpleDateFormat("HH:mm",
+        java.util.Locale.ROOT).format(new java.util.Date(event.startMs))+
+      "–"+new java.text.SimpleDateFormat("HH:mm",
+        java.util.Locale.ROOT).format(new java.util.Date(event.endMs));
+  new AlertDialog.Builder(this).setTitle(channel.name)
+   .setMessage(detail).setPositiveButton("OK",null).show();
+ }
+ private void updateFocusedProgramme(int position){
+  if(focusedProgramme==null||position<0||position>=shown.size())return;
+  ReceiverCatalog.Channel channel=shown.get(position);
+  if(wideList){
+   focusedProgramme.setText(channel.name+" · "+channel.rf());
+  }else{
+   SatelliteGuideRepository.Event event=programmes.get("DVB:"+channel.physical());
+   focusedProgramme.setText(tx("دليل المحددة: ","Selected EPG: ")+
+    (event==null?tx("غير متاح","Unavailable"):event.title));
+  }
  }
  private Button tool(LinearLayout row,String label,Runnable click){Button b=button(label);b.setTextSize(font(11));b.setMinHeight(0);b.setPadding(dp(4),0,dp(4),0);b.setBackground(ReceiverPanelStyle.row(this));b.setOnClickListener(v->click.run());LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(30),1);row.addView(b,p);return b;}
  private ProgressBar meter(int color){ProgressBar p=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);p.setMax(100);p.setProgressTintList(android.content.res.ColorStateList.valueOf(color));p.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x775c6270));return p;}
@@ -39,7 +111,9 @@ public class ReceiverLibraryActivity extends HubActivity {
  }
  private void search(boolean reset){if(!loaded)return;if(reset)offset=0;scope().save(this);String q=query.getText().toString();long sat=satellite,favGroup=group;int kind=type,page=offset,token=++generation;boolean fav=favoritesOnly,alpha=alphabetical;io.execute(()->{try{List<ReceiverCatalog.Channel> rows=catalog.channels(q,sat,kind,fav,alpha,page,favGroup,encryptedOnly);Set<Long> selected=catalog.favorites();Set<String> physical=new HashSet<>();for(ReceiverCatalog.Channel row:rows)physical.add("DVB:"+row.physical());Map<String,SatelliteGuideRepository.Event> events=new SatelliteGuideRepository(this).currentChannels(physical,System.currentTimeMillis());long current=prefs().getLong("own_dvb_channel",-1);if(!SatelliteState.read(this).channelId.startsWith("DVB:"))current=catalog.uniqueChannel(SatelliteState.read(this).channelName);long playing=current;main.post(()->{if(destroyed||token!=generation)return;shown=rows;favorites=selected;programmes=events;activeId=playing;status.setText((sat<0?tx("كل الأقمار","All satellites"):satelliteButton.getText())+
    (encryptedOnly?tx(" · مشفرة فقط"," · encrypted only"):"")+
-   tx("  ·  من ","  ·  positions ")+(rows.isEmpty()?"0":(page+1)+"–"+(page+rows.size()))+(alphabetical?"  A–Z":""));previous.setEnabled(page>0);next.setEnabled(rows.size()==120);list.setAdapter(new Rows());if(!query.hasFocus()){list.requestFocus();if(nextListSelection>=0){list.setSelection(Math.min(nextListSelection,Math.max(0,rows.size()-1)));nextListSelection=-1;}else for(int i=0;i<rows.size();i++)if(rows.get(i).id==activeId){list.setSelection(i);break;}}});}catch(Exception failure){main.post(()->{if(!destroyed&&token==generation)status.setText(tx("تعذر البحث في الفهرس","Could not search the catalogue"));});}});}
+   tx("  ·  من ","  ·  positions ")+(rows.isEmpty()?"0":(page+1)+"–"+(page+rows.size()))+(alphabetical?"  A–Z":""));previous.setEnabled(page>0);next.setEnabled(rows.size()==120);list.setAdapter(new Rows());if(!rows.isEmpty())updateFocusedProgramme(
+   Math.min(Math.max(list.getSelectedItemPosition(),0),rows.size()-1));
+   if(!query.hasFocus()){list.requestFocus();if(nextListSelection>=0){list.setSelection(Math.min(nextListSelection,Math.max(0,rows.size()-1)));nextListSelection=-1;}else for(int i=0;i<rows.size();i++)if(rows.get(i).id==activeId){list.setSelection(i);break;}}});}catch(Exception failure){main.post(()->{if(!destroyed&&token==generation)status.setText(tx("تعذر البحث في الفهرس","Could not search the catalogue"));});}});}
  private void satellites(){String[] labels=new String[satellites.size()+1];labels[0]=tx("كل الأقمار","All satellites");int selected=0;for(int i=0;i<satellites.size();i++){labels[i+1]=satellites.get(i).label();if(satellite==satellites.get(i).id)selected=i+1;}ReceiverPanelStyle.choose(this,tx("قائمة الأقمار الصناعية","Satellite list"),labels,selected,index->{satellite=index==0?-1:satellites.get(index-1).id;satelliteButton.setText("‹  "+labels[index]+"  ›");query.setText("");search(true);});}
  private void groups(){String[] labels=new String[groups.size()+3];labels[0]=tx("الكل","All");labels[1]=tx("مفضلتي في IRAQhub","My IRAQhub favourites");int selected=favoritesOnly?1:0;for(int i=0;i<groups.size();i++){ReceiverCatalog.Group g=groups.get(i);labels[i+2]=g.name+"  ("+g.count+")";if(group==g.id)selected=i+2;}labels[labels.length-1]=tx("إدارة مجموعات المفضلة…","Manage favourite groups…");ReceiverPanelStyle.choose(this,tx("مجموعات المفضلة","Channel Favorites"),labels,selected,index->{if(index==labels.length-1){manageGroups();return;}query.setText("");favoritesOnly=index==1;group=index<2?-1:groups.get(index-2).id;satellite=-1;satelliteButton.setText(tx("‹  كل الأقمار  ›","‹  All satellites  ›"));favoritesButton.setText(index<2?labels[index]:groups.get(index-2).name);search(true);});}
 
