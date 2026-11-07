@@ -168,7 +168,9 @@ final class ReceiverSqliteImport {
     "OR name IS NULL OR length(name) NOT BETWEEN 1 AND 200 "+
     "OR angle NOT BETWEEN 0 AND 3599 OR band NOT IN ('KU','C')","DB_INVALID_SAT");
    requireNone(source,"SELECT COUNT(*) FROM tp WHERE _id<0 OR _id>1000000 "+
-    "OR freq NOT BETWEEN 100 AND 100000 OR sr NOT BETWEEN 1 AND 100000 "+
+    // Preserve rare signed OEM RF placeholders as un-tunable list entries.
+    // They are visible/importable, but DvbPlayRequest refuses to tune them.
+    "OR freq IS NULL OR freq < -32768 OR freq > 100000 OR sr NOT BETWEEN 1 AND 100000 "+
     "OR pol NOT IN ('H','V','L','R') OR fec IS NULL","DB_INVALID_TP");
    requireNone(source,"SELECT COUNT(*) FROM ch WHERE _id<0 OR _id>1000000 "+
     "OR sid NOT BETWEEN 0 AND 65535 OR tv NOT BETWEEN 0 AND 2 "+
@@ -179,6 +181,8 @@ final class ReceiverSqliteImport {
      "DB_INVALID_CHANNEL");
    requireNone(source,"SELECT COUNT(*) FROM tp t LEFT JOIN sat s "+
     "ON t.sat_id=s._id WHERE s._id IS NULL","DB_MISSING_SATELLITE");
+   if(countInvalidRf(source)>16)
+    throw new IOException("DB_TOO_MANY_UNTUNABLE_TPS");
    requireNone(source,"SELECT COUNT(*) FROM ch c LEFT JOIN tp t "+
     "ON c.tp_id=t._id WHERE t._id IS NULL","DB_MISSING_TRANSPONDER");
    requireNone(source,"SELECT COUNT(*) FROM favorite f LEFT JOIN ch c "+
@@ -192,6 +196,10 @@ final class ReceiverSqliteImport {
   }finally{
    if(source!=null)source.close();
   }
+ }
+ private static long countInvalidRf(SQLiteDatabase db){
+  return DatabaseUtils.longForQuery(db,
+    "SELECT COUNT(*) FROM tp WHERE freq < 100 OR freq > 100000",null);
  }
  private static long count(SQLiteDatabase db,String table){
   return DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM "+table,null);
