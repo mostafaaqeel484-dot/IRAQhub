@@ -44,6 +44,17 @@ public final class Software422CenterActivity extends HubActivity {
   url.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
   url.setHint("https://.../channel.ts  ·  udp://239.x.x.x:port");
   info.addView(url);
+  action(info,tx("تشغيل محرك IRAQhub 422 المستقل · mpv/FFmpeg",
+    "Play with isolated IRAQhub 422 engine · mpv/FFmpeg"),()->{
+   String input=url.getText().toString().trim();
+   if(!Software422Source.validNetwork(input)){
+    toast(tx("الرابط غير صالح؛ استخدم بثاً عبر HTTP/HTTPS/RTSP/RTP/UDP",
+      "Invalid source; use a supported network stream"));return;
+   }
+   startActivity(new Intent(this,Independent422Activity.class)
+    .putExtra("media_uri",input)
+    .putExtra("video_only",prefs().getBoolean("independent_422_video_only",true)));
+  });
   action(info,tx("تشغيل عبر LibVLC داخل IRAQhub","Play inside IRAQhub with LibVLC"),()->{
    String input=url.getText().toString().trim();
    if(!Software422Source.validNetwork(input)){
