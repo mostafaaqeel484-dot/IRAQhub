@@ -28,6 +28,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     private void leaveResourceMode(){
         if(hasResourceMode){PlaybackResourceMode.leave(this);hasResourceMode=false;}
     }
+    private Auto422RuntimeMonitor autoMonitor;
     private LibVLC libVLC;
     private MediaPlayer mediaPlayer;
     private VLCVideoLayout videoLayout;
@@ -100,6 +101,8 @@ public final class SoftwareVideoActivity extends HubActivity {
 
         long dvbChannel=getIntent().getLongExtra("dvb_channel",-1L);
         if(dvbChannel>=0){
+            autoMonitor=new Auto422RuntimeMonitor(this);
+            autoMonitor.start();
             // Already reserved our app's background-resource budget onCreate.
             // Silence OEM Play audio only; never stop the tuner or TS capture.
             nativeAudioToken=NativeSatelliteAudioGate.suppress(this);
@@ -316,7 +319,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         media.setHWDecoderEnabled(false,false);
         media.addOption(":avcodec-hw=none");
         media.addOption(":codec=avcodec");
-        String profile=Software422Profile.current(this);
+        String profile=Software422Profile.effective(this);
         int cache=Software422Profile.networkCacheMs(profile);
         if(source.startsWith("http://127.0.0.1:")){
             media.addOption(":network-caching="+cache);
@@ -355,10 +358,12 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     /** Restart LibVLC only, leaving the DVB capture and tuned satellite untouched. */
     private void choosePerformance(){
-        final String[] modes={Software422Profile.SMOOTH,
+        final String[] modes={Software422Profile.AUTO,Software422Profile.SMOOTH,
             Software422Profile.BALANCED,Software422Profile.QUALITY,
             Software422Profile.STABLE};
         final String[] labels={
+            tx("تلقائي · يختار من قياسات CPU والحرارة والذاكرة",
+               "Auto · measured CPU, thermal and memory pressure"),
             tx("سريع · يقلل كلفة الفلترة دون حذف إطارات أساسية","Smooth · lower deblocking load, no frame skipping"),
             tx("متوازن · صورة وصوت","Balanced · picture and sound"),
             tx("جودة أعلى · يحتاج CPU أقوى","Higher quality · uses more CPU"),
@@ -372,11 +377,14 @@ public final class SoftwareVideoActivity extends HubActivity {
         String telemetry="\nTS: "+(bitrate>0?String.format(java.util.Locale.ROOT,"%.2f",bitrate/1000000.0)+" Mbit/s":"—")+
            " · "+capture+"\nOEM audio: "+prefs().getString("software_422_native_audio","NOT_CHECKED")+
            "\nOEM audio commands are sent without firmware acknowledgement.";
-        final String diagnostics=Software422Profile.status(this)+telemetry;
+        final String diagnostics=Software422Profile.status(this)+telemetry+
+           "\nAuto CPU: "+prefs().getInt("auto_422_cpu_percent",-1)+"% of one core"+
+           " · Memory pressure: "+prefs().getBoolean("auto_422_low_memory",false)+
+           " · Thermal status: "+prefs().getInt("auto_422_thermal",-1);
         new AlertDialog.Builder(this).setTitle(tx("أداء 4:2:2","4:2:2 performance"))
           .setSingleChoiceItems(labels,current,(dialog,which)->{
             dialog.dismiss();
-            if(which==4){
+            if(which==modes.length){
                 new AlertDialog.Builder(this).setTitle(tx("فحص X5M وTS","X5M / TS diagnostics"))
                     .setMessage(diagnostics).setPositiveButton("OK",null).show();
                 return;
@@ -532,6 +540,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         // Suspend only our own 4:2:2 decoder and PVR/TS relay while off-screen.
         // Never force-stop Aurum or the DVB tuner service.
         backgroundStopped=true;
+        if(autoMonitor!=null)autoMonitor.stop();
         if(localInfo!=null)localInfo.dismiss();
         closeDecoder();
         LiveTsRelay active=satelliteRelay;
@@ -546,6 +555,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         super.onRestart();
         backgroundStopped=false;
         if(released)return;
+        if(autoMonitor!=null)autoMonitor.start();
         enterResourceMode();
         long channel=getIntent().getLongExtra("dvb_channel",-1L);
         if(channel>=0){
@@ -559,6 +569,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     }
     @Override protected void onDestroy() {
         released = true;
+        if(autoMonitor!=null)autoMonitor.stop();
         if(localInfo!=null)localInfo.close();
         leaveResourceMode();
         prefs().edit().putBoolean("software_dvb_422_active",false)
