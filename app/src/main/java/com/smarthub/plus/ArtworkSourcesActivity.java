@@ -55,7 +55,7 @@ public final class ArtworkSourcesActivity extends HubActivity {
   tvTitle=field(tvBox,tx("اسم المسلسل أو S01E02","Exact series title / S01E02"),"");
   action(tvBox,tx("اختبار جلب بوستر TVmaze","Test TVmaze poster"),()->{
    if(!tv.isChecked()){show(tx("فعّل TVmaze أولاً","Enable TVmaze first"));return;}
-   runCheck(()->new TvmazeProvider(this).resolve(tvTitle.getText().toString().trim()),
+   runCheck(()->new TvmazeProvider(this).resolve(tvTitle.getText().toString().trim(),""),
       "TVmaze","poster");
   });
 
