@@ -19,11 +19,11 @@ jobs:
     steps:
       - name: Checkout IRAQhub 3.7.6
         uses: actions/checkout@v4
-      - name: Java 17
+      - name: Java 21 (required to consume libmpv AAR Java 21 bytecode)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - name: Android SDK
         uses: android-actions/setup-android@v4
       - name: Accept licenses and install Android 36 SDK and 35 build tools
