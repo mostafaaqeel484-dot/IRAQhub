@@ -322,6 +322,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         mpvFallbackUsed=true;
         engine="vlc";
         prefs().edit().putString("decoder_last_error",reason)
+          .putString("mpv_last_fallback",reason)
           .putString("software_422_runtime","MPV_FAILED_FALLBACK_VLC").apply();
         status.setText(tx("تعذر إخراج MPV · جارٍ تجربة VLC",
           "MPV playback failed; trying VLC"));
@@ -440,6 +441,17 @@ public final class SoftwareVideoActivity extends HubActivity {
         }
     }
     private void showTrackMenu() {
+        if(mpvBackend!=null&&"mpv".equals(engine)){
+            new AlertDialog.Builder(this)
+              .setTitle(tx("الصوت والترجمة · MPV","MPV audio and subtitles"))
+              .setItems(new String[]{tx("مسار الصوت التالي","Next audio track"),
+                                    tx("مسار الترجمة التالي","Next subtitle track")},
+                (dialog,which)->{
+                   if(which==0)mpvBackend.cycleAudio();
+                   else mpvBackend.cycleSubtitle();
+                }).setNegativeButton(tx("رجوع","Back"),null).show();
+            return;
+        }
         if (mediaPlayer == null || released || !mediaPlayer.hasMedia()) {
             status.setText(tx("انتظر حتى يبدأ البث", "Wait until playback starts"));
             return;
