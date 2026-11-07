@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.content.SharedPreferences;
@@ -20,6 +21,7 @@ import java.util.concurrent.Executors;
 public final class ArtworkSourcesActivity extends HubActivity {
  private final ExecutorService io=Executors.newSingleThreadExecutor();
  private TextView status;
+ private ImageView sportsPreview;
  private volatile boolean closed;
 
  @Override public void onCreate(Bundle state) {
@@ -47,6 +49,15 @@ public final class ArtworkSourcesActivity extends HubActivity {
   sp.setOnCheckedChangeListener((b,v)->prefs().edit().putBoolean("artwork_sportsdb_enabled",v).apply());
   action(sports,tx("فحص شعار Arsenal من API المجاني","Test public Arsenal team badge"),
     ()->testSports());
+  EditText name=field(sports,tx("اسم الفريق أو اللاعب بالإنجليزية",
+    "Team/player name"),"Arsenal");
+  action(sports,tx("جلب شعار فريق مطابق بالضبط","Fetch exact team badge"),
+    ()->lookupSports(name.getText().toString(),false));
+  action(sports,tx("جلب صورة لاعب مطابق بالضبط","Fetch exact player image"),
+    ()->lookupSports(name.getText().toString(),true));
+  sportsPreview=new ImageView(this);
+  sportsPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+  sports.addView(sportsPreview,new LinearLayout.LayoutParams(dp(260),dp(152)));
 
   LinearLayout commons=card(root);
   commons.addView(text("Wikimedia Commons · licensed exact File:",19,true));
@@ -114,6 +125,37 @@ public final class ArtworkSourcesActivity extends HubActivity {
     boolean found=first!=null&&"Arsenal".equalsIgnoreCase(first.optString("strTeam"))
       &&!first.optString("strBadge").isEmpty();
     show("TheSportsDB v1 · "+(found?"VERIFIED_TEAM_BADGE":"NO_VERIFIED_BADGE"));
+   }catch(Exception e){show("TheSportsDB · "+error(e));}
+  });
+ }
+ private void lookupSports(String name,boolean player){
+  if(!permitted())return;
+  show(tx("التحقق من تطابق الصورة الرياضية…","Checking exact sports identity…"));
+  io.execute(()->{
+   try{
+    JSONObject result=TheSportsDBProvider.sportsImage(getApplicationContext(),name,player);
+    String address=result.optString("image");
+    if(!"matched".equals(result.optString("status"))||address.isEmpty()){
+     show("TheSportsDB · "+result.optString("status")+" · NO_IMAGE");
+     return;
+    }
+    byte[] bytes=ArtworkCache.fetch(getApplicationContext(),new URI(address).toURL(),
+      4*1024*1024);
+    if(bytes==null)throw new IOException("SPORTS_ART_NOT_CACHED");
+    BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;
+    BitmapFactory.decodeByteArray(bytes,0,bytes.length,bounds);
+    if(bounds.outWidth<24||bounds.outHeight<24||bounds.outWidth>8192||bounds.outHeight>8192)
+     throw new IOException("SPORTS_ART_INVALID");
+    bounds.inJustDecodeBounds=false;bounds.inSampleSize=1;
+    while(bounds.outWidth/bounds.inSampleSize>384||bounds.outHeight/bounds.inSampleSize>384)
+     bounds.inSampleSize*=2;
+    Bitmap bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length,bounds);
+    runOnUiThread(()->{
+     if(closed)return;
+     if(sportsPreview!=null)sportsPreview.setImageBitmap(bitmap);
+     if(status!=null)status.setText("TheSportsDB v1 · "+result.optString("kind")+
+       " · "+result.optString("name")+" · VERIFIED");
+    });
    }catch(Exception e){show("TheSportsDB · "+error(e));}
   });
  }
