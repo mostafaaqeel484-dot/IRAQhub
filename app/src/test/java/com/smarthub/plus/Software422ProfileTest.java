@@ -28,6 +28,7 @@ public class Software422ProfileTest {
   assertTrue(options.contains("--no-drop-late-frames"));
   assertTrue(options.contains("--network-caching=1650"));
   assertTrue(options.contains("--live-caching=1400"));
+  assertTrue(options.contains("--no-avcodec-hurry-up"));
   assertFalse(options.contains("--skip-frames"));
  }
   @Test public void invalidProfileRejected(){
