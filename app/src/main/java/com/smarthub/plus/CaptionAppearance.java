@@ -11,7 +11,7 @@ final class CaptionAppearance {
  private static final java.util.Map<View,Integer> applied=new java.util.WeakHashMap<>();
  static int size(Context c){return Math.max(12,Math.min(64,c.getSharedPreferences("smarthub",0).getInt("overlay_caption_font",28)));}
  static void set(Context c,int value){c.getSharedPreferences("smarthub",0).edit().putInt("overlay_caption_font",Math.max(12,Math.min(64,value))).putBoolean("caption_font_override",true).apply();}
- static void apply(TextView v){int size=size(v.getContext());if(java.util.Objects.equals(applied.get(v),size))return;applied.put(v,size);v.setTextSize(size);v.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);v.setShadowLayer(3,1,2,Color.BLACK);}
+ static void apply(TextView v){int size=size(v.getContext());if(java.util.Objects.equals(applied.get(v),size))return;applied.put(v,size);v.setTextSize(size);v.setTextColor(v.getContext().getSharedPreferences("smarthub",0).getInt("overlay_caption_color",Color.WHITE));v.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);v.setShadowLayer(3,1,2,Color.BLACK);}
  @androidx.media3.common.util.UnstableApi static void apply(SubtitleView v){if(v==null)return;Context c=v.getContext();if(c.getSharedPreferences("smarthub",0).getBoolean("caption_font_override",false)){int size=size(c);if(java.util.Objects.equals(applied.get(v),size))return;applied.put(v,size);v.setApplyEmbeddedFontSizes(false);v.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,size);}}
  static void controls(LinearLayout parent,boolean arabic,Runnable changed){
   Context c=parent.getContext();TextView preview=new TextView(c);preview.setTextColor(Color.WHITE);preview.setBackgroundColor(0xb0000000);preview.setGravity(Gravity.CENTER);preview.setMaxLines(2);
