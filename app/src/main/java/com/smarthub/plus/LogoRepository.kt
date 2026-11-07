@@ -41,7 +41,8 @@ class LogoRepository private constructor(context:Context){
  private fun observed(name:String,physical:String?,provider:Boolean=false):Bitmap?{
   if(physical.isNullOrBlank()||name.isBlank())return null
   if(!provider&&physical.startsWith("DVB:")&&
-    app.getSharedPreferences("smarthub",0).contains("commons_logo_selected:"+physical)){
+    (app.getSharedPreferences("smarthub",0).contains("commons_logo_selected:"+physical)||
+     app.getSharedPreferences("smarthub",0).getBoolean("adb_logo_imported:"+physical,false))){
    cache.read("channel:physical:"+physical)?.let{return it}
   }
   val state=SatelliteState()
