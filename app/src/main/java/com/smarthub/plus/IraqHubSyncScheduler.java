@@ -28,18 +28,19 @@ final class IraqHubSyncScheduler {
   return PlaybackResourceMode.active()||context.getSharedPreferences("smarthub",0)
     .getBoolean("software_dvb_422_active",false);
  }
+ static String[] optionalNames(){
+  return new String[]{XMLTV,POSTERS,DVB,
+   XMLTV+"-initial",POSTERS+"-initial",DVB+"-initial",
+   XMLTV+"-manual",POSTERS+"-manual",DVB+"-manual",
+   POSTERS+"-programme"};
+ }
  /** Cancel only IRAQhub-owned optional WorkManager jobs. Never kill the OEM
   * tuner, TS/PVR capture, AudioTrack or any process outside the launcher. */
  static void suspendForVideo(Context context){
   Context app=context.getApplicationContext();
   PRIORITY_IO.execute(()->{
    WorkManager manager=WorkManager.getInstance(app);
-   for(String name:new String[]{XMLTV,POSTERS,DVB}){
-    manager.cancelUniqueWork(name);
-    manager.cancelUniqueWork(name+"-initial");
-    manager.cancelUniqueWork(name+"-manual");
-   }
-   manager.cancelUniqueWork(POSTERS+"-programme");
+   for(String name:optionalNames())manager.cancelUniqueWork(name);
    app.getSharedPreferences("smarthub",0).edit()
      .putString("video_priority_jobs","PAUSED_APP_WORKMANAGER")
      .putLong("video_priority_jobs_paused_at",System.currentTimeMillis()).apply();
