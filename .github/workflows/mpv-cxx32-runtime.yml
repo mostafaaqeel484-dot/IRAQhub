@@ -96,7 +96,7 @@ jobs:
                 loc=out/abi/lib
                 loc.parent.mkdir(parents=True,exist_ok=True)
                 loc.write_bytes(data)
-                assert data[:4]==b"\\x7fELF",f"Invalid ELF in {key}"
+                assert data[:4]==bytes((127,69,76,70)),f"Invalid ELF in {key}"
                 print(key,len(data),hashlib.sha256(data).hexdigest())
           PY
           for abi in armeabi-v7a arm64-v8a; do
