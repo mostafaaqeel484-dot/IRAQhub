@@ -26,7 +26,7 @@ final class SportsPosterPrefetch {
   int verified=0,attempts=0,events=0;
   Set<String> unique=new HashSet<>();
   for(SportsMatch m:matches){
-   if(Thread.currentThread().isInterrupted()||events>=eventBudget||attempts>=networkBudget)break;
+   if(Thread.currentThread().isInterrupted()||events>=eventBudget||attempts>=networkBudget||prefs.getBoolean("software_dvb_422_active",false)||prefs.getBoolean("dvb_tuning",false))break;
    if(!SportsProgrammeArtwork.verified(m)
       ||m.kickoff<now-86400000L||m.kickoff>now+7L*86400000L)continue;
    events++;
