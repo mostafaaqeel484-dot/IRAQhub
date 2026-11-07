@@ -368,8 +368,10 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  }
  private void launchSoftware(ReceiverCatalog.Channel ch,String engine){
   new ChannelScope("",satellite,ch.tv,favoritesOnly,alphabetical,group).save(this);
-  startActivity(new Intent(this,SoftwareVideoActivity.class)
-   .putExtra("dvb_channel",ch.id).putExtra("decoder_engine",engine));
+  startActivity(new Intent(this,
+    "isolated".equals(engine)?Independent422Activity.class:SoftwareVideoActivity.class)
+   .putExtra("dvb_channel",ch.id).putExtra("decoder_engine",engine)
+   .putExtra("video_only",prefs().getBoolean("independent_422_video_only",true)));
   finish();
  }
  private void details(ReceiverCatalog.Channel ch){
