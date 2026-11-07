@@ -22,6 +22,7 @@ import java.util.zip.*;
 final class RxOriginalAssets {
  private static final Map<String,String> ALLOWED=new LinkedHashMap<>();
  static {
+  ALLOWED.put("cairo","assets/fonts/Cairo.ttf");
   ALLOWED.put("wall_dark","assets/walls/horizontal-dark-v230.png");
   ALLOWED.put("wall_light","assets/walls/horizontal-light-v230.png");
   ALLOWED.put("live_dark","assets/cards/live-horizontal-dark-v230.png");
@@ -35,6 +36,19 @@ final class RxOriginalAssets {
   ALLOWED.put("pyramids","assets/walls/pyramids.jpg");
   ALLOWED.put("sunset","assets/walls/red-sunset.jpg");
   ALLOWED.put("space","assets/walls/black-hole.jpg");
+ }
+ private static volatile android.graphics.Typeface cairo;
+ static android.graphics.Typeface font(Context c){
+  android.graphics.Typeface found=cairo;
+  if(found!=null)return found;
+  File file=new File(directory(c),"cairo.ttf");
+  if(!file.isFile()||file.length()<1000||file.length()>3*1024*1024L)return null;
+  try{
+   synchronized(RxOriginalAssets.class){
+    if(cairo==null)cairo=android.graphics.Typeface.createFromFile(file);
+    return cairo;
+   }
+  }catch(Throwable unavailable){return null;}
  }
  private static final LruCache<String,Bitmap> MEMORY=new LruCache<String,Bitmap>(5*1024*1024){
   @Override protected int sizeOf(String key,Bitmap value){return value.getAllocationByteCount();}
@@ -64,7 +78,8 @@ final class RxOriginalAssets {
      String key=names.get(e.getName());
      if("classes.dex".equals(e.getName()))validDex=true;
      if(key==null||e.isDirectory()){zip.closeEntry();continue;}
-     String extension=e.getName().endsWith(".jpg")?"jpg":"png";
+     String extension=e.getName().endsWith(".ttf")?"ttf":
+       e.getName().endsWith(".jpg")?"jpg":"png";
      File temp=new File(dir,key+"."+extension+".tmp");
      long length=0;
      try(FileOutputStream out=new FileOutputStream(temp)){
@@ -98,6 +113,7 @@ final class RxOriginalAssets {
    if(!temp.renameTo(target))throw new IOException("RX_ASSET_COMMIT_FAILED");
   }
   synchronized(MEMORY){MEMORY.evictAll();}
+  cairo=null;
   c.getSharedPreferences("smarthub",0).edit()
     .putBoolean("rx_original_art",true)
     .putLong("rx_original_art_updated_at",System.currentTimeMillis()).apply();
