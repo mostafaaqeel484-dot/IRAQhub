@@ -12,6 +12,7 @@ import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
 import org.videolan.libvlc.MediaPlayer;
 import org.videolan.libvlc.util.VLCVideoLayout;
+import org.videolan.libvlc.interfaces.IMedia;
 
 import java.util.ArrayList;
 
@@ -44,6 +45,88 @@ public final class SoftwareVideoActivity extends HubActivity {
     private long lastBufferStatus;
     private boolean videoOutputSeen;
     private long decoderOpenedAt;
+    private boolean decoderBuffering;
+    private long lastPictureProgressAt,videoStatsAt;
+    private long previousDisplayed=-1,previousDecoded=-1,previousAudio=-1,previousDemux=-1;
+    private long audioSincePicture,demuxSincePicture,decodedSincePicture;
+    private boolean videoStallEngineSwitchUsed;
+    private final Runnable frameHealth=new Runnable(){
+      @Override public void run(){
+        if(released||backgroundStopped)return;
+        if(mediaPlayer!=null&&satelliteRelay!=null&&satelliteRelay.running())
+          sampleDecoderFrames();
+        main.postDelayed(this,2600);
+      }
+    };
+    /** Stats are measured by LibVLC, not inferred from Vout, TS bitrate or audio.
+     * A real renderer stall is repaired without retuning the satellite. */
+    private void sampleDecoderFrames(){
+      IMedia live=null;
+      try{
+        if(!mediaPlayer.isPlaying())return;
+        live=mediaPlayer.getMedia();
+        if(live==null)return;
+        IMedia.Stats stats=live.getStats();
+        if(stats==null)return;
+        long now=android.os.SystemClock.elapsedRealtime();
+        long display=stats.displayedPictures,decoded=stats.decodedVideo,
+          audio=stats.decodedAudio,demux=stats.demuxReadBytes;
+        if(previousDisplayed<0||display<previousDisplayed||decoded<previousDecoded){
+          lastPictureProgressAt=now;videoStatsAt=now;
+          audioSincePicture=0;demuxSincePicture=0;decodedSincePicture=0;
+        }else{
+          audioSincePicture+=Math.max(0,audio-previousAudio);
+          demuxSincePicture+=Math.max(0,demux-previousDemux);
+          decodedSincePicture+=Math.max(0,decoded-previousDecoded);
+          if(display>previousDisplayed){
+            lastPictureProgressAt=now;
+            audioSincePicture=0;demuxSincePicture=0;decodedSincePicture=0;
+          }
+        }
+        previousDisplayed=display;previousDecoded=decoded;
+        previousAudio=audio;previousDemux=demux;videoStatsAt=now;
+        prefs().edit().putLong("libvlc_displayed_pictures",display)
+          .putLong("libvlc_decoded_video",decoded)
+          .putLong("libvlc_decoded_audio",audio)
+          .putLong("libvlc_demux_read_bytes",demux)
+          .putLong("libvlc_last_picture_advanced_ms",lastPictureProgressAt)
+          .apply();
+        boolean stuck=VideoFrameStallPolicy.stalled(lastPictureProgressAt,now,
+          demuxSincePicture,audioSincePicture,0,0,true,decoderBuffering,
+          videoOutputSeen);
+        boolean render=VideoFrameStallPolicy.rendererStalled(lastPictureProgressAt,now,
+          demuxSincePicture,audioSincePicture,0,decodedSincePicture,true,
+          decoderBuffering,videoOutputSeen);
+        if(stuck||render){
+          String reason=render?"LIBVLC_DISPLAY_STALL_AUDIO_ACTIVE":
+            "LIBVLC_DECODE_STALL_AUDIO_ACTIVE";
+          prefs().edit().putString("decoder_video_health",reason)
+            .putString("decoder_last_error",reason)
+            .putString("decoder_422_verification","VIDEO_STALLED_AFTER_FIRST_PICTURE")
+            .apply();
+          status.setText(tx("توقف تحديث صورة 4:2:2 والصوت مستمر · محاولة استعادة الفيديو",
+            "4:2:2 video stalled while audio continued · recovering video"));
+          lastPictureProgressAt=now;audioSincePicture=0;
+          demuxSincePicture=0;decodedSincePicture=0;
+          if(streamRetries<2)recoverStream();
+          else if(!videoStallEngineSwitchUsed&&!mpvFallbackUsed){
+            videoStallEngineSwitchUsed=true;
+            mpvSelected=true;
+            open(playbackUri); // Switch engine once, retaining tuned TS relay.
+          }
+        }
+      }catch(Throwable unavailable){
+        prefs().edit().putString("libvlc_stats_status",
+          unavailable.getClass().getSimpleName()).apply();
+      }finally{
+        if(live!=null)try{live.release();}catch(Throwable ignored){}
+      }
+    }
+    private void resetVideoStats(){
+      previousDisplayed=-1;previousDecoded=-1;previousAudio=-1;previousDemux=-1;
+      lastPictureProgressAt=0;videoStatsAt=0;audioSincePicture=0;
+      demuxSincePicture=0;decodedSincePicture=0;decoderBuffering=false;
+    }
     private final android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
     private LiveTsRelay satelliteRelay;
     private long nativeAudioToken;
@@ -190,6 +273,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         if(released||backgroundStopped)return;
         playbackUri=source;
         streamRetries=0;
+        resetVideoStats();
         if(mpvSelected&&!mpvFallbackUsed){
           videoLayout.setVisibility(android.view.View.GONE);
           if(openMpv(source))return;
@@ -199,6 +283,8 @@ public final class SoftwareVideoActivity extends HubActivity {
         }
         videoLayout.setVisibility(android.view.View.VISIBLE);
         videoOutputSeen=false;
+        main.removeCallbacks(frameHealth);
+        main.postDelayed(frameHealth,2600);
         decoderOpenedAt=android.os.SystemClock.elapsedRealtime();
         main.removeCallbacks(voutWatchdog);
         prefs().edit().putString("software_422_runtime","LIBVLC_OPENING")
@@ -225,6 +311,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                         status.setText(tx("فتح البث…", "Opening stream…"));
                         break;
                     case MediaPlayer.Event.Buffering:
+                        decoderBuffering=event.getBuffering()<96f;
                         if(android.os.SystemClock.elapsedRealtime()-lastBufferStatus>650){
                             lastBufferStatus=android.os.SystemClock.elapsedRealtime();
                             status.setText(tx("مزامنة بيانات الفيديو والصوت…","Synchronising video and audio…"));
@@ -245,6 +332,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                         }
                         break;
                     case MediaPlayer.Event.Playing:
+                        decoderBuffering=false;
                         NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
                         if(!videoOutputSeen)main.postDelayed(voutWatchdog,14000L);
                         prefs().edit().putString("software_422_runtime",
@@ -338,6 +426,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                 Media reload=new Media(libVLC,Uri.parse(playbackUri));
                 configure(reload,playbackUri);
                 mediaPlayer.stop();
+                resetVideoStats();videoOutputSeen=false;
                 mediaPlayer.setMedia(reload);
                 reload.release();
                 status.setText(tx("إعادة وصل بث DVB "+attempt+"/2","Reconnecting DVB stream "+attempt+"/2"));
@@ -399,6 +488,8 @@ public final class SoftwareVideoActivity extends HubActivity {
           }).setNegativeButton(tx("رجوع","Close"),null).show();
     }
     private void closeDecoder(){
+        main.removeCallbacks(frameHealth);
+        resetVideoStats();
         main.removeCallbacks(voutWatchdog);
         if(mpvRenderer!=null){
           try{mpvRenderer.close();}catch(Throwable ignored){}
