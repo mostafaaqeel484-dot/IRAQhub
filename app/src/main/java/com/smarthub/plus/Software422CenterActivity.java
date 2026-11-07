@@ -71,13 +71,15 @@ public final class Software422CenterActivity extends HubActivity {
     "Separate MPV/FFmpeg process, not LibVLC. Video-only by default to save CPU, audio toggle in player. Same real DVB TS; no root required."));
   action(dedicated,tx("تشغيل قنوات DVB بالمحرك المستقل",
     "Choose DVB channel for isolated decoder"),
-   ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)));
+   ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)
+      .putExtra("prefer_422_engine",true)));
   LinearLayout status=card(body);
   status.addView(text(tx("قنوات DVB الفضائية","DVB satellite channels"),20,true));
   note(status,tx("تم ربط التقاط TS المحلي من التونر بمشغل LibVLC، مع تخزين مؤقت محدود وحماية 4:2:2 من انقطاع الصوت. نجاح فك الصورة يعتمد على دعم الرسيفر الحقيقي وبيانات PID؛ المشفرة تحتاج فك BISS مُصرّحاً به داخل الجهاز قبل عرضها برمجياً.",
     "The native tuner TS capture is connected to LibVLC. Playback still requires real PIDs, receiver-authorised descrambling for encrypted feeds and sufficient CPU. Software 4:2:2 cannot guarantee smooth 1080i/4K on this chipset."));
   action(status,tx("قنوات IRAQhub الفضائية","IRAQhub satellite channels"),
-   ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)));
+   ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)
+      .putExtra("prefer_422_engine",true)));
   action(status,tx("معلومات دعم Decoder والتوافق","Decoder capabilities"),
    ()->startActivity(new Intent(this,CompatibilityActivity.class)));
  }
