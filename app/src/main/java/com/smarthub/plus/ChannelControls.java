@@ -1,30 +1,34 @@
 package com.smarthub.plus;
 import android.app.*;
 import android.content.*;
-import java.util.*;
 
-/** Configuration remains in the firmware which owns CA and BISS. */
+/** All channel actions remain inside IRAQhub. */
 final class ChannelControls {
- static void open(Activity c,ReceiverCatalog.Channel ch){
-  boolean ar=c.getSharedPreferences("smarthub",0).getBoolean("arabic",true);
-  List<String> ids=new ArrayList<>(),labels=new ArrayList<>();
-  String[] routes={"native_tv_controls","server","ca","patch"};
-  String[] names=ar?new String[]{"فتح التلفاز الأصلي واختيار هذه القناة","إعدادات السيرفر المركزية","حالة CA والتخويل من النظام","إدارة BISS / Patch الأصلية"}:new String[]{"Open firmware TV and select this channel","Central Server Settings","Firmware CA / authorization status","Firmware BISS / Patch management"};
-  for(int n=0;n<routes.length;n++){
-   ManufacturerFeatures.Entry e=ManufacturerFeatures.find(c,routes[n]);
-   if(e!=null&&ManufacturerFeatures.unavailable(c,e).isEmpty()){ids.add(routes[n]);labels.add(names[n]);}
-  }
-  if(ids.isEmpty()){
-   new AlertDialog.Builder(c).setTitle(ch.name).setMessage(ar?"لا توجد واجهة مصنع عامة متاحة لهذه الوظيفة.":"No public firmware interface is available for this function.").setPositiveButton("OK",null).show();return;
-  }
-  String detail=ch.name+" · SID "+ch.sid+"\n"+ch.rf()+"\n"+(ar?"التشغيل يستخدم تخويل Firmware المحفوظ. افتح هنا إعدادات السيرفر أو CA وBISS؛ تبقى الحسابات والمفاتيح داخل النظام.":"Playback uses the receiver’s saved firmware authorization. Manage central Server Settings, CA and BISS here; accounts and keys stay in the system.");
-  new AlertDialog.Builder(c).setTitle(ar?"خدمات القناة في الرسيفر":"Receiver channel services").setMessage(detail).setPositiveButton(ar?"المتابعة":"Continue",(d,w)->ReceiverPanelStyle.choose(c,ch.name,labels.toArray(new String[0]),0,index->{
-   ManufacturerFeatures.Entry e=ManufacturerFeatures.find(c,ids.get(index));
-   if(!ManufacturerFeatures.open(c,e))android.widget.Toast.makeText(c,ar?"تعذر فتح واجهة المصنع":"Firmware interface unavailable",android.widget.Toast.LENGTH_LONG).show();
-  })).setNegativeButton(ar?"رجوع":"Back",null).show();
+ private ChannelControls(){}
+ static void open(Activity activity,ReceiverCatalog.Channel channel){
+  boolean ar=activity.getSharedPreferences("smarthub",0).getBoolean("arabic",true);
+  String[] options=ar?
+   new String[]{"ملف LNB وتردد القمر","مركز الموتور وUSALS","مشغل LibVLC البرمجي 4:2:2","حالة CA/BISS"}:
+   new String[]{"Satellite LNB profile","Motor / USALS centre","LibVLC software 4:2:2","CA / BISS status"};
+  new AlertDialog.Builder(activity).setTitle(channel.name+" · "+channel.rf())
+   .setItems(options,(dialog,which)->{
+    Intent destination=null;
+    switch(which){
+     case 0:destination=new Intent(activity,TunerSettingsActivity.class)
+       .putExtra("satellite",(long)channel.satId);break;
+     case 1:destination=new Intent(activity,MotorCenterActivity.class)
+       .putExtra("satellite",(long)channel.satId);break;
+     case 2:destination=new Intent(activity,Software422CenterActivity.class);break;
+     case 3:
+      new AlertDialog.Builder(activity).setTitle("CA / BISS")
+       .setMessage(ar?"لا توجد حالياً API موثقة لإدخال مفاتيح BISS مباشرة من IRAQhub إلى خدمة CA في الروم؛ لا نفتح Aurum ولا نحفظ المفاتيح."
+         :"An authorised API for passing BISS keys to the firmware CA service is not available. IRAQhub never launches Aurum or stores keys.")
+       .setPositiveButton("OK",null).show();return;
+    }
+    if(destination!=null)activity.startActivity(destination);
+   }).setNegativeButton(ar?"إغلاق":"Close",null).show();
  }
- static void motor(Activity c){
-  ManufacturerFeatures.Entry entry=ManufacturerFeatures.find(c,"motor");boolean ar=c.getSharedPreferences("smarthub",0).getBoolean("arabic",true);
-  if(entry==null||!ManufacturerFeatures.open(c,entry))android.widget.Toast.makeText(c,ar?"تحكم الموتور غير متاح عبر واجهة المصنع":"Firmware motor controls unavailable",android.widget.Toast.LENGTH_LONG).show();
+ static void motor(Activity activity){
+  activity.startActivity(new Intent(activity,MotorCenterActivity.class));
  }
 }

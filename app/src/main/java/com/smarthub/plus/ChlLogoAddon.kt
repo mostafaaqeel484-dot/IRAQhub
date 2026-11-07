@@ -15,15 +15,77 @@ class ChlLogoAddon private constructor(private val context:Context){
  @Volatile private var selectionSeed=""
  private val prefs=context.getSharedPreferences("smarthub",0)
  @Synchronized fun load(){if(loaded)return;selectionSeed=LogoSelection.seed(context);index=try{val f=File(context.filesDir,"chl-logo-index.bin");if(f.isFile&&f.length()<=8*1024*1024)f.inputStream().use{ChlChannelIndex.read(it)}else null}catch(_:Exception){null};loaded=true}
- @Synchronized fun importFile(reader:Reader):ChlChannelIndex {val raw=ReceiverCatalog.readText(reader);val parsed=ChlChannelIndex.parse(java.io.StringReader(raw));val catalog=ReceiverCatalog.get(context);try{catalog.importText(raw)}catch(_:Exception){catalog.replaceCompact(parsed)};val atomic=AtomicFile(File(context.filesDir,"chl-logo-index.bin"));val out=atomic.startWrite();try{parsed.write(out);atomic.finishWrite(out)}catch(e:Exception){atomic.failWrite(out);throw e};File(context.filesDir,"chl-logo-index.json").delete();selectionSeed=LogoSelection.seed(context);val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();index=parsed;loaded=true;changed();return parsed}
- @Synchronized fun clear(){ReceiverCatalog.get(context).clear();AtomicFile(File(context.filesDir,"chl-logo-index.bin")).delete();AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete();index=null;loaded=true;val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();prefs.edit().putBoolean("chl_chmax_enabled",false).apply();changed()}
+ @Synchronized fun importFile(reader:Reader):ChlChannelIndex {val raw=ReceiverCatalog.readText(reader);val parsed=ChlChannelIndex.parse(java.io.StringReader(raw));val catalog=ReceiverCatalog.get(context);try{catalog.importText(raw)}catch(_:Exception){catalog.replaceCompact(parsed)};prefs.edit().putString("receiver_catalog_format","CHL").apply();val atomic=AtomicFile(File(context.filesDir,"chl-logo-index.bin"));val out=atomic.startWrite();try{parsed.write(out);atomic.finishWrite(out)}catch(e:Exception){atomic.failWrite(out);throw e};File(context.filesDir,"chl-logo-index.json").delete();selectionSeed=LogoSelection.seed(context);val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();index=parsed;loaded=true;changed();return parsed}
+ /** After importing a native DB, rebuild the logo source once from indexed SQLite.
+  * Keeps physical CHMAX lookups without reparsing CHL at every process start.
+  */
+ @Synchronized fun databaseImported(){
+  val parsed=try{ChlChannelIndex.fromReceiverDatabase(context)}catch(_:Exception){null}
+  val file=AtomicFile(File(context.filesDir,"chl-logo-index.bin"))
+  var saved=false
+  if(parsed!=null){
+   var out:java.io.FileOutputStream?=null
+   try{
+    out=file.startWrite()
+    parsed.write(out)
+    file.finishWrite(out)
+    saved=true
+   }catch(_:Exception){
+    if(out!=null)file.failWrite(out)
+   }
+  }
+  if(!saved)file.delete()
+  AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete()
+  index=if(saved)parsed else null
+  loaded=true
+  selectionSeed=LogoSelection.seed(context)
+  val edit=prefs.edit()
+  prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)}
+  edit.apply()
+  changed()
+ }
+ @Synchronized fun clear(){ReceiverCatalog.get(context).clear();AtomicFile(File(context.filesDir,"chl-logo-index.bin")).delete();AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete();index=null;loaded=true;val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();prefs.edit().putBoolean("chl_chmax_enabled",false).remove("receiver_catalog_format").remove("receiver_catalog_count").apply();changed()}
  fun snapshot():ChlChannelIndex?{load();return index}
  fun provider(name:String)=index?.provider(name)?:prefs.getString("chl_provider:"+ChlChannelIndex.normalize(name),"")?:""
  fun rememberProvider(name:String){val value=index?.provider(name)?:return;val key="chl_provider:"+ChlChannelIndex.normalize(name);if(prefs.getString(key,"")!=value)prefs.edit().putString(key,value).apply()}
  fun choice(name:String)=index?.choose(name,selectionSeed)
  fun resolve(name:String,loader:ChannelLogoResolver):Bitmap?{load();rememberProvider(name);for(service in index?.choices(name,selectionSeed)?.take(3)?:emptyList())resolve(service,loader)?.let{return it};return null}
  fun unique(name:String)=index?.unique(name)
- fun enabled()=prefs.getBoolean("chl_chmax_enabled",false)
+ /** Bind CHMAX logos to the exact DVB transport/service identity, not the name. */
+ @Synchronized fun resolvePhysical(physical:String,loader:ChannelLogoResolver):Bitmap?{
+  load()
+  val actual=physical.removePrefix("DVB:")
+  if(!physical.startsWith("DVB:")||actual.length>100||!enabled())return null
+  val single=index?.byPhysical(actual)?:return null
+  if(!supportedSession())return null
+  return resolve(single,loader)
+ }
+
+ @Volatile private var sessionCheckedUntil=0L
+ @Volatile private var sessionSupported=false
+ /**
+  * The signed CHMAX icon service requires an authorised compatibility profile.
+  * Never send repeated remote requests with an absent profile on every scroll.
+  */
+ fun supportedSession():Boolean{
+  val now=System.currentTimeMillis()
+  if(now<sessionCheckedUntil)return sessionSupported
+  synchronized(this){
+   if(now<sessionCheckedUntil)return sessionSupported
+   sessionSupported=try{
+    val state=FactoryVault.read(context)
+    val has=state.optString("chmaxProfile").length in 8..24&&
+      state.optString("accessToken").isNotEmpty()
+    if(!has)prefs.edit().putString("chl_chmax_status",
+      "FACTORY_CHMAX_PROFILE_REQUIRED").apply()
+    has
+   }catch(_:Exception){false}
+   sessionCheckedUntil=now+60_000L
+   return sessionSupported
+  }
+ }
+ fun invalidateSession(){sessionCheckedUntil=0L}
+ fun enabled()=prefs.getBoolean("chl_chmax_enabled",prefs.getBoolean("factory_enabled",true)&&prefs.getBoolean("osd_chmax_logos",true))
  fun statusLabel():String=when(prefs.getString("chl_chmax_status","")){
   "CHMAX_LOGO_OK"->"تم جلب شعار مطابق من CHMAX"
   "CHMAX_LOGO_NOT_FOUND"->"لم ينشر CHMAX شعاراً مطابقاً لهذه القناة"

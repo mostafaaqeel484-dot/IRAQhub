@@ -14,7 +14,28 @@ import java.util.concurrent.*;
 /** Public diagnostics only; no serials, credentials or access to protected vendor files. */
 public final class CompatibilityActivity extends HubActivity {
     private final ExecutorService io=Executors.newSingleThreadExecutor();private volatile boolean destroyed;
-    @Override public void onCreate(Bundle s){super.onCreate(s);LinearLayout body=page(tx("توافق الجهاز ومصادر البيانات","Device compatibility and data sources"));TextView report=text(tx("فحص الواجهات…","Inspecting interfaces…"),16,false);card(body).addView(report);io.execute(()->{String r=inspect(this);runOnUiThread(()->{if(!destroyed)report.setText(r);});});}
+    @Override public void onCreate(Bundle s){
+      super.onCreate(s);
+      LinearLayout body=page(tx("توافق الجهاز ومصادر البيانات","Device compatibility and data sources"));
+      LinearLayout actions=card(body);
+      TextView report=text(tx("فحص الواجهات…","Inspecting interfaces…"),16,false);
+      card(body).addView(report);
+      action(actions,tx("نسخ تقرير البحث و4:2:2 وEPG","Copy receiver diagnostic report"),()->{
+       String diagnostic=ReceiverDiagnosticReport.capture(this);
+       android.content.ClipboardManager clipboard=(android.content.ClipboardManager)
+         getSystemService(CLIPBOARD_SERVICE);
+       if(clipboard!=null)clipboard.setPrimaryClip(
+        android.content.ClipData.newPlainText("IRAQhub X5M diagnostics",diagnostic));
+       toast(tx("تم نسخ التقرير بدون مفاتيح أو بيانات شخصية","Safe diagnostic report copied"));
+      });
+      action(actions,tx("مشاركة تقرير فحص الرسيفر","Share diagnostic report"),()->{
+       Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain")
+        .putExtra(Intent.EXTRA_TEXT,ReceiverDiagnosticReport.capture(this));
+       try{startActivity(Intent.createChooser(send,tx("مشاركة التقرير","Share report")));}
+       catch(Exception unavailable){toast(tx("النسخ متاح من الزر السابق","Use copy report instead"));}
+      });
+      io.execute(()->{String r=inspect(this);runOnUiThread(()->{if(!destroyed)report.setText(r);});});
+    }
     static String inspect(Context c){
         boolean ar=c.getSharedPreferences("smarthub",0).getBoolean("arabic",true);StringBuilder b=new StringBuilder("Android "+Build.VERSION.RELEASE+" · API "+Build.VERSION.SDK_INT+"\n"+Build.MANUFACTURER+" "+Build.MODEL+"\nSoC: "+(Build.VERSION.SDK_INT>=31?Build.SOC_MANUFACTURER+" "+Build.SOC_MODEL:Build.HARDWARE)+"\nABI: "+String.join(", ",Build.SUPPORTED_ABIS));
         ActivityManager.MemoryInfo memory=new ActivityManager.MemoryInfo();((ActivityManager)c.getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(memory);b.append(String.format(Locale.ROOT,"\nRAM: %.1f GB · available %.1f GB",memory.totalMem/1073741824.0,memory.availMem/1073741824.0));
@@ -44,6 +65,8 @@ public final class CompatibilityActivity extends HubActivity {
             String mime=p.getString("decoder_input_mime","");String codecs=p.getString("decoder_input_codecs","");
             if(!mime.isEmpty()||!codecs.isEmpty())b.append("\nInput: ").append(mime).append(" · ").append(codecs).append(" · ").append(p.getInt("decoder_input_width",0)).append("×").append(p.getInt("decoder_input_height",0));
             b.append("\n4:2:2 status: ").append(p.getString("decoder_422_verification","NO_SESSION"));
+            b.append("\nDVB VDEC frame health: ").append(p.getString("decoder_video_health","NOT_MEASURED"));
+            b.append(ar?"\nهذه قراءة عداد الإطارات من النظام ولا تثبت ظهور صورة 4:2:2 سليمة. عدم توفرها لا يعني فشل فك الشفرة.":"\nFirmware-wide frame telemetry does not prove a visible 4:2:2 picture. Missing telemetry is not a decode or BISS failure.");
             if(p.getLong("decoder_first_frame_at",0)>0)b.append("\nFirst frame rendered: yes");else b.append("\nFirst frame rendered: not confirmed");
             long processed=p.getLong("decoder_processed_frames",0);
             long offset=p.getLong("decoder_processing_offset_us",0);

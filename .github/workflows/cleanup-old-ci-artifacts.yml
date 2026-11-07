@@ -1,0 +1,84 @@
+name: Clean superseded IRAQhub CI artifacts
+
+on:
+  push:
+    branches: [ 'fix/x5m-422-media3-resources-build-20261107' ]
+    paths: [ '.github/workflows/cleanup-old-ci-artifacts.yml' ]
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Delete only old superseded CI APK artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import re
+          import urllib.error
+          import urllib.request
+
+          root = f"https://api.github.com/repos/{os.environ['GH_REPO']}"
+          token = os.environ["GH_TOKEN"]
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "IRAQhub-limited-artifact-cleanup",
+          }
+          def api(path, method="GET"):
+              req = urllib.request.Request(root + path, headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  return json.load(resp) if method == "GET" else None
+
+          all_artifacts = []
+          page = 1
+          while page <= 10:
+              batch = api(f"/actions/artifacts?per_page=100&page={page}").get("artifacts", [])
+              all_artifacts.extend(batch)
+              if len(batch) < 100:
+                  break
+              page += 1
+          # No release assets, project source files or named final APK archives.
+          ephemeral = [
+              a for a in all_artifacts
+              if re.fullmatch(r"IRAQhub-[0-9a-f]{40}", a.get("name", ""))
+              and not a.get("expired", False)
+          ]
+          ephemeral.sort(key=lambda a: a.get("created_at", ""), reverse=True)
+          keep_ids = {int(a["id"]) for a in ephemeral[:5]}
+          cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=6)
+          eligible = [
+              a for a in ephemeral
+              if int(a["id"]) not in keep_ids
+              and dt.datetime.fromisoformat(a["created_at"].replace("Z", "+00:00")) < cutoff
+          ]
+          # Oldest first: never delete more than ten on a single run.
+          eligible.sort(key=lambda a: a["created_at"])
+          removed = 0
+          freed = 0
+          for a in eligible[:10]:
+              try:
+                  api(f"/actions/artifacts/{int(a['id'])}", "DELETE")
+                  removed += 1
+                  freed += int(a.get("size_in_bytes", 0))
+                  print(f"Deleted superseded artifact {a['id']} ({a['name']}, {a['size_in_bytes']} bytes)")
+              except urllib.error.HTTPError as err:
+                  print(f"Could not delete {a['id']}: HTTP {err.code}")
+                  if err.code in (401, 403):
+                      raise
+          print(f"Cleanup result: removed={removed}, freed={freed / (1024**3):.2f} GiB; retained newest five CI artifacts.")
+          print("Storage quota recalculation may take 6-12 hours.")
+          PY

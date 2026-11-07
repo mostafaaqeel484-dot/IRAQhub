@@ -18,6 +18,9 @@ class ChlChannelIndex private constructor(val services:List<Service>,val satelli
   fun query()=JSONArray().put(JSONObject().put("sat",sat.toString()).put("band",band).put("tps",JSONArray().put(JSONObject().put("tp","$frequency:$polarity:$symbolRate").put("chs",JSONArray().put(JSONObject().put("sid",sid.toString()))))))
  }
  private val names=services.groupBy{normalize(it.name)}
+ private val byPhysical=services.groupBy{it.physicalKey}
+ fun byPhysical(physical:String):Service?=byPhysical[physical]?.distinctBy{it.physicalKey}?.singleOrNull()
+
  fun candidates(name:String)=names[normalize(name)]?:emptyList()
  fun unique(name:String):Service? {val rows=candidates(name).distinctBy{it.physicalKey};return rows.singleOrNull()}
  fun choices(name:String,seed:String):List<Service>{val rows=candidates(name).distinctBy{it.physicalKey}.sortedBy{it.physicalKey};if(rows.isEmpty())return emptyList();val start=LogoSelection.index(seed,normalize(name),rows.size);return rows.drop(start)+rows.take(start)}
@@ -53,6 +56,31 @@ class ChlChannelIndex private constructor(val services:List<Service>,val satelli
     do{require(ch>=0&&b.length<128*1024);val c=ch.toChar();b.append(c);if(quoted){if(escaped)escaped=false else if(c=='\\')escaped=true else if(c=='"')quoted=false}else{if(c=='"')quoted=true else if(c=='{'||c=='['){depth++;require(depth<=32)}else if(c=='}'||c==']')depth--};ch=read()}while(depth>0||quoted)
     require(depth==0);consume(JSONObject(b.toString()));first=false
    }
+  }
+  /** Rebuild the compact CHMAX/logo physical index from app-owned SQLite rows.
+   * This is a one-time scan during DB import, not a CHL text parse on startup.
+   */
+  @JvmStatic fun fromReceiverDatabase(context:android.content.Context):ChlChannelIndex{
+   val db=ReceiverCatalog.get(context).readableDatabase
+   val data=ArrayList<Service>()
+   db.rawQuery(
+     "SELECT c.name,c.provider,s.angle,s.band,t.freq,t.pol,t.sr,c.sid "+
+     "FROM ch c JOIN tp t ON c.tp_id=t._id JOIN sat s ON t.sat_id=s._id "+
+     "ORDER BY c.order_index,c._id LIMIT 50001",null
+   ).use{cursor->
+    while(cursor.moveToNext()){
+     require(data.size<50000){"CHANNEL_INDEX_TOO_LARGE"}
+     val item=Service(cursor.getString(0),cursor.getString(1),cursor.getInt(2),
+       cursor.getString(3),cursor.getInt(4),cursor.getString(5),
+       cursor.getInt(6),cursor.getInt(7))
+     require(item.name.isNotBlank()&&item.name.length<=200&&item.provider.length<=200)
+     data.add(item)
+    }
+   }
+   require(data.isNotEmpty())
+   val sats=android.database.DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat",null).toInt()
+   val tps=android.database.DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM tp",null).toInt()
+   return ChlChannelIndex(data,sats,tps)
   }
   @JvmStatic fun fromSaved(text:String):ChlChannelIndex{require(text.length<=16*1024*1024);val root=JSONObject(text);require(root.getInt("version")==1);val rows=root.getJSONArray("services");require(rows.length() in 1..50000);val out=ArrayList<Service>();for(i in 0 until rows.length()){val j=rows.getJSONObject(i);val name=label(j,"name");val band=label(j,"band");val pol=label(j,"polarity");require(name.isNotBlank()&&band in setOf("KU","C")&&pol in setOf("H","V","L","R"));out.add(Service(name,label(j,"provider"),number(j,"sat",0,3599),band,number(j,"frequency",100,100000),pol,number(j,"symbolRate",1,100000),number(j,"sid",0,65535)))};return ChlChannelIndex(out,root.getInt("satellites"),root.getInt("transponders"))}
  }

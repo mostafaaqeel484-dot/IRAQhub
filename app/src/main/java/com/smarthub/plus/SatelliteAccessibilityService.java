@@ -59,7 +59,7 @@ public final class SatelliteAccessibilityService extends AccessibilityService im
                 }
             }
         }
-        if(tvPackage.equals(eventPackage)){schedule();if(!prefs.getString("oem_pending_route","").isEmpty())handler.postDelayed(()->{AccessibilityNodeInfo nativeRoot=getRootInActiveWindow();if(nativeRoot!=null)try{ManufacturerFeatures.navigateSidebar(this,nativeRoot);}finally{nativeRoot.recycle();}},150);}
+        if(tvPackage.equals(eventPackage)){schedule();/* Read-only EPG/Infobar observation; no OEM menu automation. */}
     }
     private void visible(boolean value){if(prefs.getBoolean("satellite_tv_visible",false)!=value)prefs.edit().putBoolean("satellite_tv_visible",value).apply();}
     private void schedule(){if(!queued&&!closed){queued=true;handler.postDelayed(capture,220);}}
@@ -67,6 +67,9 @@ public final class SatelliteAccessibilityService extends AccessibilityService im
         AccessibilityNodeInfo root=TvWindowRoot.find(this);if(root==null)return;
         try{
             if(!tvPackage.contentEquals(root.getPackageName()==null?"":root.getPackageName()))return;visible(true);
+            // Opt-in, read-only OEM scan results observed on the genuine Aurum screen.
+            // No native search commands, remote keys or firmware changes are issued here.
+            AurumScanObserver.observe(this,root);
             if(guideArtwork==null)guideArtwork=new NativeGuideArtwork(this);guideArtwork.observe(root);
             Map<String,String> fields=new HashMap<>();collect(root,fields,0,new int[]{0});long now=System.currentTimeMillis();SatelliteState parsed=SatelliteUiParser.parse(fields,now,ZoneId.of(prefs.getString("tv_epg_timezone","Asia/Baghdad")),tvPackage);prefs.edit().putBoolean("satellite_native_banner_visible",parsed!=null).apply();
             SatelliteState old=SatelliteState.read(this);if(chmax==null)chmax=new CHMAXIntegration(this);chmax.observe(root,parsed==null?old:parsed,fields);
