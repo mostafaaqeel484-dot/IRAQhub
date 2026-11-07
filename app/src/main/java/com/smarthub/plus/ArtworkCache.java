@@ -43,7 +43,7 @@ final class ArtworkCache {
  }
  static void saveVerified(Context c,URL url,byte[] bytes)throws Exception{
   if(url==null||!"https".equals(url.getProtocol())||bytes==null
-    ||bytes.length<200||bytes.length>5*1024*1024)
+    ||bytes.length<200||bytes.length>5*1024*1024||!validImage(bytes))
    throw new IOException("INVALID_VERIFIED_IMAGE");
   StringBuilder key=new StringBuilder();
   for(byte b:MessageDigest.getInstance("SHA-256").digest(url.toString().getBytes(StandardCharsets.UTF_8)))
@@ -61,7 +61,13 @@ final class ArtworkCache {
    byte[] cached=java.nio.file.Files.readAllBytes(saved.toPath());
    if(validImage(cached))return cached;
   }
-  byte[] bytes;try{DirectHttp.Reply reply=DirectHttp.request(url.toString(),Collections.emptyMap(),null,limit,null);if(reply.code!=200)throw new IOException("Artwork HTTP "+reply.code);bytes=reply.bytes;}catch(Exception error){if(saved.isFile()&&saved.length()<=limit){byte[] fallback=java.nio.file.Files.readAllBytes(saved.toPath());if(validImage(fallback)){c.getSharedPreferences("smarthub",0).edit().putString("artwork_status","Online image refresh failed; showing matching cached image").apply();return fallback;}}throw error;}if(!validImage(bytes))throw new IOException("ARTWORK_NOT_A_VALID_IMAGE");
+  byte[] bytes;try{DirectHttp.Reply reply=DirectHttp.request(url.toString(),Collections.emptyMap(),null,limit,null);if(reply.code!=200)throw new IOException("Artwork HTTP "+reply.code);bytes=reply.bytes;}catch(Exception error){if(saved.isFile()&&saved.length()<=limit){byte[] fallback=java.nio.file.Files.readAllBytes(saved.toPath());if(validImage(fallback)){c.getSharedPreferences("smarthub",0).edit().putString("artwork_status","Online image refresh failed; showing matching cached image").apply();return fallback;}}throw error;}if(!validImage(bytes)){
+   if(saved.isFile()&&saved.length()<=limit){
+    byte[] oldBytes=java.nio.file.Files.readAllBytes(saved.toPath());
+    if(validImage(oldBytes))return oldBytes;
+   }
+   throw new IOException("ARTWORK_NOT_A_VALID_IMAGE");
+  }
   android.util.AtomicFile atomic=new android.util.AtomicFile(saved);
   FileOutputStream out=atomic.startWrite();
   try{out.write(bytes);atomic.finishWrite(out);}
