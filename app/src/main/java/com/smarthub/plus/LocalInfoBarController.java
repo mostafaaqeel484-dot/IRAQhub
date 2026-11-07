@@ -27,7 +27,7 @@ final class LocalInfoBarController implements AutoCloseable {
  private final ExecutorService io=Executors.newFixedThreadPool(2);
  private final FactoryProvider chmax;
  private final PublishedEpgArtwork published;
- private String logoKey="",imageKey="";
+ private String logoKey="",imageKey="",lastPrefetchEvent="";
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
  private long logoRetry,posterRetryAt;
  private volatile boolean closed;
@@ -117,9 +117,16 @@ final class LocalInfoBarController implements AutoCloseable {
    final String expected=art;
    final SatelliteState snapshot=state.copy();
    // Two independent pipelines: a slow TMDB movie lookup must not delay NEXT.
-   if(!prefs.getBoolean("software_dvb_422_active",false)&&
-      !prefs.getBoolean("dvb_tuning",false)&&snapshot.startMs>0)
-    IraqHubSyncScheduler.programmeChanged(host);
+   // The artwork cache's update timestamp can change repeatedly; only schedule
+   // once per *broadcast event*, not once per cache invalidation or UI repaint.
+   String broadcastKey=id+"|"+snapshot.title+"|"+snapshot.startMs+"|"+
+     snapshot.nextTitle+"|"+snapshot.nextStartMs;
+   if(!broadcastKey.equals(lastPrefetchEvent)){
+    lastPrefetchEvent=broadcastKey;
+    if(!prefs.getBoolean("software_dvb_422_active",false)&&
+       !prefs.getBoolean("dvb_tuning",false)&&snapshot.startMs>0)
+     IraqHubSyncScheduler.programmeChanged(host);
+   }
    io.execute(()->{
     try{if(!prefs.getBoolean("software_dvb_422_active",false))
       published.refresh(snapshot,System.currentTimeMillis());}
