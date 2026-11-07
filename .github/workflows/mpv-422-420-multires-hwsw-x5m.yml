@@ -158,6 +158,8 @@ jobs:
           test -s "$APK"
           mkdir -p dist
           cp "$APK" dist/IRAQhub_4.0.0_X5M_422_420_MultiRes_HW_SW_Debug.apk
+          # Never attempt a release upload if the expected output is missing.
+          test -s "dist/IRAQhub_4.0.0_X5M_422_420_MultiRes_HW_SW_Debug.apk"
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
@@ -165,6 +167,6 @@ jobs:
               --notes "PRIVATE DRAFT DEBUG ONLY: Based on PR #37, adds post-decode YUV422P10 and YUV420P outputs with 1080/720/540/480/360 presets, 720 to 540 to 360 bounded Auto, and optional experimental MediaCodec-copy HW versus SW. Reports hwdec-current, recovers HW to SW once and filtered output to native GPU once on startup failure. Keeps X5M SurfaceHolder ordering and packaged r29 C++ ABI audits. Hardware 4:2:2 playback and smooth motion are NOT verified until real X5M testing."
           fi
           gh release upload "$TAG" \
-            dist/IRAQhub_4.0.0_X5M_MPV_Fluid_Load_Recovery_Debug.apk \
+            dist/IRAQhub_4.0.0_X5M_422_420_MultiRes_HW_SW_Debug.apk \
             dist/SHA256SUMS.txt --clobber
           gh release view "$TAG" --json isDraft,assets --jq '{draft:.isDraft,assets:[.assets[].name]}'
