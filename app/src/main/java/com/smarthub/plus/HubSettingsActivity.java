@@ -6,6 +6,31 @@ import android.widget.LinearLayout;
 
 /** Remote-first settings hub; advanced options remain one click away. */
 public final class HubSettingsActivity extends HubActivity {
+ private static final int EXPORT_RECEIVER_BACKUP=8806;
+ private void backupChannels(){
+  Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+  intent.addCategory(Intent.CATEGORY_OPENABLE);
+  intent.setType("application/zip");
+  intent.putExtra(Intent.EXTRA_TITLE,"IRAQhub_channels_backup_"+System.currentTimeMillis()+".zip");
+  try{startActivityForResult(intent,EXPORT_RECEIVER_BACKUP);}
+  catch(Exception e){toast(tx("منتقي الملفات غير متاح","Document picker unavailable"));}
+ }
+ @Override protected void onActivityResult(int request,int result,Intent data){
+  super.onActivityResult(request,result,data);
+  if(request!=EXPORT_RECEIVER_BACKUP||result!=RESULT_OK||data==null||data.getData()==null)return;
+  android.net.Uri uri=data.getData();
+  new Thread(()->{
+   try{
+    ReceiverBackup.export(this,uri);
+    runOnUiThread(()->toast(tx("تم حفظ نسخة القنوات الاحتياطية","Channel backup saved")));
+   }catch(Exception failure){
+    runOnUiThread(()->new android.app.AlertDialog.Builder(this)
+      .setTitle(tx("تعذر إنشاء النسخة الاحتياطية","Backup failed"))
+      .setMessage(String.valueOf(failure.getMessage()))
+      .setPositiveButton("OK",null).show());
+   }
+  },"iraqhub-catalog-backup").start();
+ }
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
   LinearLayout page=page(tx("إعدادات IRAQhub","IRAQhub settings"),
@@ -20,6 +45,7 @@ public final class HubSettingsActivity extends HubActivity {
   open(satellite,tx("بحث التردد اليدوي · قائمة مستقلة","Manual search · separate screen"),ManualTransponderActivity.class);
   open(satellite,tx("ضبط LNB — Universal 9750/10600","LNB — universal 9750/10600"),TunerSettingsActivity.class);
   open(satellite,tx("ترتيب وإدارة القنوات","Sort and manage channels"),ChannelManageActivity.class);
+  action(satellite,tx("حفظ نسخة احتياطية لقاعدة القنوات قبل التحديث","Export channel database backup before updating"),this::backupChannels);
   LinearLayout viewing=card(page);
   viewing.addView(text(tx("المشاهدة والصور","Viewing and artwork"),22,true));
   open(viewing,tx("الشعارات — جلب شعارات القنوات","Channel logos"),LogoSourcesActivity.class);
