@@ -15,7 +15,12 @@ public final class ReceiverViewingMenuActivity extends HubActivity {
     new ReceiverTileMenu.Tile("04","InfoBar / EPG",tx("الدليل والبوسترات والمظهر","EPG, posters and OSD appearance"),()->open(OsdSettingsActivity.class)));
   ReceiverTileMenu.pair(this,body,
     new ReceiverTileMenu.Tile("05",tx("دليل البرامج","Programme guide"),"EPG",()->open(SatelliteGuideActivity.class)),
-    null);
+    new ReceiverTileMenu.Tile("06",tx("الصوتيات · CFG / Audio Track","Audio tracks · CFG import"),
+      tx("استيراد USB وتأخير صوت القناة","USB import and per-channel audio delay"),()->open(IPAudioActivity.class)));
+  ReceiverTileMenu.pair(this,body,
+    new ReceiverTileMenu.Tile("07",tx("الترجمة · DVB / TTX → العربية","Subtitle · DVB / TTX to Arabic"),
+      tx("Set Translation [Arabic] · Set Subtitle Color","Arabic translation and subtitle color"),
+      ()->open(LiveTranslationActivity.class)),null);
  }
  private void open(Class<?> activity){startActivity(new Intent(this,activity));}
 }
