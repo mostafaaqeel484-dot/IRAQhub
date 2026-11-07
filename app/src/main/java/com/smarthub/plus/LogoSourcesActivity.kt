@@ -37,6 +37,10 @@ class LogoSourcesActivity:HubActivity(){
   action(panel,tx("ربط هوية الرسيفر بخدمة CHMAX الأصلية","Connect authorised CHMAX account"),Runnable{
    startActivity(Intent(this,FactorySettingsActivity::class.java))
   })
+  action(panel,tx("إصلاح 12 · مصادر لوغوات الرياضة وبوسترات المسلسلات وWikimedia",
+    "Fix 12 · sports logos, TVmaze posters and licensed Commons"),Runnable{
+    startActivity(Intent(this,ArtworkSourcesActivity::class.java))
+  })
   val options=card(body)
   options.addView(text(tx("خدمات CHMAX","CHMAX service"),20,true))
   chmax=CheckBox(this)

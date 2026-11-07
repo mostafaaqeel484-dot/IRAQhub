@@ -58,7 +58,7 @@ final class UnifiedArtworkPrefetch {
        (!"movie".equals(type)&&!"series".equals(type))){
      // Key-free TVmaze is safe for explicitly numbered episodes only.
      BroadcastTitle episode=BroadcastTitle.parse(title);
-     if(episode.season>0||episode.episode>0)try{
+     if((episode.season>0||episode.episode>0)&&prefs.getBoolean("art_source_tvmaze_enabled",true))try{
       JSONObject show=new TvmazeProvider(context).resolve(title,"");
       String image=show.optString("poster","");
       String key=PosterSelection.key(event,title,upcoming);
