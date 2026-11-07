@@ -90,32 +90,44 @@ final class NowNextView extends FrameLayout {
   status=label("",10,false);status.setTextColor(muted);
   status.setVisibility(GONE);programme.addView(status);
 
-  LinearLayout posterTray=new LinearLayout(context);
-  posterTray.setGravity(Gravity.CENTER);
-  posterTray.setPadding(dp(9),0,dp(9),0);
-  primary.addView(posterTray,new LinearLayout.LayoutParams(dp(172),-2));
-  posterTray.setVisibility(GONE);
-  LinearLayout left=column();left.setGravity(Gravity.CENTER);
-  currentTitle=label(tx("الآن","NOW"),9,true);
-  currentTitle.setGravity(Gravity.CENTER);currentTitle.setTextColor(accent);
+  // Keep the actual Tiger InfoBar at the BOTTOM. Float the two verified
+  // EPG posters above the video at opposite TOP corners, not inside the bar.
+  // These child views share the same OSD window and require no new overlay
+  // permission, bitmap copy or separate Activity.
+  LinearLayout left=column();
+  left.setGravity(Gravity.CENTER);
+  left.setPadding(dp(8),dp(8),dp(8),dp(9));
+  left.setBackground(card(0xeb080c12,12));
+  currentTitle=label(tx("الآن","NOW"),11,true);
+  currentTitle.setGravity(Gravity.CENTER);
+  currentTitle.setTextColor(accent);
   currentPoster=poster();
-  left.addView(currentTitle);
-  left.addView(currentPoster,new LinearLayout.LayoutParams(dp(66),dp(85)));
-  posterTray.addView(left,new LinearLayout.LayoutParams(0,-2,1));
-  LinearLayout right=column();right.setGravity(Gravity.CENTER);
-  nextTitle=label(tx("التالي","NEXT"),9,true);
-  nextTitle.setGravity(Gravity.CENTER);nextTitle.setTextColor(0xffd3d7db);
+  left.addView(currentTitle,new LinearLayout.LayoutParams(-1,dp(23)));
+  left.addView(currentPoster,new LinearLayout.LayoutParams(dp(104),dp(137)));
+
+  LinearLayout right=column();
+  right.setGravity(Gravity.CENTER);
+  right.setPadding(dp(8),dp(8),dp(8),dp(9));
+  right.setBackground(card(0xeb080c12,12));
+  nextTitle=label(tx("التالي","NEXT"),11,true);
+  nextTitle.setGravity(Gravity.CENTER);
+  nextTitle.setTextColor(0xffd3d7db);
   nextPoster=poster();
-  right.addView(nextTitle);
-  right.addView(nextPoster,new LinearLayout.LayoutParams(dp(66),dp(85)));
-  posterTray.addView(right,new LinearLayout.LayoutParams(0,-2,1));
-  // Expanded artwork is on opposite sides of the programme, never a paired central strip.
-  leftPosterBox=left;rightPosterBox=right;
-  posterTray.removeAllViews();primary.removeView(posterTray);
-  boolean swap=prefs.getBoolean("osd_swap_posters",false);
-  primary.addView(swap?right:left,1,new LinearLayout.LayoutParams(dp(98),-2));
-  primary.addView(swap?left:right,3,new LinearLayout.LayoutParams(dp(98),-2));
-  left.setVisibility(GONE);right.setVisibility(GONE);
+  right.addView(nextTitle,new LinearLayout.LayoutParams(-1,dp(23)));
+  right.addView(nextPoster,new LinearLayout.LayoutParams(dp(104),dp(137)));
+
+  leftPosterBox=left;
+  rightPosterBox=right;
+  FrameLayout.LayoutParams nowTop=new FrameLayout.LayoutParams(
+    dp(124),dp(180),Gravity.TOP|Gravity.START);
+  nowTop.setMargins(dp(20),dp(56),0,0);
+  addView(left,nowTop);
+  FrameLayout.LayoutParams nextTop=new FrameLayout.LayoutParams(
+    dp(124),dp(180),Gravity.TOP|Gravity.END);
+  nextTop.setMargins(0,dp(56),dp(20),0);
+  addView(right,nextTop);
+  left.setVisibility(GONE);
+  right.setVisibility(GONE);
 
   LinearLayout signal=column();signal.setGravity(Gravity.CENTER_VERTICAL);
   primary.addView(signal,new LinearLayout.LayoutParams(dp(compact?120:152),-2));
@@ -180,8 +192,8 @@ final class NowNextView extends FrameLayout {
 
  void setExpanded(boolean value){
   expanded=value;
-  leftPosterBox.setVisibility(value&&prefs.getBoolean("osd_posters",true)?VISIBLE:GONE);
-  rightPosterBox.setVisibility(value&&prefs.getBoolean("osd_posters",true)?VISIBLE:GONE);
+  // Expanded INFO only changes detail density. Top-corner EPG posters stay
+  // visible whenever their verified images exist, even in compact mode.
   providerPanel.setVisibility(value?VISIBLE:GONE);
   FrameLayout.LayoutParams position=(FrameLayout.LayoutParams)bar.getLayoutParams();
   if(position!=null){position.height=dp(value?238:183);bar.setLayoutParams(position);}
@@ -270,7 +282,13 @@ final class NowNextView extends FrameLayout {
    featureChips[i].setContentDescription(featureNames[i]+(featureActive[i]?" active":" inactive"));
   }
   if(ticker!=null){ArrayList<SportsMatch> selected=new ArrayList<>();for(SportsMatch m:MatchRepository.get(getContext()).snapshot()){LeagueRepository.League l=LeagueRepository.byId(m.leagueId);if(l!=null&&MatchRepository.get(getContext()).selected(l)&&m.kickoff>System.currentTimeMillis()-86400000L&&m.kickoff<System.currentTimeMillis()+2*86400000L)selected.add(m);}ticker.bind(selected);}
-  boolean show=prefs.getBoolean("osd_posters",true);currentTitle.setVisibility(s.title.isEmpty()?INVISIBLE:VISIBLE);nextTitle.setVisibility(s.nextTitle.isEmpty()?INVISIBLE:VISIBLE);currentPoster.setVisibility(s.title.isEmpty()||current==null||!show?INVISIBLE:VISIBLE);nextPoster.setVisibility(s.nextTitle.isEmpty()||next==null||!show?INVISIBLE:VISIBLE);
+  boolean show=prefs.getBoolean("osd_posters",true);
+  boolean nowReady=show&&!s.title.isEmpty()&&current!=null;
+  boolean nextReady=show&&!s.nextTitle.isEmpty()&&next!=null;
+  leftPosterBox.setVisibility(nowReady?VISIBLE:GONE);
+  rightPosterBox.setVisibility(nextReady?VISIBLE:GONE);
+  currentPoster.setVisibility(nowReady?VISIBLE:GONE);
+  nextPoster.setVisibility(nextReady?VISIBLE:GONE);
   ReceiverSignalReading sample=DirectReceiverSignal.reading(s);
   boolean noSignal=s.channelId.startsWith("DVB:")&&sample!=null&&sample.locked==0&&
     !prefs.getBoolean("dvb_tuning",false)&&
@@ -282,6 +300,7 @@ final class NowNextView extends FrameLayout {
   * ImageView references during software video decoding. */
  void clearArtwork(){
   currentPoster.setImageDrawable(null);nextPoster.setImageDrawable(null);
+  leftPosterBox.setVisibility(GONE);rightPosterBox.setVisibility(GONE);
   logo.setImageDrawable(null);providerLogo.setImageDrawable(null);
  }
  void provider(Bitmap image){providerLogo.setImageBitmap(image);providerLogo.setVisibility(image==null?GONE:VISIBLE);providerName.setVisibility(image==null?VISIBLE:GONE);}
