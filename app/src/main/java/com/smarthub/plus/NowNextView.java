@@ -27,10 +27,10 @@ final class NowNextView extends FrameLayout {
   try{accent=Color.parseColor(prefs.getString("osd_accent",
       String.format(Locale.ROOT,"#%06X",accent&0xffffff)));}catch(Exception ignored){}
   setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-  // RX replaces the former stack of floating info panels with a single clean
-  // low-profile bar. Posters sit INSIDE the bar and never mask the TV picture.
+  // Tiger reference: two-row header at the top, channel/event/signal below.
+  // Programme posters are independently placed ABOVE the black ribbon.
   final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
-  int barH=dp(detailed?238:183);
+  int barH=dp(detailed?248:203);
   int tickerH=prefs.getBoolean("sports_ticker",false)?dp(62):0;
   compact=barH<dp(145);
   textScale=Math.max(.90f,Math.min(1.06f,barH/(150f*
@@ -46,12 +46,24 @@ final class NowNextView extends FrameLayout {
   barPosition.setMargins(dp(8),0,dp(8),dp(8));
   addView(bar,barPosition);
 
+  // Match reference hierarchy: (channel/frequency) | (two icon rows) |
+  // (clock/date), all ABOVE the programme logo and S/Q meters.
+  LinearLayout header=new LinearLayout(context);
+  header.setGravity(Gravity.CENTER_VERTICAL);
+  LinearLayout headLeft=column();headLeft.setGravity(Gravity.CENTER_VERTICAL);
+  LinearLayout headCenter=column();headCenter.setGravity(Gravity.CENTER_VERTICAL);
+  LinearLayout headRight=column();headRight.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.2f));
+  header.addView(headCenter,new LinearLayout.LayoutParams(0,-1,.85f));
+  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,.75f));
+  bar.addView(header,new LinearLayout.LayoutParams(-1,dp(57)));
+
   LinearLayout primary=new LinearLayout(context);
   primary.setGravity(Gravity.CENTER_VERTICAL);
   bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
   LinearLayout brand=column();brand.setGravity(Gravity.CENTER);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(79),dp(55)));
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(92),dp(72)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -65,15 +77,15 @@ final class NowNextView extends FrameLayout {
   providerPanel.addView(providerName);
   providerPanel.setVisibility(detailed?VISIBLE:GONE);
   brand.addView(providerPanel);
-  primary.addView(brand,new LinearLayout.LayoutParams(dp(detailed?104:89),-2));
+  primary.addView(brand,new LinearLayout.LayoutParams(dp(108),-2));
 
   LinearLayout programme=column();
-  programme.setPadding(dp(14),dp(2),dp(12),0);
+  programme.setPadding(dp(10),0,dp(10),0);
   primary.addView(programme,new LinearLayout.LayoutParams(0,-2,1.5f));
   heading=label("IRAQhub",compact?18:22,true);
-  heading.setTextColor(0xff3fe44d);programme.addView(heading);
+  heading.setTextColor(0xff3fe44d);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);headLeft.addView(heading);
   broadcast=label("",10,false);broadcast.setTextColor(0xffe0e0e0);
-  programme.addView(broadcast);
+  headLeft.addView(broadcast);
   nowLine=label("",compact?13:16,true);
   programme.addView(nowLine);
   nextLine=label("",compact?11:13,false);
@@ -116,10 +128,10 @@ final class NowNextView extends FrameLayout {
   leftPosterBox.setVisibility(GONE);rightPosterBox.setVisibility(GONE);
 
   LinearLayout signal=column();signal.setGravity(Gravity.CENTER_VERTICAL);
-  primary.addView(signal,new LinearLayout.LayoutParams(dp(compact?120:152),-2));
+  primary.addView(signal,new LinearLayout.LayoutParams(dp(212),-2));
   clock=label("",compact?15:18,true);
   clock.setTextDirection(View.TEXT_DIRECTION_LTR);
-  clock.setGravity(Gravity.RIGHT);signal.addView(clock);
+  clock.setGravity(Gravity.RIGHT);headRight.addView(clock);
   strengthLabel=label("S: —",10,false);
   strengthBar=meter(0xff28cbfa);
   qualityLabel=label("Q: —",10,false);
@@ -138,7 +150,7 @@ final class NowNextView extends FrameLayout {
    TextView chip=label(ReceiverTechnicalBadges.RESOLUTIONS[i],10,true);
    chip.setGravity(Gravity.CENTER);chip.setPadding(dp(3),0,dp(3),0);
    resolutionChips[i]=chip;
-   resolutionStrip.addView(chip,new LinearLayout.LayoutParams(dp(44),dp(23)));
+   resolutionStrip.addView(chip,new LinearLayout.LayoutParams(dp(36),dp(22)));
   }
   weather=label("",10,false);weather.setTextColor(muted);
   signalSource=label("",10,false);signalSource.setTextColor(muted);
@@ -148,22 +160,32 @@ final class NowNextView extends FrameLayout {
   technical=label("",10,false);technical.setTextColor(muted);
   details=new LinearLayout(context);
   details.setGravity(Gravity.CENTER_VERTICAL);
-  programme.addView(resolutionStrip);
+  // Two uniform badge rows occupy the centre, as on the original receiver.
   LinearLayout featureRow=new LinearLayout(context);featureRow.setGravity(Gravity.CENTER_VERTICAL);
   String[] tags={"TXT","H265","SUB","EPG","CA","PIP"};
   for(int i=0;i<tags.length;i++){
    TextView c=label(tags[i],9,true);c.setGravity(Gravity.CENTER);c.setPadding(dp(3),dp(1),dp(3),dp(1));
-   featureChips[i]=c;featureRow.addView(c,new LinearLayout.LayoutParams(dp(43),dp(21)));
+   featureChips[i]=c;featureRow.addView(c,new LinearLayout.LayoutParams(dp(36),dp(22)));
   }
-  programme.addView(featureRow);
-  details.addView(encryptionLine);
+  headCenter.addView(featureRow);
+  headCenter.addView(resolutionStrip);
   details.addView(signalSource);
   details.addView(signalDetail);
   details.addView(bitrateLabel);
   details.addView(weather);
-  details.addView(technical,new LinearLayout.LayoutParams(0,-2,1));
-  details.setVisibility(VISIBLE);
+  // Expanded-only diagnostics must not crowd the compact reference ribbon.
+  details.setVisibility(detailed?VISIBLE:GONE);
   bar.addView(details,new LinearLayout.LayoutParams(-1,-2));
+
+  // Reference bottom row: BER/SNR/aspect/bitrate at left and CA/FTA at right.
+  LinearLayout footer=new LinearLayout(context);
+  footer.setGravity(Gravity.CENTER_VERTICAL);
+  technical.setSingleLine(true);
+  technical.setEllipsize(android.text.TextUtils.TruncateAt.END);
+  technical.setTextColor(0xffd7dadd);
+  footer.addView(technical,new LinearLayout.LayoutParams(0,-1,1));
+  footer.addView(encryptionLine,new LinearLayout.LayoutParams(-2,dp(20)));
+  bar.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
 
   if(tickerH>0){
    ticker=new MatchTickerView(context);
@@ -185,14 +207,15 @@ final class NowNextView extends FrameLayout {
   leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   // Keep poster corners just above the expanded/compact bar.
-  int top=dp(value?238:183)+dp(17);
+  int top=dp(value?248:203)+dp(17);
   FrameLayout.LayoutParams left=(FrameLayout.LayoutParams)leftPosterBox.getLayoutParams();
   FrameLayout.LayoutParams right=(FrameLayout.LayoutParams)rightPosterBox.getLayoutParams();
   if(left!=null&&left.bottomMargin!=top){left.bottomMargin=top;leftPosterBox.setLayoutParams(left);}
   if(right!=null&&right.bottomMargin!=top){right.bottomMargin=top;rightPosterBox.setLayoutParams(right);}
   providerPanel.setVisibility(value?VISIBLE:GONE);
+  details.setVisibility(value?VISIBLE:GONE);
   FrameLayout.LayoutParams position=(FrameLayout.LayoutParams)bar.getLayoutParams();
-  if(position!=null){position.height=dp(value?238:183);bar.setLayoutParams(position);}
+  if(position!=null){position.height=dp(value?248:203);bar.setLayoutParams(position);}
  }
  void bind(SatelliteState s,Bitmap current,Bitmap next,Bitmap channelLogo,String message){
   boolean lite=PlaybackResourceMode.lite(getContext());
@@ -259,7 +282,11 @@ final class NowNextView extends FrameLayout {
   if(s.source.startsWith("IPTV")){String audio=prefs.getString("osd_audio","");if(!audio.isEmpty())details.add(audio);}
   if(s.channelId.equals(prefs.getString("subtitle_channel_id",""))&&s.startMs==prefs.getLong("subtitle_event_start_ms",0)&&prefs.getBoolean("overlay_caption",false))details.add("SUB · "+prefs.getString("subtitle_provider","")+String.format(Locale.ROOT," %+.3f s",prefs.getLong("subtitle_offset",0)/1000.0));
   SportsMatch related=MatchRepository.get(getContext()).forProgramme(s);if(related!=null)details.add(related.league+" · "+related.home+" "+related.score()+" "+related.away+" · "+related.state());
-  technical.setText(String.join("   ·   ",details));technical.setVisibility(details.isEmpty()?GONE:VISIBLE);
+  String receiverMetrics=info.signalDetail();
+  String featureText=String.join("   ·   ",details);
+  technical.setText((receiverMetrics==null||receiverMetrics.isEmpty()?"":receiverMetrics)+
+    (featureText.isEmpty()?"":"   ·   "+featureText));
+  technical.setVisibility(VISIBLE);
   String[] featureNames={"TXT","H265","SUB","EPG","CA","PIP"};
   boolean[] featureActive={
    prefs.getBoolean("native_subtitle_teletext_active",false),
