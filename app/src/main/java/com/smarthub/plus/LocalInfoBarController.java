@@ -112,7 +112,13 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("providers_changed_at",0)+"|"+prefs.getLong("osd_changed_at",0);
   if(!logos.equals(logoKey)){
    logoKey=logos;
-   channelLogo=CHMAXIntegration.logo(host,state,false);providerLogo=CHMAXIntegration.logo(host,state,true);
+   if(PlaybackResourceMode.active()){
+    // Avoid synchronous OEM/CHMAX logo decode on UI during decoder startup.
+    channelLogo=null;providerLogo=null;
+   }else{
+    channelLogo=CHMAXIntegration.logo(host,state,false);
+    providerLogo=CHMAXIntegration.logo(host,state,true);
+   }
    logoRetry=0;
    if(!state.channelName.isEmpty()){
     final String expected=logos;
