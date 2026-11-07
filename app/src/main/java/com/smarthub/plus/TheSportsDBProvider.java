@@ -11,6 +11,37 @@ final class TheSportsDBProvider implements SportsDataProvider {
     throw new IOException("SPORTSDB_SOURCE_DISABLED");
   JSONObject metadata=league(l);String route=window.equals("next")?"eventsnextleague.php?id="+l.id:window.equals("past")?"eventspastleague.php?id="+l.id:"eventsday.php?d="+day+"&s=Soccer&l="+l.id;JSONObject wrapper=cache.get(API+route,window.equals("day")?120000L:15*60000L);JSONArray rows=wrapper.getJSONObject("data").optJSONArray("events");List<SportsMatch> out=new ArrayList<>();if(rows!=null)for(int i=0;i<rows.length();i++){SportsMatch m=parse(rows.optJSONObject(i),l,wrapper.optLong("at"),wrapper.optBoolean("stale"));if(m!=null){if(m.leagueLogo.isEmpty())m.leagueLogo=metadata.optString("strBadge");out.add(m);}}return out;}
  static SportsMatch parse(JSONObject j,LeagueRepository.League l,long at,boolean stale){if(j==null||!l.id.equals(j.optString("idLeague"))||!j.optString("strSport","Soccer").equals("Soccer")||!j.optString("idEvent").matches("[0-9]+")||j.optString("strHomeTeam").isEmpty()||j.optString("strAwayTeam").isEmpty())return null;SportsMatch m=new SportsMatch();m.id="tsdb:"+j.optString("idEvent");m.leagueId=l.id;m.league=l.name;m.home=j.optString("strHomeTeam");m.away=j.optString("strAwayTeam");m.homeId=j.optString("idHomeTeam");m.awayId=j.optString("idAwayTeam");m.homeLogo=j.optString("strHomeTeamBadge","");m.awayLogo=j.optString("strAwayTeamBadge","");m.leagueLogo=j.optString("strLeagueBadge","");m.image=j.optString("strPoster","");if(m.image.isEmpty())m.image=j.optString("strThumb","");m.homeScore=number(j,"intHomeScore");m.awayScore=number(j,"intAwayScore");m.status=j.optString("strStatus","UNKNOWN");if(m.status.isEmpty())m.status="UNKNOWN";m.minute=j.optString("strProgress","");m.venue=j.optString("strVenue","");m.description=j.optString("strDescriptionEN","");String timestamp=j.optString("strTimestamp","");if(timestamp.isEmpty()&&!j.optString("strTime").isEmpty())timestamp=j.optString("dateEvent")+"T"+j.optString("strTime");m.kickoff=SportsMatch.utc(timestamp);m.updatedAt=at;m.cached=stale;m.source="TheSportsDB · free: up to 3/day; next/past 1 · not a live feed";return m;}
+ /** On-demand team/person image lookup. Free search endpoints can return
+  * only one result; reject ambiguity and never map sports images to TV channels. */
+ static JSONObject sportsImage(Context c,String name,boolean player)throws Exception{
+  if(name==null||name.trim().length()<3||name.length()>90)
+   throw new IOException("SPORTSDB_NAME_REQUIRED");
+  if(PlaybackResourceMode.active()||
+    c.getSharedPreferences("smarthub",0).getBoolean("software_dvb_422_active",false))
+   throw new IOException("SPORTSDB_DEFERRED_422");
+  if(!c.getSharedPreferences("smarthub",0).getBoolean("artwork_sportsdb_enabled",true))
+   throw new IOException("SPORTSDB_SOURCE_DISABLED");
+  String endpoint=player?"searchplayers.php?p=":"searchteams.php?t=";
+  String url=API+endpoint+java.net.URLEncoder.encode(name.trim(),"UTF-8");
+  JSONObject body=new SportsCache(c).get(url,24L*3600000L).getJSONObject("data");
+  JSONArray rows=body.optJSONArray(player?"player":"teams");
+  String key=player?"strPlayer":"strTeam",matchedId="",picture="";
+  if(rows==null)return new JSONObject().put("status","not_found");
+  for(int i=0;i<Math.min(rows.length(),10);i++){
+   JSONObject row=rows.optJSONObject(i);
+   if(row==null||!PlaylistRepository.normalize(name).equals(
+      PlaylistRepository.normalize(row.optString(key))))continue;
+   if(!matchedId.isEmpty())return new JSONObject().put("status","ambiguous");
+   matchedId=row.optString(player?"idPlayer":"idTeam");
+   picture=player?row.optString("strCutout",row.optString("strThumb")):
+     row.optString("strBadge");
+  }
+  if(!matchedId.matches("[0-9]+"))return new JSONObject().put("status","not_found");
+  if(!TeamLogoManager.trusted(picture)||!picture.startsWith("https://"))picture="";
+  return new JSONObject().put("status","matched").put("id",matchedId)
+    .put("name",name).put("image",picture)
+    .put("kind",player?"player":"team").put("provider","TheSportsDB v1 free");
+ }
  private static String number(JSONObject j,String k){if(j.isNull(k))return "";String v=j.optString(k);return v.matches("[0-9]{1,3}")?v:"";}
  JSONObject details(String id,String endpoint)throws Exception{if(!id.matches("tsdb:[0-9]+"))throw new IOException("Details not supplied by this source");if(!Arrays.asList("lookupevent","lookuptimeline","lookuplineup","lookupeventstats").contains(endpoint))throw new IOException("Unsupported details endpoint");return cache.get(API+endpoint+".php?id="+id.substring(5),5*60000L);}
 }
