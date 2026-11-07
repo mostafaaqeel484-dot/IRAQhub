@@ -120,7 +120,9 @@ final class LocalInfoBarController implements AutoCloseable {
     providerLogo=CHMAXIntegration.logo(host,state,true);
    }
    logoRetry=0;
-   if(!state.channelName.isEmpty()){
+   if(!PlaybackResourceMode.active()&&!state.channelName.isEmpty()){
+    // Video focus: disk PNG/SVG decodes and logo network jobs are nonessential.
+    // Keep verified files for the following normal satellite programme.
     final String expected=logos;
     LogoRepository repository=LogoRepository.get(host);
     LogoRepository.Listener images=new LogoRepository.Listener(){
