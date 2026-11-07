@@ -38,6 +38,17 @@ final class Mpv422FluidPolicy {
   int delta=current-previous;
   return delta>=7?Math.min(3,consecutive+1):0;
  }
+ /** One-time recovery path when 420 filter, EGL surface or file opening
+  * fails. The native path was confirmed to reach FILE_LOADED on X5M before
+  * the filtered release, so use it instead of silently reverting to VLC. */
+ static boolean recoverWithNative(String renderMode,boolean triedNative,String reason){
+  if(triedNative||GPU_NATIVE.equals(renderMode)||reason==null)return false;
+  return reason.startsWith("MPV_NO_FILE_LOADED")||
+    reason.startsWith("MPV_END_BEFORE_FILE_LOADED")||
+    reason.startsWith("MPV_SURFACE_NOT_READY")||
+    reason.startsWith("MPV_SURFACE_ATTACH")||
+    reason.contains("MPV_VF_REJECTED");
+ }
  static int targetHeight(String renderMode){
   return P540.equals(renderMode)?540:P720.equals(renderMode)?720:0;
  }
