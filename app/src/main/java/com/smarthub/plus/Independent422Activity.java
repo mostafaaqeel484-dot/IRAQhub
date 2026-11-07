@@ -358,7 +358,10 @@ public final class Independent422Activity extends HubActivity {
     "\nClock health: "+prefs().getString("independent_422_health","NOT_SAMPLED")+
     "\nCPU process: "+prefs().getInt("auto_422_cpu_percent",-1)+"% of one core"+
     "\nVideo frames visually moving: NOT AUTOMATICALLY VERIFIED"+
-    "\nFocus service: "+prefs().getString("independent_422_focus","NOT_BOUND");
+    "\nFocus service: "+prefs().getString("independent_422_focus","NOT_BOUND")+
+    "\nDevice supported ABIs: "+java.util.Arrays.toString(android.os.Build.SUPPORTED_ABIS)+
+    "\nMPV Android AAR: dev.jdtech.mpv:libmpv:1.0.0"+
+    "\nBootstrap error: "+prefs().getString("decoder_last_error","NONE");
   new android.app.AlertDialog.Builder(this)
    .setTitle(tx("تشخيص محرك 4:2:2 المستقل","Isolated 4:2:2 engine diagnostics"))
    .setMessage(report).setPositiveButton("OK",null).show();
