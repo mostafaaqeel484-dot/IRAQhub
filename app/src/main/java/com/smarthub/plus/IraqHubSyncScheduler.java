@@ -40,7 +40,14 @@ final class IraqHubSyncScheduler {
   Context app=context.getApplicationContext();
   PRIORITY_IO.execute(()->{
    WorkManager manager=WorkManager.getInstance(app);
-   for(String name:optionalNames())manager.cancelUniqueWork(name);
+   // Wait in the dedicated IO queue for WorkManager cancellation to settle.
+   // Otherwise resume(KEEP) can race an outstanding cancel and lose schedules.
+   java.util.ArrayList<java.util.concurrent.Future<?>> cancellations=new java.util.ArrayList<>();
+   for(String name:optionalNames())
+    cancellations.add(manager.cancelUniqueWork(name).getResult());
+   for(java.util.concurrent.Future<?> cancellation:cancellations)
+    try{cancellation.get(3,TimeUnit.SECONDS);}
+    catch(Exception ignored){/* The worker also exits on video-priority flag. */}
    app.getSharedPreferences("smarthub",0).edit()
      .putString("video_priority_jobs","PAUSED_APP_WORKMANAGER")
      .putLong("video_priority_jobs_paused_at",System.currentTimeMillis()).apply();
