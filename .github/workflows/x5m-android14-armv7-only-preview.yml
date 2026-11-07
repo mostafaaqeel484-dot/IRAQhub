@@ -152,7 +152,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "name='com.smarthub.plus.x5mpreview'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "name='com.smarthub.plus.x5marmv7'"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "native-code: 'armeabi-v7a'"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "sdkVersion:'26'"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "targetSdkVersion:'34'"
@@ -188,7 +188,7 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
               --title "IRAQhub 4.0.0 · X5M Android 14 TV ARMv7 32-bit Only (Preview)" \
-              --notes "PRIVATE DRAFT Android 14 TV ARMv7-only installer. Single armeabi-v7a ABI, no arm64 .so files. Separate com.smarthub.plus.x5mpreview identifier to avoid replacing original IRAQhub. Keeps PR39 signing/ZIP/MPV checks; does not migrate channels/settings, must test on X5M. Android install errors still need exact adb install INSTALL_FAILED_* code to diagnose."
+              --notes "PRIVATE DRAFT Android 14 TV ARMv7-only installer. Single armeabi-v7a ABI, no arm64 .so files. Separate com.smarthub.plus.x5marmv7 identifier to avoid replacing original IRAQhub. Keeps PR39 signing/ZIP/MPV checks; does not migrate channels/settings, must test on X5M. Android install errors still need exact adb install INSTALL_FAILED_* code to diagnose."
           fi
           gh release upload "$TAG" \
             dist/IRAQhub_4.0.0_X5M_Android14_ARMv7_Only_Preview.apk \
