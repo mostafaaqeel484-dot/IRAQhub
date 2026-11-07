@@ -62,7 +62,7 @@ final class LocalInfoBarController implements AutoCloseable {
  }
 
  void onInfoKey(){
-  if(visible){expanded=!expanded;}else expanded=false;
+  if(visible){expanded=prefs.getBoolean("osd_tiger_expanded_posters",true)&&!expanded;}else expanded=false;
   bar.expandedPosters(expanded);
   show();
  }
