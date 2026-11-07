@@ -31,6 +31,10 @@ public final class SoftwareVideoActivity extends HubActivity {
     private LibVLC libVLC;
     private MediaPlayer mediaPlayer;
     private VLCVideoLayout videoLayout;
+    private MpvPlaybackController mpvBackend;
+    private FrameLayout videoRoot;
+    private String engine="vlc";
+    private boolean mpvFallbackUsed;
     private TextView status;
     private boolean released;
     private volatile boolean backgroundStopped;
@@ -57,7 +61,12 @@ public final class SoftwareVideoActivity extends HubActivity {
         enterResourceMode();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        engine=getIntent().getStringExtra("video_backend");
+        if(!"mpv".equals(engine)&&!"vlc".equals(engine))
+            engine=prefs().getString("software_422_preferred_engine","vlc");
+        if(!"mpv".equals(engine))engine="vlc";
         FrameLayout root = new FrameLayout(this);
+        videoRoot=root;
         root.setBackgroundColor(0xff000000);
         videoLayout = new VLCVideoLayout(this);
         root.addView(videoLayout, new FrameLayout.LayoutParams(-1, -1));
@@ -149,13 +158,13 @@ public final class SoftwareVideoActivity extends HubActivity {
               }
               next.channelId="DVB:"+channel.physical();
               next.channelName=channel.name;
-              next.source="DVB · IRAQhub · LibVLC";
+              next.source="DVB · IRAQhub · "+("mpv".equals(engine)?"libmpv":"LibVLC");
               next.observedAt=System.currentTimeMillis();
               next.save(SoftwareVideoActivity.this);
               prefs().edit().putString("software_422_runtime","TS_READY").apply();
               NativeSatelliteAudioGate.enforce(SoftwareVideoActivity.this,nativeAudioToken);
-              status.setText(tx(channel.ca==0?"التقاط بث DVB نشط؛ جارٍ فك الفيديو عبر LibVLC…":"تم التحقق من بث TS غير مشفر بعد معالجة الرسيفر؛ جارٍ تشغيل LibVLC…",
-                 "DVB MPEG-TS capture active; decoding via LibVLC…"));
+              status.setText(tx("التقاط MPEG-TS جاهز · جارٍ تشغيل "+engine.toUpperCase(java.util.Locale.ROOT)+"…",
+                  "DVB MPEG-TS capture ready; starting "+engine.toUpperCase(java.util.Locale.ROOT)+"…"));
               open(uri);
               if(localInfo!=null)localInfo.show();
             }
@@ -180,6 +189,13 @@ public final class SoftwareVideoActivity extends HubActivity {
     private void open(String source) {
         if(released||backgroundStopped)return;
         playbackUri=source;
+        if("mpv".equals(engine)){
+            if(openMpv(source))return;
+            engine="vlc";
+            prefs().edit().putString("software_422_runtime",
+                "MPV_UNAVAILABLE_FALLBACK_VLC").apply();
+        }
+        videoLayout.setVisibility(android.view.View.VISIBLE);
         streamRetries=0;
         videoOutputSeen=false;
         decoderOpenedAt=android.os.SystemClock.elapsedRealtime();
@@ -272,6 +288,60 @@ public final class SoftwareVideoActivity extends HubActivity {
         }
     }
 
+    /** Both backends use the same verified LiveTsRelay HTTP stream.
+     * No backend may independently retune DVB or access OEM CA commands. */
+    private boolean openMpv(String source){
+        closeDecoder();
+        if(!MpvPlaybackController.available()||videoRoot==null)return false;
+        videoLayout.setVisibility(android.view.View.GONE);
+        prefs().edit().putString("decoder_kind","SOFTWARE_LIBMPV_FFMPEG")
+         .putString("decoder_name","libmpv 1.0.0")
+         .putString("decoder_422_verification","MPV_STARTING_IMAGE_NOT_VERIFIED")
+         .putString("software_422_runtime","MPV_INITIALISING").apply();
+        mpvBackend=new MpvPlaybackController(this,videoRoot,
+          new MpvPlaybackController.Listener(){
+            @Override public void status(String stage){
+              if(released||backgroundStopped||!"mpv".equals(engine))return;
+              prefs().edit().putString("software_422_runtime",stage)
+                .putString("decoder_422_verification",
+                  stage.contains("CONFIGURED")?
+                    "MPV_VO_CONFIGURED_COLOR_NOT_VERIFIED":"MPV_PENDING").apply();
+              status.setText("MPV · "+stage);
+            }
+            @Override public void failure(String reason){
+              if(released||backgroundStopped||!"mpv".equals(engine))return;
+              fallbackToVlc(reason);
+            }
+          });
+        boolean started=mpvBackend.open(source);
+        if(started)return true;
+        closeDecoder();return false;
+    }
+    private void fallbackToVlc(String reason){
+        if(mpvFallbackUsed||released||backgroundStopped||!"mpv".equals(engine))return;
+        mpvFallbackUsed=true;
+        engine="vlc";
+        prefs().edit().putString("decoder_last_error",reason)
+          .putString("software_422_runtime","MPV_FAILED_FALLBACK_VLC").apply();
+        status.setText(tx("تعذر إخراج MPV · جارٍ تجربة VLC",
+          "MPV playback failed; trying VLC"));
+        open(playbackUri);
+    }
+    private void chooseBackend(){
+       final String[] options={
+        tx("MPV · libmpv / FFmpeg","MPV · libmpv / FFmpeg"),
+        tx("VLC · LibVLC / FFmpeg","VLC · LibVLC / FFmpeg")};
+       new AlertDialog.Builder(this).setTitle(tx("اختيار مشغل 4:2:2","Select 4:2:2 player"))
+        .setSingleChoiceItems(options,"mpv".equals(engine)?0:1,(dialog,index)->{
+         dialog.dismiss();
+         String selected=index==0?"mpv":"vlc";
+         if(selected.equals(engine)||playbackUri==null)return;
+         mpvFallbackUsed=false;engine=selected;
+         prefs().edit().putString("software_422_preferred_engine",selected).apply();
+         open(playbackUri); // keeps the tuner lock and TS relay.
+        }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
+    }
+
     private void configure(Media media,String source){
         media.setHWDecoderEnabled(false,false);
         media.addOption(":avcodec-hw=none");
@@ -323,7 +393,8 @@ public final class SoftwareVideoActivity extends HubActivity {
             tx("متوازن · صورة وصوت","Balanced · picture and sound"),
             tx("جودة أعلى · يحتاج CPU أقوى","Higher quality · uses more CPU"),
             tx("ثابت · تخزين مؤقت أكبر وحفظ الإطارات","Stable · larger buffer and preserve frames"),
-            tx("تشخيص الجهاز وسرعة بث TS","Device and live TS diagnostics")
+            tx("تشخيص الجهاز وسرعة بث TS","Device and live TS diagnostics"),
+            tx("اختيار MPV أو VLC","Choose MPV or VLC")
         };
         int current=1;
         for(int n=0;n<modes.length;n++)if(modes[n].equals(Software422Profile.current(this)))current=n;
@@ -336,6 +407,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         new AlertDialog.Builder(this).setTitle(tx("أداء 4:2:2","4:2:2 performance"))
           .setSingleChoiceItems(labels,current,(dialog,which)->{
             dialog.dismiss();
+            if(which==5){chooseBackend();return;}
             if(which==4){
                 new AlertDialog.Builder(this).setTitle(tx("فحص X5M وTS","X5M / TS diagnostics"))
                     .setMessage(diagnostics).setPositiveButton("OK",null).show();
@@ -352,6 +424,9 @@ public final class SoftwareVideoActivity extends HubActivity {
     }
     private void closeDecoder(){
         main.removeCallbacks(voutWatchdog);
+        if(mpvBackend!=null){
+            mpvBackend.close();mpvBackend=null;
+        }
         if(mediaPlayer!=null){
             try{mediaPlayer.setEventListener(null);}catch(Throwable ignored){}
             try{mediaPlayer.stop();}catch(Throwable ignored){}
@@ -481,6 +556,8 @@ public final class SoftwareVideoActivity extends HubActivity {
           nativeAudioToken=NativeSatelliteAudioGate.suppress(this);
         NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
         if(mediaPlayer!=null&&!released)mediaPlayer.play();
+        // MPV is created for the active Surface and resumed by the Activity;
+        // onStop destroys it and onRestart reopens the same satellite channel.
     }
 
     @Override protected void onStop(){
