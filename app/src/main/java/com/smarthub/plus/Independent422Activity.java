@@ -30,7 +30,12 @@ public final class Independent422Activity extends HubActivity {
  private final AtomicBoolean captureStarted=new AtomicBoolean(false);
  private FrameLayout videoRoot;
  private TextView status;
- private Button audioButton;
+ private Button audioButton,renderButton;
+ private String selectedRenderMode=Mpv422FluidPolicy.AUTO;
+ private String renderMode=Mpv422FluidPolicy.P720;
+ private int previousVoDrops=-1,poorDropSamples;
+ private long previousDropSampleAt,renderStartedAt;
+ private boolean autoDownshiftDone;
  private Mpv422Renderer renderer;
  private LiveTsRelay relay;
  private Auto422RuntimeMonitor monitor;
@@ -72,11 +77,34 @@ public final class Independent422Activity extends HubActivity {
         relay!=null&&relay.running())?"MPV_PLAYBACK_CLOCK_STALLED":
           "MPV_CLOCK_ADVANCING_PICTURE_UNVERIFIED";
      }
+     int recentVoDrops=previousVoDrops>=0&&values.dropped>=previousVoDrops?
+       values.dropped-previousVoDrops:0;
+     long period=previousDropSampleAt>0?now-previousDropSampleAt:0;
+     poorDropSamples=Mpv422FluidPolicy.poorDropSamples(
+       previousVoDrops,values.dropped,period,poorDropSamples);
+     previousVoDrops=values.dropped;
+     previousDropSampleAt=now;
+     if(!autoDownshiftDone&&Mpv422FluidPolicy.P720.equals(renderMode)&&
+        Mpv422FluidPolicy.shouldDownshift(selectedRenderMode,poorDropSamples,
+          now-renderStartedAt,recentVoDrops,period)){
+      autoDownshiftDone=true;
+      renderMode=Mpv422FluidPolicy.P540;
+      prefs().edit().putString("independent_422_auto_action",
+        "720_TO_540_SUSTAINED_VO_DROPS").apply();
+      updateRenderButton();
+      display(tx("إطارات متأخرة؛ التحويل إلى 540p / 4:2:0 مرة واحدة",
+        "VO drops detected; switching once to 540p / 4:2:0"));
+      restartRenderer();
+      return;
+     }
      prefs().edit().putString("independent_422_health",state)
        .putLong("independent_422_health_at",System.currentTimeMillis())
        .putInt("independent_422_dropped",values.dropped)
        .putInt("independent_422_decoder_dropped",values.decoderDropped)
        .putString("independent_422_pixfmt",values.videoFormat)
+       .putString("independent_422_output_pixfmt",values.outputFormat)
+       .putInt("independent_422_recent_vo_drops",recentVoDrops)
+       .putString("independent_422_render_mode",renderMode)
        .apply();
      if("MPV_PLAYBACK_CLOCK_STALLED".equals(state))
       display(tx("توقف تقدّم ساعة MPV؛ افحص TS وأعد فتح المحرك من زر الإعادة",
@@ -93,6 +121,9 @@ public final class Independent422Activity extends HubActivity {
   channelId=getIntent().getLongExtra("dvb_channel",-1L);
   videoOnly=getIntent().getBooleanExtra("video_only",
     prefs().getBoolean("independent_422_video_only",true));
+   selectedRenderMode=Mpv422FluidPolicy.normalized(
+     prefs().getString("independent_422_fluid_mode",Mpv422FluidPolicy.AUTO));
+   renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
   if(channelId<0){
    String url=getIntent().getStringExtra("media_uri");
    if(!Software422Source.validNetwork(url)){
@@ -131,13 +162,16 @@ public final class Independent422Activity extends HubActivity {
    updateAudioButton();
    if(loaded&&playbackUrl!=null)restartRenderer();
   });
-  Button subtitles=small(tx("الترجمة","Subtitles"));
+  renderButton=small("");
+   updateRenderButton();
+   renderButton.setOnClickListener(v->chooseRenderMode());
+   Button subtitles=small(tx("الترجمة","Subtitles"));
   subtitles.setOnClickListener(v->subtitlePicker());
   Button retry=small(tx("إعادة الفيديو","Retry video"));
   retry.setOnClickListener(v->{if(playbackUrl!=null)restartRenderer();});
   Button back=small(tx("خروج","Exit"));
   back.setOnClickListener(v->finish());
-  for(Button button:new Button[]{diagnostic,audioButton,subtitles,retry,back})
+  for(Button button:new Button[]{diagnostic,audioButton,renderButton,subtitles,retry,back})
    controls.addView(button,new LinearLayout.LayoutParams(0,dp(52),1));
   FrameLayout.LayoutParams bottom=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);
   videoRoot.addView(controls,bottom);
@@ -160,6 +194,43 @@ public final class Independent422Activity extends HubActivity {
  private void updateAudioButton(){
   if(audioButton!=null)audioButton.setText(videoOnly?
    tx("فيديو فقط","Video only"):tx("مع الصوت","Audio on"));
+ }
+ private void updateRenderButton(){
+  if(renderButton==null)return;
+  String label=Mpv422FluidPolicy.P540.equals(renderMode)?"540p 420":
+    Mpv422FluidPolicy.P720.equals(renderMode)?"720p 420":"GPU native";
+  renderButton.setText(Mpv422FluidPolicy.AUTO.equals(selectedRenderMode)
+    ?tx("تلقائي ","Auto ")+label:label);
+ }
+ private void chooseRenderMode(){
+  String[] options={
+    tx("تلقائي 720p ← 540p عند تكرر إسقاط الإطارات",
+       "Auto 720p → 540p on sustained drops"),
+    tx("720p / 4:2:0 — سلاسة وصورة مقبولة",
+       "720p / 4:2:0 — smooth with adequate quality"),
+    tx("540p / 4:2:0 — للتخفيف أكثر",
+       "540p / 4:2:0 — lower output resolution"),
+    tx("GPU أصلي بدون تحويل CPU — للمقارنة",
+       "Native GPU output, no CPU conversion — compare")
+  };
+  final String[] modes={Mpv422FluidPolicy.AUTO,Mpv422FluidPolicy.P720,
+    Mpv422FluidPolicy.P540,Mpv422FluidPolicy.GPU_NATIVE};
+  int selected=0;
+  for(int i=0;i<modes.length;i++)
+   if(modes[i].equals(selectedRenderMode)){selected=i;break;}
+  new android.app.AlertDialog.Builder(this)
+   .setTitle(tx("سلاسة فيديو 4:2:2 — صيغة الإخراج",
+     "4:2:2 fluid playback — output path"))
+   .setSingleChoiceItems(options,selected,(dialog,which)->{
+    selectedRenderMode=modes[which];
+    renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
+    autoDownshiftDone=false;
+    prefs().edit().putString("independent_422_fluid_mode",selectedRenderMode)
+      .remove("independent_422_auto_action").apply();
+    updateRenderButton();
+    dialog.dismiss();
+    if(playbackUrl!=null&&!stopped)restartRenderer();
+   }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
  @Override protected void onStart(){
   super.onStart();
@@ -261,11 +332,14 @@ public final class Independent422Activity extends HubActivity {
   if(stopped||destroyed||videoRoot==null)return;
   closeRenderer();
   loaded=false;previousPosition=-1;previousPositionAt=0;
+   previousVoDrops=-1;previousDropSampleAt=0;poorDropSamples=0;
+   renderStartedAt=SystemClock.elapsedRealtime();
   prefs().edit().putString("independent_422_runtime","MPV_OPENING")
     .putString("decoder_kind","SOFTWARE_LIBMPV_INDEPENDENT_PROCESS")
     .putString("decoder_422_verification","MPV_FILE_NOT_YET_LOADED")
     .remove("decoder_last_error").apply();
-  display(tx("MPV مستقل · جاري فتح الفيديو", "Isolated MPV · opening video"));
+  display(tx("MPV · إخراج خفيف ", "MPV · fluid output ")+
+     Mpv422FluidPolicy.outputLabel(selectedRenderMode,renderMode));
   try{
    Mpv422Renderer next=new Mpv422Renderer(this,videoRoot,
      new Mpv422Renderer.Listener(){
@@ -314,7 +388,7 @@ public final class Independent422Activity extends HubActivity {
         .setPositiveButton(tx("موافق","OK"),null)
         .show();
       }
-     },videoOnly);
+     },videoOnly,renderMode);
    renderer=next;
    if(!next.start(url))display(tx("تعذر تحميل libmpv على هذه الروم",
      "Unable to start libmpv on this firmware"));
@@ -364,6 +438,10 @@ public final class Independent422Activity extends HubActivity {
     "\nEngine: libmpv / FFmpeg (NOT LibVLC)"+
     "\nAudio decoding: "+(videoOnly?"DISABLED (aid=no)":"ENABLED")+
     "\nProfile: "+Software422Profile.effective(this)+
+     "\nOutput selection: "+selectedRenderMode+
+     "\nActual output path: "+Mpv422FluidPolicy.outputLabel(selectedRenderMode,renderMode)+
+     "\nCPU filter: "+prefs().getString("mpv_422_output_filter","NOT_SET")+
+     "\nAuto downshift: "+prefs().getString("independent_422_auto_action","NOT_TRIGGERED")+
     "\nTS: "+String.format(Locale.ROOT,"%.2f Mbit/s",bitrate/1000000.0)+
     "\nCapture: "+prefs().getString("software_ts_capture_error","NOT_TESTED")+
     "\nlibmpv FILE_LOADED: "+loaded+
@@ -372,7 +450,9 @@ public final class Independent422Activity extends HubActivity {
     "\nDropped: "+(m==null?-1:m.dropped)+
     "\nDecoder dropped: "+(m==null?-1:m.decoderDropped)+
     "\nOutput: "+(m==null?"unknown":m.outputWidth+"x"+m.outputHeight)+
-    "\nPixel format: "+(m==null?"unknown":m.videoFormat)+
+    "\nDecoded source pixel format: "+(m==null?"unknown":m.videoFormat)+
+     "\nFilter output pixel format: "+(m==null?"unknown":m.outputFormat)+
+     "\nDropped in recent interval: "+prefs().getInt("independent_422_recent_vo_drops",-1)+
     "\nClock health: "+prefs().getString("independent_422_health","NOT_SAMPLED")+
     "\nCPU process: "+prefs().getInt("auto_422_cpu_percent",-1)+"% of one core"+
     "\nVideo frames visually moving: NOT AUTOMATICALLY VERIFIED"+
