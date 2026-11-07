@@ -74,7 +74,7 @@ class LogoRepository private constructor(context:Context){
   val cached=cache.peek(key)
   val providerCached=provider?.let{cache.peek("provider:"+db.key(it))}
   listener.channel(cached)
-  listener.provider(observedProviderName(name,physical,provider?.name?:""),providerCached)
+  listener.provider(provider?.name?:"",providerCached) // No CHMAX disk/provider work on D-Pad thread.
   if(cached!=null&&providerCached!=null)return
   scope.launch{
    val image=slots.withPermit{
