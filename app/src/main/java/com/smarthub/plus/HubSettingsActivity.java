@@ -52,6 +52,7 @@ public final class HubSettingsActivity extends HubActivity {
   open(viewing,tx("الـInfobar","Information bar"),OsdSettingsActivity.class);
   open(viewing,tx("دليل البرامج ومصادر EPG","EPG and feed sources"),SatelliteGuideActivity.class);
   open(viewing,tx("البوسترات ومصادر الصور","Posters and artwork providers"),ProviderSetupActivity.class);
+  open(viewing,tx("إصلاح 12 · مصادر لوغوات وبوسترات TVmaze والرياضة وWikimedia","Fix 12 · TVmaze, sports and Commons artwork sources"),ArtworkSourcesActivity.class);
   LinearLayout help=card(page);
   help.addView(text(tx("المساعدة والأدوات","Help and tools"),22,true));
   open(help,tx("لوحة المساعدة واختصارات الريموت","Remote control help"),RemoteHelpActivity.class);
