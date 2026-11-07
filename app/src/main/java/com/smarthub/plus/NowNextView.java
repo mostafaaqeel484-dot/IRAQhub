@@ -13,7 +13,7 @@ final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
  private final TextView currentTitle,nextTitle,heading,nowLine,nextLine,status,clock;
  private final TextView broadcast,remaining,technical,weather,strengthLabel,qualityLabel,signalDetail,signalSource,encryptionLine,bitrateLabel,providerName,providerCaption;
- private final LinearLayout providerPanel,resolutionStrip,posterTray,details,bar;
+ private final LinearLayout providerPanel,resolutionStrip,details,bar,leftPosterBox,rightPosterBox;
  private final TextView[] resolutionChips=new TextView[5];
  private final TextView[] featureChips=new TextView[6];
  private final ProgressBar progress,strengthBar,qualityBar;
@@ -90,7 +90,7 @@ final class NowNextView extends FrameLayout {
   status=label("",10,false);status.setTextColor(muted);
   status.setVisibility(GONE);programme.addView(status);
 
-  posterTray=new LinearLayout(context);
+  LinearLayout posterTray=new LinearLayout(context);
   posterTray.setGravity(Gravity.CENTER);
   posterTray.setPadding(dp(9),0,dp(9),0);
   primary.addView(posterTray,new LinearLayout.LayoutParams(dp(172),-2));
@@ -109,9 +109,13 @@ final class NowNextView extends FrameLayout {
   right.addView(nextTitle);
   right.addView(nextPoster,new LinearLayout.LayoutParams(dp(66),dp(85)));
   posterTray.addView(right,new LinearLayout.LayoutParams(0,-2,1));
-  if(prefs.getBoolean("osd_swap_posters",false)){
-   posterTray.removeView(left);posterTray.addView(left);
-  }
+  // Expanded artwork is on opposite sides of the programme, never a paired central strip.
+  leftPosterBox=left;rightPosterBox=right;
+  posterTray.removeAllViews();primary.removeView(posterTray);
+  boolean swap=prefs.getBoolean("osd_swap_posters",false);
+  primary.addView(swap?right:left,1,new LinearLayout.LayoutParams(dp(98),-2));
+  primary.addView(swap?left:right,3,new LinearLayout.LayoutParams(dp(98),-2));
+  left.setVisibility(GONE);right.setVisibility(GONE);
 
   LinearLayout signal=column();signal.setGravity(Gravity.CENTER_VERTICAL);
   primary.addView(signal,new LinearLayout.LayoutParams(dp(compact?120:152),-2));
@@ -175,7 +179,8 @@ final class NowNextView extends FrameLayout {
 
  void setExpanded(boolean value){
   expanded=value;
-  posterTray.setVisibility(value&&prefs.getBoolean("osd_posters",true)?VISIBLE:GONE);
+  leftPosterBox.setVisibility(value&&prefs.getBoolean("osd_posters",true)?VISIBLE:GONE);
+  rightPosterBox.setVisibility(value&&prefs.getBoolean("osd_posters",true)?VISIBLE:GONE);
   providerPanel.setVisibility(value?VISIBLE:GONE);
   FrameLayout.LayoutParams position=(FrameLayout.LayoutParams)bar.getLayoutParams();
   if(position!=null){position.height=dp(value?238:183);bar.setLayoutParams(position);}
