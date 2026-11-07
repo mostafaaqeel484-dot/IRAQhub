@@ -1,0 +1,56 @@
+name: IRAQhub 4.0.0 Alpha · Lite Tiger + Auto 422 + Fast Logos
+on:
+  push:
+    branches: [ 'feature/iraqhub-400-lite-auto-logos-20261107' ]
+  pull_request:
+    branches: [ 'feature/379-tiger-ui-cfg-subtitle-20261107' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: performance-400-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout preview branch
+        uses: actions/checkout@v4
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Install API 36
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: JVM tests (auto policy, logo image bounds and existing suites)
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Assemble Debug and unsigned Release
+        run: gradle :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify Debug signature, zipalign and version
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
+          sha256sum "$APK"
+      - name: Upload unsigned test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: IRAQhub-4.0.0-alpha1-UNVERIFIED-X5M
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
