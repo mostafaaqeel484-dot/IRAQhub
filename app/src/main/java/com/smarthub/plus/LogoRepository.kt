@@ -27,6 +27,8 @@ class LogoRepository private constructor(context:Context){
   failures.clear()
  }
  fun resumeAfterVideo(){videoPriority=false}
+ /** Memory pressure only: release app-owned decoded logos; never force Java GC. */
+ fun trimRamCache(){cache.clearRam()}
  interface Listener{fun channel(bitmap:Bitmap?);fun provider(name:String,bitmap:Bitmap?)}
  init{scope.launch{db.load()};scope.launch{addon.load()}}
  private fun network(name:String,known:ChannelAliasDatabase.Entry?)=providerResolver.resolve(known)?:db.providerByName(addon.provider(name))
