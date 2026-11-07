@@ -39,4 +39,30 @@ public class DirectTransponderScannerTest {
    fail("Bad polarization cannot be used");
   }catch(Exception expected){}
  }
+ @Test public void changingSidOrPidResetsManualScanStability()throws Exception{
+  org.json.JSONArray first=new org.json.JSONArray()
+    .put(new JSONObject().put("sid",1).put("pmt",100)
+       .put("videoPid",256).put("name","Channel A"))
+    .put(new JSONObject().put("sid",2).put("pmt",200)
+       .put("videoPid",512).put("name","Channel B"));
+  org.json.JSONArray reordered=new org.json.JSONArray()
+    .put(new JSONObject().put("sid",2).put("pmt",200)
+       .put("videoPid",512).put("name","Channel B"))
+    .put(new JSONObject().put("sid",1).put("pmt",100)
+       .put("videoPid",256).put("name","Channel A"));
+  org.json.JSONArray changed=new org.json.JSONArray()
+    .put(new JSONObject().put("sid",2).put("pmt",200)
+       .put("videoPid",512).put("name","Channel B"))
+    .put(new JSONObject().put("sid",1).put("pmt",100)
+       .put("videoPid",257).put("name","Channel A"));
+  String verified=DirectTransponderScanner.verifiedSignature(
+    new DvbPsiScan.Result(1000,6,7,8,0,first));
+  assertEquals(verified,DirectTransponderScanner.verifiedSignature(
+    new DvbPsiScan.Result(2000,12,7,8,0,reordered)));
+  assertNotEquals(verified,DirectTransponderScanner.verifiedSignature(
+    new DvbPsiScan.Result(2000,12,7,8,0,changed)));
+  assertNotEquals(verified,DirectTransponderScanner.verifiedSignature(
+    new DvbPsiScan.Result(2000,12,7,8,1,first)));
+ }
+
 }
