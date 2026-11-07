@@ -93,7 +93,7 @@ jobs:
             "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Release_UNSIGNED.apk" --clobber
 
       - name: Upload APK artifacts for existing branches
-        if: ${{ github.ref != 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' }}
+        if: ${{ github.ref != 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' && github.ref != 'refs/heads/main' }}
         uses: actions/upload-artifact@v4
         with:
           name: IRAQhub-${{ github.sha }}
