@@ -194,9 +194,24 @@ public final class ReceiverAvPanelActivity extends HubActivity {
  }
  @Override public boolean dispatchKeyEvent(KeyEvent event){
   if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
-   if(event.getKeyCode()==KeyEvent.KEYCODE_PROG_RED){arabic();return true;}
-   if(event.getKeyCode()==KeyEvent.KEYCODE_PROG_GREEN){startActivity(new Intent(this,
-      section==0||section==1?IPAudioActivity.class:LiveTranslationActivity.class));return true;}
+   int k=event.getKeyCode();
+   if(k==KeyEvent.KEYCODE_PROG_RED){
+    if(section>=4)arabic();else startActivity(new Intent(this,IPAudioActivity.class));
+    return true;
+   }
+   if(k==KeyEvent.KEYCODE_PROG_GREEN){
+    startActivity(new Intent(this,section<4?IPAudioActivity.class:LiveTranslationActivity.class));
+    return true;
+   }
+   if(k==KeyEvent.KEYCODE_PROG_YELLOW&&section<4){
+    new AlertDialog.Builder(this).setTitle(tx("حذف استيراد CFG؟","Delete imported CFG list?"))
+     .setPositiveButton(tx("حذف","Delete"),(d,w)->worker.execute(()->{
+      ImportedAudioCatalog.delete(this);
+      runOnUiThread(()->{if(!closed){toast(tx("حُذفت القائمة","Imported catalog removed"));render();}});
+     }))
+     .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+    return true;
+   }
   }
   return super.dispatchKeyEvent(event);
  }
