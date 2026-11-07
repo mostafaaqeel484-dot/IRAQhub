@@ -201,14 +201,17 @@ public final class ManualTransponderActivity extends HubActivity {
          if(!closed&&activeScan==session)result.setText("DVB · "+status);
         });
        });
-    prefs().edit().putString("manual_direct_scan_status","SERVICES_VERIFIED")
-      .putInt("manual_direct_scan_count",report.services.length()).apply();
+    prefs().edit().putString("manual_direct_scan_status",
+      report.withoutNames==0?"SERVICES_VERIFIED":"SERVICES_PARTIAL_PSI")
+      .putInt("manual_direct_scan_count",report.services.length())
+      .putInt("manual_direct_scan_missing",report.withoutNames).apply();
     runOnUiThread(()->{
      if(closed)return;
      directResults=report;resultSelection=selected;
      result.setText(tx("اكتملت قراءة TS · قنوات حقيقية: ",
        "Verified live TS services: ")+report.services.length()+
-       " · TSID "+report.transportId+" · ONID "+report.networkId);
+       " · TSID "+report.transportId+" · ONID "+report.networkId+
+       (report.withoutNames>0?tx(" · خدمات غير مكتملة: "," · incomplete services: ")+report.withoutNames:""));
      StringBuilder text=new StringBuilder();
      for(int i=0;i<Math.min(80,report.services.length());i++){
       JSONObject channel=report.services.optJSONObject(i);

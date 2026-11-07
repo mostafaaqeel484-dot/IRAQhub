@@ -27,7 +27,7 @@ final class LocalInfoBarController implements AutoCloseable {
  private final ExecutorService io=Executors.newFixedThreadPool(2);
  private final FactoryProvider chmax;
  private final PublishedEpgArtwork published;
- private String logoKey="",imageKey="";
+ private String logoKey="",imageKey="",lastPrefetchEvent="";
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
  private long logoRetry,posterRetryAt;
  private volatile boolean closed;
@@ -117,8 +117,19 @@ final class LocalInfoBarController implements AutoCloseable {
    final String expected=art;
    final SatelliteState snapshot=state.copy();
    // Two independent pipelines: a slow TMDB movie lookup must not delay NEXT.
+   // The artwork cache's update timestamp can change repeatedly; only schedule
+   // once per *broadcast event*, not once per cache invalidation or UI repaint.
+   String broadcastKey=id+"|"+snapshot.title+"|"+snapshot.startMs+"|"+
+     snapshot.nextTitle+"|"+snapshot.nextStartMs;
+   if(!broadcastKey.equals(lastPrefetchEvent)){
+    lastPrefetchEvent=broadcastKey;
+    if(!prefs.getBoolean("software_dvb_422_active",false)&&
+       !prefs.getBoolean("dvb_tuning",false)&&snapshot.startMs>0)
+     IraqHubSyncScheduler.programmeChanged(host);
+   }
    io.execute(()->{
-    try{published.refresh(snapshot,System.currentTimeMillis());}
+    try{if(!prefs.getBoolean("software_dvb_422_active",false))
+      published.refresh(snapshot,System.currentTimeMillis());}
     catch(Exception ignored){}
     loadPoster(snapshot,false,expected);
    });
@@ -147,8 +158,18 @@ final class LocalInfoBarController implements AutoCloseable {
 
  private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
   if(prefs.getBoolean("software_dvb_422_active",false)){
-   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
-      "VIDEO_PRIORITY_POSTERS_SUSPENDED").apply();
+   // Cached images are safe during software decoding; never perform a
+   // network request, read TV provider data, or build heavy matching indexes.
+   try{
+    String name=upcoming?snapshot.nextTitle:snapshot.title;
+    Bitmap saved=EpgArtwork.loadCached(host,snapshot,name,upcoming);
+    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      saved==null?"VIDEO_PRIORITY_NO_CACHED_POSTER":"VIDEO_PRIORITY_CACHED_POSTER").apply();
+    if(saved!=null)publishPoster(expected,upcoming,saved);
+   }catch(Exception unavailable){
+    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      "VIDEO_PRIORITY_CACHE_UNAVAILABLE").apply();
+   }
    return;
   }
   String title=upcoming?snapshot.nextTitle:snapshot.title;
