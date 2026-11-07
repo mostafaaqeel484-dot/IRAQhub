@@ -2,7 +2,7 @@ package com.smarthub.plus;
 import android.app.AlertDialog;import android.content.*;import android.graphics.*;import android.graphics.drawable.ColorDrawable;import android.os.*;import android.text.*;import android.view.*;import android.widget.*;import java.util.*;import java.util.concurrent.*;
 /** Translucent channel menu over the independent decoder, backed by the real CHL catalogue. */
 public class ReceiverLibraryActivity extends HubActivity {
- private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private ReceiverCatalog catalog;private List<ReceiverCatalog.Channel> shown=Collections.emptyList();private List<ReceiverCatalog.Sat> satellites=Collections.emptyList();private List<ReceiverCatalog.Group> groups=Collections.emptyList();private Set<Long> favorites=Collections.emptySet();private Set<String> ambiguousPhysical=Collections.emptySet();private Map<String,SatelliteGuideRepository.Event> programmes=Collections.emptyMap();private Map<Long,Integer> satelliteNumbers=Collections.emptyMap();private String lastLiveTitle="";
+ private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private ReceiverCatalog catalog;private List<ReceiverCatalog.Channel> shown=Collections.emptyList();private List<ReceiverCatalog.Sat> satellites=Collections.emptyList();private List<ReceiverCatalog.Group> groups=Collections.emptyList();private Set<Long> favorites=Collections.emptySet();private Set<String> ambiguousPhysical=Collections.emptySet();private Map<String,SatelliteGuideRepository.Event> programmes=Collections.emptyMap();private Map<Long,Integer> satelliteNumbers=Collections.emptyMap();private String lastLiveTitle="";private final Set<String> guideChecked=new HashSet<>();private final Runnable guideOnScroll=this::loadVisibleGuide;
  private EditText query;private ListView list;private TextView status,liveTitle,rf,signalDetail,focusedProgramme;private ProgressBar strength,quality;private Button satelliteButton,favoritesButton;private boolean destroyed,loaded,favoritesOnly,alphabetical,initialPopup,encryptedOnly,wideList;private long satellite=-1,activeId=-1,group=-1;private int type=-1,offset,generation,total,nextListSelection=-1;private String jumpLetter="";private long nextListFocusId=-1;private DirectReceiverSignal reader;
  private final Runnable filter=()->search(true);private final Runnable tick=new Runnable(){public void run(){if(!destroyed){refreshSignal();main.postDelayed(this,1000);}}};
  @Override public void onCreate(Bundle state){
@@ -68,6 +68,12 @@ public class ReceiverLibraryActivity extends HubActivity {
    @Override public void onNothingSelected(AdapterView<?> parent){}
   });
   list.setOnItemLongClickListener((p,v,index,id)->{details(shown.get(index));return true;});
+  list.setOnScrollListener(new AbsListView.OnScrollListener(){
+   public void onScrollStateChanged(AbsListView view,int state){}
+   public void onScroll(AbsListView view,int first,int visible,int total){
+    main.removeCallbacks(guideOnScroll);main.postDelayed(guideOnScroll,250);
+   }
+  });
   root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
 
   LinearLayout footer=col();
@@ -200,7 +206,7 @@ public class ReceiverLibraryActivity extends HubActivity {
  }
  private Button tool(LinearLayout row,String label,Runnable click){Button b=button(label);b.setTextSize(font(11));b.setMinHeight(0);b.setPadding(dp(4),0,dp(4),0);b.setBackground(ReceiverPanelStyle.row(this));b.setOnClickListener(v->click.run());LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(30),1);row.addView(b,p);return b;}
  private ProgressBar meter(int color){ProgressBar p=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);p.setMax(100);p.setProgressTintList(android.content.res.ColorStateList.valueOf(color));p.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x775c6270));return p;}
- @Override protected void onResume(){super.onResume();reader=ReceiverInfoRepository.get(this).acquireSignal();main.post(tick);int token=++generation;ChannelScope browse=scope();io.execute(()->{try{catalog.ensure();List<ReceiverCatalog.Sat> sats=catalog.satellites();List<ReceiverCatalog.Group> fav=catalog.groups();int count=catalog.count();Map<Long,Integer> numbers=catalog.satelliteNumbers();Set<String> collisions=catalog.ambiguousPhysicalKeys();ReceiverCatalog.Channel active=catalog.channel(prefs().getLong("own_dvb_channel",-1));ChannelScope checked=catalog.validScope(browse);int activePage=active==null?0:catalog.pageFor(active,checked);main.post(()->{if(destroyed||token!=generation)return;satellites=sats;groups=fav;satelliteNumbers=numbers;ambiguousPhysical=collisions;total=count;satellite=checked.satellite;group=checked.group;satelliteButton.setText(tx("‹  كل الأقمار  ›","‹  All satellites  ›"));favoritesButton.setText(favoritesOnly?tx("مفضلتي في IRAQhub","My IRAQhub favourites"):tx("المفضلة","Favourites"));boolean anchor=!loaded&&active!=null&&(type<0||active.tv==type)&&SatelliteState.read(this).channelId.equals("DVB:"+active.physical());
+ @Override protected void onResume(){super.onResume();reader=ReceiverInfoRepository.get(this).acquireSignal();main.post(tick);int token=++generation;ChannelScope browse=scope();io.execute(()->{try{catalog.ensure();List<ReceiverCatalog.Sat> sats=catalog.satellites();List<ReceiverCatalog.Group> fav=catalog.groups();int count=catalog.count();Map<Long,Integer> numbers=catalog.satelliteNumbers();Set<String> collisions=catalog.ambiguousPhysicalKeys();ReceiverCatalog.Channel active=catalog.channel(prefs().getLong("own_dvb_channel",-1));ChannelScope checked=catalog.validScope(browse);int activePage=0; // One continuous list; no 120-row page lookup.main.post(()->{if(destroyed||token!=generation)return;satellites=sats;groups=fav;satelliteNumbers=numbers;ambiguousPhysical=collisions;total=count;satellite=checked.satellite;group=checked.group;satelliteButton.setText(tx("‹  كل الأقمار  ›","‹  All satellites  ›"));favoritesButton.setText(favoritesOnly?tx("مفضلتي في IRAQhub","My IRAQhub favourites"):tx("المفضلة","Favourites"));boolean anchor=!loaded&&active!=null&&(type<0||active.tv==type)&&SatelliteState.read(this).channelId.equals("DVB:"+active.physical());
 long restoreId=prefs().getLong("channel_list_restore_focus_id",-1);
 int restorePage=prefs().getInt("channel_list_restore_focus_page",-1);
 loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButton.setText("‹  "+sat.name+"  ›");if(group>=0)for(ReceiverCatalog.Group g:fav)if(g.id==group)favoritesButton.setText(g.name);if(restoreId>=0){
@@ -225,6 +231,31 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    jumpLetter=labels[index];alphabetical=true;search(true);
   });
  }
+ private void loadVisibleGuide(){
+  if(destroyed||!loaded||shown.isEmpty()||list==null)return;
+  int first=Math.max(0,list.getFirstVisiblePosition()-8);
+  int last=Math.min(shown.size(),Math.max(first+1,list.getLastVisiblePosition()+9));
+  Set<String> needed=new HashSet<>();
+  for(int i=first;i<last;i++){
+   String identity="DVB:"+shown.get(i).physical();
+   if(guideChecked.add(identity))needed.add(identity);
+  }
+  if(needed.isEmpty())return;
+  int token=generation;
+  io.execute(()->{
+   try{
+    long now=System.currentTimeMillis();
+    Map<String,SatelliteGuideRepository.Event> fresh=
+      new SatelliteGuideRepository(this).currentChannels(needed,now);
+    main.post(()->{
+     if(destroyed||token!=generation)return;
+     Map<String,SatelliteGuideRepository.Event> all=new HashMap<>(programmes);
+     all.putAll(fresh);programmes=all;
+     if(!fresh.isEmpty())list.invalidateViews();
+    });
+   }catch(Exception ignored){}
+  });
+ }
  private void search(boolean reset){if(!loaded)return;if(reset)offset=0;scope().save(this);String q=query.getText().toString();long sat=satellite,favGroup=group;int kind=type,page=offset,token=++generation;boolean fav=favoritesOnly,alpha=alphabetical;io.execute(()->{try{List<ReceiverCatalog.Channel> rows=catalog.channels(q,sat,kind,fav,alpha,-1,favGroup,encryptedOnly);Set<Long> selected=catalog.favorites();Set<String> physical=new HashSet<>();for(int i=0;i<Math.min(180,rows.size());i++)physical.add("DVB:"+rows.get(i).physical());long epgNow=System.currentTimeMillis();
  Map<String,SatelliteGuideRepository.Event> events=
   new SatelliteGuideRepository(this).currentChannels(physical,epgNow);
@@ -238,7 +269,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    if(cached!=null)events.put(identity,cached);
   }
  }catch(Exception unavailable){/* Original guide remains authoritative. */}
- long current=prefs().getLong("own_dvb_channel",-1);if(!SatelliteState.read(this).channelId.startsWith("DVB:"))current=catalog.uniqueChannel(SatelliteState.read(this).channelName);long playing=current;main.post(()->{if(destroyed||token!=generation)return;shown=rows;favorites=selected;programmes=events;activeId=playing;status.setText((sat<0?tx("كل الأقمار","All satellites"):satelliteButton.getText())+
+ long current=prefs().getLong("own_dvb_channel",-1);if(!SatelliteState.read(this).channelId.startsWith("DVB:"))current=catalog.uniqueChannel(SatelliteState.read(this).channelName);long playing=current;main.post(()->{if(destroyed||token!=generation)return;shown=rows;favorites=selected;programmes=events;guideChecked.clear();guideChecked.addAll(physical);activeId=playing;status.setText((sat<0?tx("كل الأقمار","All satellites"):satelliteButton.getText())+
    (encryptedOnly?tx(" · مشفرة فقط"," · encrypted only"):"")+
    tx("  ·  من ","  ·  positions ")+(rows.isEmpty()?"0":"1–"+rows.size())+(alphabetical?"  A–Z":""));list.setAdapter(new Rows());if(!rows.isEmpty())updateFocusedProgramme(
    Math.min(Math.max(list.getSelectedItemPosition(),0),rows.size()-1));
