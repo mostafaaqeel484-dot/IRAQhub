@@ -19,7 +19,7 @@ final class NowNextView extends FrameLayout {
  private final ProgressBar progress,strengthBar,qualityBar;
  private final android.content.SharedPreferences prefs;
  private final int ink=0xfff1f1f5,muted=0xffafbdc9;
- private boolean compact,expanded;private float textScale=1;private int accent=0xffdc49ec;private MatchTickerView ticker;
+ private boolean compact,expanded,liteApplied,lastLiteValue;private float textScale=1;private int accent=0xffdc49ec;private MatchTickerView ticker;
  NowNextView(Context context){
   super(context);
   prefs=context.getSharedPreferences("smarthub",0);
@@ -174,7 +174,8 @@ final class NowNextView extends FrameLayout {
    addView(ticker,tick);
   }
   setExpanded(detailed);
-  setAlpha(0f);animate().alpha(1f).setDuration(150).start();
+  if(PlaybackResourceMode.active())setAlpha(1f);
+  else{setAlpha(0f);animate().alpha(1f).setDuration(150).start();}
  }
 
  void setExpanded(boolean value){
@@ -186,6 +187,13 @@ final class NowNextView extends FrameLayout {
   if(position!=null){position.height=dp(value?238:183);bar.setLayoutParams(position);}
  }
  void bind(SatelliteState s,Bitmap current,Bitmap next,Bitmap channelLogo,String message){
+  boolean lite=PlaybackResourceMode.lite(getContext());
+  if(!liteApplied||lite!=lastLiteValue){
+   bar.setElevation(lite?0:dp(6));
+   currentPoster.setElevation(lite?0:dp(8));
+   nextPoster.setElevation(lite?0:dp(8));
+   liteApplied=true;lastLiteValue=lite;
+  }
   ReceiverInfoRepository.Info info=ReceiverInfoRepository.get(getContext()).info(s);
   String badge=info.badge;
   // Inactive standards are visible but muted. Only the verified resolution is gold.
