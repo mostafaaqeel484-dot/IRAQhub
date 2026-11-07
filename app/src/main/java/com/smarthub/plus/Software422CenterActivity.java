@@ -64,6 +64,14 @@ public final class Software422CenterActivity extends HubActivity {
    startActivity(new Intent(this,SoftwareVideoActivity.class).putExtra("media_uri",input));
   });
 
+  LinearLayout dedicated=card(body);
+  dedicated.addView(text(tx("محرك فك مستقل بعملية Android منفصلة",
+    "Independent Android decoder process"),19,true));
+  note(dedicated,tx("MPV/FFmpeg منفصل عن LibVLC وواجهة IRAQhub. يبدأ الفيديو بدون فك صوت افتراضياً لتوفير CPU، مع إمكانية تفعيل الصوت داخل المشغل. يستخدم نفس DVB MPEG-TS الحقيقي ولا يحتاج Root.",
+    "Separate MPV/FFmpeg process, not LibVLC. Video-only by default to save CPU, audio toggle in player. Same real DVB TS; no root required."));
+  action(dedicated,tx("تشغيل قنوات DVB بالمحرك المستقل",
+    "Choose DVB channel for isolated decoder"),
+   ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)));
   LinearLayout status=card(body);
   status.addView(text(tx("قنوات DVB الفضائية","DVB satellite channels"),20,true));
   note(status,tx("تم ربط التقاط TS المحلي من التونر بمشغل LibVLC، مع تخزين مؤقت محدود وحماية 4:2:2 من انقطاع الصوت. نجاح فك الصورة يعتمد على دعم الرسيفر الحقيقي وبيانات PID؛ المشفرة تحتاج فك BISS مُصرّحاً به داخل الجهاز قبل عرضها برمجياً.",
