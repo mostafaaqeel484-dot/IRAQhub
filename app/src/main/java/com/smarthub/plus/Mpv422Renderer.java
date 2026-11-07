@@ -208,6 +208,10 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
   try{if(mpv!=null)mpv.detachSurface();}catch(Throwable ignored){}
  }
  @Override public void event(int eventId){
+  if(eventId==MPVLib.MpvEvent.MPV_EVENT_END_FILE){
+   if(loaded&&!destroyed)failure("MPV_EVENT_END_FILE");
+   return;
+  }
   if(eventId==MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED){
    loaded=true;main.removeCallbacks(timeout);
    context.getSharedPreferences("smarthub",0).edit()
@@ -216,9 +220,6 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
     .putLong("mpv_load_latency_ms",SystemClock.elapsedRealtime()-started).apply();
    main.post(()->{if(!destroyed)listener.ready();});
   }
- }
- @Override public void endFile(int reason,int error){
-  if(error<0)failure("MPV_END_FILE_ERROR_"+error);
  }
  @Override public void eventProperty(String property){}
  @Override public void eventProperty(String property,long value){}
