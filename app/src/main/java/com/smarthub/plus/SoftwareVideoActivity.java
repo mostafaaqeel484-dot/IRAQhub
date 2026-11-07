@@ -21,6 +21,13 @@ import java.util.ArrayList;
  * hardware 4:2:2 support and does not control the OEM DVB tuner.
  */
 public final class SoftwareVideoActivity extends HubActivity {
+    private boolean hasResourceMode;
+    private void enterResourceMode(){
+        if(!hasResourceMode){PlaybackResourceMode.enter(this);hasResourceMode=true;}
+    }
+    private void leaveResourceMode(){
+        if(hasResourceMode){PlaybackResourceMode.leave(this);hasResourceMode=false;}
+    }
     private LibVLC libVLC;
     private MediaPlayer mediaPlayer;
     private VLCVideoLayout videoLayout;
@@ -38,6 +45,7 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        enterResourceMode();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         FrameLayout root = new FrameLayout(this);
@@ -77,7 +85,7 @@ public final class SoftwareVideoActivity extends HubActivity {
 
         long dvbChannel=getIntent().getLongExtra("dvb_channel",-1L);
         if(dvbChannel>=0){
-            LogoRepository.get(this).pauseForVideo();
+            // Already reserved our app's background-resource budget onCreate.
             // Silence OEM Play audio only; never stop the tuner or TS capture.
             nativeAudioToken=NativeSatelliteAudioGate.suppress(this);
             startSatellite(dvbChannel);return;
@@ -266,7 +274,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         final String[] modes={Software422Profile.SMOOTH,
             Software422Profile.BALANCED,Software422Profile.QUALITY};
         final String[] labels={
-            tx("سريع · أقل تقطيعاً على X5M (تجاوز بعض الإطارات)","Smooth · less CPU, may skip frames"),
+            tx("سريع · يقلل كلفة الفلترة دون حذف إطارات أساسية","Smooth · lower deblocking load, no frame skipping"),
             tx("متوازن · صورة وصوت","Balanced · picture and sound"),
             tx("جودة أعلى · يحتاج CPU أقوى","Higher quality · uses more CPU"),
             tx("تشخيص الجهاز وسرعة بث TS","Device and live TS diagnostics")
@@ -439,23 +447,28 @@ public final class SoftwareVideoActivity extends HubActivity {
         if(active!=null)new Thread(active::close,"iraqhub-background-ts-stop").start();
         prefs().edit().putBoolean("software_dvb_422_active",false)
           .putString("software_422_runtime","BACKGROUND_STOPPED").apply();
-        LogoRepository.get(this).resumeAfterVideo();
+        leaveResourceMode();
         super.onStop();
     }
     @Override protected void onRestart(){
         super.onRestart();
         backgroundStopped=false;
         if(released)return;
+        enterResourceMode();
         long channel=getIntent().getLongExtra("dvb_channel",-1L);
         if(channel>=0){
-            LogoRepository.get(this).pauseForVideo();
+            enterResourceMode();
             startSatellite(channel);
         }else if(playbackUri!=null)open(playbackUri);
+    }
+    @Override public void onTrimMemory(int level){
+        super.onTrimMemory(level);
+        PlaybackResourceMode.memoryPressure(this,level);
     }
     @Override protected void onDestroy() {
         released = true;
         if(localInfo!=null)localInfo.close();
-        LogoRepository.get(this).resumeAfterVideo();
+        leaveResourceMode();
         prefs().edit().putBoolean("software_dvb_422_active",false)
           .putBoolean("dvb_tuning",false).putString("software_422_runtime","STOPPED").apply();
         // A periodic poster job can be deferred for the entire 4:2:2 session.
