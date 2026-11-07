@@ -3,7 +3,7 @@ import android.app.AlertDialog;import android.content.*;import android.graphics.
 /** Translucent channel menu over the independent decoder, backed by the real CHL catalogue. */
 public class ReceiverLibraryActivity extends HubActivity {
  private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private ReceiverCatalog catalog;private List<ReceiverCatalog.Channel> shown=Collections.emptyList();private List<ReceiverCatalog.Sat> satellites=Collections.emptyList();private List<ReceiverCatalog.Group> groups=Collections.emptyList();private Set<Long> favorites=Collections.emptySet();private Set<String> ambiguousPhysical=Collections.emptySet();private Map<String,SatelliteGuideRepository.Event> programmes=Collections.emptyMap();private Map<Long,Integer> satelliteNumbers=Collections.emptyMap();private String lastLiveTitle="";
- private EditText query;private ListView list;private TextView status,liveTitle,rf,signalDetail,focusedProgramme;private ProgressBar strength,quality;private Button satelliteButton,favoritesButton,previous,next;private boolean destroyed,loaded,favoritesOnly,alphabetical,initialPopup,encryptedOnly,wideList;private long satellite=-1,activeId=-1,group=-1;private int type=-1,offset,generation,total,nextListSelection=-1;private long nextListFocusId=-1;private DirectReceiverSignal reader;
+ private EditText query;private ListView list;private TextView status,liveTitle,rf,signalDetail,focusedProgramme;private ProgressBar strength,quality;private Button satelliteButton,favoritesButton;private boolean destroyed,loaded,favoritesOnly,alphabetical,initialPopup,encryptedOnly,wideList;private long satellite=-1,activeId=-1,group=-1;private int type=-1,offset,generation,total,nextListSelection=-1;private String jumpLetter="";private long nextListFocusId=-1;private DirectReceiverSignal reader;
  private final Runnable filter=()->search(true);private final Runnable tick=new Runnable(){public void run(){if(!destroyed){refreshSignal();main.postDelayed(this,1000);}}};
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
@@ -22,17 +22,17 @@ public class ReceiverLibraryActivity extends HubActivity {
   backdrop.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
   LinearLayout root=col();
   root.setPadding(dp(18),dp(18),dp(18),dp(16));
-  root.setBackground(ReceiverPanelStyle.panel(this));
+  android.graphics.drawable.GradientDrawable tigerPanel=new android.graphics.drawable.GradientDrawable();tigerPanel.setColor(0xf408080b);tigerPanel.setCornerRadius(dp(23));tigerPanel.setStroke(dp(2),0xff9c899e);root.setBackground(tigerPanel);
   int screenWidth=getResources().getDisplayMetrics().widthPixels;
-  int targetWidth=Math.min(dp(wideList?900:570),
-     (int)(screenWidth*(wideList?.78f:.52f)));
+  int targetWidth=Math.min(dp(wideList?900:630),
+     (int)(screenWidth*(wideList?.78f:.46f)));
   FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(
      targetWidth,-1,wideList?Gravity.CENTER_HORIZONTAL:Gravity.LEFT);
   panel.setMargins(dp(11),dp(10),dp(11),dp(10));
   backdrop.addView(root,panel);
 
   LinearLayout top=row();top.setGravity(Gravity.CENTER_VERTICAL);
-  TextView heading=text(tx("القنوات","CHANNELS"),23,true);
+  TextView heading=text(tx("جميع القنوات","All Channels"),23,true);
   heading.setTextColor(0xfff1f1f5);
   top.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
   satelliteButton=tool(top,tx("◈ الأقمار","◈ Satellites"),this::satellites);
@@ -48,7 +48,7 @@ public class ReceiverLibraryActivity extends HubActivity {
   LinearLayout tools=row();tools.setGravity(Gravity.CENTER_VERTICAL);
   favoritesButton=tool(tools,tx("★ المفضلة","★ Favourites"),this::groups);
   favoritesButton.setOnLongClickListener(v->{manageGroups();return true;});
-  tool(tools,"A–Z",()->{alphabetical=!alphabetical;search(true);});
+  tool(tools,"A–Z",this::letterIndex);
   tool(tools,wideList?tx("☰ جانبية","☰ Compact"):tx("▤ واسعة","▤ Wide"),this::toggleListMode);
   tool(tools,tx("⋯ المزيد","⋯ More"),this::showRxChannelActions);
   root.addView(tools,new LinearLayout.LayoutParams(-1,dp(49)));
@@ -59,7 +59,7 @@ public class ReceiverLibraryActivity extends HubActivity {
   list=new ListView(this);
   list.setDividerHeight(dp(2));
   list.setDivider(new ColorDrawable(0x224a6070));
-  list.setSelector(android.R.color.transparent);
+  android.graphics.drawable.GradientDrawable selectedOutline=new android.graphics.drawable.GradientDrawable();selectedOutline.setColor(0x15000000);selectedOutline.setStroke(dp(2),0xffeeeeee);list.setSelector(selectedOutline);
   list.setOnItemClickListener((p,v,index,id)->play(shown.get(index)));
   list.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
    @Override public void onItemSelected(AdapterView<?> parent,View view,int position,long id){
@@ -90,20 +90,8 @@ public class ReceiverLibraryActivity extends HubActivity {
   footer.addView(rf);
   root.addView(footer);
 
-  LinearLayout pager=row();
-  previous=tool(pager,"‹",()->{offset=Math.max(0,offset-120);search(false);});
-  tool(pager,tx("★ إضافة","★ Favourite"),()->{
-   int selected=list.getSelectedItemPosition();
-   if(selected>=0&&selected<shown.size())favorite(shown.get(selected));
-  });
-  next=tool(pager,"›",()->{offset+=120;search(false);});
-  tool(pager,"INFO",()->{
-   int selected=list.getSelectedItemPosition();
-   if(selected>=0&&selected<shown.size())details(shown.get(selected));
-  });
-  root.addView(pager,new LinearLayout.LayoutParams(-1,dp(44)));
   TextView hint=text(tx("OK تشغيل · INFO التفاصيل · PAGE↓ شفرة BISS",
-    "OK play · INFO details · PAGE↓ BISS key"),10,false);
+    "↑/↓ circular list · OK play · INFO details · PAGE↓ BISS"),10,false);
   hint.setTextColor(0xff97a6b8);
   root.addView(hint);
   String initial=getIntent().getStringExtra("query");
@@ -215,30 +203,29 @@ public class ReceiverLibraryActivity extends HubActivity {
  @Override protected void onResume(){super.onResume();reader=ReceiverInfoRepository.get(this).acquireSignal();main.post(tick);int token=++generation;ChannelScope browse=scope();io.execute(()->{try{catalog.ensure();List<ReceiverCatalog.Sat> sats=catalog.satellites();List<ReceiverCatalog.Group> fav=catalog.groups();int count=catalog.count();Map<Long,Integer> numbers=catalog.satelliteNumbers();Set<String> collisions=catalog.ambiguousPhysicalKeys();ReceiverCatalog.Channel active=catalog.channel(prefs().getLong("own_dvb_channel",-1));ChannelScope checked=catalog.validScope(browse);int activePage=active==null?0:catalog.pageFor(active,checked);main.post(()->{if(destroyed||token!=generation)return;satellites=sats;groups=fav;satelliteNumbers=numbers;ambiguousPhysical=collisions;total=count;satellite=checked.satellite;group=checked.group;satelliteButton.setText(tx("‹  كل الأقمار  ›","‹  All satellites  ›"));favoritesButton.setText(favoritesOnly?tx("مفضلتي في IRAQhub","My IRAQhub favourites"):tx("المفضلة","Favourites"));boolean anchor=!loaded&&active!=null&&(type<0||active.tv==type)&&SatelliteState.read(this).channelId.equals("DVB:"+active.physical());
 long restoreId=prefs().getLong("channel_list_restore_focus_id",-1);
 int restorePage=prefs().getInt("channel_list_restore_focus_page",-1);
-loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButton.setText("‹  "+sat.name+"  ›");if(group>=0)for(ReceiverCatalog.Group g:fav)if(g.id==group)favoritesButton.setText(g.name);if(restoreId>=0&&restorePage>=0){
-   offset=restorePage;nextListFocusId=restoreId;
+loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButton.setText("‹  "+sat.name+"  ›");if(group>=0)for(ReceiverCatalog.Group g:fav)if(g.id==group)favoritesButton.setText(g.name);if(restoreId>=0){
+   offset=0;nextListFocusId=restoreId;
    prefs().edit().remove("channel_list_restore_focus_id")
     .remove("channel_list_restore_focus_page").apply();
    search(false);
-  }else if(anchor){offset=activePage;search(false);}else search(true);if(!initialPopup){initialPopup=true;if(getIntent().getBooleanExtra("satellite_popup",false))satellites();else if(getIntent().getBooleanExtra("favorites",false))groups();}});}catch(Exception unavailable){main.post(()->{if(!destroyed)status.setText(tx("تعذر الفهرس؛ استورد CHL","Import CHL to restore the catalogue"));});}});}
+  }else if(anchor){offset=0;search(false);}else search(true);if(!initialPopup){initialPopup=true;if(getIntent().getBooleanExtra("satellite_popup",false))satellites();else if(getIntent().getBooleanExtra("favorites",false))groups();}});}catch(Exception unavailable){main.post(()->{if(!destroyed)status.setText(tx("تعذر الفهرس؛ استورد CHL","Import CHL to restore the catalogue"));});}});}
  @Override protected void onPause(){main.removeCallbacks(tick);if(reader!=null){ReceiverInfoRepository.get(this).releaseSignal(reader);reader=null;}super.onPause();}
  private ChannelScope scope(){return new ChannelScope(query.getText().toString(),satellite,type,favoritesOnly,alphabetical,group);}
  private void pageChannels(int direction){pageChannels(direction,10);}
  private void pageChannels(int direction,int jump){
   if(shown.isEmpty())return;
-  // Left/right skips ten channels within the actual list, across 120-item pages.
-  int selected=Math.max(0,list.getSelectedItemPosition());
-  int absolute=Math.max(0,offset+selected+direction*jump);
-  if(absolute>=offset+shown.size()&&shown.size()<120)
-   absolute=offset+shown.size()-1;
-  int currentPage=(absolute/120)*120;
-  if(currentPage==offset){
-   list.requestFocus();list.setSelection(Math.min(shown.size()-1,absolute-offset));
-  }else{
-   offset=currentPage;nextListSelection=absolute-currentPage;search(false);
-  }
+  int current=Math.max(0,list.getSelectedItemPosition());
+  list.requestFocus();
+  list.setSelection(Math.floorMod(current+direction*jump,shown.size()));
  }
- private void search(boolean reset){if(!loaded)return;if(reset)offset=0;scope().save(this);String q=query.getText().toString();long sat=satellite,favGroup=group;int kind=type,page=offset,token=++generation;boolean fav=favoritesOnly,alpha=alphabetical;io.execute(()->{try{List<ReceiverCatalog.Channel> rows=catalog.channels(q,sat,kind,fav,alpha,page,favGroup,encryptedOnly);Set<Long> selected=catalog.favorites();Set<String> physical=new HashSet<>();for(ReceiverCatalog.Channel row:rows)physical.add("DVB:"+row.physical());long epgNow=System.currentTimeMillis();
+ private void letterIndex(){
+  String[] labels=new String[27];labels[0]="#";
+  for(int i=1;i<labels.length;i++)labels[i]=Character.toString((char)('A'+i-1));
+  ReceiverPanelStyle.choose(this,tx("فهرس القنوات","Channel index"),labels,0,index->{
+   jumpLetter=labels[index];alphabetical=true;search(true);
+  });
+ }
+ private void search(boolean reset){if(!loaded)return;if(reset)offset=0;scope().save(this);String q=query.getText().toString();long sat=satellite,favGroup=group;int kind=type,page=offset,token=++generation;boolean fav=favoritesOnly,alpha=alphabetical;io.execute(()->{try{List<ReceiverCatalog.Channel> rows=catalog.channels(q,sat,kind,fav,alpha,-1,favGroup,encryptedOnly);Set<Long> selected=catalog.favorites();Set<String> physical=new HashSet<>();for(int i=0;i<Math.min(180,rows.size());i++)physical.add("DVB:"+rows.get(i).physical());long epgNow=System.currentTimeMillis();
  Map<String,SatelliteGuideRepository.Event> events=
   new SatelliteGuideRepository(this).currentChannels(physical,epgNow);
  // Persist only positively timed, physically identified programmes for
@@ -253,11 +240,19 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  }catch(Exception unavailable){/* Original guide remains authoritative. */}
  long current=prefs().getLong("own_dvb_channel",-1);if(!SatelliteState.read(this).channelId.startsWith("DVB:"))current=catalog.uniqueChannel(SatelliteState.read(this).channelName);long playing=current;main.post(()->{if(destroyed||token!=generation)return;shown=rows;favorites=selected;programmes=events;activeId=playing;status.setText((sat<0?tx("كل الأقمار","All satellites"):satelliteButton.getText())+
    (encryptedOnly?tx(" · مشفرة فقط"," · encrypted only"):"")+
-   tx("  ·  من ","  ·  positions ")+(rows.isEmpty()?"0":(page+1)+"–"+(page+rows.size()))+(alphabetical?"  A–Z":""));previous.setEnabled(page>0);next.setEnabled(rows.size()==120);list.setAdapter(new Rows());if(!rows.isEmpty())updateFocusedProgramme(
+   tx("  ·  من ","  ·  positions ")+(rows.isEmpty()?"0":"1–"+rows.size())+(alphabetical?"  A–Z":""));list.setAdapter(new Rows());if(!rows.isEmpty())updateFocusedProgramme(
    Math.min(Math.max(list.getSelectedItemPosition(),0),rows.size()-1));
    if(!query.hasFocus()){
      list.requestFocus();
-     if(nextListFocusId>=0){
+     if(!jumpLetter.isEmpty()){
+       String letter=jumpLetter;jumpLetter="";
+       int target=0;
+       for(int i=0;i<rows.size();i++){
+        String name=rows.get(i).name.trim().toUpperCase(java.util.Locale.ROOT);
+        if(letter.equals("#")?(name.isEmpty()||!Character.isLetter(name.charAt(0))):name.startsWith(letter)){target=i;break;}
+       }
+       list.setSelection(target);
+      }else if(nextListFocusId>=0){
        long focus=nextListFocusId;nextListFocusId=-1;
        boolean restored=false;
        for(int i=0;i<rows.size();i++)if(rows.get(i).id==focus){
@@ -397,7 +392,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  private final class Rows extends BaseAdapter {
  private final SatelliteState active=ReceiverInfoRepository.get(ReceiverLibraryActivity.this).current();
  public boolean hasStableIds(){return true;}
- public int getCount(){return shown.size();}public Object getItem(int p){return shown.get(p);}public long getItemId(int p){return shown.get(p).id;}public View getView(int position,View old,ViewGroup parent){ReceiverCatalog.Channel ch=shown.get(position);String identity=ch.physical();LinearLayout row=row();row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);row.setPadding(dp(5),dp(3),dp(8),dp(3));row.setBackground(ReceiverPanelStyle.row(ReceiverLibraryActivity.this));int screen=(int)(getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().density);row.setLayoutParams(new AbsListView.LayoutParams(-1,dp(Math.max(Math.round(font(17)+font(11)+12),Math.min(72,list.getHeight()>0?(int)(list.getHeight()/getResources().getDisplayMetrics().density/8):(screen-260)/8)))));TextView number=text(Integer.toString(satelliteNumbers.getOrDefault(ch.id,position+offset+1)),16,false);number.setTextColor(ReceiverPanelStyle.GOLD);row.addView(number,new LinearLayout.LayoutParams(dp(38),-2));ImageView logo=new ImageView(ReceiverLibraryActivity.this);logo.setTag(identity);logo.setImageResource(R.drawable.channel_placeholder);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);LinearLayout logoStack=col();logoStack.setGravity(Gravity.CENTER);logoStack.addView(logo,new LinearLayout.LayoutParams(dp(48),dp(31)));ImageView providerMark=new ImageView(ReceiverLibraryActivity.this);providerMark.setScaleType(ImageView.ScaleType.FIT_CENTER);providerMark.setVisibility(View.GONE);logoStack.addView(providerMark,new LinearLayout.LayoutParams(dp(23),dp(10)));row.addView(logoStack,new LinearLayout.LayoutParams(dp(52),-2));LinearLayout info=col();info.setPadding(dp(10),0,dp(6),0);row.addView(info,new LinearLayout.LayoutParams(0,-2,1));TextView name=text((favorites.contains(ch.id)?"★ ":"")+ch.name,17,false);name.setTextColor(0xfff8f6e9);name.setGravity(Gravity.LEFT);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);info.addView(name);boolean current=ch.id==activeId&&active.channelName.equalsIgnoreCase(ch.name);SatelliteGuideRepository.Event cached=programmes.get("DVB:"+identity);String title=current&&!active.title.isEmpty()?active.title:cached!=null&&cached.startMs<=System.currentTimeMillis()&&cached.endMs>System.currentTimeMillis()?cached.title:"";TextView epg=text(title.isEmpty()?tx("لا توجد بيانات برنامج","No programme information"):title,11,false);epg.setTextColor(current?0xff75f5ad:MUTED);epg.setSingleLine(true);epg.setEllipsize(TextUtils.TruncateAt.END);info.addView(epg);if(current){String badge=ResolutionBadge.label(ReceiverLibraryActivity.this,active);if(!badge.isEmpty()){TextView mark=text(badge,10,true);mark.setGravity(Gravity.CENTER);mark.setBackgroundResource(ResolutionBadge.asset(badge));mark.setTextColor(ResolutionBadge.color(badge));row.addView(mark,new LinearLayout.LayoutParams(dp(51),dp(21)));}}if(ambiguousPhysical.contains(identity)){
+ public int getCount(){return shown.size();}public Object getItem(int p){return shown.get(p);}public long getItemId(int p){return shown.get(p).id;}public View getView(int position,View old,ViewGroup parent){ReceiverCatalog.Channel ch=shown.get(position);String identity=ch.physical();LinearLayout row=row();row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);row.setPadding(dp(5),dp(3),dp(8),dp(3));row.setBackground(ReceiverPanelStyle.row(ReceiverLibraryActivity.this));int screen=(int)(getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().density);row.setLayoutParams(new AbsListView.LayoutParams(-1,dp(Math.max(Math.round(font(17)+font(11)+12),Math.min(72,list.getHeight()>0?(int)(list.getHeight()/getResources().getDisplayMetrics().density/8):(screen-260)/8)))));TextView number=text(Integer.toString(satelliteNumbers.getOrDefault(ch.id,position+offset+1)),16,false);number.setTextColor(0xff4cd64e);row.addView(number,new LinearLayout.LayoutParams(dp(38),-2));ImageView logo=new ImageView(ReceiverLibraryActivity.this);logo.setTag(identity);logo.setImageResource(R.drawable.channel_placeholder);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);LinearLayout logoStack=col();logoStack.setGravity(Gravity.CENTER);logoStack.addView(logo,new LinearLayout.LayoutParams(dp(48),dp(31)));ImageView providerMark=new ImageView(ReceiverLibraryActivity.this);providerMark.setScaleType(ImageView.ScaleType.FIT_CENTER);providerMark.setVisibility(View.GONE);logoStack.addView(providerMark,new LinearLayout.LayoutParams(dp(23),dp(10)));row.addView(logoStack,new LinearLayout.LayoutParams(dp(52),-2));LinearLayout info=col();info.setPadding(dp(10),0,dp(6),0);row.addView(info,new LinearLayout.LayoutParams(0,-2,1));TextView name=text((favorites.contains(ch.id)?"★ ":"")+ch.name,17,false);name.setTextColor(0xff52d15d);name.setGravity(Gravity.LEFT);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);info.addView(name);boolean current=ch.id==activeId&&active.channelName.equalsIgnoreCase(ch.name);SatelliteGuideRepository.Event cached=programmes.get("DVB:"+identity);String title=current&&!active.title.isEmpty()?active.title:cached!=null&&cached.startMs<=System.currentTimeMillis()&&cached.endMs>System.currentTimeMillis()?cached.title:"";TextView epg=text(title.isEmpty()?tx("لا توجد بيانات برنامج","No programme information"):title,11,false);epg.setTextColor(current?0xff75f5ad:MUTED);epg.setSingleLine(true);epg.setEllipsize(TextUtils.TruncateAt.END);info.addView(epg);if(current){String badge=ResolutionBadge.label(ReceiverLibraryActivity.this,active);if(!badge.isEmpty()){TextView mark=text(badge,10,true);mark.setGravity(Gravity.CENTER);mark.setBackgroundResource(ResolutionBadge.asset(badge));mark.setTextColor(ResolutionBadge.color(badge));row.addView(mark,new LinearLayout.LayoutParams(dp(51),dp(21)));}}if(ambiguousPhysical.contains(identity)){
   logo.setContentDescription(tx("هوية DVB مكررة · الشعار محجوب لتجنب الخطأ",
     "Ambiguous DVB identity · logo omitted to avoid wrong association"));
  }else LogoRepository.get(ReceiverLibraryActivity.this).request(ch.name,"DVB:"+identity,new LogoRepository.Listener(){public void channel(Bitmap b){if(!destroyed&&identity.equals(logo.getTag())&&b!=null)logo.setImageBitmap(b);}public void provider(String n,Bitmap b){if(!destroyed&&identity.equals(logo.getTag())){providerMark.setImageBitmap(b);providerMark.setContentDescription(n);providerMark.setVisibility(b==null?View.GONE:View.VISIBLE);}}});return row;}}
@@ -422,6 +417,13 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){
     encryptedOnly=!encryptedOnly;type=0;favoritesOnly=false;group=-1;search(true);
    }return true;
+  }
+  if((k==KeyEvent.KEYCODE_DPAD_UP||k==KeyEvent.KEYCODE_DPAD_DOWN)&&list.hasFocus()&&!shown.isEmpty()){
+   if(e.getAction()==KeyEvent.ACTION_DOWN){
+    int selected=list.getSelectedItemPosition();
+    if(k==KeyEvent.KEYCODE_DPAD_UP&&selected<=0){list.setSelection(shown.size()-1);return true;}
+    if(k==KeyEvent.KEYCODE_DPAD_DOWN&&selected>=shown.size()-1){list.setSelection(0);return true;}
+   }
   }
   if((k==KeyEvent.KEYCODE_DPAD_LEFT||k==KeyEvent.KEYCODE_DPAD_RIGHT)&&!query.hasFocus()){
    if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0)
