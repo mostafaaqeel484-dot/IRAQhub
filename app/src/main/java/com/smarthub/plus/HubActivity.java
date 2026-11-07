@@ -51,7 +51,10 @@ public class HubActivity extends Activity {
   if(!subtitle.isEmpty()){TextView sub=text(subtitle,14,false);sub.setTextColor(ACCENT);sub.setPadding(0,dp(5),0,dp(12));root.addView(sub);}
   ScrollView scroll=new ScrollView(this);LinearLayout body=col();body.setPadding(0,dp(12),0,dp(90));scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);return body;
  }
- protected TextView text(String value,int sp,boolean bold) { TextView v=new TextView(this);v.setText(value);v.setTextSize(font(sp));v.setTextColor(WHITE);v.setGravity(ar?Gravity.RIGHT:Gravity.LEFT);v.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);if(bold)v.setTypeface(null,Typeface.BOLD);return v; }
+ protected TextView text(String value,int sp,boolean bold) { TextView v=new TextView(this);v.setText(value);v.setTextSize(font(sp));v.setTextColor(WHITE);v.setGravity(ar?Gravity.RIGHT:Gravity.LEFT);v.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);Typeface original=RxOriginalAssets.font(this);
+ if(original!=null&&ar)v.setTypeface(original,bold?Typeface.BOLD:Typeface.NORMAL);
+ else if(bold)v.setTypeface(null,Typeface.BOLD);
+ return v; }
  protected GradientDrawable shape(int color,int radius) { GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d; }
  protected StateListDrawable selection(int color){return RxSkin.focus(this);}
  protected Button button(String label) { Button b=new Button(this);b.setText(label);b.setTextSize(font(16));b.setAllCaps(false);b.setTextColor(WHITE);b.setFocusable(true);b.setMinHeight(dp(46));b.setPadding(dp(14),dp(8),dp(14),dp(8));b.setBackground(RxSkin.focus(this));b.setElevation(dp(2));
