@@ -20,6 +20,22 @@ public final class Mpv422FluidPolicyTest {
   assertFalse(Mpv422FluidPolicy.shouldDownshift(Mpv422FluidPolicy.P720,b,15100,11,4800));
   assertFalse(Mpv422FluidPolicy.shouldDownshift(Mpv422FluidPolicy.AUTO,b,15100,3,4800));
  }
+ @Test public void noInfiniteRetryForFilterTimeout(){
+  assertTrue(Mpv422FluidPolicy.recoverWithNative(
+    Mpv422FluidPolicy.P720,false,"MPV_NO_FILE_LOADED_22S"));
+  assertTrue(Mpv422FluidPolicy.recoverWithNative(
+    Mpv422FluidPolicy.P540,false,"MPV_END_BEFORE_FILE_LOADED_event=7"));
+  assertTrue(Mpv422FluidPolicy.recoverWithNative(
+    Mpv422FluidPolicy.P720,false,"MPV_SURFACE_NOT_READY_10S"));
+  assertTrue(Mpv422FluidPolicy.recoverWithNative(
+    Mpv422FluidPolicy.P720,false,"MPV_START_IllegalArgumentException: MPV_VF_REJECTED_-4"));
+  assertFalse(Mpv422FluidPolicy.recoverWithNative(
+    Mpv422FluidPolicy.GPU_NATIVE,false,"MPV_NO_FILE_LOADED_22S"));
+  assertFalse(Mpv422FluidPolicy.recoverWithNative(
+    Mpv422FluidPolicy.P720,true,"MPV_NO_FILE_LOADED_22S"));
+  assertFalse(Mpv422FluidPolicy.recoverWithNative(
+    Mpv422FluidPolicy.P720,false,"MPV_NATIVE_DECODER_FATAL"));
+ }
  @Test public void counterResetAndHealthyIntervalResetPressure(){
   assertEquals(0,Mpv422FluidPolicy.poorDropSamples(99,3,4800,2));
   assertEquals(0,Mpv422FluidPolicy.poorDropSamples(40,42,4800,2));
