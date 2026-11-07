@@ -33,6 +33,33 @@ final class AdbIpConnection {
    this.status=status;this.detail=detail;this.target=target;this.authorised=authorised;
   }
  }
+ private static final java.util.concurrent.ExecutorService STARTUP=
+   java.util.concurrent.Executors.newSingleThreadExecutor();
+ private static volatile long previousStartupCheck;
+ /** Opt-in: nonblocking ADB verification when launcher becomes active.
+  * No auto-activation of TCP daemon or hidden privilege acquisition. */
+ static void checkOnLauncherStart(Context context){
+  android.content.SharedPreferences preferences=
+    context.getSharedPreferences("smarthub",0);
+  if(!preferences.getBoolean("adb_ip_auto_connect",false))return;
+  String target=preferences.getString("adb_ip_target","");
+  if(target==null||target.trim().isEmpty())return;
+  long now=SystemClock.elapsedRealtime();
+  synchronized(AdbIpConnection.class){
+   if(now-previousStartupCheck<120000L&&previousStartupCheck!=0)return;
+   previousStartupCheck=now;
+  }
+  Context app=context.getApplicationContext();
+  STARTUP.execute(()->{
+   Result result=test(app,target);
+   app.getSharedPreferences("smarthub",0).edit()
+     .putString("adb_ip_status",result.status)
+     .putString("adb_ip_detail",result.detail)
+     .putString("adb_ip_verified_target",result.target)
+     .putLong("adb_ip_checked_at",System.currentTimeMillis())
+     .putBoolean("adb_ip_last_authorized",result.authorised).apply();
+  });
+ }
  private AdbIpConnection(){}
  private static KeyPair localKey()throws Exception{
   KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null);
