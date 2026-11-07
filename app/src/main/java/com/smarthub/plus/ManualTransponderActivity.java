@@ -55,7 +55,8 @@ public final class ManualTransponderActivity extends HubActivity {
       "Discover channels directly on this frequency · PAT / PMT / SDT"),this::confirmDirectScan);
   action(panel,tx("اختيار القنوات المكتشفة وحفظها","Choose discovered channels to save"),this::chooseDirectServices);
   action(panel,tx("إيقاف البحث المباشر","Stop direct scan"),this::cancelDirectScan);
-  action(panel,tx("بحث المصنع الأصلي (اختياري فقط)","Optional native Aurum search"),
+  action(panel,tx("فتح بحث Aurum الأصلي · بديل عند رفض البحث المباشر",
+      "Open original Aurum scan · fallback if direct scan is unsupported"),
     ()->NativeSearchNavigation.open(this));
   action(panel,tx("حفظ التردد في IRAQhub","Save this transponder"),this::saveTransponder);
   action(panel,tx("قراءة معرّفات الخدمات SID إن توفرت","Check observed service IDs (SID)"),this::readSids);
