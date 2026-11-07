@@ -10,6 +10,8 @@ import androidx.work.OneTimeWorkRequest;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Three independent, persistent 240-minute refresh loops.
@@ -20,8 +22,42 @@ final class IraqHubSyncScheduler {
  private static final String XMLTV="iraqhub-unified-epg-poster-sync"; // retain old unique work identity
  private static final String POSTERS="iraqhub-native-posters-sync";
  private static final String DVB="iraqhub-native-dvb-epg-sync";
+ private static final ExecutorService PRIORITY_IO=Executors.newSingleThreadExecutor();
  private IraqHubSyncScheduler(){}
+ private static boolean videoPriority(Context context){
+  return PlaybackResourceMode.active()||context.getSharedPreferences("smarthub",0)
+    .getBoolean("software_dvb_422_active",false);
+ }
+ /** Cancel only IRAQhub-owned optional WorkManager jobs. Never kill the OEM
+  * tuner, TS/PVR capture, AudioTrack or any process outside the launcher. */
+ static void suspendForVideo(Context context){
+  Context app=context.getApplicationContext();
+  PRIORITY_IO.execute(()->{
+   WorkManager manager=WorkManager.getInstance(app);
+   for(String name:new String[]{XMLTV,POSTERS,DVB}){
+    manager.cancelUniqueWork(name);
+    manager.cancelUniqueWork(name+"-initial");
+    manager.cancelUniqueWork(name+"-manual");
+   }
+   manager.cancelUniqueWork(POSTERS+"-programme");
+   app.getSharedPreferences("smarthub",0).edit()
+     .putString("video_priority_jobs","PAUSED_APP_WORKMANAGER")
+     .putLong("video_priority_jobs_paused_at",System.currentTimeMillis()).apply();
+  });
+ }
+ /** Restore normal EPG/poster schedules only after the software video exits. */
+ static void resumeAfterVideo(Context context){
+  Context app=context.getApplicationContext();
+  PRIORITY_IO.execute(()->{
+   if(videoPriority(app))return;
+   ensure(app);
+   app.getSharedPreferences("smarthub",0).edit()
+     .putString("video_priority_jobs","RESTORED")
+     .putLong("video_priority_jobs_restored_at",System.currentTimeMillis()).apply();
+  });
+ }
  static void runNow(Context context){
+  if(videoPriority(context))return;
   WorkManager manager=WorkManager.getInstance(context.getApplicationContext());
   Constraints internet=online();
   manager.enqueueUniqueWork(XMLTV+"-manual",ExistingWorkPolicy.REPLACE,
@@ -32,6 +68,7 @@ final class IraqHubSyncScheduler {
     new OneTimeWorkRequest.Builder(DvbEpgRefreshWorker.class).build());
  }
  static void programmeChanged(Context context){
+  if(videoPriority(context))return;
   // Debounce channel switches; the worker checks the currently observed event.
   Constraints internet=online();
   WorkManager.getInstance(context.getApplicationContext())
@@ -41,6 +78,7 @@ final class IraqHubSyncScheduler {
         .setConstraints(internet).build());
  }
  static void ensure(Context context){
+  if(videoPriority(context))return;
   WorkManager manager=WorkManager.getInstance(context.getApplicationContext());
   Constraints internet=online();
   manager.enqueueUniquePeriodicWork(XMLTV,ExistingPeriodicWorkPolicy.KEEP,
