@@ -24,7 +24,7 @@ public final class DvbPlaybackActivity extends HubActivity {
  @Override protected void onPause(){resumed=false;blue.cancel();if(localInfo!=null)localInfo.dismiss();prefs().edit().putBoolean("dvb_player_visible",false).apply();super.onPause();}
  private void publishAudio(int index){if(channel==null)return;org.json.JSONArray tracks=channel.audio();org.json.JSONObject selected=null;int valid=0;for(int n=0;n<tracks.length();n++){org.json.JSONObject t=tracks.optJSONObject(n);if(t!=null&&DvbPlayRequest.audio(t.optString("Type"))>=0&&t.optInt("PID",8191)>0&&t.optInt("PID",8191)<8191){if(valid++==index){selected=t;break;}}}if(selected!=null)prefs().edit().putString("own_dvb_audio",selected.optString("Lang")+" · "+selected.optString("Type")).apply();}
  private void companion(){startActivity(new Intent(this,SatelliteActivity.class));}
- private void info(){if(localInfo!=null)localInfo.show();}
+ private void info(){if(localInfo!=null)localInfo.showDetails();}
  private void volume(int key){int level=prefs().getInt("dvb_volume",20);boolean mute=prefs().getBoolean("dvb_muted",false);if(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN){level=Math.max(0,Math.min(100,level+(key==KeyEvent.KEYCODE_VOLUME_UP?5:-5)));mute=false;}else mute=!mute;prefs().edit().putInt("dvb_volume",level).putBoolean("dvb_muted",mute).apply();player.volumeChanged();if(internetAudio!=null)internetAudio.remoteVolume(level,mute);toast(mute?tx("كتم الصوت","Muted"):tx("الصوت ","Volume ")+level+"%");}
  private void bissPopup(){
   ReceiverCatalog.Channel current=channel==null?selection:channel;
