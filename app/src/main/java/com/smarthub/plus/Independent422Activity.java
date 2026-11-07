@@ -210,9 +210,13 @@ public final class Independent422Activity extends HubActivity {
  }
  private void updateRenderButton(){
   if(renderButton==null)return;
-  String label=Mpv422FluidPolicy.readable(renderMode);
+  // Keep the remote button legible on 720p receivers; the dialog and
+  // Stats show the full pixel format, bit depth and precise resolution.
+  String label=Mpv422FluidPolicy.GPU_NATIVE.equals(renderMode)?"GPU":
+    Mpv422FluidPolicy.targetHeight(renderMode)+"p "+
+      (Mpv422FluidPolicy.is422(renderMode)?"422":"420");
   renderButton.setText(Mpv422FluidPolicy.AUTO.equals(selectedRenderMode)
-    ?tx("تلقائي ","Auto ")+label:label);
+    ?"Auto "+label:label);
  }
  private void updateDecoderButton(){
   if(decoderButton!=null)decoderButton.setText(
