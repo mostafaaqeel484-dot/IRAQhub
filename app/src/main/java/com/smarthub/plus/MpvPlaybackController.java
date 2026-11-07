@@ -76,7 +76,7 @@ final class MpvPlaybackController implements SurfaceHolder.Callback,MPVLib.Event
    surface=new SurfaceView(activity);
    surface.setKeepScreenOn(true);
    surface.setBackgroundColor(0xff000000);
-   host.addView(surface,new FrameLayout.LayoutParams(-1,-1));
+   host.addView(surface,0,new FrameLayout.LayoutParams(-1,-1));
    surface.getHolder().addCallback(this);
    if(surface.getHolder().getSurface().isValid())
     surfaceCreated(surface.getHolder());
@@ -149,6 +149,14 @@ final class MpvPlaybackController implements SurfaceHolder.Callback,MPVLib.Event
  }
  @Override public void eventProperty(String property,String value){}
 
+ void cycleAudio(){
+  if(!stopped.get()&&lib!=null)try{lib.command(new String[]{"cycle","aid"});}
+  catch(Throwable ignored){}
+ }
+ void cycleSubtitle(){
+  if(!stopped.get()&&lib!=null)try{lib.command(new String[]{"cycle","sid"});}
+  catch(Throwable ignored){}
+ }
  void close(){
   if(!stopped.compareAndSet(false,true))return;
   main.removeCallbacks(missingVideo);
