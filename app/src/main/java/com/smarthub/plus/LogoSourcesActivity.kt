@@ -52,14 +52,15 @@ class LogoSourcesActivity:HubActivity(){
   val imports=card(body)
   imports.addView(text(tx("ملفات القنوات · SQLite DB وCHL","Channel lists · SQLite DB & CHL"),20,true))
   action(imports,tx("استيراد قاعدة قنوات SQLite .db (سريع)","Fast SQLite .db channel import"),Runnable{open(5)})
+  action(imports,tx("دمج DB من Aurum بدون حذف القنوات الحالية","Merge exported Aurum DB (preserve channels)"),Runnable{open(7)})
   action(imports,tx("تصدير قاعدة قنوات SQLite .db","Export SQLite .db channel backup"),Runnable{
     startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
       .setType("application/octet-stream")
       .putExtra(Intent.EXTRA_TITLE,"IRAQhub_channels.db"),6)
   })
   action(imports,tx("استيراد ملف قنوات CHL","Import CHL channel list"),Runnable{open(3)})
-  imports.addView(text(tx("يقبل DB المصدّرة من Aurum أو قاعدة IRAQhub. يستورد القنوات وترتيبها والمفضلة محلياً، ولا يغيّر قاعدة المصنع. احفظ نسخة احتياطية أولاً.",
-    "Accepts exported Aurum DB or IRAQhub receiver-catalog.db. Replaces app-owned channels, ordering and favourites; never touches OEM firmware. Back up first."),13,false))
+  imports.addView(text(tx("الاستيراد الكامل يستبدل قائمة IRAQhub فقط. خيار الدمج الجديد يقرأ قاعدة Aurum المصدّرة، يفحصها، ويضيف القنوات غير الموجودة حسب القمر/التردد/SID مع حفظ ترتيب ومفضلة القنوات الحالية. احفظ نسخة احتياطية أولاً.",
+    "Full import replaces only the IRAQhub list. Merge validates an exported Aurum DB and adds missing satellite/TP/SID identities while preserving existing order and favourites. Back up first."),13,false))
   action(imports,tx("استقبال ملف CHL من الكمبيوتر/الهاتف","Receive CHL over local network"),Runnable{startReceiver()})
   receiving=text(tx("الاستقبال المحلي متوقف","Local receiver stopped"),13,false)
   receiving.textDirection=android.view.View.TEXT_DIRECTION_LTR
@@ -172,6 +173,49 @@ class LogoSourcesActivity:HubActivity(){
  }
  override fun onActivityResult(request:Int,result:Int,data:Intent?){
   super.onActivityResult(request,result,data);val uri=data?.data?:return;if(result!=RESULT_OK)return
+  if(request==7){
+   scope.launch{
+    try{
+     state.text=tx("فحص قاعدة Aurum قبل الدمج…","Checking Aurum DB before merge…")
+     val summary=withContext(Dispatchers.IO){
+      contentResolver.openInputStream(uri)!!.use {
+       ReceiverOemSqliteMerge.preview(this@LogoSourcesActivity,it)
+      }
+     }
+     if(isDestroyed)return@launch
+     android.app.AlertDialog.Builder(this@LogoSourcesActivity)
+      .setTitle(tx("معاينة دمج قاعدة Aurum","Preview Aurum DB merge"))
+      .setMessage(summary.label()+"\\n"+tx(
+       "ستبقى القنوات الحالية وأرقامها وترتيبها ومفضلتها. تضاف الخدمات غير الموجودة فقط، ويُدمج انتماء المفضلة المتحقق من الهوية. قاعدة المصنع لا تتغير. احفظ نسخة احتياطية قبل الدمج.",
+       "Preserves current channels, order and favourites. Adds only missing identities and safely merges memberships. OEM database is never modified. Back up first."))
+      .setPositiveButton(tx("ادمج","Merge")){_,_->
+       scope.launch{
+        try{
+         state.text=tx("جارٍ دمج القنوات…","Merging verified services…")
+         val report=withContext(Dispatchers.IO){
+          contentResolver.openInputStream(uri)!!.use{
+           ReceiverOemSqliteMerge.merge(this@LogoSourcesActivity,it)
+          }
+         }
+         ChlLogoAddon.get(this@LogoSourcesActivity).databaseImported()
+         LogoRepository.get(this@LogoSourcesActivity).invalidate()
+         state.text=report.label()
+         refresh()
+        }catch(problem:Exception){
+         state.text=tx("فشل دمج DB؛ التغييرات غير المكتملة أُلغيت: ",
+          "DB merge failed; incomplete transaction rolled back: ")+
+          (problem.message?:"DB_MERGE_FAILED")
+        }
+       }
+      }
+      .setNegativeButton(tx("إلغاء","Cancel"),null).show()
+    }catch(problem:Exception){
+     state.text=tx("ملف DB غير متوافق أو تالف: ","Unsupported or corrupt DB: ")+
+      (problem.message?:"DB_PREVIEW_FAILED")
+    }
+   }
+   return
+  }
   if(request==5){
    android.app.AlertDialog.Builder(this)
     .setTitle(tx("استيراد قاعدة SQLite DB؟","Import SQLite DB?"))
