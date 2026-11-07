@@ -1,0 +1,49 @@
+name: Publish first IRAQhub 3.7.3 GitHub release
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ '.github/workflows/publish-first-release.yml' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: iraqhub-first-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out merged main
+        uses: actions/checkout@v4
+
+      - name: Publish reviewed CI APKs as first GitHub pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=v3.7.3
+          SOURCE=iraqhub-373-four-stage-ci-20261107
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::v3.7.3 already exists. Refusing to overwrite it."
+            exit 0
+          fi
+          mkdir -p dist
+          gh release download "$SOURCE" --dir dist --pattern "IRAQhub_3.7.3_FourStage_X5M_*.apk"
+          test -s dist/IRAQhub_3.7.3_FourStage_X5M_Debug.apk
+          test -s dist/IRAQhub_3.7.3_FourStage_X5M_Release_UNSIGNED.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" --draft --prerelease \
+            --title "IRAQhub 3.7.3 — X5M First Release (Pre-release)" \
+            --notes-file docs/RELEASE_v3.7.3_AR.md
+          gh release upload "$TAG" dist/*.apk dist/SHA256SUMS.txt --clobber
+          gh release edit "$TAG" --draft=false --prerelease
+          gh release view "$TAG" --json url,isDraft,isPrerelease,tagName,assets

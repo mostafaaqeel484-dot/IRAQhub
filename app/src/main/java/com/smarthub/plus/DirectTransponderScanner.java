@@ -41,6 +41,9 @@ final class DirectTransponderScanner implements AutoCloseable {
   if(sat==null||freq<100||freq>100000||sr<1||sr>100000
      ||(!"H".equals(pol)&&!"V".equals(pol)))throw new IOException("INVALID_TRANSPONDER");
   if(closed||Thread.currentThread().isInterrupted())throw new IOException("MANUAL_SCAN_CANCELLED");
+  prefs.edit().putString("manual_capture_stage","TUNING_TRANSPONDER")
+   .putLong("manual_capture_bytes",0).putInt("manual_capture_snapshots",0)
+   .remove("manual_direct_scan_last_error").apply();
   status.report("TUNING_TRANSPONDER");
   ReceiverSignalReading lock=DvbTuner.manualTune(context,sat,freq,pol,sr);
   if(closed||Thread.currentThread().isInterrupted())throw new IOException("MANUAL_SCAN_CANCELLED");
@@ -64,6 +67,7 @@ final class DirectTransponderScanner implements AutoCloseable {
     throw new IOException("CAPTURE_SESSION_NOT_SAVED");
    owner=true;
   }
+  prefs.edit().putString("manual_capture_stage","REQUESTING_NATIVE_FULL_TRANSPONDER_TS").apply();
   status.report("REQUESTING_NATIVE_FULL_TRANSPONDER_TS");
   // No invented PIDs or programme names. 0x1FFF means "not a selected stream".
   // The OEM must explicitly support whole-TP recording for this to work.
@@ -72,8 +76,11 @@ final class DirectTransponderScanner implements AutoCloseable {
    if(closed||!owner||!token.equals(prefs.getString("capture_session",""))||
        Thread.currentThread().isInterrupted())throw new IOException("MANUAL_SCAN_CANCELLED");
    attempted=true;
-   if(!NativeCapture.record(captureId,request))
+   if(!NativeCapture.record(captureId,request)){
+    prefs.edit().putString("manual_capture_stage","OEM_REJECTED_FULL_TP").apply();
     throw new IOException("FIRMWARE_FULL_TS_CAPTURE_REJECTED");
+   }
+   prefs.edit().putString("manual_capture_stage","OEM_ACCEPTED_WAITING_TS").apply();
   }
 
   long started=SystemClock.elapsedRealtime(),nextCheck=started+1200;
@@ -94,6 +101,9 @@ final class DirectTransponderScanner implements AutoCloseable {
    if(folder.getUsableSpace()<RESERVED)
     throw new IOException("MANUAL_CAPTURE_STORAGE_LOW");
    if(snapshot<SNAPSHOTS.length&&bytes>=SNAPSHOTS[snapshot]){
+    prefs.edit().putString("manual_capture_stage","PARSING_LIVE_TS")
+      .putLong("manual_capture_bytes",bytes)
+      .putInt("manual_capture_snapshots",snapshot+1).apply();
     status.report("PARSING_LIVE_TS_"+(snapshot+1));
     try(InputStream input=new FileInputStream(capture)){
      DvbPsiScan.Result parsed=DvbPsiScan.scan(input);
@@ -106,7 +116,11 @@ final class DirectTransponderScanner implements AutoCloseable {
       status.report("VERIFIED_DVB_SERVICES_"+parsed.services.length()+
         "_MISSING_"+parsed.withoutNames);
       // PAT can announce services before their PMT and name arrive.
-      if(stable>=1&&parsed.withoutNames==0)return parsed;
+      if(stable>=1&&parsed.withoutNames==0){
+       prefs.edit().putString("manual_capture_stage","VERIFIED_STABLE_SERVICES")
+        .putLong("manual_capture_bytes",bytes).apply();
+       return parsed;
+      }
      }
     }catch(IOException | IllegalStateException unavailable){
      lastError=unavailable.getMessage()==null?"MANUAL_TS_PSI_UNAVAILABLE":unavailable.getMessage();
@@ -131,6 +145,9 @@ final class DirectTransponderScanner implements AutoCloseable {
     lastError=unavailable.getMessage()==null?"MANUAL_TS_PSI_UNAVAILABLE":unavailable.getMessage();
    }
   }
+  prefs.edit().putLong("manual_capture_bytes",
+    capture.isFile()?capture.length():0).putString("manual_capture_stage",
+    found!=null&&found.services.length()>0?"VERIFIED_FINAL_PSI":"NO_COMPLETE_PSI").apply();
   if(found!=null&&found.services.length()>0)return found;
   if(!capture.isFile()||capture.length()<188*400)
    throw new IOException("FIRMWARE_CAPTURE_NO_TS_DATA");

@@ -11,12 +11,31 @@ final class CHMAXIntegration {
  CHMAXIntegration(AccessibilityService s){service=s;}
  static String diagnostics(Context c){return FactoryStatus.label(c,c.getSharedPreferences("smarthub",0).getString("factory_status","FACTORY_NOT_CONNECTED"))+"\n"+ReceiverDvbBridge.label(c);}
  static String identity(SatelliteState s){return s.channelId.startsWith("DVB:")?s.channelId:ReceiverInfoRepository.channelKey(s);}
- private static File directory(Context c){File f=new File(c.getCacheDir(),"native-channel-branding");f.mkdirs();return f;}
+ /** Captured channel logos are user data: keep them in filesDir, not cacheDir,
+  * which Android can erase while the TV is offline. The former cache is read
+  * only for a one-time best-effort migration of verified files. */
+ private static File directory(Context c){File f=new File(c.getFilesDir(),"native-channel-branding");f.mkdirs();return f;}
+ private static File savedFile(Context c,String key){
+  File target=new File(directory(c),key);
+  if(target.isFile())return target;
+  File previous=new File(new File(c.getCacheDir(),"native-channel-branding"),key);
+  if(previous.isFile()&&previous.length()>150&&previous.length()<2*1024*1024){
+   try{java.nio.file.Files.copy(previous.toPath(),target.toPath());}
+   catch(Exception unavailable){return previous;}
+  }
+  return target;
+ }
+ private static void prune(Context c){
+  File[] files=directory(c).listFiles();
+  if(files==null||files.length<=2048)return;
+  Arrays.sort(files,Comparator.comparingLong(File::lastModified));
+  for(int n=0;n<files.length-2048;n++)if(files[n].isFile())files[n].delete();
+ }
  static void saveObservedLogo(Context c,String channelId,String name,Bitmap image)throws Exception{SatelliteState state=new SatelliteState();state.channelId=channelId;state.channelName=name;android.util.AtomicFile safe=new android.util.AtomicFile(
   new File(directory(c),SportsCache.key(identity(state))+"-channel.png"));
  FileOutputStream out=safe.startWrite();
  try{if(!image.compress(Bitmap.CompressFormat.PNG,100,out))throw new IOException("LOGO_WRITE_FAILED");
-  safe.finishWrite(out);}catch(Exception failed){safe.failWrite(out);throw failed;}File[] old=directory(c).listFiles();if(old!=null&&old.length>128){Arrays.sort(old,Comparator.comparingLong(File::lastModified));for(int n=0;n<old.length-128;n++)old[n].delete();}c.getSharedPreferences("smarthub",0).edit().putLong("native_logos_changed_at",System.currentTimeMillis()).putString("native_logo_source:"+identity(state),"receiver visible EPG / CHMAX branding").apply();}
+  safe.finishWrite(out);}catch(Exception failed){safe.failWrite(out);throw failed;}prune(c);c.getSharedPreferences("smarthub",0).edit().putLong("native_logos_changed_at",System.currentTimeMillis()).putString("native_logo_source:"+identity(state),"receiver visible EPG / CHMAX branding").apply();}
  /** Prefer exact physical identity, then an observed Aurum-to-DVB bridge.
   * A stale or corrupt first candidate must not hide the next verified logo. */
  static Bitmap logo(Context c,SatelliteState s,boolean provider){
@@ -35,12 +54,19 @@ final class CHMAXIntegration {
    File dir=directory(c);
    for(String key:candidates){
     if(key==null||key.isEmpty())continue;
-    File file=new File(dir,SportsCache.key(key)+suffix);
+    File file=savedFile(c,SportsCache.key(key)+suffix);
     if(!file.isFile())continue;
     boolean manual="MANUAL_CHANNEL_IMAGE".equals(
       prefs.getString("native_logo_source:"+key,""));
     if(!manual&&System.currentTimeMillis()-file.lastModified()>=7L*86400000L)continue;
-    Bitmap bitmap=BitmapFactory.decodeFile(file.getAbsolutePath());
+    BitmapFactory.Options opts=new BitmapFactory.Options();
+    opts.inJustDecodeBounds=true;
+    BitmapFactory.decodeFile(file.getAbsolutePath(),opts);
+    if(opts.outWidth<16||opts.outHeight<12||opts.outWidth>4096||
+       opts.outHeight>4096)continue;
+    opts.inJustDecodeBounds=false;
+    opts.inSampleSize=Math.max(1,Math.max(opts.outWidth/512,opts.outHeight/512));
+    Bitmap bitmap=BitmapFactory.decodeFile(file.getAbsolutePath(),opts);
     if(bitmap!=null)return bitmap;
    }
    return null;
@@ -76,7 +102,7 @@ final class CHMAXIntegration {
  private boolean save(Bitmap full,Rect rect,Rect screen,SatelliteState state,boolean provider)throws Exception{if(rect==null||screen.width()<=0||screen.height()<=0)return false;int x=Math.max(0,(rect.left-screen.left)*full.getWidth()/screen.width()),y=Math.max(0,(rect.top-screen.top)*full.getHeight()/screen.height()),w=Math.min(full.getWidth()-x,rect.width()*full.getWidth()/screen.width()),h=Math.min(full.getHeight()-y,rect.height()*full.getHeight()/screen.height());if(w<12||h<12)return false;Bitmap crop=Bitmap.createBitmap(full,x,y,w,h),copy=crop.copy(Bitmap.Config.ARGB_8888,false);if(crop!=full)crop.recycle();try{int low=255,high=0;for(int a=0;a<copy.getWidth();a+=4)for(int b=0;b<copy.getHeight();b+=4){int pixel=copy.getPixel(a,b),v=(Color.red(pixel)+Color.green(pixel)+Color.blue(pixel))/3;low=Math.min(low,v);high=Math.max(high,v);}if(high-low<45)return false;String key=SportsCache.key(identity(state))+(provider?"-provider":"-channel")+".png";android.util.AtomicFile safe=new android.util.AtomicFile(new File(directory(service),key));
  FileOutputStream out=safe.startWrite();
  try{if(!copy.compress(Bitmap.CompressFormat.PNG,100,out))throw new IOException("LOGO_WRITE_FAILED");
-  safe.finishWrite(out);}catch(Exception failed){safe.failWrite(out);throw failed;}File[] files=directory(service).listFiles();if(files!=null&&files.length>128){Arrays.sort(files,Comparator.comparingLong(File::lastModified));for(int i=0;i<files.length-128;i++)files[i].delete();}return true;}finally{copy.recycle();}}
+  safe.finishWrite(out);}catch(Exception failed){safe.failWrite(out);throw failed;}prune(service);return true;}finally{copy.recycle();}}
  private Rect channelRect(AccessibilityNodeInfo root){
   for(String id:CHANNEL_LOGO_IDS){
    Rect found=rect(root,id);

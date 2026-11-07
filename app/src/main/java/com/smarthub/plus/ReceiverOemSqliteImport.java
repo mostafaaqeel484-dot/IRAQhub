@@ -42,7 +42,7 @@ final class ReceiverOemSqliteImport {
   }catch(Exception ignored){return false;}
   finally{if(db!=null)db.close();}
  }
- private static void validate(SQLiteDatabase db)throws Exception{
+ static void validate(SQLiteDatabase db)throws Exception{
   try(Cursor check=db.rawQuery("PRAGMA quick_check(1)",null)){
    if(!check.moveToFirst()||!"ok".equalsIgnoreCase(check.getString(0)))
     throw new IOException("OEM_DB_INTEGRITY_FAILED");
@@ -75,13 +75,13 @@ final class ReceiverOemSqliteImport {
   }
   return v;
  }
- private static String video(int codec){
+ static String video(int codec){
   switch(codec){case 1:return "MPEG1";case 2:return "MPEG2";case 27:return "H264";case 36:return "H265";default:return "";}
  }
- private static String audio(int codec){
+ static String audio(int codec){
   switch(codec){case 3:return "MPEG1";case 4:return "MPEG2";case 15:return "AAC";case 17:return "LATM";case 129:return "AC3";case 135:return "EAC3";default:return "";}
  }
- private static Map<Integer,JSONArray> readAudio(SQLiteDatabase db)throws Exception{
+ static Map<Integer,JSONArray> readAudio(SQLiteDatabase db)throws Exception{
   Map<Integer,JSONArray> tracks=new HashMap<>();
   try(Cursor rows=db.rawQuery("SELECT prog_id,audio_pid,type FROM audio_table ORDER BY id",null)){
    while(rows.moveToNext()){

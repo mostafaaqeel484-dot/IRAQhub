@@ -116,7 +116,40 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
  private String scopeWhere(ChannelScope scope,List<String> args){StringBuilder sql=new StringBuilder(" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");args.add(ReceiverChannelRepository.searchKey(scope.query));if(scope.satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(scope.satellite));}sql.append(" AND c.tv=?");args.add(Integer.toString(scope.type));if(scope.favorites)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");if(scope.group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(scope.group));}return sql.toString();}
  private String scopeOrder(ChannelScope scope){return scope.alphabetical?" ORDER BY c.name COLLATE NOCASE,c._id":scope.group>=0?" ORDER BY (SELECT m.ordinal FROM fav_member m WHERE m.channel_id=c._id AND m.group_id="+scope.group+"),c._id":" ORDER BY c.order_index,c._id";}
  ChannelScope validScope(ChannelScope scope){SQLiteDatabase db=getReadableDatabase();long sat=scope.satellite,group=scope.group;if(sat>=0&&DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat WHERE _id=?",new String[]{Long.toString(sat)})==0)sat=-1;if(group>=0&&DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM fav_group WHERE _id=?",new String[]{Long.toString(group)})==0)group=-1;return new ChannelScope(scope.query,sat,scope.type,scope.favorites,scope.alphabetical,group);}
- List<Long> navigationIds(ChannelScope scope){List<String> args=new ArrayList<>();String where=scopeWhere(scope,args);List<Long> ids=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT c._id FROM ch c JOIN tp t ON t._id=c.tp_id JOIN sat s ON s._id=t.sat_id"+where+scopeOrder(scope),args.toArray(new String[0]))){while(c.moveToNext())ids.add(c.getLong(0));}return ids;}
+ /** Short-lived navigation index avoids scanning 10k channel IDs at each CH+.
+  * Scope filters and catalog import generation are part of the cache identity.
+  * The 750 ms expiry guarantees quick recovery after changes to favourites
+  * or ordering made from another UI, without expensive invalidation plumbing. */
+ private static final class NavigationSnapshot {
+  final long createdAt;final List<Long> ids;
+  NavigationSnapshot(long at,List<Long> channels){createdAt=at;ids=channels;}
+ }
+ private final LinkedHashMap<String,NavigationSnapshot> navigationCache=new LinkedHashMap<
+   String,NavigationSnapshot>(8,0.75f,true){
+  @Override protected boolean removeEldestEntry(Map.Entry<String,NavigationSnapshot> eldest){
+   return size()>6;
+  }
+ };
+ synchronized List<Long> navigationIds(ChannelScope scope){
+  if(scope==null)return Collections.emptyList();
+  String key=scope.query+"|"+scope.satellite+"|"+scope.type+"|"+scope.favorites+
+    "|"+scope.alphabetical+"|"+scope.group+"|"+
+    context.getSharedPreferences("smarthub",0).getLong("installation_changed_at",0);
+  long now=android.os.SystemClock.elapsedRealtime();
+  NavigationSnapshot cached=navigationCache.get(key);
+  if(cached!=null&&now>=cached.createdAt&&now-cached.createdAt<750L)
+   return cached.ids;
+  List<String> args=new ArrayList<>();String where=scopeWhere(scope,args);
+  List<Long> ids=new ArrayList<>();
+  try(Cursor c=getReadableDatabase().rawQuery("SELECT c._id FROM ch c "+
+   "JOIN tp t ON t._id=c.tp_id JOIN sat s ON s._id=t.sat_id"+
+   where+scopeOrder(scope),args.toArray(new String[0]))){
+   while(c.moveToNext())ids.add(c.getLong(0));
+  }
+  List<Long> immutable=Collections.unmodifiableList(ids);
+  navigationCache.put(key,new NavigationSnapshot(now,immutable));
+  return immutable;
+ }
  int pageFor(Channel channel,ChannelScope scope){int index=navigationIds(scope).indexOf(channel.id);return index<0?0:index/120*120;}
  Channel adjacent(Channel active,int direction,ChannelScope scope){
   return adjacent(active,direction,scope,1);
