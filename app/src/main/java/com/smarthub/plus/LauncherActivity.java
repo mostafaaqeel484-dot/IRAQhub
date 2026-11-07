@@ -50,6 +50,10 @@ public class LauncherActivity extends HubActivity {
   v.setFocusable(true);v.setClickable(true);v.setDefaultFocusHighlightEnabled(false);
   v.setBackground(RxSkin.focus(this));v.setClipToOutline(true);
   v.setElevation(dp(3));
+  v.setOnFocusChangeListener((view,focused)->{
+   float scale=focused?1.035f:1f;
+   view.animate().scaleX(scale).scaleY(scale).setDuration(120).start();
+  });
   v.setOnClickListener(w->action.run());
   return v;
  }
