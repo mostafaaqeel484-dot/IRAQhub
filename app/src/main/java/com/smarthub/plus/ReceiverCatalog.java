@@ -46,6 +46,21 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
    }
   }return out;
  }
+ /** Ambiguous source exports may contain two different services with the same
+  * satellite/RF/SID identity. Never attach a physical-key logo to those rows:
+  * a correct logo for one service would be wrong for the other.
+  */
+ Set<String> ambiguousPhysicalKeys(){
+  Set<String> ambiguous=new HashSet<>();
+  String sql="SELECT s.angle,s.band,t.freq,t.pol,t.sr,c.sid "+
+    "FROM ch c JOIN tp t ON c.tp_id=t._id JOIN sat s ON t.sat_id=s._id "+
+    "GROUP BY s.angle,s.band,t.freq,t.pol,t.sr,c.sid HAVING COUNT(*)>1";
+  try(Cursor cursor=getReadableDatabase().rawQuery(sql,null)){
+   while(cursor.moveToNext())ambiguous.add(cursor.getInt(0)+":"+cursor.getString(1)+":"+
+     cursor.getInt(2)+":"+cursor.getString(3)+":"+cursor.getInt(4)+":"+cursor.getInt(5));
+  }
+  return ambiguous;
+ }
  int satelliteNumber(Channel active){
   if(active==null)return 0;int order=0;
   try(Cursor c=getReadableDatabase().rawQuery("SELECT order_index FROM ch WHERE _id=?",
