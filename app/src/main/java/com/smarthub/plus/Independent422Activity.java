@@ -295,6 +295,24 @@ public final class Independent422Activity extends HubActivity {
         .putString("decoder_last_error",reason).apply();
        display(tx("محرك MPV تعطل: ","MPV engine failed: ")+reason+
         tx(" · يمكن العودة واختيار LibVLC"," · go back to choose LibVLC"));
+       // Show the actual missing JNI library / class in a readable dialog,
+       // not a single tiny line at the top of a 55-inch TV.
+       String report="MPV: "+reason+
+         "\nABI: "+java.util.Arrays.toString(android.os.Build.SUPPORTED_ABIS)+
+         "\nDecoder: dev.jdtech.mpv:libmpv:1.0.0"+
+         "\nDevice: "+android.os.Build.MODEL;
+       new android.app.AlertDialog.Builder(Independent422Activity.this)
+        .setTitle(tx("خطأ تشغيل محرك MPV المستقل",
+          "Independent MPV engine failed"))
+        .setMessage(report)
+        .setNeutralButton(tx("نسخ الخطأ","Copy error"),(d,w)->{
+          android.content.ClipboardManager clipboard=
+            (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+          if(clipboard!=null)clipboard.setPrimaryClip(
+            android.content.ClipData.newPlainText("IRAQhub 422 MPV",report));
+        })
+        .setPositiveButton(tx("موافق","OK"),null)
+        .show();
       }
      },videoOnly);
    renderer=next;
@@ -358,7 +376,10 @@ public final class Independent422Activity extends HubActivity {
     "\nClock health: "+prefs().getString("independent_422_health","NOT_SAMPLED")+
     "\nCPU process: "+prefs().getInt("auto_422_cpu_percent",-1)+"% of one core"+
     "\nVideo frames visually moving: NOT AUTOMATICALLY VERIFIED"+
-    "\nFocus service: "+prefs().getString("independent_422_focus","NOT_BOUND");
+    "\nFocus service: "+prefs().getString("independent_422_focus","NOT_BOUND")+
+    "\nDevice supported ABIs: "+java.util.Arrays.toString(android.os.Build.SUPPORTED_ABIS)+
+    "\nMPV Android AAR: dev.jdtech.mpv:libmpv:1.0.0"+
+    "\nBootstrap error: "+prefs().getString("decoder_last_error","NONE");
   new android.app.AlertDialog.Builder(this)
    .setTitle(tx("تشخيص محرك 4:2:2 المستقل","Isolated 4:2:2 engine diagnostics"))
    .setMessage(report).setPositiveButton("OK",null).show();
