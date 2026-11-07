@@ -98,8 +98,10 @@ final class ReceiverPlayback implements AutoCloseable {
      .putString("zap_recovery_reason","FIRMWARE_FRAMES_STALLED")
      .putString("zap_stage","RECOVERY_REQUESTED").apply();
     main.postDelayed(()->{
-     if(!closed&&token==generation&&!loading&&current==selected)
+     if(!closed&&token==generation&&!loading&&current==selected){
+      loading=true;
       start(selected); // Verified same TP lease; no blind retune.
+     }
     },1500L);
    }
   }else if(health==DvbVideoHealth.State.ADVANCING){
