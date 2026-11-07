@@ -23,7 +23,8 @@ final class DirectTransponderScanner implements AutoCloseable {
  private static final long MAX_CAPTURE=56L*1024*1024;
  private static final long RESERVED=192L*1024*1024;
  private static final long DEADLINE_MS=32000;
- private static final long[] SNAPSHOTS={8L*1024*1024,24L*1024*1024,48L*1024*1024};
+ // Start examining valid PSI early, without needing an 8 MiB recording.
+ private static final long[] SNAPSHOTS={1L*1024*1024,4L*1024*1024,12L*1024*1024,24L*1024*1024,40L*1024*1024};
  private final Context context;
  private final String token=UUID.randomUUID().toString();
  private final int captureId=1_101_000_000+ThreadLocalRandom.current().nextInt(900_000);
@@ -76,7 +77,8 @@ final class DirectTransponderScanner implements AutoCloseable {
   }
 
   long started=SystemClock.elapsedRealtime(),nextCheck=started+1200;
-  int snapshot=0,stable=0,previousServices=-1;
+  int snapshot=0,stable=0;
+  String previousSignature="";
   DvbPsiScan.Result found=null;
   String lastError="CAPTURE_NO_MPEG_TS";
   while(!closed&&!Thread.currentThread().isInterrupted()&&
@@ -96,11 +98,15 @@ final class DirectTransponderScanner implements AutoCloseable {
     try(InputStream input=new FileInputStream(capture)){
      DvbPsiScan.Result parsed=DvbPsiScan.scan(input);
      if(parsed.services.length()>0){
-      found=parsed;
-      if(parsed.services.length()==previousServices)stable++;else stable=0;
-      previousServices=parsed.services.length();
-      status.report("VERIFIED_DVB_SERVICES_"+parsed.services.length());
-      if(stable>=1)return found;
+      // Equal counts do not mean the same services: verify SID, PMT, PID and name.
+      String signature=verifiedSignature(parsed);
+      stable=signature.equals(previousSignature)?stable+1:0;
+      previousSignature=signature;
+      if(found==null||parsed.services.length()>=found.services.length())found=parsed;
+      status.report("VERIFIED_DVB_SERVICES_"+parsed.services.length()+
+        "_MISSING_"+parsed.withoutNames);
+      // PAT can announce services before their PMT and name arrive.
+      if(stable>=1&&parsed.withoutNames==0)return parsed;
      }
     }catch(IOException | IllegalStateException unavailable){
      lastError=unavailable.getMessage()==null?"MANUAL_TS_PSI_UNAVAILABLE":unavailable.getMessage();
@@ -112,10 +118,32 @@ final class DirectTransponderScanner implements AutoCloseable {
    Thread.sleep(170);
   }
   if(closed||Thread.currentThread().isInterrupted())throw new IOException("MANUAL_SCAN_CANCELLED");
+  // A slow mux can contain complete PSI without ever reaching 1 MiB.
+  if(found==null&&capture.isFile()&&capture.length()>=188*30){
+   try(InputStream input=new FileInputStream(capture)){
+    found=DvbPsiScan.scan(input);
+   }catch(Exception unavailable){
+    lastError=unavailable.getMessage()==null?"MANUAL_TS_PSI_UNAVAILABLE":unavailable.getMessage();
+   }
+  }
   if(found!=null)return found;
   if(!capture.isFile()||capture.length()<188*400)
    throw new IOException("FIRMWARE_CAPTURE_NO_TS_DATA");
   throw new IOException(lastError);
+ }
+
+ /** Stable identity check: changes in the discovered channel set reset confirmation. */
+ static String verifiedSignature(DvbPsiScan.Result result){
+  java.util.List<String> rows=new java.util.ArrayList<>();
+  for(int i=0;i<result.services.length();i++){
+   JSONObject item=result.services.optJSONObject(i);
+   if(item!=null)rows.add(item.optInt("sid",-1)+":"+
+     item.optInt("pmt",-1)+":"+item.optInt("videoPid",-1)+":"+
+     item.optString("name","").trim());
+  }
+  java.util.Collections.sort(rows);
+  return result.transportId+"/"+result.networkId+"/"+
+    result.withoutNames+"/"+rows.toString();
  }
 
  static JSONObject wholeTransponderRequest(ReceiverCatalog.Sat sat,int freq,String pol,int sr,
