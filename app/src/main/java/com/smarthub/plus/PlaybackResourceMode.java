@@ -38,5 +38,15 @@ final class PlaybackResourceMode {
   if(level<android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)return;
   LogoRepository.get(context.getApplicationContext()).trimRamCache();
  }
+ /** Process-local lease; if Android kills and recreates this process, stale
+  * SharedPreferences must not keep background EPG work suspended forever. */
+ static boolean active(){synchronized(LOCK){return viewers>0;}}
+ static void clearStaleOnLauncherStart(Context context){
+  synchronized(LOCK){
+   if(viewers==0)context.getApplicationContext()
+    .getSharedPreferences("smarthub",0).edit()
+    .putBoolean("video_priority_active",false).apply();
+  }
+ }
  static int sessionCount(){synchronized(LOCK){return viewers;}}
 }
