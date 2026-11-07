@@ -223,7 +223,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   int n=shown.size();if(n==0)return;
   int selected=Math.max(0,list.getSelectedItemPosition());
   list.requestFocus();
-  list.setSelection(Math.floorMod(selected+direction*jump,n));
+  list.setSelection(CircularChannelNavigation.move(selected,direction*jump,n));
  }
  /** The alphabet shortcut jumps without reordering the broadcast list. */
  private void showAlphabetIndex(){
