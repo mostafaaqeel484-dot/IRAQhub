@@ -29,7 +29,8 @@ final class NowNextView extends FrameLayout {
   // RX replaces the former stack of floating info panels with a single clean
   // low-profile bar. Posters sit INSIDE the bar and never mask the TV picture.
   final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
-  int barH=Math.max(dp(118),OsdGeometry.bar(context));
+  int barH=detailed?Math.max(dp(132),OsdGeometry.bar(context)):
+   Math.max(dp(118),Math.min(dp(145),OsdGeometry.bar(context)));
   int tickerH=prefs.getBoolean("sports_ticker",false)?dp(62):0;
   compact=barH<dp(145);
   textScale=Math.max(.90f,Math.min(1.06f,barH/(150f*
