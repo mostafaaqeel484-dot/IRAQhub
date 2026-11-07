@@ -252,7 +252,13 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    Integer height=mpv.getPropertyInt("video-out-params/h");
    String format=mpv.getPropertyString("video-params/pixelformat");
    String outputFormat=mpv.getPropertyString("video-out-params/pixelformat");
-   String actualHwdec=mpv.getPropertyString("hwdec-current");
+   String actualHwdec="UNAVAILABLE";
+   // Some vendor builds omit this property; never discard frame counters
+   // simply because the optional hwdec-current query is unsupported.
+   try{
+    String value=mpv.getPropertyString("hwdec-current");
+    if(value!=null)actualHwdec=value;
+   }catch(Throwable ignored){}
    return new Metrics(pos==null?-1:pos,fps==null?-1:fps,
       drop==null?-1:drop,decoderDrop==null?-1:decoderDrop,
       width==null?-1:width,height==null?-1:height,
