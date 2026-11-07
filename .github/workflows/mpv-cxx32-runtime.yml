@@ -1,0 +1,146 @@
+name: IRAQhub X5M armeabi-v7a libc++ ABI symbol fix
+
+on:
+  push:
+    branches: [ 'fix/iraqhub-400-mpv-cxx32-runtime-20261107' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mpv-cxx32-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Upstream dev.jdtech.mpv:libmpv:1.0.0 publishes classfile major 65
+          # (Java 21); Java 17 javac rejects MPVLib before Android dexing.
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Unit tests, including Commons attribution
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Compile and assemble Debug
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Verify MPV class and native libraries in the ACTUAL APK
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          name="app/build/outputs/apk/debug/app-debug.apk"
+          with zipfile.ZipFile(name) as apk:
+              names=set(apk.namelist())
+              for abi in ("arm64-v8a","armeabi-v7a"):
+                  for lib in ("libmpv.so","libplayer.so"):
+                      path=f"lib/{abi}/{lib}"
+                      print(path, "PRESENT" if path in names else "MISSING")
+                      assert path in names, f"Missing {path}"
+              dex=[n for n in names if n.startswith("classes") and n.endswith(".dex")]
+              assert dex,"No app DEX"
+              # Search actual DEX class_defs, NOT constant pool references:
+              # a Java caller may reference MPVLib without the AAR class
+              # being packaged, causing exactly NoClassDefFoundError.
+              from struct import unpack_from
+              def has_class(data, descriptor):
+                  if data[:4]!=bytes((100,101,120,10)): return False
+                  u32=lambda off:unpack_from("<I",data,off)[0]
+                  strings_off=u32(0x3c)
+                  types_off=u32(0x44)
+                  classes_count=u32(0x60)
+                  classes_off=u32(0x64)
+                  for i in range(classes_count):
+                      class_idx=u32(classes_off+32*i)
+                      name_idx=u32(types_off+4*class_idx)
+                      pointer=u32(strings_off+4*name_idx)
+                      # Skip string_data_item UTF16 length, encoded ULEB128.
+                      for k in range(5):
+                          b=data[pointer]
+                          pointer+=1
+                          if b<128:break
+                      stop=data.index(0,pointer)
+                      if data[pointer:stop].decode("utf8","replace")==descriptor:
+                          return True
+                  return False
+              found=any(has_class(apk.read(n),
+                     "Ldev/jdtech/mpv/MPVLib;") for n in dex)
+              print("MPVLib class-definition packaged:",found,"DEX files",len(dex))
+              assert found, "MPVLib actual class_def absent from installable APK"
+          PY
+      - name: Verify actual 32/64-bit MPV dynamic C++ symbol contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ndk="$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64"
+          test -x "$ndk/bin/llvm-nm"
+          python3 - <<'PY'
+          import zipfile,os,pathlib,hashlib
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          out=pathlib.Path("build/cxx-audit")
+          out.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile(apk) as package:
+            for abi in ("armeabi-v7a","arm64-v8a"):
+              for lib in ("libmpv.so","libc++_shared.so","libplayer.so"):
+                key=f"lib/{abi}/{lib}"
+                assert key in package.namelist(),f"Missing {key}"
+                data=package.read(key)
+                loc=out/abi/lib
+                loc.parent.mkdir(parents=True,exist_ok=True)
+                loc.write_bytes(data)
+                assert data[:4]==b"\\x7fELF",f"Invalid ELF in {key}"
+                print(key,len(data),hashlib.sha256(data).hexdigest())
+          PY
+          for abi in armeabi-v7a arm64-v8a; do
+            mpv="build/cxx-audit/$abi/libmpv.so"
+            stdlib="build/cxx-audit/$abi/libc++_shared.so"
+            echo "$abi missing to_chars references in MPV:"
+            "$ndk/bin/llvm-nm" -D --undefined-only "$mpv" | grep -F '_ZNSt6__ndk18to_charsEPcS0_f' || true
+            echo "$abi packaged libc++ to_chars exports:"
+            "$ndk/bin/llvm-nm" -D --defined-only "$stdlib" | grep -F '_ZNSt6__ndk18to_charsEPcS0_f' || {
+              echo "::error::MPV 32/64-bit missing required libc++ exported to_chars(float) symbol in packaged C++ runtime ($abi)"
+              exit 1
+            }
+            "$ndk/bin/llvm-readelf" -h "$mpv" | grep Class
+            "$ndk/bin/llvm-readelf" -h "$stdlib" | grep Class
+          done
+      - name: Verify Debug signature and alignment
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
+      # Releases use separate storage from Actions artifacts, which is full.
+      # The preview is PRIVATE DRAFT and signed only with CI's temporary Debug key.
+      - name: Publish unverified Debug preview to private draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-400-mpv-cxx32-symbol-preview-20261107
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          mkdir -p dist
+          cp "$APK" dist/IRAQhub_4.0.0_X5M_MPV_CXX32_Fix_Debug.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub 4.0.0 · X5M MPV armeabi-v7a C++ runtime symbol fix (Debug)" \
+              --notes "PRIVATE DRAFT TEST ONLY: Test X5M 32-bit mpv libmpv.so missing _ZNSt6__ndk18to_charsEPcS0_f at runtime; use pinned NDK r28c libc++_shared.so for both ABIs at mergeDebugNativeLibs, confirm required native symbol in actual APK and ABI. Existing LibVLC fallback remains. On-device MPV motion NOT YET CONFIRMED; Debug key temporary."
+          fi
+          gh release upload "$TAG" \
+            dist/IRAQhub_4.0.0_X5M_MPV_CXX32_Fix_Debug.apk \
+            dist/SHA256SUMS.txt --clobber
+          gh release view "$TAG" --json isDraft,assets --jq '{draft:.isDraft,assets:[.assets[].name]}'
