@@ -12,18 +12,18 @@ import java.util.Locale;
  * Amlogic VPU supports DVB 4:2:2 or that 4GB RAM guarantees realtime 1080i.
  */
 final class Software422Profile {
- static final String BALANCED="balanced",SMOOTH="smooth",QUALITY="quality",STABLE="stable";
+ static final String AUTO="auto",BALANCED="balanced",SMOOTH="smooth",QUALITY="quality",STABLE="stable";
  private Software422Profile(){}
  static String current(Context context){
   String saved=context.getSharedPreferences("smarthub",0).getString("software_422_mode","");
-  if(BALANCED.equals(saved)||SMOOTH.equals(saved)||QUALITY.equals(saved)||STABLE.equals(saved))return saved;
+  if(AUTO.equals(saved)||BALANCED.equals(saved)||SMOOTH.equals(saved)||QUALITY.equals(saved)||STABLE.equals(saved))return saved;
   String hw=((Build.HARDWARE==null?"":Build.HARDWARE)+" "+
     (Build.BOARD==null?"":Build.BOARD)+" "+(Build.MODEL==null?"":Build.MODEL))
     .toLowerCase(Locale.ROOT);
-  return hw.contains("x5m")||hw.contains("s905x5m")?SMOOTH:BALANCED;
+  return hw.contains("x5m")||hw.contains("s905x5m")?AUTO:BALANCED;
  }
  static void save(Context context,String mode){
-  if(!BALANCED.equals(mode)&&!SMOOTH.equals(mode)&&!QUALITY.equals(mode)&&!STABLE.equals(mode))
+  if(!AUTO.equals(mode)&&!BALANCED.equals(mode)&&!SMOOTH.equals(mode)&&!QUALITY.equals(mode)&&!STABLE.equals(mode))
    throw new IllegalArgumentException("INVALID_422_PROFILE");
   context.getSharedPreferences("smarthub",0).edit().putString("software_422_mode",mode).apply();
  }
@@ -32,10 +32,25 @@ final class Software422Profile {
   // Leave some CPU time for live TS capture, audio, remote and the UI.
   return Math.min(4,Math.max(1,cores>2?cores-1:cores));
  }
+ static String effective(Context context){
+  String chosen=current(context);
+  if(!AUTO.equals(chosen))return chosen;
+  String saved=context.getSharedPreferences("smarthub",0).getString("auto_422_target",SMOOTH);
+  return BALANCED.equals(saved)?BALANCED:SMOOTH;
+ }
  static int networkCacheMs(String mode){return STABLE.equals(mode)?1650:QUALITY.equals(mode)?1400:SMOOTH.equals(mode)?1050:1250;}
  static int liveCacheMs(String mode){return STABLE.equals(mode)?1400:QUALITY.equals(mode)?1150:SMOOTH.equals(mode)?850:1050;}
- static ArrayList<String> options(Context context){return buildOptions(current(context));}
+ static ArrayList<String> options(Context context){
+  String mode=effective(context);
+  int cores=Runtime.getRuntime().availableProcessors();
+  return buildOptions(mode,AUTO.equals(current(context))
+    ?Auto422Policy.decoderThreads(mode,cores):threads());
+ }
  static ArrayList<String> buildOptions(String mode){
+  return buildOptions(mode,threads());
+ }
+ static ArrayList<String> buildOptions(String mode,int threadCount){
+  if(AUTO.equals(mode))mode=SMOOTH; // Offline callers have no measured device data.
   if(!BALANCED.equals(mode)&&!SMOOTH.equals(mode)&&!QUALITY.equals(mode)&&!STABLE.equals(mode))
    throw new IllegalArgumentException("INVALID_422_PROFILE");
   ArrayList<String> options=new ArrayList<>();
@@ -44,7 +59,7 @@ final class Software422Profile {
   options.add("--no-video-title-show");
   options.add("--no-audio-time-stretch");
   options.add("--aout=audiotrack");
-  options.add("--avcodec-threads="+threads());
+  options.add("--avcodec-threads="+Math.max(1,Math.min(4,threadCount)));
   // Values 0,1,2 are VLC's documented default/non-ref/B-frame discard levels.
   // Profile 2 skips H.264 B-frame deblocking and can visibly increase
    // edge/pixelation artefacts. Keep default quality for Balanced/Quality/Stable;
@@ -78,6 +93,7 @@ final class Software422Profile {
   return (Build.MODEL==null?"Android DVB":Build.MODEL)+" · "+
    soc+" · "+Runtime.getRuntime().availableProcessors()+" CPU cores · "+
    (ram>0?ram+" MiB RAM · ":"")+
-   "LibVLC software 4:2:2 · "+current(context);
+   "LibVLC software 4:2:2 · "+current(context)+
+   (AUTO.equals(current(context))?" → "+effective(context):"");
  }
 }
