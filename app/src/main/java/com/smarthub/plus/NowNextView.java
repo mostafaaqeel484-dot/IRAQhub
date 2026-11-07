@@ -34,7 +34,7 @@ final class NowNextView extends FrameLayout {
   // Tiger reference: two-row header at the top, channel/event/signal below.
   // Programme posters are independently placed ABOVE the black ribbon.
   final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
-  int barH=dp(detailed?248:203);
+  int barH=dp(TigerOsdMetrics.barHeightDp(detailed));
   int tickerH=prefs.getBoolean("sports_ticker",false)?dp(62):0;
   compact=barH<dp(145);
   textScale=Math.max(.90f,Math.min(1.06f,barH/(150f*
@@ -60,7 +60,7 @@ final class NowNextView extends FrameLayout {
   header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.2f));
   header.addView(headCenter,new LinearLayout.LayoutParams(0,-1,.85f));
   header.addView(headRight,new LinearLayout.LayoutParams(0,-1,.75f));
-  bar.addView(header,new LinearLayout.LayoutParams(-1,dp(57)));
+  bar.addView(header,new LinearLayout.LayoutParams(-1,dp(TigerOsdMetrics.headerHeightDp())));
 
   LinearLayout primary=new LinearLayout(context);
   primary.setGravity(Gravity.CENTER_VERTICAL);
@@ -154,7 +154,7 @@ final class NowNextView extends FrameLayout {
    TextView chip=label(ReceiverTechnicalBadges.RESOLUTIONS[i],10,true);
    chip.setGravity(Gravity.CENTER);chip.setPadding(dp(3),0,dp(3),0);
    resolutionChips[i]=chip;
-   resolutionStrip.addView(chip,new LinearLayout.LayoutParams(dp(36),dp(22)));
+   resolutionStrip.addView(chip,new LinearLayout.LayoutParams(dp(TigerOsdMetrics.iconWidthDp()),dp(TigerOsdMetrics.iconHeightDp())));
   }
   weather=label("",10,false);weather.setTextColor(muted);
   signalSource=label("",10,false);signalSource.setTextColor(muted);
@@ -169,7 +169,7 @@ final class NowNextView extends FrameLayout {
   String[] tags={"TXT","H265","SUB","EPG","CA","PIP"};
   for(int i=0;i<tags.length;i++){
    TextView c=label(tags[i],9,true);c.setGravity(Gravity.CENTER);c.setPadding(dp(3),dp(1),dp(3),dp(1));
-   featureChips[i]=c;featureRow.addView(c,new LinearLayout.LayoutParams(dp(36),dp(22)));
+   featureChips[i]=c;featureRow.addView(c,new LinearLayout.LayoutParams(dp(TigerOsdMetrics.iconWidthDp()),dp(TigerOsdMetrics.iconHeightDp())));
   }
   headCenter.addView(featureRow);
   headCenter.addView(resolutionStrip);
@@ -211,7 +211,7 @@ final class NowNextView extends FrameLayout {
   leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   // Keep poster corners just above the expanded/compact bar.
-  int top=dp(value?248:203)+dp(17);
+  int top=dp(TigerOsdMetrics.posterBottomMarginDp(value));
   FrameLayout.LayoutParams left=(FrameLayout.LayoutParams)leftPosterBox.getLayoutParams();
   FrameLayout.LayoutParams right=(FrameLayout.LayoutParams)rightPosterBox.getLayoutParams();
   if(left!=null&&left.bottomMargin!=top){left.bottomMargin=top;leftPosterBox.setLayoutParams(left);}
@@ -219,7 +219,7 @@ final class NowNextView extends FrameLayout {
   providerPanel.setVisibility(value?VISIBLE:GONE);
   details.setVisibility(value?VISIBLE:GONE);
   FrameLayout.LayoutParams position=(FrameLayout.LayoutParams)bar.getLayoutParams();
-  if(position!=null){position.height=dp(value?248:203);bar.setLayoutParams(position);}
+  if(position!=null){position.height=dp(TigerOsdMetrics.barHeightDp(value));bar.setLayoutParams(position);}
  }
  void bind(SatelliteState s,Bitmap current,Bitmap next,Bitmap channelLogo,String message){
   boolean lite=PlaybackResourceMode.lite(getContext());
