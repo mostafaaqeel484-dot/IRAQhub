@@ -45,11 +45,34 @@ jobs:
                       assert path in names, f"Missing {path}"
               dex=[n for n in names if n.startswith("classes") and n.endswith(".dex")]
               assert dex,"No app DEX"
-              found=any(b"Ldev/jdtech/mpv/MPVLib;" in apk.read(n)
-                        or b"dev/jdtech/mpv/MPVLib" in apk.read(n)
-                        for n in dex)
-              print("MPVLib runtime DEX packaged:", found, "DEX files", len(dex))
-              assert found, "MPVLib class absent from installable APK"
+              # Search actual DEX class_defs, NOT constant pool references:
+              # a Java caller may reference MPVLib without the AAR class
+              # being packaged, causing exactly NoClassDefFoundError.
+              from struct import unpack_from
+              def has_class(data, descriptor):
+                  if data[:4]!=b"dex\\n": return False
+                  u32=lambda off:unpack_from("<I",data,off)[0]
+                  strings_off=u32(0x3c)
+                  types_off=u32(0x44)
+                  classes_count=u32(0x60)
+                  classes_off=u32(0x64)
+                  for i in range(classes_count):
+                      class_idx=u32(classes_off+32*i)
+                      name_idx=u32(types_off+4*class_idx)
+                      pointer=u32(strings_off+4*name_idx)
+                      # Skip string_data_item UTF16 length, encoded ULEB128.
+                      for k in range(5):
+                          b=data[pointer]
+                          pointer+=1
+                          if b<128:break
+                      stop=data.index(0,pointer)
+                      if data[pointer:stop].decode("utf8","replace")==descriptor:
+                          return True
+                  return False
+              found=any(has_class(apk.read(n),
+                     "Ldev/jdtech/mpv/MPVLib;") for n in dex)
+              print("MPVLib class-definition packaged:",found,"DEX files",len(dex))
+              assert found, "MPVLib actual class_def absent from installable APK"
           PY
       - name: Verify Debug signature and alignment
         run: |
