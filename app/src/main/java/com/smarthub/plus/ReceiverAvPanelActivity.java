@@ -192,7 +192,6 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   if(bold)v.setTypeface(null,Typeface.BOLD);
   return v;
  }
- private int dp(int d){return Math.round(d*getResources().getDisplayMetrics().density);}
  @Override public boolean dispatchKeyEvent(KeyEvent event){
   if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
    if(event.getKeyCode()==KeyEvent.KEYCODE_PROG_RED){arabic();return true;}
