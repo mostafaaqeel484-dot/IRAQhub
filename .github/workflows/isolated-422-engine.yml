@@ -1,0 +1,65 @@
+name: IRAQhub Isolated 4:2:2 Engine · MPV Separate Process
+
+on:
+  push:
+    branches: [ 'feature/iraqhub-400-isolated-422-engine-20261107' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: isolated-422-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Unit tests, including Commons attribution
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Compile and assemble Debug
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Verify Debug signature and alignment
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
+      # Releases use separate storage from Actions artifacts, which is full.
+      # The preview is PRIVATE DRAFT and signed only with CI's temporary Debug key.
+      - name: Publish unverified Debug preview to private draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-400-isolated422-engine-preview-20261107
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          mkdir -p dist
+          cp "$APK" dist/IRAQhub_4.0.0_X5M_Isolated422_MPVPipeline_Debug.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub 4.0.0 · X5M independent 4:2:2 MPV/FFmpeg engine (Debug)" \
+              --notes "PRIVATE DRAFT TEST ONLY: Dedicated android:process=:decoder422 Activity uses libmpv/FFmpeg (NOT LibVLC) with native SurfaceView; main-process bound focus service stops only optional sync jobs, video-only (aid=no) default, optional sound/subtitles, real DVB LiveTsRelay, clock/drop telemetry. Previous LibVLC remains fallback selection, never silently substituted. NO proof of motion without X5M hardware test. PR stacked over #31 #30 #29 #28 #27 #26; Debug key temporary."
+          fi
+          gh release upload "$TAG" \
+            dist/IRAQhub_4.0.0_X5M_Isolated422_MPVPipeline_Debug.apk \
+            dist/SHA256SUMS.txt --clobber
+          gh release view "$TAG" --json isDraft,assets --jq '{draft:.isDraft,assets:[.assets[].name]}'

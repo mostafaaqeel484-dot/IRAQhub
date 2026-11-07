@@ -325,7 +325,9 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  private void types(){ReceiverPanelStyle.choose(this,tx("نوع القنوات","Channel type"),new String[]{tx("الكل","All"),"TV",tx("راديو","Radio"),tx("غير منشور","Unknown")},Math.max(0,type+1),index->{type=index-1;search(true);});}
  private void favorite(ReceiverCatalog.Channel ch){boolean on=!favorites.contains(ch.id);io.execute(()->{catalog.favorite(ch.id,on);main.post(()->search(false));});}
  private void play(ReceiverCatalog.Channel ch){
-  if(prefs().getBoolean("dvb_422_compat_all",false)&&ch.ca>=0&&ch.tv==0)playSoftware(ch);
+  if((prefs().getBoolean("dvb_422_compat_all",false)||
+    getIntent().getBooleanExtra("prefer_422_engine",false))&&ch.ca>=0&&ch.tv==0)
+   playSoftware(ch);
   else playHardware(ch);
  }
  private void playHardware(ReceiverCatalog.Channel ch){
@@ -350,13 +352,17 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   choose422Engine(ch);
  }
  private void choose422Engine(ReceiverCatalog.Channel ch){
-  String[] engines={"LibVLC · FFmpeg", "libmpv · FFmpeg"};
-  int selected="mpv".equals(prefs().getString("decoder_422_engine","vlc"))?1:0;
+  String[] engines={"LibVLC · FFmpeg",
+   "libmpv · inside launcher",
+   tx("IRAQhub 422 Engine · منفصل · MPV/FFmpeg",
+      "IRAQhub 422 Engine · isolated MPV/FFmpeg")};
+  String saved=prefs().getString("decoder_422_engine","isolated");
+  int selected="isolated".equals(saved)?2:"mpv".equals(saved)?1:0;
   new AlertDialog.Builder(this)
    .setTitle(tx("مشغّل 4:2:2","Choose 4:2:2 player"))
    .setSingleChoiceItems(engines,selected,(dialog,index)->{
      dialog.dismiss();
-     String engine=index==1?"mpv":"vlc";
+     String engine=index==2?"isolated":index==1?"mpv":"vlc";
      prefs().edit().putString("decoder_422_engine",engine).apply();
      launchSoftware(ch,engine);
    })
@@ -364,8 +370,10 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  }
  private void launchSoftware(ReceiverCatalog.Channel ch,String engine){
   new ChannelScope("",satellite,ch.tv,favoritesOnly,alphabetical,group).save(this);
-  startActivity(new Intent(this,SoftwareVideoActivity.class)
-   .putExtra("dvb_channel",ch.id).putExtra("decoder_engine",engine));
+  startActivity(new Intent(this,
+    "isolated".equals(engine)?Independent422Activity.class:SoftwareVideoActivity.class)
+   .putExtra("dvb_channel",ch.id).putExtra("decoder_engine",engine)
+   .putExtra("video_only",prefs().getBoolean("independent_422_video_only",true)));
   finish();
  }
  private void details(ReceiverCatalog.Channel ch){

@@ -44,6 +44,17 @@ public final class Software422CenterActivity extends HubActivity {
   url.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
   url.setHint("https://.../channel.ts  ·  udp://239.x.x.x:port");
   info.addView(url);
+  action(info,tx("تشغيل محرك IRAQhub 422 المستقل · mpv/FFmpeg",
+    "Play with isolated IRAQhub 422 engine · mpv/FFmpeg"),()->{
+   String input=url.getText().toString().trim();
+   if(!Software422Source.validNetwork(input)){
+    toast(tx("الرابط غير صالح؛ استخدم بثاً عبر HTTP/HTTPS/RTSP/RTP/UDP",
+      "Invalid source; use a supported network stream"));return;
+   }
+   startActivity(new Intent(this,Independent422Activity.class)
+    .putExtra("media_uri",input)
+    .putExtra("video_only",prefs().getBoolean("independent_422_video_only",true)));
+  });
   action(info,tx("تشغيل عبر LibVLC داخل IRAQhub","Play inside IRAQhub with LibVLC"),()->{
    String input=url.getText().toString().trim();
    if(!Software422Source.validNetwork(input)){
@@ -53,12 +64,22 @@ public final class Software422CenterActivity extends HubActivity {
    startActivity(new Intent(this,SoftwareVideoActivity.class).putExtra("media_uri",input));
   });
 
+  LinearLayout dedicated=card(body);
+  dedicated.addView(text(tx("محرك فك مستقل بعملية Android منفصلة",
+    "Independent Android decoder process"),19,true));
+  note(dedicated,tx("MPV/FFmpeg منفصل عن LibVLC وواجهة IRAQhub. يبدأ الفيديو بدون فك صوت افتراضياً لتوفير CPU، مع إمكانية تفعيل الصوت داخل المشغل. يستخدم نفس DVB MPEG-TS الحقيقي ولا يحتاج Root.",
+    "Separate MPV/FFmpeg process, not LibVLC. Video-only by default to save CPU, audio toggle in player. Same real DVB TS; no root required."));
+  action(dedicated,tx("تشغيل قنوات DVB بالمحرك المستقل",
+    "Choose DVB channel for isolated decoder"),
+   ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)
+      .putExtra("prefer_422_engine",true)));
   LinearLayout status=card(body);
   status.addView(text(tx("قنوات DVB الفضائية","DVB satellite channels"),20,true));
   note(status,tx("تم ربط التقاط TS المحلي من التونر بمشغل LibVLC، مع تخزين مؤقت محدود وحماية 4:2:2 من انقطاع الصوت. نجاح فك الصورة يعتمد على دعم الرسيفر الحقيقي وبيانات PID؛ المشفرة تحتاج فك BISS مُصرّحاً به داخل الجهاز قبل عرضها برمجياً.",
     "The native tuner TS capture is connected to LibVLC. Playback still requires real PIDs, receiver-authorised descrambling for encrypted feeds and sufficient CPU. Software 4:2:2 cannot guarantee smooth 1080i/4K on this chipset."));
   action(status,tx("قنوات IRAQhub الفضائية","IRAQhub satellite channels"),
-   ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)));
+   ()->startActivity(new Intent(this,ReceiverChannelsActivity.class)
+      .putExtra("prefer_422_engine",true)));
   action(status,tx("معلومات دعم Decoder والتوافق","Decoder capabilities"),
    ()->startActivity(new Intent(this,CompatibilityActivity.class)));
  }
