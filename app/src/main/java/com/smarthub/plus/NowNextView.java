@@ -43,7 +43,7 @@ final class NowNextView extends FrameLayout {
   dark.setCornerRadius(dp(9));bar.setBackground(dark);
   bar.setElevation(dp(6));
   LayoutParams barPosition=new LayoutParams(-1,barH,Gravity.BOTTOM);
-  barPosition.setMargins(dp(8),0,dp(8),dp(8));
+  barPosition.setMargins(dp(8),0,dp(8),OsdGeometry.bottom(context));
   addView(bar,barPosition);
 
   LinearLayout primary=new LinearLayout(context);
