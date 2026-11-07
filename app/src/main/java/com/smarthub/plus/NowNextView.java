@@ -168,7 +168,8 @@ final class NowNextView extends FrameLayout {
   if(tickerH>0){
    ticker=new MatchTickerView(context);
    LayoutParams tick=new LayoutParams(-1,tickerH,Gravity.BOTTOM);
-   tick.setMargins(dp(10),0,dp(10),barH+dp(8));
+   // Keep the sports ticker in the middle, clear of both poster columns.
+   tick.setMargins(dp(140),0,dp(140),barH+dp(8));
    addView(ticker,tick);
   }
   setExpanded(detailed);
