@@ -270,6 +270,12 @@ final class NowNextView extends FrameLayout {
   setStatus(noSignal?tx("لا يوجد إشارة","No signal"):message);
  }
  void metadata(MediaRepository.Item item){if(item!=null&&!item.id.startsWith("epg:")){String detail=item.release+(item.ratings.isEmpty()?"":" · ★ "+item.ratings);if(!detail.isEmpty()){remaining.setText(remaining.getText()+" · "+detail);remaining.setVisibility(VISIBLE);}if(prefs.getBoolean("osd_description",true)&&!item.summary.isEmpty())setStatus(item.summary);}}
+ /** Release displayed images when the ribbon is hidden, keeping no large
+  * ImageView references during software video decoding. */
+ void clearArtwork(){
+  currentPoster.setImageDrawable(null);nextPoster.setImageDrawable(null);
+  logo.setImageDrawable(null);providerLogo.setImageDrawable(null);
+ }
  void provider(Bitmap image){providerLogo.setImageBitmap(image);providerLogo.setVisibility(image==null?GONE:VISIBLE);providerName.setVisibility(image==null?VISIBLE:GONE);}
  void setStatus(String value){
   String text=value==null?"":value.replace('\n',' ');
