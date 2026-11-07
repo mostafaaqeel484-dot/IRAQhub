@@ -38,6 +38,9 @@ final class CommonsArtworkSelection {
   if(key.isEmpty())return false;
   checkedImage(verified);
   long end=next?state.nextEndMs:state.endMs;
+  // Some OEM guides expose a start time but no end time. Keep the selection
+  // event-scoped instead of expiring it immediately.
+  if(end<=System.currentTimeMillis())end=System.currentTimeMillis()+6L*3600000;
   JSONObject saved=new JSONObject(verified.toString())
     .put("eventKey",key).put("selectedAt",System.currentTimeMillis())
     .put("end",end);
