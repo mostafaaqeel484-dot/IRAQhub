@@ -188,11 +188,13 @@ public final class SoftwareVideoActivity extends HubActivity {
         playbackUri=source;
         streamRetries=0;
         if(mpvSelected&&!mpvFallbackUsed){
+          videoLayout.setVisibility(android.view.View.GONE);
           if(openMpv(source))return;
           // mpv native library, surface or ABI failed: retain the live TS relay
           // and automatically use the proven LibVLC fallback.
           mpvFallbackUsed=true;
         }
+        videoLayout.setVisibility(android.view.View.VISIBLE);
         videoOutputSeen=false;
         decoderOpenedAt=android.os.SystemClock.elapsedRealtime();
         main.removeCallbacks(voutWatchdog);
