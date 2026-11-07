@@ -71,9 +71,12 @@ final class LocalInfoBarController implements AutoCloseable {
   published=new PublishedEpgArtwork(activity);
   bar=new NowNextView(activity);
   bar.setVisibility(View.GONE);
+  // Full transparent viewport is required to anchor floating posters at
+  // the two SCREEN TOP corners. NowNextView still anchors its info ribbon
+  // to the bottom; no touch-blocking window or overlay permission is added.
   FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
-     FrameLayout.LayoutParams.MATCH_PARENT,OsdGeometry.window(activity),Gravity.BOTTOM);
-  params.bottomMargin=OsdGeometry.bottom(activity);
+     FrameLayout.LayoutParams.MATCH_PARENT,
+     FrameLayout.LayoutParams.MATCH_PARENT,Gravity.FILL);
   root.addView(bar,params);
  }
 
