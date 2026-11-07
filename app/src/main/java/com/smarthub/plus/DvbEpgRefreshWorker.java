@@ -18,7 +18,7 @@ public final class DvbEpgRefreshWorker extends Worker {
  }
  @NonNull @Override public Result doWork(){
   Context c=getApplicationContext();SharedPreferences prefs=c.getSharedPreferences("smarthub",0);
-  if(prefs.getBoolean("dvb_tuning",false)||prefs.getBoolean("software_dvb_422_active",false)
+  if(prefs.getBoolean("video_priority_active",false)||prefs.getBoolean("dvb_tuning",false)||prefs.getBoolean("software_dvb_422_active",false)
     ||!prefs.getString("iraqhub_pvr_session","").isEmpty()){
    prefs.edit().putString("native_epg_sync_status","DEFERRED_VIDEO_PRIORITY").apply();
    return Result.success();
