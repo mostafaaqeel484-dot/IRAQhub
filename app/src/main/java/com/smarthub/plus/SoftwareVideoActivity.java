@@ -222,7 +222,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                            prefs().edit().putString("decoder_422_verification",
                              "LIBVLC_VIDEO_OUTPUT_PRESENT_COLOR_NOT_TESTED")
                              .putString("software_422_runtime","LIBVLC_VOUT_READY")
-                             .putLong("decoder_first_frame_at",System.currentTimeMillis())
+                             .putLong("libvlc_first_vout_at",System.currentTimeMillis())
                              .putLong("libvlc_vout_latency_ms",
                                android.os.SystemClock.elapsedRealtime()-decoderOpenedAt).apply();
                         }
