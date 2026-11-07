@@ -62,6 +62,8 @@ class LogoSourcesActivity:HubActivity(){
       .setType("application/octet-stream")
       .putExtra(Intent.EXTRA_TITLE,"IRAQhub_channels.db"),6)
   })
+  action(imports,tx("إصلاح · استيراد لوغوات من حزمة USB ADB ZIP بهويات DVB",
+    "Fix · Import USB ADB logo ZIP with exact DVB IDs"),Runnable{open(8)})
   action(imports,tx("استيراد ملف قنوات CHL","Import CHL channel list"),Runnable{open(3)})
   imports.addView(text(tx("الاستيراد الكامل يستبدل قائمة IRAQhub فقط. خيار الدمج الجديد يقرأ قاعدة Aurum المصدّرة، يفحصها، ويضيف القنوات غير الموجودة حسب القمر/التردد/SID مع حفظ ترتيب ومفضلة القنوات الحالية. احفظ نسخة احتياطية أولاً.",
     "Full import replaces only the IRAQhub list. Merge validates an exported Aurum DB and adds missing satellite/TP/SID identities while preserving existing order and favourites. Back up first."),13,false))
