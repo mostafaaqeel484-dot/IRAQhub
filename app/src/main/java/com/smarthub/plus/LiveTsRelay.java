@@ -68,6 +68,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
 
  @Override public void run(){
   long begin=SystemClock.elapsedRealtime();
+  prefs().edit().putString("software_422_runtime","TS_RELAY_STARTING")
+   .putLong("software_ts_capture_bytes",0).putString("software_ts_capture_error","NONE").apply();
   try{
    File external=context.getExternalFilesDir(null);
    if(external==null)throw new IOException("CAPTURE_STORAGE_UNAVAILABLE");
@@ -86,6 +88,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
    server=new ServerSocket(0,2,InetAddress.getByName("127.0.0.1"));
    server.setSoTimeout(800);
    capture(firstId);
+   prefs().edit().putString("software_422_runtime","TS_CAPTURE_WAITING_FIRST_BYTES")
+    .putLong("software_ts_capture_started_ms",System.currentTimeMillis()).apply();
    long deadline=SystemClock.elapsedRealtime()+12000;
    while(!closed&&SystemClock.elapsedRealtime()<deadline){
     File file=current;
@@ -93,8 +97,14 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     Thread.sleep(150);
    }
    if(closed)return;
-   if(current==null||current.length()<TS*384||!sync(current))
+   if(current==null||current.length()<TS*384||!sync(current)){
+    prefs().edit().putLong("software_ts_capture_bytes",
+      current==null?0:current.length())
+      .putString("software_ts_capture_error","CAPTURE_NO_MPEG_TS").apply();
     throw new IOException("CAPTURE_NO_MPEG_TS");
+   }
+   prefs().edit().putLong("software_ts_capture_bytes",current.length())
+     .putString("software_422_runtime","TS_CAPTURE_HAS_SYNC").apply();
    if(channel.ca!=0||BissKeyVault.has(context,channel)){
     // Only the OEM's already-authorised descrambler may clear DVB packets.
     // Never feed scrambled video to VLC or pretend a stored BISS key was applied.
@@ -109,6 +119,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     if(observed==0)throw new IOException("BISS_FIRMWARE_CLEAR_TS_NOT_VERIFIED");
    }
    String url="http://127.0.0.1:"+server.getLocalPort()+"/"+token+".ts";
+   prefs().edit().putString("software_422_runtime","TS_RELAY_READY").apply();
    main.post(()->{if(!closed)callback.ready(url);});
    long lastSignal=SystemClock.elapsedRealtime();
    long priorBytes=0;
@@ -134,7 +145,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
       long bps=Math.min(1000000000L,(bytes-priorBytes)*8000L/elapsed);
       prefs().edit().putString("software_ts_channel","DVB:"+channel.physical())
        .putLong("software_ts_bitrate",bps)
-       .putLong("software_ts_bitrate_at",System.currentTimeMillis()).apply();
+       .putLong("software_ts_bitrate_at",System.currentTimeMillis())
+        .putLong("software_ts_capture_bytes",bytes).apply();
      }
      priorBytes=bytes;priorMeasure=lastSignal;
      prefs().edit().putLong("capture_heartbeat",lastSignal).apply();
@@ -149,6 +161,8 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
   }catch(Exception error){
    if(!closed) {
     String message=error.getMessage()==null?"CAPTURE_UNAVAILABLE":error.getMessage();
+    prefs().edit().putString("software_ts_capture_error",message)
+      .putString("software_422_runtime","CAPTURE_ERROR:"+message).apply();
     main.post(()->{if(!closed)callback.error(message);});
    }
   }finally{close();}
