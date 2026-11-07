@@ -24,6 +24,7 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  private final Listener listener;
  private final boolean videoOnly;
  private final String fluidMode; // null for the unchanged legacy embedded engine
+ private final String decoderMode; // SW default; HW is experimental MediaCodec
  private MPVLib mpv;
  private volatile boolean destroyed,loaded,initialized,attached,playbackRequested,failed;
  private volatile String pendingUrl,lastNativeWarning="NONE";
@@ -51,10 +52,15 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  }
  Mpv422Renderer(Context context,FrameLayout root,Listener listener,
      boolean videoOnly,String fluidMode){
+  this(context,root,listener,videoOnly,fluidMode,Mpv422FluidPolicy.SW);
+ }
+ Mpv422Renderer(Context context,FrameLayout root,Listener listener,
+     boolean videoOnly,String fluidMode,String decoderMode){
   this.context=context;
   this.listener=listener;
   this.videoOnly=videoOnly;
   this.fluidMode=fluidMode;
+  this.decoderMode=Mpv422FluidPolicy.decoderMode(decoderMode);
   view=new SurfaceView(context);
   view.setKeepScreenOn(true);
   view.setVisibility(android.view.View.GONE);
@@ -81,7 +87,20 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    // Android launches a file only once the SurfaceView is attached.
    mpv.setOptionString("idle","once");
    mpv.setOptionString("force-window","no");
-   mpv.setOptionString("hwdec","no");
+   // Leave legacy MPV untouched. Only the isolated player exposes HW/SW.
+   // MediaCodec-copy can decline unsupported 4:2:2 and decode in software:
+   // query hwdec-current instead of claiming HW from the selected option.
+   String requestedHwdec=fluidMode==null?"no":
+      Mpv422FluidPolicy.hwdecOption(decoderMode);
+   int hwResult=mpv.setOptionString("hwdec",requestedHwdec);
+   if(hwResult<0&&!"no".equals(requestedHwdec)){
+    Log.w("IRAQhub422","HW decode option rejected; using software");
+    mpv.setOptionString("hwdec","no");
+   }
+   context.getSharedPreferences("smarthub",0).edit()
+     .putString("mpv_422_hwdec_requested",requestedHwdec)
+     .putString("mpv_422_hwdec_option_status",Integer.toString(hwResult))
+     .apply();
    mpv.setOptionString("vo","gpu");
    mpv.setOptionString("profile","fast");
    if(fluidMode!=null){
@@ -95,15 +114,15 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
     mpv.setOptionString("deband","no");
     mpv.setOptionString("dither","no");
     mpv.setOptionString("linear-downscaling","no");
-    // Convert AFTER decoding genuine 4:2:2/10-bit. Reduced frame payload
-    // (YUV420P 8-bit 720p or 540p) may lower upload/GPU cost but conversion
-    // itself consumes CPU. GPU-native mode is available for comparison.
+    // Only post-decode scaling/pixel conversion: 422 retains 10-bit,
+   // 420 uses 8-bit; neither changes the original MPEG-TS decoder work.
+   // Keep GPU-native mode for comparison on the vendor X5M ROM.
     String filter=Mpv422FluidPolicy.videoFilter(fluidMode);
     if(!filter.isEmpty()){
      lastVfOptionResult=mpv.setOptionString("vf",filter);
      if(lastVfOptionResult<0)throw new IllegalArgumentException(
        "MPV_VF_REJECTED_"+lastVfOptionResult+"_"+
-        (Mpv422FluidPolicy.P540.equals(fluidMode)?"540":"720"));
+        fluidMode);
     }
     mpv.setOptionString("vd-lavc-fast","no");
     context.getSharedPreferences("smarthub",0).edit()
@@ -211,13 +230,15 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  static final class Metrics {
   final double position,estimatedFps;
   final int dropped,decoderDropped,outputWidth,outputHeight;
-  final String videoFormat,outputFormat;
+  final String videoFormat,outputFormat,hardwareDecoder;
   Metrics(double position,double estimatedFps,int dropped,int decoderDropped,
-      int outputWidth,int outputHeight,String videoFormat,String outputFormat){
+      int outputWidth,int outputHeight,String videoFormat,String outputFormat,
+      String hardwareDecoder){
    this.position=position;this.estimatedFps=estimatedFps;
    this.dropped=dropped;this.decoderDropped=decoderDropped;
    this.outputWidth=outputWidth;this.outputHeight=outputHeight;
    this.videoFormat=videoFormat;this.outputFormat=outputFormat;
+   this.hardwareDecoder=hardwareDecoder;
   }
  }
  Metrics metrics(){
@@ -231,15 +252,24 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    Integer height=mpv.getPropertyInt("video-out-params/h");
    String format=mpv.getPropertyString("video-params/pixelformat");
    String outputFormat=mpv.getPropertyString("video-out-params/pixelformat");
+   String actualHwdec="UNAVAILABLE";
+   // Some vendor builds omit this property; never discard frame counters
+   // simply because the optional hwdec-current query is unsupported.
+   try{
+    String value=mpv.getPropertyString("hwdec-current");
+    if(value!=null)actualHwdec=value;
+   }catch(Throwable ignored){}
    return new Metrics(pos==null?-1:pos,fps==null?-1:fps,
       drop==null?-1:drop,decoderDrop==null?-1:decoderDrop,
       width==null?-1:width,height==null?-1:height,
       format==null?"unknown":format,
-      outputFormat==null?"unknown":outputFormat);
+      outputFormat==null?"unknown":outputFormat,
+      actualHwdec==null?"UNAVAILABLE":actualHwdec);
   }catch(Throwable unavailable){return null;}
  }
  String diagnosticState(){
   return "event="+lastEvent+"_surface="+attached+
+    "_requested_decoder="+decoderMode+
     "_command="+playbackRequested+"_vf="+lastVfOptionResult+
     "_native="+safeMessage(lastNativeWarning);
  }
