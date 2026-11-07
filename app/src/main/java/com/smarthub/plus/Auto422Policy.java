@@ -13,7 +13,7 @@ final class Auto422Policy {
  }
  static int sampleMs(){return 8000;}
  static int decoderThreads(String effectiveMode,int cores){
-  int spare=Math.max(1,cores>2?cores-1:cores);
+  int spare=Math.max(1,cores-1);
   return Math.min(Software422Profile.SMOOTH.equals(effectiveMode)?3:4,spare);
  }
 }
