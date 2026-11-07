@@ -21,7 +21,8 @@ final class FrontPanelBridge {
   File vfd=new File("/dev/vfd");
   File fp=new File("/dev/led");
   File leds=new File("/sys/class/leds");
-  File export=new File(c.getExternalFilesDir(null),"frontpanel/state.json");
+  File external=c.getExternalFilesDir(null);
+  File export=external==null?null:new File(external,"frontpanel/state.json");
   return "ADB="+(UsbAdbSetup.enabled(c)?"ON":"OFF")+
    "\n/dev/vfd="+(vfd.exists()?"present":"absent")+
    " app_write="+vfd.canWrite()+
