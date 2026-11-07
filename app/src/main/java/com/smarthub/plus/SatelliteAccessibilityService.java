@@ -16,19 +16,25 @@ public final class SatelliteAccessibilityService extends AccessibilityService im
     private CHMAXIntegration chmax;private NativeCaptionBridge captions;private NativeGuideArtwork guideArtwork;private SharedPreferences prefs;private String tvPackage=SatelliteUiParser.DEFAULT_PACKAGE;private boolean queued,closed,blueHeld;
     private final Runnable capture=new Runnable(){public void run(){queued=false;if(!closed)try{readBanner();}finally{if(!queued&&!closed){queued=true;handler.postDelayed(this,1000);}}}};
     private void openLauncher(){boolean opened=ReceiverNavigation.openLauncher(this);if(prefs!=null)prefs.edit().putString("satellite_shortcut_error",opened?"":"Unable to open IRAQhub home").apply();}
-    @Override protected void onServiceConnected(){super.onServiceConnected();closed=false;prefs=getSharedPreferences("smarthub",MODE_PRIVATE);prefs.registerOnSharedPreferenceChangeListener(this);configure();prefs.edit().putBoolean("satellite_accessibility_connected",true).putBoolean("satellite_tv_visible",false).apply();captions=new NativeCaptionBridge(this);schedule();}
+    @Override protected void onServiceConnected(){super.onServiceConnected();closed=false;prefs=getSharedPreferences("smarthub",MODE_PRIVATE);if(!prefs.getBoolean("accessibility_safe_menu_v1",false)){
+        // One-time safety migration: enabling accessibility must never hijack MENU.
+        // The user can explicitly turn the shortcut back on in settings.
+        prefs.edit().putBoolean("satellite_menu_shortcut",false)
+         .putBoolean("accessibility_safe_menu_v1",true).apply();
+    }
+    prefs.registerOnSharedPreferenceChangeListener(this);configure();prefs.edit().putBoolean("satellite_accessibility_connected",true).putBoolean("satellite_tv_visible",false).apply();captions=new NativeCaptionBridge(this);schedule();}
     private void configure(){
         String selected=prefs.getString("satellite_tv_package",SatelliteUiParser.DEFAULT_PACKAGE);tvPackage=selected!=null&&selected.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+")?selected:SatelliteUiParser.DEFAULT_PACKAGE;
         // Window-state package names let the companion hide outside TV. Content
         // from other packages is discarded before obtaining any source/root text.
         AccessibilityServiceInfo info=getServiceInfo();if(info==null)info=new AccessibilityServiceInfo();info.packageNames=null;info.eventTypes=AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED|AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED|AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED;info.feedbackType=AccessibilityServiceInfo.FEEDBACK_GENERIC;info.notificationTimeout=180;info.flags|=AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS|AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS|AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
-        if(prefs.getBoolean("satellite_menu_shortcut",true)||prefs.getBoolean("satellite_blue_shortcut",false))info.flags|=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;else info.flags&=~AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;setServiceInfo(info);
+        if(prefs.getBoolean("satellite_menu_shortcut",false)||prefs.getBoolean("satellite_blue_shortcut",false))info.flags|=AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;else info.flags&=~AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;setServiceInfo(info);
     }
     @Override public void onSharedPreferenceChanged(SharedPreferences source,String key){if("satellite_tv_package".equals(key)){configure();schedule();}else if("satellite_blue_shortcut".equals(key)||"satellite_menu_shortcut".equals(key))configure();}
     @Override protected boolean onKeyEvent(KeyEvent event){
         if(event!=null&&event.getKeyCode()==KeyEvent.KEYCODE_MENU){
             if(event.getAction()==KeyEvent.ACTION_UP)return menuKey.up();
-            if(event.getAction()==KeyEvent.ACTION_DOWN)return menuKey.down(!closed&&prefs!=null&&prefs.getBoolean("satellite_menu_shortcut",true)&&tvActive(),event.getRepeatCount());
+            if(event.getAction()==KeyEvent.ACTION_DOWN)return menuKey.down(!closed&&prefs!=null&&prefs.getBoolean("satellite_menu_shortcut",false)&&tvActive(),event.getRepeatCount());
             return false;
         }
         if(event==null||event.getKeyCode()!=KeyEvent.KEYCODE_PROG_BLUE)return false;
