@@ -32,6 +32,10 @@ public final class ReceiverBackupActivity extends HubActivity {
   card.addView(status);
   LinearLayout help=card(root);
   help.addView(text(tx("مهم بخصوص التحديث","Important update notes"),18,true));
+  note(help,tx("بصمة توقيع APK المثبت (SHA-256): ","Installed APK signing SHA-256: ")+
+    ApkSigningIdentity.installedFingerprint(this));
+  note(help,tx("يجب أن تطابق بصمة الإصدار الجديد هذه البصمة حتى يحدث التطبيق دون حذف البيانات.",
+    "The replacement APK must match this certificate to update without removing your app data."));
   note(help,tx("نسخة ZIP تحفظ القنوات وترتيبها والمفضلة وإعدادات المظهر فقط. لا تحتوي على مفاتيح BISS أو كلمات المرور أو البيانات الخاصة.",
    "ZIP saves channel DB, order, favourites and cosmetic settings only; excludes CA/BISS keys, secrets and accounts."));
   note(help,tx("الرجوع إلى APK أقدم يتطلب توقيعاً مطابقاً وموافقة Android. استعادة القنوات لا تقوم بتثبيت APK أو تخطي صلاحيات النظام.",
