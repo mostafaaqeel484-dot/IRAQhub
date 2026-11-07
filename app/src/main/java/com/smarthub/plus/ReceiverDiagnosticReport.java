@@ -82,7 +82,17 @@ final class ReceiverDiagnosticReport {
    .append(" lastFrameElapsedMs=").append(p.getLong("libvlc_last_picture_advanced_ms",-1))
    .append('\n');
   line(b,"subtitle_binding",p.getString("native_subtitle_status","NOT_BOUND"));
-  b.append("Frame counters are from LibVLC; picture colours need device verification.\n");
+  int displayFps=p.getInt("libvlc_display_fps_x100",-1);
+  int decodeFps=p.getInt("libvlc_decode_fps_x100",-1);
+  b.append("LibVLC DISPLAY fps=")
+    .append(displayFps<0?"UNKNOWN":String.format(Locale.ROOT,"%.2f",displayFps/100.0))
+    .append(" DECODE fps=")
+    .append(decodeFps<0?"UNKNOWN":String.format(Locale.ROOT,"%.2f",decodeFps/100.0))
+    .append(" frame_deltas=")
+    .append(p.getLong("libvlc_display_frame_delta",-1)).append("/")
+    .append(p.getLong("libvlc_decoded_frame_delta",-1))
+    .append('\n');
+  b.append("VOUT_READY alone is NOT proof of moving frames. Counters do not verify panel colours.\n");
   line(b,"last_decoder_error",p.getString("decoder_last_error","NONE"));
   line(b,"manual_capture_failure_analysis",
     "zero capture_bytes means no MPEG-TS delivered, PSI parsing cannot discover services");
