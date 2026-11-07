@@ -295,6 +295,24 @@ public final class Independent422Activity extends HubActivity {
         .putString("decoder_last_error",reason).apply();
        display(tx("محرك MPV تعطل: ","MPV engine failed: ")+reason+
         tx(" · يمكن العودة واختيار LibVLC"," · go back to choose LibVLC"));
+       // Show the actual missing JNI library / class in a readable dialog,
+       // not a single tiny line at the top of a 55-inch TV.
+       String report="MPV: "+reason+
+         "\nABI: "+java.util.Arrays.toString(android.os.Build.SUPPORTED_ABIS)+
+         "\nDecoder: dev.jdtech.mpv:libmpv:1.0.0"+
+         "\nDevice: "+android.os.Build.MODEL;
+       new android.app.AlertDialog.Builder(Independent422Activity.this)
+        .setTitle(tx("خطأ تشغيل محرك MPV المستقل",
+          "Independent MPV engine failed"))
+        .setMessage(report)
+        .setNeutralButton(tx("نسخ الخطأ","Copy error"),(d,w)->{
+          android.content.ClipboardManager clipboard=
+            (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+          if(clipboard!=null)clipboard.setPrimaryClip(
+            android.content.ClipData.newPlainText("IRAQhub 422 MPV",report));
+        })
+        .setPositiveButton(tx("موافق","OK"),null)
+        .show();
       }
      },videoOnly);
    renderer=next;
