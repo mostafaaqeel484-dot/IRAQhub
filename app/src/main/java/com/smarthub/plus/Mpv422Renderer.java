@@ -23,6 +23,7 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  private final Handler main=new Handler(Looper.getMainLooper());
  private final Listener listener;
  private final boolean videoOnly;
+ private final String fluidMode; // null for the unchanged legacy embedded engine
  private MPVLib mpv;
  private boolean destroyed,loaded;
  private long started;
@@ -33,9 +34,14 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
   this(context,root,listener,false);
  }
  Mpv422Renderer(Context context,FrameLayout root,Listener listener,boolean videoOnly){
+  this(context,root,listener,videoOnly,null);
+ }
+ Mpv422Renderer(Context context,FrameLayout root,Listener listener,
+     boolean videoOnly,String fluidMode){
   this.context=context;
   this.listener=listener;
   this.videoOnly=videoOnly;
+  this.fluidMode=fluidMode;
   view=new SurfaceView(context);
   view.setKeepScreenOn(true);
   view.setVisibility(android.view.View.GONE);
@@ -59,6 +65,30 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    mpv.setOptionString("hwdec","no");
    mpv.setOptionString("vo","gpu");
    mpv.setOptionString("profile","fast");
+   if(fluidMode!=null){
+    // Android's EGL/OpenGL ES texture path is already supported by libmpv;
+    // avoid Vulkan and expensive scaling/deband/shaders on X5M Mali GPU.
+    mpv.setOptionString("gpu-context","android");
+    mpv.setOptionString("gpu-api","opengl");
+    mpv.setOptionString("opengl-es","yes");
+    mpv.setOptionString("scale","bilinear");
+    mpv.setOptionString("dscale","bilinear");
+    mpv.setOptionString("cscale","bilinear");
+    mpv.setOptionString("deband","no");
+    mpv.setOptionString("dither","no");
+    mpv.setOptionString("linear-downscaling","no");
+    mpv.setOptionString("fbo-format","rgb8");
+    // Convert AFTER decoding genuine 4:2:2/10-bit. Reduced frame payload
+    // (YUV420P 8-bit 720p or 540p) may lower upload/GPU cost but conversion
+    // itself consumes CPU. GPU-native mode is available for comparison.
+    String filter=Mpv422FluidPolicy.videoFilter(fluidMode);
+    if(!filter.isEmpty())mpv.setOptionString("vf",filter);
+    mpv.setOptionString("vd-lavc-fast","no");
+    context.getSharedPreferences("smarthub",0).edit()
+      .putString("mpv_422_render_mode",fluidMode)
+      .putString("mpv_422_output_filter",filter.isEmpty()?"GPU_NATIVE_NO_FILTER":filter)
+      .apply();
+   }
    mpv.setOptionString("cache","yes");
    String profile=Software422Profile.effective(context);
    // X5M CPU-focus: no frame interpolation. Smooth trades ONLY deblocking
@@ -66,13 +96,18 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    mpv.setOptionString("interpolation","no");
    boolean smooth=Software422Profile.SMOOTH.equals(profile);
    if(smooth){
-    mpv.setOptionString("vd-lavc-fast","yes");
-    mpv.setOptionString("vd-lavc-skiploopfilter","nonkey");
+    // MPV's vd-lavc-fast may assume 4:2:0 even when input is 4:2:2.
+    // Keep old LibVLC-comparison behaviour only in the legacy embedded path;
+    // on the isolated engine choose correctness of 422 decode first.
+    if(fluidMode==null)mpv.setOptionString("vd-lavc-fast","yes");
+    mpv.setOptionString("vd-lavc-skiploopfilter",
+      fluidMode==null?"nonkey":"nonref");
     mpv.setOptionString("framedrop","vo");
    }
    context.getSharedPreferences("smarthub",0).edit()
-     .putString("mpv_422_cpu_profile",smooth?"SMOOTH_NONKEY_DEBLOCK":"NORMAL")
-     .apply();
+     .putString("mpv_422_cpu_profile",smooth?
+       (fluidMode==null?"SMOOTH_NONKEY_DEBLOCK":"SMOOTH_SAFE_422_NONREF"):
+       "NORMAL").apply();
    boolean pressure=context.getSharedPreferences("smarthub",0)
      .getBoolean("auto_422_low_memory",false);
    mpv.setOptionString("cache-secs",pressure?"1":"2");
@@ -152,13 +187,13 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  static final class Metrics {
   final double position,estimatedFps;
   final int dropped,decoderDropped,outputWidth,outputHeight;
-  final String videoFormat;
+  final String videoFormat,outputFormat;
   Metrics(double position,double estimatedFps,int dropped,int decoderDropped,
-      int outputWidth,int outputHeight,String videoFormat){
+      int outputWidth,int outputHeight,String videoFormat,String outputFormat){
    this.position=position;this.estimatedFps=estimatedFps;
    this.dropped=dropped;this.decoderDropped=decoderDropped;
    this.outputWidth=outputWidth;this.outputHeight=outputHeight;
-   this.videoFormat=videoFormat;
+   this.videoFormat=videoFormat;this.outputFormat=outputFormat;
   }
  }
  Metrics metrics(){
@@ -171,10 +206,12 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    Integer width=mpv.getPropertyInt("video-out-params/w");
    Integer height=mpv.getPropertyInt("video-out-params/h");
    String format=mpv.getPropertyString("video-params/pixelformat");
+   String outputFormat=mpv.getPropertyString("video-out-params/pixelformat");
    return new Metrics(pos==null?-1:pos,fps==null?-1:fps,
       drop==null?-1:drop,decoderDrop==null?-1:decoderDrop,
       width==null?-1:width,height==null?-1:height,
-      format==null?"unknown":format);
+      format==null?"unknown":format,
+      outputFormat==null?"unknown":outputFormat);
   }catch(Throwable unavailable){return null;}
  }
  void close(){
