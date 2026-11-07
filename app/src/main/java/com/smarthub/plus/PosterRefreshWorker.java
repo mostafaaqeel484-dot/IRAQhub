@@ -24,8 +24,17 @@ public final class PosterRefreshWorker extends Worker {
    try{manifestOk=provider.refreshManifest()!=null;}catch(Exception ignored){
     // Failure of BetterPosters must not block TMDB, TVmaze or cached artwork.
    }
-   int verified=UnifiedArtworkPrefetch.currentAndNext(c,provider);
-   int sports=SportsPosterPrefetch.prefetch(c);
+   // Isolate sources: a failed movie/TV lookup must not block sports.
+   // A missing sports event must not erase film/series posters either.
+   int verified=0,sports=0;
+   try{verified=UnifiedArtworkPrefetch.currentAndNext(c,provider);}
+   catch(Exception unavailable){
+    p.edit().putString("film_poster_prefetch_error",unavailable.getClass().getSimpleName()).apply();
+   }
+   try{sports=SportsPosterPrefetch.prefetch(c);}
+   catch(Exception unavailable){
+    p.edit().putString("sports_poster_prefetch_error",unavailable.getClass().getSimpleName()).apply();
+   }
    // A valid addon Manifest is NOT proof that a poster was downloaded.
    String status=verified+sports>0?"POSTERS_VERIFIED_AND_CACHED":
      manifestOk?"POSTER_MANIFEST_OK_NO_VERIFIED_IMAGE":"NO_VERIFIED_POSTER_SOURCE";
