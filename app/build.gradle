@@ -1,8 +1,29 @@
 plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
 android {
  namespace 'com.smarthub.plus'
- compileSdk 35
- defaultConfig { ndk { abiFilters 'armeabi-v7a','arm64-v8a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 34; versionName '3.7.5'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
+ compileSdk 36
+ packaging { jniLibs { pickFirsts += ['**/libc++_shared.so'] } }
+ def releaseStore = System.getenv('IRAQHUB_KEYSTORE_PATH')
+ def releaseAlias = System.getenv('IRAQHUB_KEY_ALIAS')
+ def releaseStorePass = System.getenv('IRAQHUB_STORE_PASSWORD')
+ def releaseKeyPass = System.getenv('IRAQHUB_KEY_PASSWORD')
+ signingConfigs {
+  if(releaseStore && releaseAlias && releaseStorePass && releaseKeyPass){
+   production {
+    storeFile file(releaseStore)
+    storePassword releaseStorePass
+    keyAlias releaseAlias
+    keyPassword releaseKeyPass
+   }
+  }
+ }
+ buildTypes {
+  release {
+   if(releaseStore && releaseAlias && releaseStorePass && releaseKeyPass)
+    signingConfig signingConfigs.production
+  }
+ }
+ defaultConfig { ndk { abiFilters 'armeabi-v7a','arm64-v8a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 35; versionName '3.7.6'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
  kotlinOptions { jvmTarget = '11' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
  testOptions { unitTests.returnDefaultValues=true }
@@ -16,6 +37,8 @@ dependencies {
  implementation 'androidx.media3:media3-exoplayer-dash:1.5.1'
  implementation 'androidx.media3:media3-ui:1.5.1'
  implementation 'org.videolan.android:libvlc-all:3.7.0'
+ // Real libmpv Android AAR, not an external player intent.
+ implementation 'io.github.makd:libmpv:1.1.0'
  implementation 'com.caverock:androidsvg-aar:1.4'
  implementation 'com.squareup.okhttp3:okhttp:4.12.0'
  implementation 'com.google.mlkit:translate:17.0.3'

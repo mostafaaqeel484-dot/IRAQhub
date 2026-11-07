@@ -31,6 +31,10 @@ public final class SoftwareVideoActivity extends HubActivity {
     private LibVLC libVLC;
     private MediaPlayer mediaPlayer;
     private VLCVideoLayout videoLayout;
+    private FrameLayout playerRoot;
+    private Mpv422Renderer mpvRenderer;
+    private boolean mpvSelected;
+    private boolean mpvFallbackUsed;
     private TextView status;
     private boolean released;
     private volatile boolean backgroundStopped;
@@ -59,6 +63,8 @@ public final class SoftwareVideoActivity extends HubActivity {
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(0xff000000);
+        playerRoot=root;
+        mpvSelected="mpv".equals(getIntent().getStringExtra("decoder_engine"));
         videoLayout = new VLCVideoLayout(this);
         root.addView(videoLayout, new FrameLayout.LayoutParams(-1, -1));
 
@@ -181,6 +187,14 @@ public final class SoftwareVideoActivity extends HubActivity {
         if(released||backgroundStopped)return;
         playbackUri=source;
         streamRetries=0;
+        if(mpvSelected&&!mpvFallbackUsed){
+          videoLayout.setVisibility(android.view.View.GONE);
+          if(openMpv(source))return;
+          // mpv native library, surface or ABI failed: retain the live TS relay
+          // and automatically use the proven LibVLC fallback.
+          mpvFallbackUsed=true;
+        }
+        videoLayout.setVisibility(android.view.View.VISIBLE);
         videoOutputSeen=false;
         decoderOpenedAt=android.os.SystemClock.elapsedRealtime();
         main.removeCallbacks(voutWatchdog);
@@ -272,6 +286,32 @@ public final class SoftwareVideoActivity extends HubActivity {
         }
     }
 
+    private boolean openMpv(String source){
+      try{
+        closeDecoder();
+        prefs().edit().putString("software_422_runtime","MPV_OPENING")
+          .putString("decoder_kind","SOFTWARE_LIBMPV_FFMPEG")
+          .putString("decoder_name","libmpv Android").apply();
+        mpvRenderer=new Mpv422Renderer(this,playerRoot,new Mpv422Renderer.Listener(){
+          @Override public void ready(){
+            if(released||backgroundStopped)return;
+            NativeSatelliteAudioGate.enforce(SoftwareVideoActivity.this,nativeAudioToken);
+            status.setText(tx("mpv يعمل · افحص الصورة والألوان","mpv loaded · verify picture and colours"));
+            if(localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1L)>=0)localInfo.show();
+          }
+          @Override public void failed(String reason){
+            if(released||backgroundStopped||mpvFallbackUsed)return;
+            mpvFallbackUsed=true;
+            status.setText(tx("تعذر تشغيل mpv · التحويل إلى VLC","mpv failed · switching to VLC"));
+            open(playbackUri);
+          }
+        });
+        return mpvRenderer.start(source);
+      }catch(Throwable t){
+        prefs().edit().putString("decoder_last_error","MPV_INIT_"+t.getClass().getSimpleName()).apply();
+        return false;
+      }
+    }
     private void configure(Media media,String source){
         media.setHWDecoderEnabled(false,false);
         media.addOption(":avcodec-hw=none");
@@ -352,6 +392,10 @@ public final class SoftwareVideoActivity extends HubActivity {
     }
     private void closeDecoder(){
         main.removeCallbacks(voutWatchdog);
+        if(mpvRenderer!=null){
+          try{mpvRenderer.close();}catch(Throwable ignored){}
+          mpvRenderer=null;
+        }
         if(mediaPlayer!=null){
             try{mediaPlayer.setEventListener(null);}catch(Throwable ignored){}
             try{mediaPlayer.stop();}catch(Throwable ignored){}
@@ -469,6 +513,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     @Override protected void onPause() {
         if(localInfo!=null)localInfo.dismiss();
         if(mediaPlayer!=null&&mediaPlayer.isPlaying())mediaPlayer.pause();
+        // mpv is released onStop; never leave a hidden native decoder running.
         // Returning to normal DVB must not leave the OEM decoder audio muted.
         NativeSatelliteAudioGate.restore(this,nativeAudioToken);
         nativeAudioToken=0;
