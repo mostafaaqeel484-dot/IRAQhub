@@ -1,8 +1,8 @@
-name: IRAQhub 3.7.6 Fast Zap + Embedded mpv + Backup Preview
+name: IRAQhub 3.7.7 Tiger Channels + CFG Audio + Arabic Captions Preview
 
 on:
   push:
-    branches: [ 'feature/378-fast-zap-recovery-mpv-release-20261107' ]
+    branches: [ 'feature/377-tiger-audio-cfg-caption-20261107' ]
   workflow_dispatch:
 
 permissions:
@@ -53,15 +53,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=iraqhub-376-mpv-fast-zap-preview-20261107
+          TAG=iraqhub-377-tiger-av-preview-20261107
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/IRAQhub_3.7.6_MPV_FastZap_Debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/IRAQhub_3.7.7_MPV_FastZap_Debug.apk
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
-              --title "IRAQhub 3.7.6 · Fast Zap + libmpv 4:2:2 + Backup (Preview)" \
-              --notes "Draft: native libmpv Android AAR with VLC fallback and explicit 4:2:2 player selection; throttled EPG on zaps, measured decoder acknowledgements, bounded FTA recovery, channel DB backup. Requires X5M hardware tests. Production signing requires four repository secrets. Debug signature ephemeral. Manual scan firmware still returns 0 TS bytes."
+              --title "IRAQhub 3.7.7 · Tiger Channel List + Dual Poster InfoBar + CFG Audio + Arabic Captions" \
+              --notes "Draft: Tiger black infobar and circular satellite channel list, A-Z index, private encrypted audio CFG import, DVB/TTX translation control and poster mode. Native subtitle renderer and tuner search still require X5M hardware validation. 4:2:2 TS capture previously returned zero bytes. Debug signature ephemeral."
           fi
-          gh release upload "$TAG" dist/IRAQhub_3.7.6_MPV_FastZap_Debug.apk --clobber
+          gh release upload "$TAG" dist/IRAQhub_3.7.7_MPV_FastZap_Debug.apk --clobber
       - name: Validate persistent IRAQhub release signing key
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.IRAQHUB_KEYSTORE_BASE64 }}
@@ -92,7 +92,7 @@ jobs:
             echo "IRAQHUB_KEY_PASSWORD=$IRAQHUB_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
           echo "Validated persistent signing keystore and alias; release signing enabled."
-      - name: Build signed IRAQhub 3.7.6 Release APK
+      - name: Build signed IRAQhub 3.7.7 Release APK
         timeout-minutes: 16
         run: gradle :app:assembleRelease --no-daemon
       - name: Verify signed Release APK and publish private signing test
@@ -102,20 +102,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=iraqhub-376-signed-rc1-20261107
+          TAG=iraqhub-377-tiger-av-signed-rc1-20261107
           APK=app/build/outputs/apk/release/app-release.apk
           test -s "$APK" || { echo "::error::Signed APK absent: refusing unsigned artifact"; exit 1; }
           mkdir -p dist
-          cp "$APK" dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk
+          cp "$APK" dist/IRAQhub_3.7.7_MPV_FastZap_Release_SIGNED.apk
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-          "$APKSIGNER" verify --verbose --print-certs dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk | tee dist/RELEASE_CERTIFICATE.txt
+          "$APKSIGNER" verify --verbose --print-certs dist/IRAQhub_3.7.7_MPV_FastZap_Release_SIGNED.apk | tee dist/RELEASE_CERTIFICATE.txt
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
-          (cd dist && sha256sum IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk > SHA256SUMS.txt)
+          (cd dist && sha256sum IRAQhub_3.7.7_MPV_FastZap_Release_SIGNED.apk > SHA256SUMS.txt)
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --target "$GITHUB_SHA" --draft --prerelease \
-              --title "IRAQhub 3.7.6 RC1 · First persistently SIGNED APK (X5M)" \
-              --notes "First APK signed by the new persistent owner-controlled IRAQhub keystore. Build CI and APK signature verified, receiver playback NOT hardware-tested. IMPORTANT: new release signing certificate differs from past Debug signatures, so Android cannot install this APK as an in-place update over a differently signed installation. Back up channel data before any uninstall. Keep original keystore and its passwords safe; future APKs must use exactly the same key. Draft release is for owner's compatibility and signing tests only."
+              --title "IRAQhub 3.7.7 RC1 · Tiger UI + CFG Audio + Arabic Captions (SIGNED)" \
+              --notes "Signed by the existing owner-controlled persistent IRAQhub keystore. Build CI and APK signature checked, Tiger interface and native subtitle behavior NOT yet hardware-tested. IMPORTANT: new release signing certificate differs from past Debug signatures, so Android cannot install this APK as an in-place update over a differently signed installation. Back up channel data before any uninstall. Keep original keystore and its passwords safe; future APKs must use exactly the same key. Draft release is for owner's compatibility and signing tests only."
           fi
-          gh release upload "$TAG" dist/IRAQhub_3.7.6_MPV_FastZap_Release_SIGNED.apk \
+          gh release upload "$TAG" dist/IRAQhub_3.7.7_MPV_FastZap_Release_SIGNED.apk \
             dist/SHA256SUMS.txt dist/RELEASE_CERTIFICATE.txt --clobber
           gh release view "$TAG" --json tagName,url,isDraft,assets
