@@ -113,21 +113,20 @@ class LogoRepository private constructor(context:Context){
     val ambiguous=(addon.snapshot()?.candidates(name)?.map{it.physicalKey}?.distinct()?.size?:0)>1
     val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled())
         addon.resolvePhysical(physical,channels) else null
-    // Prioritise a VERIFIED receiver-scoped CHMAX logo when one is available.
-    // The general name resolver may otherwise consume a fallback placeholder
-    // before the real manufacturer logo is considered.
-    val factory=if(physical!=null&&physical.isNotBlank()&&
+    // Verified CHMAX disk hits are immediate; no online request on the UI.
+    val factoryEnabled=physical!=null&&physical.isNotBlank()&&
        app.getSharedPreferences("smarthub",0).getBoolean("osd_chmax_logos",true)&&
-       app.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true))
-      FactoryProvider.logo(app,name,physical) else null
-    factory?:exact?:if(ambiguous)null else {
+       app.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true)
+    val factoryCached=if(factoryEnabled)FactoryProvider.cachedLogo(app,name,physical!!) else null
+    factoryCached?:exact?:if(ambiguous)null else {
       val local=if(entry==null&&addon.enabled())
         addon.unique(name)?.let{addon.resolve(it,channels)}?:channels.resolve(name)
       else channels.resolve(name)
       local?:try{
-        // Last resort: public service-specific artwork; never guess between
-        // duplicate names on different satellites.
-        OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")
+        // Bound the fallback ladder: try verified remote CHMAX only if no
+        // local identity-bound logo was available, then a public HTTPS source.
+        val factory=if(factoryEnabled)FactoryProvider.logo(app,name,physical!!) else null
+        factory?:OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")
       }catch(_:Exception){null}
     }
    }}
