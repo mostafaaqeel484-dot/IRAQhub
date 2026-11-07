@@ -79,9 +79,13 @@ public class Media3PlayerActivity extends HubActivity {
  String hint=code!=null&&(code.contains("DECODER_INIT")||code.contains("DECODING_FAILED"))?
   tx(" قد لا يدعم مفكك الجهاز صيغة الفيديو أو عمق اللون؛ افحص تقرير 4:2:2."," The device decoder may not support this video profile or bit depth; inspect the 4:2:2 report."):"";
  status.setText(tx("تعذر البث: ","Playback failed: ")+code+hint);
- // Only a positively identified 4:2:2 AVC stream with an actual codec
- // error qualifies. No speculative HEVC chroma detection, and no retries.
- if(!softwareFallbackStarted&&prefs().getBoolean("decoder_input_profile422",false)
+ // AVC High422 is a positive hint. For HEVC, the codec string alone
+ // does not prove 4:2:2; use LibVLC only after an actual decoder error.
+ // One handoff per stream prevents infinite HW/SW fallback loops.
+ boolean hevcDecoderFailed="video/hevc".equals(
+   prefs().getString("decoder_input_mime",""));
+ if(!softwareFallbackStarted&&
+    (prefs().getBoolean("decoder_input_profile422",false)||hevcDecoderFailed)
     &&code!=null&&(code.contains("DECODER")||code.contains("DECODING"))){
   softwareFallbackStarted=true;
   handler.post(()->{
