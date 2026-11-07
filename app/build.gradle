@@ -2,6 +2,9 @@ plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
 android {
  namespace 'com.smarthub.plus'
  compileSdk 36
+ // TS9 X5M exposes only armeabi-v7a. MPV 1.0.0 expects floating-point
+ // libc++ std::to_chars unavailable in the old first-picked VLC runtime.
+ ndkVersion '28.2.13676358'
  packaging { jniLibs { pickFirsts += ['**/libc++_shared.so'] } }
  def releaseStore = System.getenv('IRAQHUB_KEYSTORE_PATH')
  def releaseAlias = System.getenv('IRAQHUB_KEY_ALIAS')
@@ -49,3 +52,35 @@ dependencies {
  testImplementation 'junit:junit:4.13.2'
  testImplementation 'org.json:json:20240303'
 }
+
+// AGP mergeNativeLibs chooses duplicate libc++_shared.so via pickFirst,
+// silently selecting an old dependency. Replace ONLY the merged libc++
+// with the pinned modern Android NDK runtime BEFORE strip/package for
+// both Debug/Release, leaving MPV/VLC and the OEM/DVB libs untouched.
+tasks.matching { it.name in ['mergeDebugNativeLibs','mergeReleaseNativeLibs'] }
+ .configureEach { mergeTask ->
+  mergeTask.doLast {
+   def home=System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT') ?: android.sdkDirectory.absolutePath
+   def toolchains=new File(home,'ndk/28.2.13676358/toolchains/llvm/prebuilt')
+   def hosts=toolchains.listFiles()?.findAll { new File(it,'sysroot/usr/lib').isDirectory() }
+   if(!hosts)throw new GradleException("Pinned NDK r28c libc++ not installed: "+toolchains)
+   def sysroot=new File(hosts.first(),'sysroot/usr/lib')
+   def architectures=['armeabi-v7a':'arm-linux-androideabi','arm64-v8a':'aarch64-linux-android']
+   architectures.each { abi,triple ->
+    def modern=new File(sysroot,triple+'/libc++_shared.so')
+    if(!modern.isFile())throw new GradleException("Pinned libc++ missing "+modern)
+    def targets=[]
+    mergeTask.outputs.files.files.findAll {it.isDirectory()}.each { out ->
+     [new File(out,'lib/'+abi+'/libc++_shared.so'),
+      new File(out,abi+'/libc++_shared.so')].each { candidate ->
+      if(candidate.isFile())targets.add(candidate)
+     }
+    }
+    if(targets.size()!=1)
+     throw new GradleException("Expected exactly one merged "+abi+" libc++; found "+targets)
+    java.nio.file.Files.copy(modern.toPath(),targets[0].toPath(),
+      java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    logger.lifecycle("IRAQhub "+abi+": replaced AAR pickFirst libc++ with pinned NDK r28c ("+modern.length()+" bytes)")
+   }
+  }
+ }
