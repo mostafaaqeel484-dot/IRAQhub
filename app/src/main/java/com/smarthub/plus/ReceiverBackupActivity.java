@@ -9,7 +9,7 @@ import java.io.*;
 
 /** D-pad accessible manual backup before APK updates and app-owned DB rollback. */
 public final class ReceiverBackupActivity extends HubActivity {
- private static final int EXPORT=613,RESTORE=614;
+ private static final int EXPORT=613,RESTORE=614,EXPORT_APK=615;
  private android.widget.TextView status;
  @Override public void onCreate(Bundle saved){
   super.onCreate(saved);
@@ -20,6 +20,14 @@ public final class ReceiverBackupActivity extends HubActivity {
   card.addView(text(tx("النسخ الاحتياطي والاسترجاع","Backup and rollback"),22,true));
   action(card,tx("حفظ نسخة احتياطية ZIP","Export channel backup ZIP"),()->choose(EXPORT));
   action(card,tx("استعادة ملف نسخة احتياطية","Restore a backup ZIP"),()->choose(RESTORE));
+  action(card,tx("حفظ APK الحالي قبل التحديث","Save currently installed APK"),()->choose(EXPORT_APK));
+  action(card,tx("عرض إصدارات IRAQhub","View IRAQhub Releases"),()->{
+   Intent browser=new Intent(Intent.ACTION_VIEW,Uri.parse(
+     "https://github.com/mostafaaqeel484-dot/IRAQhub/releases"));
+   try{startActivity(browser);}catch(Exception failure){
+    status.setText(tx("المتصفح غير متاح","Browser unavailable"));
+   }
+  });
   status=text(tx("اختَر النسخ الاحتياطي قبل التحديث","Back up before installation"),14,false);
   card.addView(status);
   LinearLayout help=card(root);
@@ -30,10 +38,11 @@ public final class ReceiverBackupActivity extends HubActivity {
    "APK downgrade requires the same signing key and Android permission. This screen restores data only, never installs an APK or overrides Package Manager."));
  }
  private void choose(int request){
-  Intent picker=new Intent(request==EXPORT?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT);
+  Intent picker=new Intent(request==RESTORE?Intent.ACTION_OPEN_DOCUMENT:Intent.ACTION_CREATE_DOCUMENT);
   picker.addCategory(Intent.CATEGORY_OPENABLE);
-  picker.setType("application/zip");
+  picker.setType(request==EXPORT_APK?"application/vnd.android.package-archive":"application/zip");
   if(request==EXPORT)picker.putExtra(Intent.EXTRA_TITLE,"IRAQhub_channels_3.7.6_backup.zip");
+  if(request==EXPORT_APK)picker.putExtra(Intent.EXTRA_TITLE,"IRAQhub_installed_preupdate.apk");
   try{startActivityForResult(picker,request);}
   catch(Exception failure){status.setText(tx("منتقي الملفات غير متاح","Document picker unavailable"));}
  }
@@ -41,6 +50,7 @@ public final class ReceiverBackupActivity extends HubActivity {
   super.onActivityResult(request,code,data);
   if(code!=RESULT_OK||data==null||data.getData()==null)return;
   Uri uri=data.getData();
+  if(request==EXPORT_APK){exportInstalledApk(uri);return;}
   if(request==RESTORE){
    new AlertDialog.Builder(this)
     .setTitle(tx("تأكيد استرجاع قائمة القنوات","Confirm channel database rollback"))
@@ -49,6 +59,31 @@ public final class ReceiverBackupActivity extends HubActivity {
     .setNegativeButton(tx("إلغاء","Cancel"),null)
     .setPositiveButton(tx("استرجاع","Restore"),(d,n)->process(uri,false)).show();
   }else if(request==EXPORT)process(uri,true);
+ }
+ private void exportInstalledApk(Uri uri){
+  status.setText(tx("نسخ APK المثبت…","Copying installed APK…"));
+  new Thread(()->{
+   String result;
+   try{
+    if(getApplicationInfo().splitSourceDirs!=null&&
+       getApplicationInfo().splitSourceDirs.length>0)
+      throw new IOException("INSTALLED_SPLIT_APK_USE_PACKAGE_BACKUP");
+    File packageFile=new File(getApplicationInfo().sourceDir);
+    if(!packageFile.isFile()||packageFile.length()>700L*1024L*1024L)
+      throw new IOException("APK_SOURCE_UNAVAILABLE");
+    try(InputStream in=new BufferedInputStream(new FileInputStream(packageFile));
+        OutputStream out=getContentResolver().openOutputStream(uri,"wt")){
+     if(out==null)throw new IOException("APK_DESTINATION_UNAVAILABLE");
+     byte[] buffer=new byte[32768];int len;
+     while((len=in.read(buffer))>=0)out.write(buffer,0,len);
+     out.flush();
+    }
+    result=tx("تم حفظ APK المثبت، احتفظ به مع ZIP القنوات",
+      "Installed APK copied. Keep it beside your channel ZIP.");
+   }catch(Exception e){result="APK_BACKUP_FAILED: "+e.getMessage();}
+   String text=result;
+   runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())status.setText(text);});
+  },"iraqhub-apk-backup").start();
  }
  private void process(Uri uri,boolean export){
   status.setText(export?tx("جارٍ النسخ الاحتياطي…","Backing up…"):
