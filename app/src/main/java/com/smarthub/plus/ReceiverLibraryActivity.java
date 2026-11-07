@@ -18,13 +18,13 @@ public class ReceiverLibraryActivity extends HubActivity {
   wideList=prefs().getBoolean("channel_list_wide_mode",false);
   FrameLayout backdrop=new FrameLayout(this);
   // Translucent RX side panel keeps the independent tuner video visible.
-  backdrop.setBackgroundColor(0x36060b15);
+  backdrop.setBackgroundColor(0x36000000);
   backdrop.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
   LinearLayout root=col();
   root.setPadding(dp(18),dp(18),dp(18),dp(16));
   android.graphics.drawable.GradientDrawable tigerPanel=new android.graphics.drawable.GradientDrawable(
       android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-      new int[]{0xf215101e,0xf20b090e});
+      new int[]{0xff050505,0xff000000});
    tigerPanel.setCornerRadius(dp(19));tigerPanel.setStroke(dp(2),0xffc6aec3);
    root.setBackground(tigerPanel);
   int screenWidth=getResources().getDisplayMetrics().widthPixels;
@@ -61,6 +61,9 @@ public class ReceiverLibraryActivity extends HubActivity {
   status.setTextColor(MUTED);status.setPadding(dp(4),dp(5),0,dp(7));
   root.addView(status);
   list=new ListView(this);
+  list.setBackgroundColor(0xff000000);
+  list.setCacheColorHint(0xff000000);
+  list.setScrollingCacheEnabled(false);
   list.setDividerHeight(dp(2));
   list.setDivider(new ColorDrawable(0x224a6070));
   android.graphics.drawable.GradientDrawable selected=new android.graphics.drawable.GradientDrawable();
@@ -447,7 +450,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
     h.container=row;
     row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
     row.setPadding(dp(5),dp(3),dp(8),dp(3));
-    row.setBackground(ReceiverPanelStyle.row(ReceiverLibraryActivity.this));
+    row.setBackgroundColor(0xff000000); // Tiger black channel list; focus border uses selector.
     int screen=(int)(getResources().getDisplayMetrics().heightPixels/
        getResources().getDisplayMetrics().density);
     int height=Math.max(Math.round(font(17)+font(11)+12),
@@ -490,6 +493,9 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    h.provider.setVisibility(View.GONE);
    h.number.setText(Integer.toString(satelliteNumbers.getOrDefault(ch.id,position+offset+1)));
    h.name.setText((favorites.contains(ch.id)?"★ ":"")+ch.name);
+   boolean encrypted=ch.ca>0; // CA=0 FTA, CA<0 unknown: do not guess.
+   h.name.setTextColor(encrypted?0xff35e84c:0xfff0f0f1);
+   h.number.setTextColor(encrypted?0xff35e84c:0xffcad4db);
    boolean current=ch.id==activeId&&active.channelName.equalsIgnoreCase(ch.name);
    SatelliteGuideRepository.Event cached=programmes.get("DVB:"+identity);
    long now=System.currentTimeMillis();
