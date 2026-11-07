@@ -8,7 +8,7 @@ import android.widget.TextView;
 
 /** Advanced satellite diagnostics grouped separately from the four installation commands. */
 public final class ReceiverDeveloperMenuActivity extends HubActivity {
- private TextView report;
+ private TextView report,usbStatus;
  @Override public void onCreate(Bundle saved){
   super.onCreate(saved);
   LinearLayout body=page(tx("أدوات المطور","Developer tools"),
