@@ -39,6 +39,10 @@ public final class SoftwareVideoActivity extends HubActivity {
     private long lastBufferStatus;
     private boolean videoOutputSeen;
     private long decoderOpenedAt;
+    private final android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
+    private LiveTsRelay satelliteRelay;
+    private long nativeAudioToken;
+    private LocalInfoBarController localInfo;
     private final Runnable voutWatchdog=()->{
        if(released||backgroundStopped||videoOutputSeen||mediaPlayer==null)return;
        if(satelliteRelay==null||!satelliteRelay.running())return;
@@ -46,10 +50,6 @@ public final class SoftwareVideoActivity extends HubActivity {
          .putString("software_422_runtime","PLAYING_BUT_NO_VIDEO_VOUT").apply();
        if(streamRetries<2)recoverStream();
     };
-    private final android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
-    private LiveTsRelay satelliteRelay;
-    private long nativeAudioToken;
-    private LocalInfoBarController localInfo;
     private final java.util.concurrent.ExecutorService relayThread=java.util.concurrent.Executors.newSingleThreadExecutor();
 
     @Override public void onCreate(Bundle state) {
