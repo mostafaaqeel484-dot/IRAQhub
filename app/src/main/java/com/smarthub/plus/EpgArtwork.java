@@ -48,6 +48,14 @@ final class EpgArtwork {
   boolean current=!upcoming&&title.equals(state.title),next=upcoming&&title.equals(state.nextTitle);
   if(!current&&!next)return null;
   LinkedHashSet<String> addresses=new LinkedHashSet<>();
+  String manualKey=PosterSelection.key(state,title,upcoming);
+  if(!manualKey.isEmpty()&&c.getSharedPreferences("smarthub",0)
+      .getString("verified_poster_source:"+manualKey,"")
+      .startsWith("Wikimedia Commons")){
+   // Only a user-selected, exact event image may override automatic art.
+   String manual=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
+   if(!manual.isEmpty())addresses.add(manual);
+  }
   String broadcast=current?state.image:state.nextImage;
   if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
   if(!cacheOnly)try{
