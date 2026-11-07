@@ -69,7 +69,17 @@ final class ReceiverDiagnosticReport {
   line(b,"Logo bridge",p.getString("native_logo_bridge_status","NOT_TESTED"));
   b.append("Sports poster cached=").append(p.getInt("sports_poster_prefetch_verified",0))
    .append(" attempts=").append(p.getInt("sports_poster_prefetch_attempted",0)).append('\n');
-  b.append("\n[Channel database]\n");
+  b.append("\n[Fast zap & recovery]\n");
+  b.append("zap_target=").append(safe(p.getString("zap_target","NOT_TESTED"))).append('\n');
+  b.append("zap_command_ack_ms=").append(p.getLong("zap_command_ack_ms",-1))
+   .append(" (OEM accepted, not first picture)\n");
+  b.append("zap_first_frame_counter_ms=").append(p.getLong("zap_first_frame_counter_ms",-1))
+   .append(" (firmware counter, not visual confirmation)\n");
+  b.append("decoder_recovery=").append(safe(p.getString("decoder_recovery","NONE")))
+   .append(" count=").append(p.getInt("decoder_recovery_count",0)).append('\n');
+  b.append("selected_422_engine=").append(safe(p.getString("decoder_422_engine","vlc")))
+   .append(" mpv_load_latency_ms=").append(p.getLong("mpv_load_latency_ms",-1)).append('\n');
+    b.append("\n[Channel database]\n");
   line(b,"format",p.getString("receiver_catalog_format","UNKNOWN"));
   b.append("previous_import_count=").append(p.getInt("receiver_catalog_count",0))
    .append(" merge_new=").append(p.getInt("receiver_catalog_merge_added",0))
