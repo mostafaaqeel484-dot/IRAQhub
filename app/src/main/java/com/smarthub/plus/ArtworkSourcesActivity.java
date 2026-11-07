@@ -70,6 +70,17 @@ public final class ArtworkSourcesActivity extends HubActivity {
      teamTitle.getText().toString().trim()),"TheSportsDB","logo");
   });
 
+  LinearLayout playerBox=card(page);
+  playerBox.addView(text("TheSportsDB · Player photos",18,true));
+  note(playerBox,tx("صور اللاعبين من API المجاني؛ البحث محدود بنتيجة واحدة ويشترط مطابقة الاسم.",
+    "Player photo lookup through free V1; exactly matched name, one-result limit."));
+  EditText playerTitle=field(playerBox,tx("اسم اللاعب","Exact player name"),"Danny Welbeck");
+  action(playerBox,tx("اختبار صورة اللاعب","Test verified player photo"),()->{
+   if(!sports.isChecked()){show(tx("فعّل المصدر الرياضي أولاً","Enable sports source first"));return;}
+   runCheck(()->new TheSportsDBProvider(this).findPlayerPortrait(
+     playerTitle.getText().toString().trim()),"TheSportsDB","poster");
+  });
+
   LinearLayout commonsBox=card(page);
   commonsBox.addView(text("3. Wikimedia Commons · Commons API",18,true));
   note(commonsBox,tx("أدخل اسم ملف الصورة الكامل File: فقط؛ لا نخمن صوراً من عناوين البرامج. تُحفظ بيانات المؤلف والرخصة والرابط.",
@@ -144,7 +155,7 @@ public final class ArtworkSourcesActivity extends HubActivity {
     Bitmap bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length,opts);
     if(bitmap==null)throw new java.io.IOException("IMAGE_DECODE_FAILED");
     String caption=name+": "+result.optString("title",result.optString("team",
-      result.optString("file","Verified")));
+      result.optString("player",result.optString("file","Verified"))));
     String attribution="Wikimedia Commons".equals(name)
       ?"© "+result.optString("artist")+" · "+result.optString("license")+
         "\n"+result.optString("source")+"\n"+result.optString("licenseUrl")
