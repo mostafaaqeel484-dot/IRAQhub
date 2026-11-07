@@ -36,8 +36,10 @@ public final class Independent422Activity extends HubActivity {
  private Auto422RuntimeMonitor monitor;
  private long audioToken;
  private long channelId=-1;
- private String playbackUrl;
- private boolean videoOnly=true,stopped=true,destroyed,bound,loaded;
+ private volatile String playbackUrl;
+ private volatile int generation;
+ private boolean videoOnly=true,bound,loaded;
+ private volatile boolean stopped=true,destroyed;
  private long previousPositionAt;
  private double previousPosition=-1;
  private final ServiceConnection focus=new ServiceConnection(){
@@ -61,13 +63,13 @@ public final class Independent422Activity extends HubActivity {
     Mpv422Renderer.Metrics values=engine.metrics();
     if(values!=null){
      long now=SystemClock.elapsedRealtime();
-     boolean progressed=values.position>=0&&
-       (previousPosition<0||values.position-previousPosition>=0.30);
+     boolean progressed=Independent422Policy.clockProgressed(
+       previousPosition,values.position);
      if(progressed){previousPositionAt=now;previousPosition=values.position;}
      String state="MPV_POSITION_UNAVAILABLE";
      if(values.position>=0){
-      state=previousPositionAt>0&&now-previousPositionAt>11000&&
-        relay!=null&&relay.running()?"MPV_PLAYBACK_CLOCK_STALLED":
+      state=Independent422Policy.clockStalled(previousPositionAt,now,
+        relay!=null&&relay.running())?"MPV_PLAYBACK_CLOCK_STALLED":
           "MPV_CLOCK_ADVANCING_PICTURE_UNVERIFIED";
      }
      prefs().edit().putString("independent_422_health",state)
@@ -191,11 +193,15 @@ public final class Independent422Activity extends HubActivity {
   monitor.start(); // reports CPU of the independent process, not total launcher
   if(channelId>=0){
    audioToken=NativeSatelliteAudioGate.suppress(this);
-   startDvb(channelId);
-  }else if(playbackUrl!=null)openRenderer(playbackUrl);
+   startDvb(channelId,++generation);
+  }else{
+   if(playbackUrl==null)
+    playbackUrl=getIntent().getStringExtra("media_uri");
+   if(playbackUrl!=null)openRenderer(playbackUrl);
+  }
  }
 
- private void startDvb(long id){
+ private void startDvb(long id,int session){
   display(tx("فك DVB مستقل؛ جارٍ الحصول على MPEG-TS من التونر…",
     "Independent DVB decode: requesting MPEG-TS from tuner…"));
   captureIo.execute(()->{
@@ -204,12 +210,12 @@ public final class Independent422Activity extends HubActivity {
     catalog.ensure();
     ReceiverCatalog.Channel channel=catalog.channel(id);
     if(channel==null)throw new IOException("CHANNEL_NOT_FOUND");
-    if(channel.tv!=0||channel.ca<0)
+    if(!Independent422Policy.eligibleDvb(channel.tv,channel.ca))
      throw new IOException("SOFTWARE_DVB_TV_METADATA_REQUIRED");
     if(channel.ca!=0)runOnUiThread(()->getWindow()
       .addFlags(WindowManager.LayoutParams.FLAG_SECURE));
     ReceiverSignalReading tuner=DvbTuner.ensure(this,channel);
-    if(stopped||destroyed)return;
+    if(stopped||destroyed||session!=generation)return;
     JSONObject request=DvbPlayRequest.create(channel.data,(int)channel.id,
       channel.sid,channel.angle,channel.frequency,channel.pol,
       channel.symbolRate,tuner.tp,0,false);
@@ -222,7 +228,7 @@ public final class Independent422Activity extends HubActivity {
     LiveTsRelay newRelay=new LiveTsRelay(this,channel,request,
       new LiveTsRelay.Listener(){
        @Override public void ready(String url){
-        if(stopped||destroyed)return;
+        if(stopped||destroyed||session!=generation)return;
         playbackUrl=url;
         prefs().edit().putString("independent_422_runtime","TS_READY")
           .putString("independent_422_channel","DVB:"+channel.physical())
@@ -231,16 +237,16 @@ public final class Independent422Activity extends HubActivity {
         openRenderer(url);
        }
        @Override public void error(String cause){
-        if(stopped||destroyed)return;
+        if(stopped||destroyed||session!=generation)return;
         prefs().edit().putString("independent_422_runtime","TS_ERROR")
          .putString("decoder_last_error",cause).apply();
         display(tx("فشل تدفق DVB: ","DVB stream failure: ")+cause);
        }
       });
-    relay=newRelay;
-    if(stopped||destroyed)newRelay.close();else newRelay.start();
+    if(stopped||destroyed||session!=generation)newRelay.close();
+    else{relay=newRelay;newRelay.start();}
    }catch(Exception failure){
-    if(stopped||destroyed)return;
+    if(stopped||destroyed||session!=generation)return;
     String message=failure.getMessage()==null?
       failure.getClass().getSimpleName():failure.getMessage();
     prefs().edit().putString("independent_422_runtime","DVB_START_FAILED")
@@ -369,9 +375,11 @@ public final class Independent422Activity extends HubActivity {
   return super.dispatchKeyEvent(event);
  }
  @Override protected void onStop(){
-  stopped=true;main.removeCallbacks(health);
+  stopped=true;generation++;main.removeCallbacks(health);
   closeRenderer();
-  LiveTsRelay active=relay;relay=null;playbackUrl=null;
+  LiveTsRelay active=relay;relay=null;
+  // Retain external URI so onStart can restore playback after interruption.
+  if(channelId>=0)playbackUrl=null;
   if(active!=null)new Thread(active::close,"iraqhub-independent-ts-close").start();
   if(monitor!=null){monitor.stop();monitor=null;}
   NativeSatelliteAudioGate.restore(this,audioToken);audioToken=0;
