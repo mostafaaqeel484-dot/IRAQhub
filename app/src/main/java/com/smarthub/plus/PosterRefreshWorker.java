@@ -25,9 +25,14 @@ public final class PosterRefreshWorker extends Worker {
     // Failure of BetterPosters must not block TMDB, TVmaze or cached artwork.
    }
    int verified=UnifiedArtworkPrefetch.currentAndNext(c,provider);
-   p.edit().putString("poster_sync_status",manifestOk?"POSTERS_READY":"BTTTR_UNAVAILABLE_OTHER_SOURCES_ACTIVE")
+   int sports=SportsPosterPrefetch.prefetch(c);
+   // A valid addon Manifest is NOT proof that a poster was downloaded.
+   String status=verified+sports>0?"POSTERS_VERIFIED_AND_CACHED":
+     manifestOk?"POSTER_MANIFEST_OK_NO_VERIFIED_IMAGE":"NO_VERIFIED_POSTER_SOURCE";
+   p.edit().putString("poster_sync_status",status)
     .putLong("poster_sync_success_at",System.currentTimeMillis())
     .putInt("poster_sync_verified_prefetch",verified)
+    .putInt("sports_poster_prefetch_verified",sports)
     .putBoolean("iraqhub_unified_poster_manifest_ok",manifestOk).apply();
    return Result.success();
   }catch(Exception unavailable){
