@@ -11,7 +11,7 @@ public final class IraqHubSyncWorker extends Worker {
  public IraqHubSyncWorker(@NonNull Context c,@NonNull WorkerParameters params){super(c,params);}
  @NonNull @Override public Result doWork(){
   Context c=getApplicationContext();SharedPreferences p=c.getSharedPreferences("smarthub",0);
-  if(p.getBoolean("software_dvb_422_active",false)||p.getBoolean("dvb_tuning",false)
+  if(PlaybackResourceMode.active()||p.getBoolean("software_dvb_422_active",false)||p.getBoolean("dvb_tuning",false)
     ||!p.getString("iraqhub_pvr_session","").isEmpty()){
    p.edit().putString("iraqhub_unified_sync_state","DEFERRED_VIDEO_PRIORITY")
     .putLong("iraqhub_unified_sync_deferred_at",System.currentTimeMillis()).apply();

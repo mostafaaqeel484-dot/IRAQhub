@@ -27,7 +27,8 @@ public final class EpgFeedPrefetchWorker extends Worker {
   String feed=getInputData().getString("feed");
   if(feed==null||!feed.matches("[A-Z0-9_]{1,32}"))return Result.failure();
   Context context=getApplicationContext();
-  if(context.getSharedPreferences("smarthub",0).getBoolean("software_dvb_422_active",false)
+  if(PlaybackResourceMode.active()
+    ||context.getSharedPreferences("smarthub",0).getBoolean("software_dvb_422_active",false)
     ||context.getSharedPreferences("smarthub",0).getBoolean("dvb_tuning",false))
    return Result.retry();
   try{
