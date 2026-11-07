@@ -11,6 +11,9 @@ public final class HubSettingsActivity extends HubActivity {
   LinearLayout page=page(tx("إعدادات IRAQhub","IRAQhub settings"),
     tx("أهم إعدادات التلفاز والقنوات بصورة مختصرة، وكل الإعدادات القديمة محفوظة تحت متقدم.",
       "Simple TV-focused settings; all previous options remain under Advanced."));
+  LinearLayout appearance=card(page);
+  appearance.addView(text(tx("المظهر · RX Edition","RX Edition · appearance"),22,true));
+  open(appearance,tx("الخلفيات والثيمات · العراق وLinux ومانشستر","Wallpapers · Iraq, Linux & Manchester"),RxAppearanceActivity.class);
   LinearLayout satellite=card(page);
   satellite.addView(text(tx("الطبق والقنوات","Dish and channels"),22,true));
   open(satellite,tx("تركيب الأقمار والترددات والبحث","Satellite setup and scanning"),ReceiverToolsActivity.class);
