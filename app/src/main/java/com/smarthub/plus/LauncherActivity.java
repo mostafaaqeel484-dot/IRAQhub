@@ -233,10 +233,15 @@ public class LauncherActivity extends HubActivity {
  private void update(){if(clock==null||destroyed)return;clock.setText(new SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date()));ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);NetworkCapabilities nc=cm==null?null:cm.getNetworkCapabilities(cm.getActiveNetwork());boolean online=nc!=null&&nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);connection.setText(online?tx("● متصل","● Online"):tx("● غير متصل","● Offline"));connection.setTextColor(online?0xff73dfbf:0xffd2ad8f);if(loading)return;loading=true;int stamp=render;io.execute(()->{SatelliteState s=ReceiverInfoRepository.get(this).current();main.post(()->{loading=false;if(destroyed||stamp!=render)return;channel.setText(s.channelName.isEmpty()?tx("قنواتك الفضائية بلمسة واحدة","Your satellite channels in one click"):tx("آخر قناة · ","Last channel · ")+s.channelName);programme.setText(s.title);String key=s.channelName+"|"+prefs().getLong("logo_mapping_changed_at",0);if(!logoKey.equals(key)){logoKey=key;channelLogo.setImageResource(R.drawable.channel_placeholder);if(!s.channelName.isEmpty())LogoRepository.get(this).request(s.channelName,s.channelId,new LogoRepository.Listener(){public void channel(Bitmap b){if(!destroyed&&stamp==render&&logoKey.equals(key)&&b!=null)channelLogo.setImageBitmap(b);}public void provider(String n,Bitmap b){}});}});});}
  @Override protected void onResume(){
   super.onResume();resumed=true;main.post(tick);
+  AdbIpConnection.checkOnLauncherStart(this); // opt-in; no UI/network blocking
   if(usbAdbButton!=null){
-   boolean active=UsbAdbSetup.enabled(this);
-   usbAdbButton.setText(active?"ADB ✓":"USB ADB");
-   usbAdbButton.setContentDescription(UsbAdbSetup.status(this));
+   boolean enabled=UsbAdbSetup.enabled(this);
+   long verifiedAt=prefs().getLong("adb_ip_checked_at",0);
+   boolean verified=prefs().getBoolean("adb_ip_last_authorized",false)&&
+     verifiedAt>0&&System.currentTimeMillis()-verifiedAt<300000;
+   usbAdbButton.setText(verified?"ADB IP ✓":enabled?"ADB ON":"USB ADB");
+   usbAdbButton.setContentDescription(UsbAdbSetup.status(this)+
+     " · "+prefs().getString("adb_ip_status","ADB_IP_UNTESTED"));
   }
   boolean shouldOffer=UsbAdbSetup.shouldPrompt(UsbAdbSetup.enabled(this),
     UsbAdbSetup.promptEnabled(this),usbAdbStartupShown);
