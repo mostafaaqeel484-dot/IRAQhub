@@ -48,6 +48,18 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    mpv.setOptionString("profile","fast");
    mpv.setOptionString("cache","yes");
    String profile=Software422Profile.effective(context);
+   // X5M CPU-focus: no frame interpolation. Smooth trades ONLY deblocking
+   // of non-key frames for throughput; never skip reference frames/IDCT.
+   mpv.setOptionString("interpolation","no");
+   boolean smooth=Software422Profile.SMOOTH.equals(profile);
+   if(smooth){
+    mpv.setOptionString("vd-lavc-fast","yes");
+    mpv.setOptionString("vd-lavc-skiploopfilter","nonkey");
+    mpv.setOptionString("framedrop","vo");
+   }
+   context.getSharedPreferences("smarthub",0).edit()
+     .putString("mpv_422_cpu_profile",smooth?"SMOOTH_NONKEY_DEBLOCK":"NORMAL")
+     .apply();
    boolean pressure=context.getSharedPreferences("smarthub",0)
      .getBoolean("auto_422_low_memory",false);
    mpv.setOptionString("cache-secs",pressure?"1":"2");
