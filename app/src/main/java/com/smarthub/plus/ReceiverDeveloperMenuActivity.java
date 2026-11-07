@@ -27,6 +27,17 @@ public final class ReceiverDeveloperMenuActivity extends HubActivity {
    new ReceiverTileMenu.Tile("04",tx("مراقبة الإشارة","Signal monitoring"),
      tx("القفل وBER وSNR","Tuner lock, BER and SNR"),
      ()->open(SignalInformationActivity.class)));
+  LinearLayout usbPanel=card(body);
+  usbPanel.addView(text(tx("اتصال USB ADB","USB ADB connection"),19,true));
+  usbStatus=text(UsbAdbSetup.status(this),14,false);
+  usbPanel.addView(usbStatus);
+  action(usbPanel,tx("فتح إعدادات تصحيح USB","Open USB debugging settings"),
+    ()->UsbAdbSetup.openDeveloperSettings(this));
+  CheckBox startup=check(usbPanel,tx("عرض خيارات ADB عند فتح اللانشر إذا كان متوقفاً",
+    "Offer ADB setup at launcher startup if disabled"),UsbAdbSetup.promptEnabled(this));
+  startup.setOnCheckedChangeListener((v,on)->UsbAdbSetup.setPromptEnabled(this,on));
+  note(usbPanel,tx("يجب توصيل كمبيوتر موثوق عبر USB والموافقة على نافذة RSA. صلاحيات ADB shell لا تنتقل تلقائياً إلى تطبيق IRAQhub؛ لا يمكن الوصول لملفات Aurum المحمية دون سماح النظام.",
+    "Connect a trusted computer over USB and approve the RSA prompt. ADB shell privileges do not transfer to IRAQhub; protected Aurum data remains inaccessible without OS authorization."));
   LinearLayout nativePanel=card(body);
   nativePanel.addView(text(tx("بحث المصنع الأصلي","Original Aurum search"),19,true));
   action(nativePanel,tx("فتح Aurum للبحث اليدوي والسريع والأعمى","Open Aurum manual / fast / blind scan"),
