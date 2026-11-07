@@ -16,6 +16,8 @@ final class NowNextView extends FrameLayout {
  private final LinearLayout providerPanel,resolutionStrip,details,bar,leftPosterBox,rightPosterBox;
  private final TextView[] resolutionChips=new TextView[5];
  private final TextView[] featureChips=new TextView[6];
+ private final int[] resolutionDrawn=new int[5],featureDrawn=new int[6];
+ private int encryptionDrawn=-1;
  private final ProgressBar progress,strengthBar,qualityBar;
  private final android.content.SharedPreferences prefs;
  private final int ink=0xfff1f1f5,muted=0xffafbdc9;
@@ -23,6 +25,8 @@ final class NowNextView extends FrameLayout {
  NowNextView(Context context){
   super(context);
   prefs=context.getSharedPreferences("smarthub",0);
+  java.util.Arrays.fill(resolutionDrawn,-1);
+  java.util.Arrays.fill(featureDrawn,-1);
   accent=RxSkin.accent(context);
   try{accent=Color.parseColor(prefs.getString("osd_accent",
       String.format(Locale.ROOT,"#%06X",accent&0xffffff)));}catch(Exception ignored){}
@@ -219,6 +223,9 @@ final class NowNextView extends FrameLayout {
  }
  void bind(SatelliteState s,Bitmap current,Bitmap next,Bitmap channelLogo,String message){
   boolean lite=PlaybackResourceMode.lite(getContext());
+  // Avoid holding two decoded programme posters while X5M must render 4:2:2.
+  // They remain on disk and reappear when the software decoder closes.
+  if(lite){current=null;next=null;}
   if(!liteApplied||lite!=lastLiteValue){
    bar.setElevation(lite?0:dp(6));
    currentPoster.setElevation(lite?0:dp(8));
@@ -232,13 +239,17 @@ final class NowNextView extends FrameLayout {
    String kind=ReceiverTechnicalBadges.RESOLUTIONS[i];
    boolean active=kind.equals(badge);
    TextView chip=resolutionChips[i];
-   chip.setTextColor(active?0xff081322:0xff9caebd);
-   GradientDrawable background=new GradientDrawable();
-   background.setColor(active?accent:0xa0263749);
-   background.setStroke(dp(1),active?0xfff1f1f5:0x66899caf);
-   background.setCornerRadius(dp(5));
-   chip.setBackground(background);
-   chip.setContentDescription(active?kind+" · "+tx("الدقة الفعلية","observed resolution"):kind+" · "+tx("غير نشط","inactive"));
+   int state=active?1:0;
+   if(resolutionDrawn[i]!=state){
+    resolutionDrawn[i]=state;
+    chip.setTextColor(active?0xff081322:0xff9caebd);
+    GradientDrawable background=new GradientDrawable();
+    background.setColor(active?accent:0xa0263749);
+    background.setStroke(dp(1),active?0xfff1f5f5:0x66899caf);
+    background.setCornerRadius(dp(4));
+    chip.setBackground(background);
+    chip.setContentDescription(active?kind+" · "+tx("الدقة الفعلية","observed resolution"):kind+" · "+tx("غير نشط","inactive"));
+   }
   }
   resolutionStrip.setContentDescription(badge.isEmpty()?tx("الدقة غير متاحة","Video resolution not available"):badge);
   broadcast.setText(info.broadcast);broadcast.setVisibility(info.broadcast.isEmpty()?GONE:VISIBLE);
@@ -260,18 +271,24 @@ final class NowNextView extends FrameLayout {
   long length=s.endMs-s.startMs;progress.setProgress(length>0?(int)Math.max(0,Math.min(1000,(System.currentTimeMillis()-s.startMs)*1000/length)):0);progress.setVisibility(length>0?VISIBLE:INVISIBLE);
   ProgrammeClock timer=new ProgrammeClock(s.startMs,s.endMs,System.currentTimeMillis());remaining.setText(timer.known?tx("متبقي  ","REMAINING  ")+ProgrammeClock.format(timer.remainingMs,false):"");remaining.setVisibility(timer.known?VISIBLE:GONE);
   SimpleDateFormat day=new SimpleDateFormat("EEE dd MMM yyyy",prefs.getBoolean("arabic",true)?new Locale("ar"):Locale.ENGLISH);day.setTimeZone(TimeZone.getTimeZone("Asia/Baghdad"));clock.setText(shortTime(System.currentTimeMillis())+"\n"+day.format(new Date()));clock.setVisibility(prefs.getBoolean("osd_clock",true)?VISIBLE:GONE);
-  weather.setText(WeatherRepository.label(getContext()));weather.setVisibility(prefs.getBoolean("osd_weather",false)?VISIBLE:GONE);
+  boolean showWeather=!lite&&prefs.getBoolean("osd_weather",false);
+  if(showWeather)weather.setText(WeatherRepository.label(getContext()));
+  weather.setVisibility(showWeather?VISIBLE:GONE);
   String strength=ReceptionData.value(getContext(),s,"strength"),quality=ReceptionData.value(getContext(),s,"quality");strengthLabel.setText("S: "+(strength.isEmpty()?"—":strength));qualityLabel.setText("Q: "+(quality.isEmpty()?"—":quality));strengthBar.setProgress(percent(strength),true);qualityBar.setProgress(percent(quality),true);strengthBar.setVisibility(strength.isEmpty()?INVISIBLE:VISIBLE);qualityBar.setVisibility(quality.isEmpty()?INVISIBLE:VISIBLE);
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   String ca=info.encryption;
   boolean encrypted=!ca.isEmpty()&&!ca.startsWith("FTA")&&!ca.contains("مفتوحة");
   encryptionLine.setText(ca.isEmpty()?tx("CA —","CA —"):encrypted?"🔒 "+ca:"🔓 "+ca);
-  GradientDrawable caBackground=new GradientDrawable();
-  caBackground.setColor(encrypted?0x704c3545:0x66314f42);
-  caBackground.setCornerRadius(dp(5));
-  caBackground.setStroke(dp(1),encrypted?0xffe3aa7f:0xff74bea1);
-  encryptionLine.setBackground(caBackground);
-  encryptionLine.setPadding(dp(6),dp(3),dp(6),dp(3));
+  int caState=encrypted?1:0;
+  if(encryptionDrawn!=caState){
+   encryptionDrawn=caState;
+   GradientDrawable caBackground=new GradientDrawable();
+   caBackground.setColor(encrypted?0x704c3545:0x66314f42);
+   caBackground.setCornerRadius(dp(4));
+   caBackground.setStroke(dp(1),encrypted?0xffe3aa7f:0xff74bea1);
+   encryptionLine.setBackground(caBackground);
+   encryptionLine.setPadding(dp(6),dp(1),dp(6),dp(1));
+  }
   encryptionLine.setGravity(Gravity.CENTER);
   encryptionLine.setContentDescription(ca.isEmpty()?tx("معلومات التشفير غير متاحة","CA information unknown"):ca);
   ArrayList<String> details=new ArrayList<>();
@@ -281,7 +298,10 @@ final class NowNextView extends FrameLayout {
   if(!info.broadcast.isEmpty())details.add(info.broadcast);
   if(s.source.startsWith("IPTV")){String audio=prefs.getString("osd_audio","");if(!audio.isEmpty())details.add(audio);}
   if(s.channelId.equals(prefs.getString("subtitle_channel_id",""))&&s.startMs==prefs.getLong("subtitle_event_start_ms",0)&&prefs.getBoolean("overlay_caption",false))details.add("SUB · "+prefs.getString("subtitle_provider","")+String.format(Locale.ROOT," %+.3f s",prefs.getLong("subtitle_offset",0)/1000.0));
-  SportsMatch related=MatchRepository.get(getContext()).forProgramme(s);if(related!=null)details.add(related.league+" · "+related.home+" "+related.score()+" "+related.away+" · "+related.state());
+  if(!lite){
+   SportsMatch related=MatchRepository.get(getContext()).forProgramme(s);
+   if(related!=null)details.add(related.league+" · "+related.home+" "+related.score()+" "+related.away+" · "+related.state());
+  }
   String receiverMetrics=info.signalDetail();
   String featureText=String.join("   ·   ",details);
   technical.setText((receiverMetrics==null||receiverMetrics.isEmpty()?"":receiverMetrics)+
@@ -297,6 +317,9 @@ final class NowNextView extends FrameLayout {
    prefs.getBoolean("dvb_pip_active",false)
   };
   for(int i=0;i<featureChips.length;i++){
+   int state=featureActive[i]?1:0;
+   if(featureDrawn[i]==state)continue;
+   featureDrawn[i]=state;
    GradientDrawable chip=new GradientDrawable();
    chip.setColor(featureActive[i]?0xffeeeeef:0xff363638);
    chip.setCornerRadius(dp(4));
@@ -304,7 +327,19 @@ final class NowNextView extends FrameLayout {
    featureChips[i].setTextColor(featureActive[i]?0xff111114:0xff85858b);
    featureChips[i].setContentDescription(featureNames[i]+(featureActive[i]?" active":" inactive"));
   }
-  if(ticker!=null){ArrayList<SportsMatch> selected=new ArrayList<>();for(SportsMatch m:MatchRepository.get(getContext()).snapshot()){LeagueRepository.League l=LeagueRepository.byId(m.leagueId);if(l!=null&&MatchRepository.get(getContext()).selected(l)&&m.kickoff>System.currentTimeMillis()-86400000L&&m.kickoff<System.currentTimeMillis()+2*86400000L)selected.add(m);}ticker.bind(selected);}
+  if(ticker!=null){
+   ticker.setVisibility(lite?GONE:VISIBLE);
+   if(!lite){
+    ArrayList<SportsMatch> selected=new ArrayList<>();
+    for(SportsMatch m:MatchRepository.get(getContext()).snapshot()){
+     LeagueRepository.League l=LeagueRepository.byId(m.leagueId);
+     if(l!=null&&MatchRepository.get(getContext()).selected(l)&&
+      m.kickoff>System.currentTimeMillis()-86400000L&&
+      m.kickoff<System.currentTimeMillis()+2*86400000L)selected.add(m);
+    }
+    ticker.bind(selected);
+   }
+  }
   boolean show=prefs.getBoolean("osd_posters",true);
   leftPosterBox.setVisibility(show&&current!=null&&!s.title.isEmpty()?VISIBLE:GONE);
   rightPosterBox.setVisibility(show&&next!=null&&!s.nextTitle.isEmpty()?VISIBLE:GONE);
