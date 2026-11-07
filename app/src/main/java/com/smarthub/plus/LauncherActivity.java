@@ -19,7 +19,10 @@ public class LauncherActivity extends HubActivity {
  private final Handler main=new Handler(Looper.getMainLooper());
  private final ExecutorService io=Executors.newFixedThreadPool(2);
  private final android.util.LruCache<String,Bitmap> icons=new android.util.LruCache<String,Bitmap>(2*1024*1024){protected int sizeOf(String k,Bitmap b){return b.getAllocationByteCount();}};
- private TextView clock,connection,channel,programme;private ImageView channelLogo;private LinearLayout appsGrid;
+ private TextView clock,connection,channel,programme;
+ private Button usbAdbButton;
+ private boolean usbAdbStartupShown;
+ private ImageView channelLogo;private LinearLayout appsGrid;
  private View firstTile;private boolean resumed,loading,compact;private volatile boolean destroyed;private int render,accent;private String logoKey="";
  private List<AppCatalogue.App> catalogue=Collections.emptyList();
  private final Runnable tick=new Runnable(){public void run(){update();if(resumed)main.postDelayed(this,1000);}};
@@ -49,6 +52,12 @@ public class LauncherActivity extends HubActivity {
   header.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
   connection=text("",12,false);connection.setPadding(dp(9),0,dp(9),0);
   header.addView(connection);
+  usbAdbButton=button("USB ADB");
+  usbAdbButton.setTextSize(11);
+  usbAdbButton.setContentDescription(tx("تصحيح USB · إعدادات المطور",
+    "USB ADB debugging · developer options"));
+  usbAdbButton.setOnClickListener(v->UsbAdbSetup.show(this));
+  header.addView(usbAdbButton,new LinearLayout.LayoutParams(dp(compact?86:105),dp(39)));
   Button appearance=button(tx("المظهر","Appearance"));
   appearance.setTextSize(12);appearance.setOnClickListener(v->themes());
   header.addView(appearance,new LinearLayout.LayoutParams(dp(110),dp(39)));
@@ -222,7 +231,23 @@ public class LauncherActivity extends HubActivity {
  private void watch(){open(DvbPlaybackActivity.class);}
  private void open(Class<?> type){startActivity(new Intent(this,type));}
  private void update(){if(clock==null||destroyed)return;clock.setText(new SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date()));ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);NetworkCapabilities nc=cm==null?null:cm.getNetworkCapabilities(cm.getActiveNetwork());boolean online=nc!=null&&nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);connection.setText(online?tx("● متصل","● Online"):tx("● غير متصل","● Offline"));connection.setTextColor(online?0xff73dfbf:0xffd2ad8f);if(loading)return;loading=true;int stamp=render;io.execute(()->{SatelliteState s=ReceiverInfoRepository.get(this).current();main.post(()->{loading=false;if(destroyed||stamp!=render)return;channel.setText(s.channelName.isEmpty()?tx("قنواتك الفضائية بلمسة واحدة","Your satellite channels in one click"):tx("آخر قناة · ","Last channel · ")+s.channelName);programme.setText(s.title);String key=s.channelName+"|"+prefs().getLong("logo_mapping_changed_at",0);if(!logoKey.equals(key)){logoKey=key;channelLogo.setImageResource(R.drawable.channel_placeholder);if(!s.channelName.isEmpty())LogoRepository.get(this).request(s.channelName,s.channelId,new LogoRepository.Listener(){public void channel(Bitmap b){if(!destroyed&&stamp==render&&logoKey.equals(key)&&b!=null)channelLogo.setImageBitmap(b);}public void provider(String n,Bitmap b){}});}});});}
- @Override protected void onResume(){super.onResume();resumed=true;main.post(tick);}@Override protected void onPause(){resumed=false;main.removeCallbacks(tick);super.onPause();}
+ @Override protected void onResume(){
+  super.onResume();resumed=true;main.post(tick);
+  if(usbAdbButton!=null){
+   boolean active=UsbAdbSetup.enabled(this);
+   usbAdbButton.setText(active?"ADB ✓":"USB ADB");
+   usbAdbButton.setContentDescription(UsbAdbSetup.status(this));
+  }
+  boolean shouldOffer=UsbAdbSetup.shouldPrompt(UsbAdbSetup.enabled(this),
+    UsbAdbSetup.promptEnabled(this),usbAdbStartupShown);
+  if(shouldOffer){
+   usbAdbStartupShown=true;
+   main.postDelayed(()->{
+    if(resumed&&!destroyed&&!isFinishing()&&!isDestroyed()&&
+      !UsbAdbSetup.enabled(this))UsbAdbSetup.show(this);
+   },400);
+  }
+ }@Override protected void onPause(){resumed=false;main.removeCallbacks(tick);super.onPause();}
  @Override public void onBackPressed(){/* HOME remains IRAQhub. */}
  @Override protected void onDestroy(){destroyed=true;resumed=false;main.removeCallbacksAndMessages(null);io.shutdownNow();icons.evictAll();super.onDestroy();}
  private static final class HomeBackdrop extends Drawable {final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final int theme;HomeBackdrop(int t){theme=t;}public void draw(Canvas c){Rect r=getBounds();int glow=theme==1?0x22b18a42:theme==2?0x221b789b:0x222c4965;paint.setShader(new LinearGradient(0,0,r.width(),r.height(),new int[]{0xff070b12,0xff0b1420,0xff05080e},null,Shader.TileMode.CLAMP));c.drawRect(r,paint);paint.setShader(new RadialGradient(r.width()*.82f,r.height()*.1f,r.width()*.75f,new int[]{glow,0x00101525},null,Shader.TileMode.CLAMP));c.drawRect(r,paint);paint.setShader(null);}public void setAlpha(int a){}public void setColorFilter(ColorFilter f){}public int getOpacity(){return PixelFormat.OPAQUE;}}
