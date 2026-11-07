@@ -46,6 +46,38 @@ public final class SoftwareVideoActivity extends HubActivity {
     private boolean videoOutputSeen;
     private long decoderOpenedAt;
     private boolean decoderBuffering;
+    private boolean preferredSubtitleChecked;
+    private int selectedSubtitlePid(){
+      long id=getIntent().getLongExtra("dvb_channel",-1);
+      if(id<0)return -1;
+      ReceiverCatalog.Channel channel=ReceiverCatalog.get(this).channel(id);
+      if(channel==null)return -1;
+      return prefs().getInt("subtitle_preferred_pid:"+channel.physical(),-1);
+    }
+    /** Apply only when a REAL, listed player track matches the DB transport PID.
+     * An OEM "Sub" metadata entry is NOT proof the firmware can render it. */
+    private void applyPreferredLibVlcSubtitle(){
+      if(preferredSubtitleChecked||mediaPlayer==null)return;
+      int pid=selectedSubtitlePid();
+      if(pid<0)return;
+      try{
+        MediaPlayer.TrackDescription[] subtitles=mediaPlayer.getSpuTracks();
+        if(subtitles==null||subtitles.length==0)return;
+        preferredSubtitleChecked=true;
+        for(MediaPlayer.TrackDescription track:subtitles){
+          if(track.id!=pid)continue;
+          boolean ok=mediaPlayer.setSpuTrack(track.id);
+          prefs().edit().putString("native_subtitle_status",
+            ok?"LIBVLC_MATCHED_TS_PID_"+pid:"LIBVLC_PID_SELECT_FAILED_"+pid).apply();
+          return;
+        }
+        prefs().edit().putString("native_subtitle_status",
+          "LIBVLC_PID_NOT_PRESENT_"+pid).apply();
+      }catch(Throwable unsupported){
+        prefs().edit().putString("native_subtitle_status",
+          "LIBVLC_SUBTITLE_TRACKS_UNAVAILABLE").apply();
+      }
+    }
     private long lastPictureProgressAt,videoStatsAt;
     private long previousDisplayed=-1,previousDecoded=-1,previousAudio=-1,previousDemux=-1;
     private long audioSincePicture,demuxSincePicture,decodedSincePicture;
@@ -273,7 +305,7 @@ public final class SoftwareVideoActivity extends HubActivity {
         if(released||backgroundStopped)return;
         playbackUri=source;
         streamRetries=0;
-        resetVideoStats();
+        resetVideoStats();preferredSubtitleChecked=false;
         if(mpvSelected&&!mpvFallbackUsed){
           videoLayout.setVisibility(android.view.View.GONE);
           if(openMpv(source))return;
@@ -331,6 +363,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                         break;
                     case MediaPlayer.Event.Playing:
                         decoderBuffering=false;
+                        main.postDelayed(this::applyPreferredLibVlcSubtitle,1500);
                         NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
                         if(!videoOutputSeen)main.postDelayed(voutWatchdog,14000L);
                         prefs().edit().putString("software_422_runtime",
@@ -389,6 +422,8 @@ public final class SoftwareVideoActivity extends HubActivity {
             NativeSatelliteAudioGate.enforce(SoftwareVideoActivity.this,nativeAudioToken);
             status.setText(tx("mpv يعمل · افحص الصورة والألوان","mpv loaded · verify picture and colours"));
             if(localInfo!=null&&getIntent().getLongExtra("dvb_channel",-1L)>=0)localInfo.show();
+            int pid=selectedSubtitlePid();
+            if(pid>=0&&mpvRenderer!=null)mpvRenderer.selectPreferredPid(pid);
           }
           @Override public void failed(String reason){
             if(released||backgroundStopped||mpvFallbackUsed)return;
@@ -508,6 +543,10 @@ public final class SoftwareVideoActivity extends HubActivity {
         }
     }
     private void showTrackMenu() {
+        if(mpvRenderer!=null&&!mpvFallbackUsed){
+           showMpvSubtitleTracks();
+           return;
+        }
         if (mediaPlayer == null || released || !mediaPlayer.hasMedia()) {
             status.setText(tx("انتظر حتى يبدأ البث", "Wait until playback starts"));
             return;
@@ -526,6 +565,28 @@ public final class SoftwareVideoActivity extends HubActivity {
                 .show();
     }
 
+    private void showMpvSubtitleTracks(){
+      if(mpvRenderer==null)return;
+      java.util.List<Mpv422Renderer.Sub> tracks=mpvRenderer.subtitleTracks();
+      if(tracks.isEmpty()){
+        status.setText(tx("لم ينشر mpv مسارات DVB subtitle قابلة للاختيار",
+            "mpv reported no selectable embedded subtitle track"));
+        return;
+      }
+      String[] labels=new String[tracks.size()+1];
+      labels[0]=tx("إيقاف الترجمة","Disable subtitles");
+      for(int i=0;i<tracks.size();i++)labels[i+1]=tracks.get(i).label;
+      new android.app.AlertDialog.Builder(this)
+        .setTitle(tx("مسارات الترجمة من البث الفعلي","Actual stream subtitles"))
+        .setItems(labels,(dialog,index)->{
+          int id=index==0?-1:tracks.get(index-1).id;
+          boolean ok=mpvRenderer!=null&&mpvRenderer.selectSubtitle(id);
+          prefs().edit().putString("native_subtitle_status",
+            ok?"MPV_USER_SELECTED_"+id:"MPV_SUBTITLE_SELECTION_UNAVAILABLE").apply();
+          status.setText(ok?tx("تم اختيار الترجمة في mpv","mpv subtitle track selected"):
+            tx("لم يتمكن mpv من اختيار المسار","mpv subtitle selection unavailable"));
+        }).show();
+    }
     private void showAudioTracks() {
         MediaPlayer.TrackDescription[] tracks;
         try { tracks = mediaPlayer.getAudioTracks(); }
