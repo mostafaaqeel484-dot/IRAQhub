@@ -31,12 +31,14 @@ android {
   // CI ephemeral Debug signing cannot update an app signed by an older run.
   x5mPreview {
    initWith debug
-   applicationIdSuffix '.x5mpreview'
+   applicationIdSuffix '.x5marmv7'
    versionNameSuffix '-x5mpreview'
    matchingFallbacks = ['debug']
   }
  }
- defaultConfig { ndk { abiFilters 'armeabi-v7a','arm64-v8a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 40; versionName '4.0.0-alpha1'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
+ // This Draft build targets the reported 32-bit Android TV / ARMv7-A ROM.
+ // Keep the arm64-v8a dual-ABI application on PR #39 unchanged.
+ defaultConfig { ndk { abiFilters 'armeabi-v7a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 40; versionName '4.0.0-alpha1'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
  kotlinOptions { jvmTarget = '11' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
  testOptions { unitTests.returnDefaultValues=true }
@@ -75,7 +77,7 @@ tasks.matching { it.name in ['mergeDebugNativeLibs','mergeReleaseNativeLibs','me
    def hosts=toolchains.listFiles()?.findAll { new File(it,'sysroot/usr/lib').isDirectory() }
    if(!hosts)throw new GradleException("Pinned NDK r29 libc++ not installed: "+toolchains)
    def sysroot=new File(hosts.first(),'sysroot/usr/lib')
-   def architectures=['armeabi-v7a':'arm-linux-androideabi','arm64-v8a':'aarch64-linux-android']
+   def architectures=['armeabi-v7a':'arm-linux-androideabi']
    architectures.each { abi,triple ->
     def modern=new File(sysroot,triple+'/libc++_shared.so')
     if(!modern.isFile())throw new GradleException("Pinned libc++ missing "+modern)
