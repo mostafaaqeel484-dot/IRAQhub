@@ -13,26 +13,34 @@ final class CHMAXIntegration {
  static String identity(SatelliteState s){return s.channelId.startsWith("DVB:")?s.channelId:ReceiverInfoRepository.channelKey(s);}
  private static File directory(Context c){File f=new File(c.getCacheDir(),"native-channel-branding");f.mkdirs();return f;}
  static void saveObservedLogo(Context c,String channelId,String name,Bitmap image)throws Exception{SatelliteState state=new SatelliteState();state.channelId=channelId;state.channelName=name;try(FileOutputStream out=new FileOutputStream(new File(directory(c),SportsCache.key(identity(state))+"-channel.png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}File[] old=directory(c).listFiles();if(old!=null&&old.length>128){Arrays.sort(old,Comparator.comparingLong(File::lastModified));for(int n=0;n<old.length-128;n++)old[n].delete();}c.getSharedPreferences("smarthub",0).edit().putLong("native_logos_changed_at",System.currentTimeMillis()).putString("native_logo_source:"+identity(state),"receiver visible EPG / CHMAX branding").apply();}
+ /** Prefer exact physical identity, then an observed Aurum-to-DVB bridge.
+  * A stale or corrupt first candidate must not hide the next verified logo. */
  static Bitmap logo(Context c,SatelliteState s,boolean provider){
   if(s==null||s.channelId==null||s.channelName==null)return null;
   try{
    String suffix=provider?"-provider.png":"-channel.png";
-   String key=identity(s),nameKey=ReceiverInfoRepository.channelKey(s);
-   File dir=directory(c),file=new File(dir,SportsCache.key(key)+suffix);
-   if(!file.isFile()&&s.channelId.startsWith("DVB:")){
-    File legacy=new File(dir,SportsCache.key(nameKey)+suffix);
-    if(legacy.isFile())file=legacy;
-   }
-   if(!file.isFile()&&s.channelId.startsWith("DVB:")){
-    String nativeSource=AurumDvbLogoBridge.sourceFor(c,s);
-    if(!nativeSource.isEmpty())file=new File(dir,SportsCache.key(nativeSource)+suffix);
+   String identity=identity(s);
+   java.util.LinkedHashSet<String> candidates=new java.util.LinkedHashSet<>();
+   candidates.add(identity);
+   if(s.channelId.startsWith("DVB:")){
+    candidates.add(ReceiverInfoRepository.channelKey(s));
+    String aurum=AurumDvbLogoBridge.sourceFor(c,s);
+    if(!aurum.isEmpty())candidates.add(aurum);
    }
    SharedPreferences prefs=c.getSharedPreferences("smarthub",0);
-   boolean manual="MANUAL_CHANNEL_IMAGE".equals(prefs.getString("native_logo_source:"+key,""))||
-     "MANUAL_CHANNEL_IMAGE".equals(prefs.getString("native_logo_source:"+nameKey,""));
-   return file.isFile()&&(manual||System.currentTimeMillis()-file.lastModified()<7*86400000L)
-     ?BitmapFactory.decodeFile(file.getAbsolutePath()):null;
-  }catch(Exception e){return null;}
+   File dir=directory(c);
+   for(String key:candidates){
+    if(key==null||key.isEmpty())continue;
+    File file=new File(dir,SportsCache.key(key)+suffix);
+    if(!file.isFile())continue;
+    boolean manual="MANUAL_CHANNEL_IMAGE".equals(
+      prefs.getString("native_logo_source:"+key,""));
+    if(!manual&&System.currentTimeMillis()-file.lastModified()>=7L*86400000L)continue;
+    Bitmap bitmap=BitmapFactory.decodeFile(file.getAbsolutePath());
+    if(bitmap!=null)return bitmap;
+   }
+   return null;
+  }catch(Exception unavailable){return null;}
  }
  static String provider(Context c,SatelliteState s){return c.getSharedPreferences("smarthub",0).getString("native_provider:"+identity(s),"");}
  /** The native detail title may be the *current programme*, not the channel.
