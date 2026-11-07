@@ -350,8 +350,12 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   choose422Engine(ch);
  }
  private void choose422Engine(ReceiverCatalog.Channel ch){
-  String[] engines={"LibVLC · FFmpeg", "libmpv · FFmpeg"};
-  int selected="mpv".equals(prefs().getString("decoder_422_engine","vlc"))?1:0;
+  String[] engines={"LibVLC · FFmpeg",
+   "libmpv · inside launcher",
+   tx("IRAQhub 422 Engine · منفصل · MPV/FFmpeg",
+      "IRAQhub 422 Engine · isolated MPV/FFmpeg")};
+  String saved=prefs().getString("decoder_422_engine","isolated");
+  int selected="isolated".equals(saved)?2:"mpv".equals(saved)?1:0;
   new AlertDialog.Builder(this)
    .setTitle(tx("مشغّل 4:2:2","Choose 4:2:2 player"))
    .setSingleChoiceItems(engines,selected,(dialog,index)->{
