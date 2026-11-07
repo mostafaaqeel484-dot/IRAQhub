@@ -60,7 +60,7 @@ final class EpgArtwork {
   if(published!=null&&!published.isEmpty())addresses.add(published);
   String verified=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
   if(!verified.isEmpty())addresses.add(verified);
-  SportsMatch match=sportsMatch(c,state,upcoming);
+  SportsMatch match=c.getSharedPreferences("smarthub",0).getBoolean("art_source_sportsdb_enabled",true)?sportsMatch(c,state,upcoming):null;
   if(match!=null&&SportsProgrammeArtwork.verified(match))try{
    if(match.image!=null&&!match.image.isEmpty()){
     URI u=new URI(match.image);
