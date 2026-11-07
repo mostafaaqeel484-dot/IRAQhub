@@ -12,7 +12,8 @@ final class ReceiverPlayback implements AutoCloseable {
  ReceiverPlayback(Context c,Listener l){context=c.getApplicationContext();listener=l;sharedSignal=ReceiverInfoRepository.get(context).acquireSignal();}
  synchronized void play(ReceiverCatalog.Channel channel){
   if(closed||channel==null)return;
-  if(!loading&&current!=null&&current.id==channel.id)return;
+  // Deliberately allow an explicit replay of the same service after a
+  // failed ACK or black picture; no-op suppression can hide an OEM failure.
   if(!zapQueue.offer(channel))return;
   loading=true;start(channel);
  }
