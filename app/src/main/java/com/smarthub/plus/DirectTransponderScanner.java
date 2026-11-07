@@ -118,15 +118,20 @@ final class DirectTransponderScanner implements AutoCloseable {
    Thread.sleep(170);
   }
   if(closed||Thread.currentThread().isInterrupted())throw new IOException("MANUAL_SCAN_CANCELLED");
-  // A slow mux can contain complete PSI without ever reaching 1 MiB.
-  if(found==null&&capture.isFile()&&capture.length()>=188*30){
+  // Always perform a final bounded parse, even if an early snapshot yielded
+  // only part of the PAT service set. Slow muxes can complete under 1 MiB.
+  if(capture.isFile()&&capture.length()>=188*30){
    try(InputStream input=new FileInputStream(capture)){
-    found=DvbPsiScan.scan(input);
+    DvbPsiScan.Result complete=DvbPsiScan.scan(input);
+    if(found==null||complete.services.length()>found.services.length()||
+       (complete.services.length()==found.services.length()&&
+        complete.withoutNames<found.withoutNames))
+     found=complete;
    }catch(Exception unavailable){
     lastError=unavailable.getMessage()==null?"MANUAL_TS_PSI_UNAVAILABLE":unavailable.getMessage();
    }
   }
-  if(found!=null)return found;
+  if(found!=null&&found.services.length()>0)return found;
   if(!capture.isFile()||capture.length()<188*400)
    throw new IOException("FIRMWARE_CAPTURE_NO_TS_DATA");
   throw new IOException(lastError);
