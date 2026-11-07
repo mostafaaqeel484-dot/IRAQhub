@@ -29,7 +29,7 @@ final class FrontPanelBridge {
    "\n/dev/led="+(fp.exists()?"present":"absent")+
    " app_write="+fp.canWrite()+
    "\n/sys/class/leds="+(leds.exists()?"present":"absent")+
-   "\nADB handoff="+export.getAbsolutePath()+
+   "\nADB handoff="+(export==null?"UNAVAILABLE":export.getAbsolutePath())+
    "\nOEM panel display API: NOT YET IDENTIFIED (no unsafe writes)";
  }
  static void publish(Context context,ReceiverCatalog.Channel channel){
@@ -38,7 +38,9 @@ final class FrontPanelBridge {
   String name=channel.name,physical="DVB:"+channel.physical();
   IO.execute(()->{
    try{
-    File directory=new File(app.getExternalFilesDir(null),"frontpanel");
+    File base=app.getExternalFilesDir(null);
+    if(base==null)return;
+    File directory=new File(base,"frontpanel");
     if(!directory.isDirectory()&&!directory.mkdirs())return;
     File current=new File(directory,"state.json"),tmp=new File(directory,"state.tmp");
     JSONObject state=new JSONObject()
