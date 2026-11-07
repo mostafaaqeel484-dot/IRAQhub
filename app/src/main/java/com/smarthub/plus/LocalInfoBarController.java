@@ -29,7 +29,9 @@ final class LocalInfoBarController implements AutoCloseable {
  private final PublishedEpgArtwork published;
  private String logoKey="",imageKey="",lastPrefetchEvent="";
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
- private long logoRetry,posterRetryAt;
+ private long logoRetry,posterRetryAt,lastPaintAt;
+ private String lastPaintState="";
+ private Bitmap paintedChannel,paintedProvider,paintedNow,paintedNext;
  private volatile boolean closed;
  private boolean visible,expanded;
  private int seq;
@@ -46,6 +48,7 @@ final class LocalInfoBarController implements AutoCloseable {
     return;
    }
    visible=false;bar.setVisibility(View.GONE);
+   releaseHiddenArtwork();
    prefs.edit().putBoolean("now_next_visible",false).apply();
   }
  };
@@ -56,7 +59,7 @@ final class LocalInfoBarController implements AutoCloseable {
     SatelliteState observed=SatelliteState.read(host);
     SatelliteState enriched=ReceiverInfoRepository.get(host).enrich(observed);
     refresh(enriched);
-    main.postDelayed(this,1450);
+    main.postDelayed(this,PlaybackResourceMode.lite(host)?4200:1450);
    }
   }
  };
@@ -77,6 +80,7 @@ final class LocalInfoBarController implements AutoCloseable {
  void show(){
   if(closed)return;
   visible=true;
+  lastPaintState="";lastPaintAt=0;
   expanded=false;bar.setExpanded(false);
   bar.setVisibility(View.VISIBLE);
   latest=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
@@ -94,6 +98,7 @@ final class LocalInfoBarController implements AutoCloseable {
   if(closed)return;
   if(!visible){show();return;}
   expanded=!expanded;bar.setExpanded(expanded);
+  lastPaintState="";
   main.removeCallbacks(hide);
   main.postDelayed(hide,Math.max(1,Math.min(10,prefs.getInt("osd_duration_seconds",8)))*1000L);
   paint();
@@ -185,10 +190,10 @@ final class LocalInfoBarController implements AutoCloseable {
    // network request, read TV provider data, or build heavy matching indexes.
    try{
     String name=upcoming?snapshot.nextTitle:snapshot.title;
-    Bitmap saved=EpgArtwork.loadCached(host,snapshot,name,upcoming);
+    Bitmap saved=EpgArtwork.loadInfobarCached(host,snapshot,name,upcoming);
     prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
       saved==null?"VIDEO_PRIORITY_NO_CACHED_POSTER":"VIDEO_PRIORITY_CACHED_POSTER").apply();
-    if(saved!=null)publishPoster(expected,upcoming,saved);
+    if(saved!=null)publishPoster(expected,upcoming,compactPoster(saved));
    }catch(Exception unavailable){
     prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
       "VIDEO_PRIORITY_CACHE_UNAVAILABLE").apply();
@@ -198,7 +203,7 @@ final class LocalInfoBarController implements AutoCloseable {
   String title=upcoming?snapshot.nextTitle:snapshot.title;
   if(title==null||title.trim().isEmpty())return;
   Bitmap image=poster(snapshot,upcoming);
-  if(image!=null)publishPoster(expected,upcoming,image);
+  if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
   if(image==null&&!prefs.getBoolean("software_dvb_422_active",false)&&
      !prefs.getBoolean("dvb_tuning",false)){
     image=onlinePoster(snapshot,upcoming);
@@ -208,6 +213,7 @@ final class LocalInfoBarController implements AutoCloseable {
  private void publishPoster(String expected,boolean upcoming,Bitmap image){
   main.post(()->{
    if(closed||!expected.equals(imageKey))return;
+   if(!visible)return;
    if(upcoming)nextPoster=image;else currentPoster=image;
    paint();
   });
@@ -216,10 +222,10 @@ final class LocalInfoBarController implements AutoCloseable {
   String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().isEmpty())return null;
   try{
-   Bitmap image=EpgArtwork.load(host,state,title,upcoming);
+   Bitmap image=EpgArtwork.loadInfobar(host,state,title,upcoming);
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
      image==null?"NO_VERIFIED_EPG_ART":"EPG_POSTER_OK").apply();
-   return image;
+   return compactPoster(image);
   }catch(Exception failed){
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
      "EPG_"+failed.getClass().getSimpleName()).apply();
@@ -242,10 +248,36 @@ final class LocalInfoBarController implements AutoCloseable {
   }
  }
 
+ private static Bitmap compactPoster(Bitmap image){
+  if(image==null||image.getWidth()<=512&&image.getHeight()<=512)return image;
+  float ratio=512f/Math.max(image.getWidth(),image.getHeight());
+  return Bitmap.createScaledBitmap(image,Math.max(1,Math.round(image.getWidth()*ratio)),
+    Math.max(1,Math.round(image.getHeight()*ratio)),true);
+ }
  private void paint(){
   if(closed||bar.getVisibility()!=View.VISIBLE)return;
+  long now=android.os.SystemClock.elapsedRealtime();
+  String state=latest.channelId+"|"+latest.channelName+"|"+latest.title+"|"+
+    latest.startMs+"|"+latest.endMs+"|"+latest.nextTitle+"|"+
+    latest.nextStartMs+"|"+latest.nextEndMs+"|"+expanded;
+  boolean changed=!state.equals(lastPaintState)||paintedChannel!=channelLogo||
+     paintedProvider!=providerLogo||paintedNow!=currentPoster||paintedNext!=nextPoster;
+  // Always repaint immediately on event/artwork/INFO changes. Throttle only
+  // unchanged live status while the CPU is busy with software 4:2:2.
+  if(PlaybackResourceMode.lite(host)&&!changed&&now-lastPaintAt<4000)return;
+  lastPaintState=state;lastPaintAt=now;
+  paintedChannel=channelLogo;paintedProvider=providerLogo;
+  paintedNow=currentPoster;paintedNext=nextPoster;
   bar.bind(latest,currentPoster,nextPoster,channelLogo,"");
   bar.provider(providerLogo);
+ }
+ private void releaseHiddenArtwork(){
+  // Free references held by both controller and ImageViews on dismissal.
+  channelLogo=null;providerLogo=null;currentPoster=null;nextPoster=null;
+  paintedChannel=null;paintedProvider=null;paintedNow=null;paintedNext=null;
+  logoKey="";imageKey="";lastPaintState="";lastPaintAt=0;
+  posterRetryAt=0;logoRetry=0;
+  bar.clearArtwork();
  }
 
  void dismiss(){main.removeCallbacks(hide);main.removeCallbacks(tick);hide.run();}
@@ -256,6 +288,7 @@ final class LocalInfoBarController implements AutoCloseable {
   main.removeCallbacks(hide);main.removeCallbacks(tick);
   chmax.close();io.shutdownNow();
   prefs.edit().putBoolean("now_next_visible",false).apply();
+  releaseHiddenArtwork();
   root.removeView(bar);
  }
 }
