@@ -32,8 +32,7 @@ final class SportsPosterPrefetch {
    attempts++;
    try{
     URL u=new URL(m.image);
-    byte[] cached=ArtworkCache.cached(context,u,4*1024*1024);
-    byte[] image=cached!=null?cached:ArtworkCache.fetch(context,u,4*1024*1024);
+    byte[] image=ArtworkCache.fetch(context,u,4*1024*1024); // 24h TTL; stale-cache fallback
     if(ArtworkCache.validImage(image))verified++;
    }catch(Exception unavailable){
     // A failed event image never overwrites a previously verified cached copy.
