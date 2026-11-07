@@ -29,6 +29,10 @@ final class ReceiverDiagnosticReport {
   b.append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z",Locale.ROOT)
     .format(new Date())).append("\n");
   line(b,"Android",Build.VERSION.RELEASE+" API "+Build.VERSION.SDK_INT);
+  b.append("[USB ADB setup]\n");
+  line(b,"android_adb_setting",UsbAdbSetup.enabled(context)?"ENABLED":"DISABLED_OR_UNAVAILABLE");
+  line(b,"usb_host_connection","NOT_VERIFIABLE_FROM_APP");
+  line(b,"adb_shell_app_privileges","SEPARATE_UID_NO_AUTOMATIC_GRANT");
   line(b,"Hardware",Build.HARDWARE+" · "+Build.MODEL);
   b.append("\n[Manual TP search]\n");
   line(b,"status",p.getString("manual_direct_scan_status","NOT_TESTED"));
