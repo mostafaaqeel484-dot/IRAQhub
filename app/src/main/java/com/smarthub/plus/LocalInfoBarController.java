@@ -31,7 +31,7 @@ final class LocalInfoBarController implements AutoCloseable {
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
  private long logoRetry,posterRetryAt;
  private volatile boolean closed;
- private boolean visible;
+ private boolean visible,expanded;
  private int seq;
  private SatelliteState latest=new SatelliteState();
  private final Runnable hide=()->{visible=false;bar.setVisibility(View.GONE);
@@ -64,6 +64,7 @@ final class LocalInfoBarController implements AutoCloseable {
  void show(){
   if(closed)return;
   visible=true;
+  expanded=false;bar.setExpanded(false);
   bar.setVisibility(View.VISIBLE);
   latest=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
   refresh(latest);
@@ -75,6 +76,15 @@ final class LocalInfoBarController implements AutoCloseable {
   main.postDelayed(tick,600);
  }
 
+ /** First INFO opens Tiger ribbon; repeated INFO expands current/next posters. */
+ void showDetails(){
+  if(closed)return;
+  if(!visible){show();return;}
+  expanded=!expanded;bar.setExpanded(expanded);
+  main.removeCallbacks(hide);
+  main.postDelayed(hide,Math.max(1,Math.min(10,prefs.getInt("osd_duration_seconds",8)))*1000L);
+  paint();
+ }
  private void refresh(SatelliteState state){
   if(closed||!visible&&bar.getVisibility()!=View.VISIBLE)return;
   latest=state;
