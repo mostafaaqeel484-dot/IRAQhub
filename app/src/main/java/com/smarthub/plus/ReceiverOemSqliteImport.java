@@ -22,7 +22,7 @@ final class ReceiverOemSqliteImport {
  private ReceiverOemSqliteImport(){}
  private static final String[] TABLES={
   "satellite_table","satellite_transponder_table","program_table",
-  "audio_table","fav_name_table","fav_prog_table"
+  "audio_table","fav_name_table","fav_prog_table","tp_network_name_table"
  };
  private static long count(SQLiteDatabase db,String table){
   return DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM "+table,null);
