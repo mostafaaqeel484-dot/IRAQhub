@@ -27,7 +27,12 @@ final class RxSkin {
   return 0;
  }
  static int selected(Context c){
-  return index(c.getSharedPreferences("smarthub",0).getString(KEY,"rx-dark"));
+  SharedPreferences prefs=c.getSharedPreferences("smarthub",0);
+  if(prefs.getBoolean("rx_wallpaper_rotate",false)){
+   long day=System.currentTimeMillis()/86400000L;
+   return (int)Math.floorMod(day,(long)IDS.length);
+  }
+  return index(prefs.getString(KEY,"rx-dark"));
  }
  static int accent(Context c){return ACCENTS[selected(c)];}
  static String title(Context c,int i){
@@ -36,14 +41,17 @@ final class RxSkin {
  static void apply(Context c,int i){
   if(i<0||i>=IDS.length)return;
   c.getSharedPreferences("smarthub",0).edit()
-   .putString(KEY,IDS[i]).putInt("launcher_theme",0)
+   .putString(KEY,IDS[i]).putBoolean("rx_wallpaper_rotate",false)
+   .putInt("launcher_theme",0)
    .putString("osd_accent",String.format(java.util.Locale.ROOT,"#%06X",ACCENTS[i]&0xffffff))
    .putLong("osd_changed_at",System.currentTimeMillis()).apply();
  }
  static GradientDrawable glass(Context c,boolean emphasized){
   int accent=accent(c),radius=dp(c,emphasized?20:16);
+  boolean frosted=c.getSharedPreferences("smarthub",0).getBoolean("rx_glass_effect",true);
   GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-   new int[]{0xe6293246,0xd3131b30,0xe508101d});
+   frosted?new int[]{0xe6293246,0xd3131b30,0xe508101d}:
+    new int[]{0xff1a2433,0xff151d29,0xff111a25});
   bg.setCornerRadius(radius);
   bg.setStroke(dp(c,emphasized?2:1),emphasized?accent:0x776e839d);
   return bg;
