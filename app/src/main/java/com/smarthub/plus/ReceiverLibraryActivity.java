@@ -120,7 +120,20 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    offset=currentPage;nextListSelection=absolute-currentPage;search(false);
   }
  }
- private void search(boolean reset){if(!loaded)return;if(reset)offset=0;scope().save(this);String q=query.getText().toString();long sat=satellite,favGroup=group;int kind=type,page=offset,token=++generation;boolean fav=favoritesOnly,alpha=alphabetical;io.execute(()->{try{List<ReceiverCatalog.Channel> rows=catalog.channels(q,sat,kind,fav,alpha,page,favGroup,encryptedOnly);Set<Long> selected=catalog.favorites();Set<String> physical=new HashSet<>();for(ReceiverCatalog.Channel row:rows)physical.add("DVB:"+row.physical());Map<String,SatelliteGuideRepository.Event> events=new SatelliteGuideRepository(this).currentChannels(physical,System.currentTimeMillis());long current=prefs().getLong("own_dvb_channel",-1);if(!SatelliteState.read(this).channelId.startsWith("DVB:"))current=catalog.uniqueChannel(SatelliteState.read(this).channelName);long playing=current;main.post(()->{if(destroyed||token!=generation)return;shown=rows;favorites=selected;programmes=events;activeId=playing;status.setText((sat<0?tx("كل الأقمار","All satellites"):satelliteButton.getText())+
+ private void search(boolean reset){if(!loaded)return;if(reset)offset=0;scope().save(this);String q=query.getText().toString();long sat=satellite,favGroup=group;int kind=type,page=offset,token=++generation;boolean fav=favoritesOnly,alpha=alphabetical;io.execute(()->{try{List<ReceiverCatalog.Channel> rows=catalog.channels(q,sat,kind,fav,alpha,page,favGroup,encryptedOnly);Set<Long> selected=catalog.favorites();Set<String> physical=new HashSet<>();for(ReceiverCatalog.Channel row:rows)physical.add("DVB:"+row.physical());long epgNow=System.currentTimeMillis();
+ Map<String,SatelliteGuideRepository.Event> events=
+  new SatelliteGuideRepository(this).currentChannels(physical,epgNow);
+ // Persist only positively timed, physically identified programmes for
+ // reliable offline Infobar/channel-list fallback on the next launch.
+ try{
+  UnifiedEpgIndex local=UnifiedEpgIndex.get(this);
+  local.record(events,epgNow);
+  for(String identity:physical)if(!events.containsKey(identity)){
+   SatelliteGuideRepository.Event cached=local.current(identity,epgNow);
+   if(cached!=null)events.put(identity,cached);
+  }
+ }catch(Exception unavailable){/* Original guide remains authoritative. */}
+ long current=prefs().getLong("own_dvb_channel",-1);if(!SatelliteState.read(this).channelId.startsWith("DVB:"))current=catalog.uniqueChannel(SatelliteState.read(this).channelName);long playing=current;main.post(()->{if(destroyed||token!=generation)return;shown=rows;favorites=selected;programmes=events;activeId=playing;status.setText((sat<0?tx("كل الأقمار","All satellites"):satelliteButton.getText())+
    (encryptedOnly?tx(" · مشفرة فقط"," · encrypted only"):"")+
    tx("  ·  من ","  ·  positions ")+(rows.isEmpty()?"0":(page+1)+"–"+(page+rows.size()))+(alphabetical?"  A–Z":""));previous.setEnabled(page>0);next.setEnabled(rows.size()==120);list.setAdapter(new Rows());if(!rows.isEmpty())updateFocusedProgramme(
    Math.min(Math.max(list.getSelectedItemPosition(),0),rows.size()-1));
