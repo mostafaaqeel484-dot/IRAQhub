@@ -18,6 +18,19 @@ public final class RxAppearanceActivity extends HubActivity {
   info.addView(text(tx("خلفيات مدمجة بدون اتصال أو فيديو 4K","Offline wallpapers · no 4K decoder load"),17,true));
   note(info,tx("المناظر رياضية/وطنية/تقنية مصممة بشكل رمزي، وليست شعارات أو صوراً رسمية للأندية. يحافظ الوضع الثابت على سلاسة 4:2:2.",
     "Original stylized backgrounds, not official club logos or licensed photos. Static images preserve 4:2:2 playback resources."));
+  LinearLayout options=card(body);
+  CheckBox auto=check(options,tx("تدوير الخلفيات تلقائياً كل يوم","Rotate wallpaper automatically each day"),
+    prefs().getBoolean("rx_wallpaper_rotate",false));
+  auto.setOnCheckedChangeListener((button,checked)->{
+   prefs().edit().putBoolean("rx_wallpaper_rotate",checked).apply();
+   recreate();
+  });
+  CheckBox glass=check(options,tx("تفعيل البطاقات الزجاجية الشفافة","Translucent glass cards"),
+    prefs().getBoolean("rx_glass_effect",true));
+  glass.setOnCheckedChangeListener((button,checked)->{
+   prefs().edit().putBoolean("rx_glass_effect",checked).apply();
+   recreate();
+  });
   for(int row=0;row<RxSkin.IDS.length;row+=3){
    LinearLayout line=row();
    line.setGravity(Gravity.CENTER_VERTICAL);
