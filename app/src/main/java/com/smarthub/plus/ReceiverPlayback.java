@@ -6,18 +6,63 @@ final class ReceiverPlayback implements AutoCloseable {
  private static final Object CONTROL=new Object();private static volatile ReceiverPlayback activeOwner;boolean owns(){return activeOwner==this;}
  interface Listener{void accepted(ReceiverCatalog.Channel channel);void error(String code);void audio(int selected);default void pip(boolean accepted){}}
  private final DirectReceiverSignal sharedSignal;private final Context context;private final Listener listener;private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private final LatestRequestQueue<ReceiverCatalog.Channel> zapQueue=new LatestRequestQueue<>();private volatile boolean closed,loading;private volatile Thread worker;private volatile DatagramSocket socket;private volatile ReceiverCatalog.Channel current;private volatile JSONObject request;private volatile int pendingAudio=-1;private volatile int generation;private volatile boolean pipPending,pipActive,pipIssued;private volatile long videoAccepted;private long decoderCheck;private final DvbVideoHealth frameHealth=new DvbVideoHealth();private boolean videoHealthWarned;
+ private volatile long lastSignalPoll,lastEpgPoll,zapStartedAt,lastRecoveryAt;
+ private volatile int recoveryAttempts;
+ private volatile long recoveryChannel=-1;
  ReceiverPlayback(Context c,Listener l){context=c.getApplicationContext();listener=l;sharedSignal=ReceiverInfoRepository.get(context).acquireSignal();}
- synchronized void play(ReceiverCatalog.Channel channel){if(closed||!zapQueue.offer(channel))return;loading=true;start(channel);}
+ synchronized void play(ReceiverCatalog.Channel channel){
+  if(closed||channel==null)return;
+  // Deliberately allow an explicit replay of the same service after a
+  // failed ACK or black picture; no-op suppression can hide an OEM failure.
+  if(!zapQueue.offer(channel))return;
+  loading=true;start(channel);
+ }
  private void settled(int token,Runnable notify){main.post(()->{if(closed||token!=generation||!loading)return;ReceiverCatalog.Channel next=zapQueue.complete();loading=false;if(next!=null){loading=true;start(next);}else notify.run();});}
- private void start(ReceiverCatalog.Channel channel){int token=++generation;io.execute(()->{try{
+ private void start(ReceiverCatalog.Channel channel){
+  int token=++generation;
+  long started=SystemClock.elapsedRealtime();
+  zapStartedAt=started;
+  SharedPreferences metrics=context.getSharedPreferences("smarthub",0);
+  boolean sameTp=current!=null&&current.transponder().equals(channel.transponder());
+  metrics.edit().putLong("zap_started_ms",System.currentTimeMillis())
+   .putLong("zap_target_channel_id",channel.id)
+   .putBoolean("zap_same_tp",sameTp)
+   .putString("zap_stage","TUNING").apply();
+  if(current==null||current.id!=channel.id){
+   recoveryChannel=channel.id;recoveryAttempts=0;
+  }
+  io.execute(()->{try{
   if(channel.ca==-1)throw new IOException("DVB_METADATA_REQUIRED");
-  JSONObject body=DvbPlayRequest.create(channel.data,(int)channel.id,channel.sid,channel.angle,channel.frequency,channel.pol,channel.symbolRate,0,volume(),channel.tv==1);FirmwareCaRequest.apply(body,channel.ca,channel.data.optJSONArray("CaSystemIdList"),ReceiverCatalog.get(context).transportServices(channel));worker=Thread.currentThread();synchronized(CONTROL){activeOwner=this;}context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",true).putBoolean("dvb_player_visible",false).putString("decoder_channel","").remove("decoder_fps").remove("decoder_bitrate").remove("decoder_video_health").remove("decoder_width").remove("decoder_height").apply();ReceiverInfoRepository.get(context).invalidateSignal();ReceiverSignalReading tuner=DvbTuner.ensure(context,channel);body.put("tp_id",tuner.tp);SharedPreferences p=context.getSharedPreferences("smarthub",0);String active=channel.transponder();
+  JSONObject body=DvbPlayRequest.create(channel.data,(int)channel.id,channel.sid,channel.angle,channel.frequency,channel.pol,channel.symbolRate,0,volume(),channel.tv==1);FirmwareCaRequest.apply(body,channel.ca,channel.data.optJSONArray("CaSystemIdList"),ReceiverCatalog.get(context).transportServices(channel));worker=Thread.currentThread();synchronized(CONTROL){activeOwner=this;}context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",true).putBoolean("dvb_player_visible",false).putString("decoder_channel","").remove("decoder_fps").remove("decoder_bitrate").remove("decoder_video_health").remove("decoder_width").remove("decoder_height").remove("zap_firmware_frame_advance_ms")
+  .putInt("zap_recovery_attempts",recoveryAttempts).apply();
+  ReceiverInfoRepository.get(context).invalidateSignal();ReceiverSignalReading tuner=DvbTuner.ensure(context,channel);
+  if(token==generation)metrics.edit().putLong("zap_tune_lock_ms",
+    SystemClock.elapsedRealtime()-started)
+    .putString("zap_stage","TUNER_LOCKED").apply();
+  body.put("tp_id",tuner.tp);SharedPreferences p=context.getSharedPreferences("smarthub",0);String active=channel.transponder();
   if(closed||token!=generation)return;if(socket!=null)socket.close();socket=new DatagramSocket();socket.setSoTimeout(400);final DatagramSocket channelSocket=socket;new Thread(()->receive(channelSocket,token),"iraqhub-dvb-decoder").start();
   if(pipActive||pipIssued){sendRaw(8,"null");pipActive=false;pipIssued=false;}int selectedAudio=p.getInt("dvb_audio_index:"+channel.physical(),0);JSONArray available=body.optJSONArray("stAudioInfo");if(available!=null&&selectedAudio>=0&&selectedAudio<available.length())body.put("iAudioSelected",selectedAudio);current=channel;request=body;p.edit().putString("own_dvb_physical_tp",active).putInt("own_dvb_runtime_tp",tuner.tp).putBoolean("own_dvb_ack",false).putLong("own_dvb_channel",channel.id).apply();send(2,body);main.postDelayed(()->{if(!closed&&token==generation&&!context.getSharedPreferences("smarthub",0).getBoolean("own_dvb_ack",false)){settled(token,()->{context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",false).apply();listener.error("DVB_PLAY_TIMEOUT");});}},4000);
  }catch(Exception failure){String code=failure.getMessage();settled(token,()->{context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",false).apply();listener.error(code==null?"DVB_CONNECTION_FAILED":code);});}});}
  private void send(int command,JSONObject body)throws Exception{sendRaw(command,String.valueOf(body));}
  private void sendRaw(int command,String body)throws Exception{DatagramSocket s=socket;if(s==null||s.isClosed())throw new IOException("DVB_CONNECTION_FAILED");byte[] data=("Play\n"+String.format(java.util.Locale.ROOT,"%04d",command)+"\n"+body).getBytes(StandardCharsets.UTF_8);s.send(new DatagramPacket(data,data.length,InetAddress.getByName("127.0.0.1"),51021));}
- private void receive(DatagramSocket input,int token){while(!closed&&token==generation){try{byte[] b=new byte[8192];DatagramPacket packet=new DatagramPacket(b,b.length);if(input.isClosed())return;input.receive(packet);if(!packet.getAddress().isLoopbackAddress())continue;String[] parts=new String(b,0,packet.getLength(),StandardCharsets.UTF_8).replace("\u0000","").split("\n",3);if(parts.length!=3||!parts[0].equals("Play"))continue;int command=Integer.parseInt(parts[1]);boolean ok=parts[2].startsWith("SUCCESS:");if(command==2){if(!loading)continue;ReceiverCatalog.Channel selected=current;settled(token,()->{if(ok&&selected!=null){videoAccepted=SystemClock.elapsedRealtime();frameHealth.reset();videoHealthWarned=false;decoderCheck=0;context.getSharedPreferences("smarthub",0).edit().putString("own_ca_status",selected.ca==0?"FTA":"REQUEST_ACCEPTED").apply();context.getSharedPreferences("smarthub",0).edit().putBoolean("own_dvb_ack",true).apply();listener.accepted(selected);}else{context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",false).apply();listener.error("DVB_PLAY_REJECTED");}});}else if(command==7&&pipPending){pipPending=false;pipActive=ok;main.post(()->{if(!closed)listener.pip(ok);});}else if(command==4){int selected=pendingAudio;main.post(()->{if(!closed){if(!ok)listener.error("DVB_AUDIO_REJECTED");}});}else if(command==31||command==126){int begin=parts[2].indexOf('{');if(begin>=0&&current!=null){JSONObject v=new JSONObject(parts[2].substring(begin));if(v.optInt("id",-1)==current.programToken()){int width=v.optInt("width",0),height=v.optInt("height",0);if(width>0&&height>0&&width<=8192&&height<=8192){SharedPreferences.Editor edit=context.getSharedPreferences("smarthub",0).edit().putString("decoder_channel","DVB:"+current.physical()).putInt("decoder_width",width).putInt("decoder_height",height);int fps=v.optInt("framerate",0),bitrate=v.optInt("bitrate",0);if(fps>0&&fps<=240)edit.putInt("decoder_fps",fps);if(bitrate>0&&bitrate<=1000000000)edit.putInt("decoder_bitrate",bitrate);edit.apply();}}}}else if(command==200||command==201)main.post(()->{if(!closed)listener.error("DVB_DECODE_FAILED");});}catch(SocketTimeoutException idle){}catch(Exception failure){if(closed||input.isClosed()||token!=generation)return;}finally{if(!closed&&!loading&&token==generation&&current!=null){SatelliteState state=SatelliteState.read(context);sharedSignal.refresh(state);ReceiverInfoRepository.get(context).refreshEpg(ReceiverInfoRepository.get(context).enrich(state));}decoderMetadata(token);}}}
+ private void receive(DatagramSocket input,int token){while(!closed&&token==generation){try{byte[] b=new byte[8192];DatagramPacket packet=new DatagramPacket(b,b.length);if(input.isClosed())return;input.receive(packet);if(!packet.getAddress().isLoopbackAddress())continue;String[] parts=new String(b,0,packet.getLength(),StandardCharsets.UTF_8).replace("\u0000","").split("\n",3);if(parts.length!=3||!parts[0].equals("Play"))continue;int command=Integer.parseInt(parts[1]);boolean ok=parts[2].startsWith("SUCCESS:");if(command==2){if(!loading)continue;ReceiverCatalog.Channel selected=current;settled(token,()->{if(ok&&selected!=null){videoAccepted=SystemClock.elapsedRealtime();
+  SharedPreferences zp=context.getSharedPreferences("smarthub",0);
+  zp.edit().putLong("zap_decoder_ack_ms",videoAccepted-zapStartedAt)
+    .putString("zap_stage","DECODER_ACK").apply();
+  frameHealth.reset();videoHealthWarned=false;decoderCheck=0;context.getSharedPreferences("smarthub",0).edit().putString("own_ca_status",selected.ca==0?"FTA":"REQUEST_ACCEPTED").apply();context.getSharedPreferences("smarthub",0).edit().putBoolean("own_dvb_ack",true).apply();listener.accepted(selected);}else{context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",false).apply();listener.error("DVB_PLAY_REJECTED");}});}else if(command==7&&pipPending){pipPending=false;pipActive=ok;main.post(()->{if(!closed)listener.pip(ok);});}else if(command==4){int selected=pendingAudio;main.post(()->{if(!closed){if(!ok)listener.error("DVB_AUDIO_REJECTED");}});}else if(command==31||command==126){int begin=parts[2].indexOf('{');if(begin>=0&&current!=null){JSONObject v=new JSONObject(parts[2].substring(begin));if(v.optInt("id",-1)==current.programToken()){int width=v.optInt("width",0),height=v.optInt("height",0);if(width>0&&height>0&&width<=8192&&height<=8192){SharedPreferences.Editor edit=context.getSharedPreferences("smarthub",0).edit().putString("decoder_channel","DVB:"+current.physical()).putInt("decoder_width",width).putInt("decoder_height",height);int fps=v.optInt("framerate",0),bitrate=v.optInt("bitrate",0);if(fps>0&&fps<=240)edit.putInt("decoder_fps",fps);if(bitrate>0&&bitrate<=1000000000)edit.putInt("decoder_bitrate",bitrate);edit.apply();}}}}else if(command==200||command==201)main.post(()->{if(!closed)listener.error("DVB_DECODE_FAILED");});}catch(SocketTimeoutException idle){}catch(Exception failure){if(closed||input.isClosed()||token!=generation)return;}finally{if(!closed&&!loading&&token==generation&&current!=null){
+   long now=SystemClock.elapsedRealtime();
+   if(now-lastSignalPoll>=1200){
+    lastSignalPoll=now;
+    SatelliteState state=SatelliteState.read(context);
+    sharedSignal.refresh(state);
+    if(now-lastEpgPoll>=15000){
+     lastEpgPoll=now;
+     ReceiverInfoRepository.get(context).refreshEpg(
+       ReceiverInfoRepository.get(context).enrich(state));
+    }
+   }
+  }
+  decoderMetadata(token);}}}
 
  private void decoderMetadata(int token){
   long now=SystemClock.elapsedRealtime();
@@ -42,8 +87,32 @@ final class ReceiverPlayback implements AutoCloseable {
     String code=selected.ca==0?"DVB_VIDEO_STALLED":"DVB_CA_VIDEO_UNCONFIRMED";
     main.post(()->{if(!closed&&token==generation)listener.error(code);});
    }
+   // Only an observed stall of an unencrypted service with LOCKED tuner
+   // can trigger self-heal; never disrupt CA, recording, motor or PIP.
+   if(ZapRecoveryPolicy.allow(now,videoAccepted,lastRecoveryAt,
+     recoveryAttempts,selected.ca==0,signal.locked==1,
+     pipActive||pipIssued||pipPending,
+     prefs.getBoolean("dvb_tuning",false)||
+     !prefs.getString("iraqhub_pvr_session","").isEmpty())){
+    recoveryAttempts++;lastRecoveryAt=now;
+    prefs.edit().putInt("zap_recovery_attempts",recoveryAttempts)
+     .putString("zap_recovery_reason","FIRMWARE_FRAMES_STALLED")
+     .putString("zap_stage","RECOVERY_REQUESTED").apply();
+    main.postDelayed(()->{
+     if(!closed&&token==generation&&!loading&&current==selected){
+      loading=true;
+      start(selected); // Verified same TP lease; no blind retune.
+     }
+    },1500L);
+   }
   }else if(health==DvbVideoHealth.State.ADVANCING){
-   prefs.edit().putString("decoder_video_health",size!=null?"FRAMES_ADVANCING":"FRAMES_ADVANCING_SIZE_UNKNOWN").apply();
+   SharedPreferences.Editor advancing=prefs.edit()
+     .putString("decoder_video_health",
+       size!=null?"FRAMES_ADVANCING":"FRAMES_ADVANCING_SIZE_UNKNOWN");
+   if(prefs.getLong("zap_firmware_frame_advance_ms",0)<=0)
+     advancing.putLong("zap_firmware_frame_advance_ms",
+       Math.max(0,now-zapStartedAt));
+   advancing.putString("zap_stage","FIRMWARE_FRAMES_ADVANCING").apply();
    if(selected.ca!=0&&size!=null)prefs.edit().putString("own_ca_status","VIDEO_FLOWING").apply();
    if(videoHealthWarned&&size!=null){
     videoHealthWarned=false;
