@@ -18,6 +18,20 @@ final class TvmazeProvider {
  private static String enc(String s)throws Exception{return URLEncoder.encode(s,"UTF-8").replace("+","%20");}
  private JSONArray get(String title)throws Exception{
   String key=Integer.toHexString(title.toLowerCase(Locale.ROOT).hashCode());java.io.File dir=new java.io.File(context.getCacheDir(),"tvmaze");if(!dir.exists())dir.mkdirs();java.io.File cache=new java.io.File(dir,key+".json");
+  // Fix 12: cache first. Do not issue a new show search for every InfoBar
+  // open, and never fetch on the software 4:2:2 decode path.
+  JSONObject remembered=null;
+  if(cache.isFile()&&cache.length()>0&&cache.length()<512*1024)
+   try(java.io.FileInputStream in=new java.io.FileInputStream(cache)){
+    remembered=new JSONObject(PlaylistRepository.readBounded(in));
+    if(System.currentTimeMillis()-remembered.optLong("at")<12L*3600000L)
+     return remembered.getJSONArray("data");
+   }catch(Exception invalid){remembered=null;}
+  if(PlaybackResourceMode.active()||context.getSharedPreferences("smarthub",0)
+     .getBoolean("software_dvb_422_active",false)){
+   if(remembered!=null)return remembered.getJSONArray("data");
+   throw new IOException("TVMAZE_DEFERRED_VIDEO_PRIORITY");
+  }
   try{String body=HubHttp.get("https://api.tvmaze.com/search/shows?q="+enc(title),512*1024);JSONObject wrapper=new JSONObject().put("at",System.currentTimeMillis()).put("data",new JSONArray(body));try(java.io.FileOutputStream out=new java.io.FileOutputStream(cache)){out.write(wrapper.toString().getBytes(StandardCharsets.UTF_8));}return wrapper.getJSONArray("data");}
   catch(Exception e){if(cache.isFile()&&System.currentTimeMillis()-cache.lastModified()<7L*24*3600000L)try(java.io.FileInputStream in=new java.io.FileInputStream(cache)){return new JSONObject(PlaylistRepository.readBounded(in)).getJSONArray("data");}catch(Exception ignored){}throw e;}
  }
