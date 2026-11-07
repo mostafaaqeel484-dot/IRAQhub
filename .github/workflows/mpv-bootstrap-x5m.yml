@@ -50,7 +50,7 @@ jobs:
               # being packaged, causing exactly NoClassDefFoundError.
               from struct import unpack_from
               def has_class(data, descriptor):
-                  if data[:4]!=b"dex\\n": return False
+                  if data[:4]!=bytes((100,101,120,10)): return False
                   u32=lambda off:unpack_from("<I",data,off)[0]
                   strings_off=u32(0x3c)
                   types_off=u32(0x44)
