@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
@@ -45,6 +46,13 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
   if(destroyed||url==null||url.isEmpty())return false;
   try{
    started=SystemClock.elapsedRealtime();
+   // The libmpv Android AAR's MPVLib companion loads native libraries
+   // 'mpv' and 'player' on first access. Preload them explicitly so X5M
+   // reports a concrete dlopen failure instead of an opaque
+   // MPV_START_NoClassDefFoundError on a subsequent class initialization.
+   System.loadLibrary("mpv");
+   System.loadLibrary("player");
+   Class.forName("dev.jdtech.mpv.MPVLib",true,context.getClassLoader());
    mpv=MPVLib.create(context);
    if(mpv==null){failure("MPV_CREATE_RETURNED_NULL");return false;}
    mpv.addObserver(this);
@@ -84,7 +92,9 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    main.postDelayed(timeout,15000);
    return true;
   }catch(Throwable t){
-   failure("MPV_START_"+t.getClass().getSimpleName());
+   String detail=MpvInitFailure.describe(t);
+   Log.e("IRAQhub422","MPV bootstrap failed: "+detail,t);
+   failure("MPV_START_"+detail);
    return false;
   }
  }
@@ -171,7 +181,9 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
   destroyed=true;main.removeCallbacksAndMessages(null);
   try{view.getHolder().removeCallback(this);}catch(Throwable ignored){}
   try{if(mpv!=null){mpv.removeObserver(this);mpv.detachSurface();mpv.destroy();}}
-  catch(Throwable ignored){}finally{mpv=null;}
+  catch(Throwable error){
+   Log.w("IRAQhub422","MPV shutdown failed",error);
+  }finally{mpv=null;}
   view.setVisibility(android.view.View.GONE);
   android.view.ViewParent parent=view.getParent();
   if(parent instanceof FrameLayout)((FrameLayout)parent).removeView(view);
@@ -185,7 +197,11 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
  }
  @Override public void surfaceCreated(SurfaceHolder holder){
   try{if(mpv!=null&&holder.getSurface().isValid())mpv.attachSurface(holder.getSurface());}
-  catch(Throwable t){failure("MPV_SURFACE_"+t.getClass().getSimpleName());}
+  catch(Throwable t){
+   String detail=MpvInitFailure.describe(t);
+   Log.e("IRAQhub422","MPV surface failed: "+detail,t);
+   failure("MPV_SURFACE_"+detail);
+  }
  }
  @Override public void surfaceChanged(SurfaceHolder holder,int format,int width,int height){}
  @Override public void surfaceDestroyed(SurfaceHolder holder){
