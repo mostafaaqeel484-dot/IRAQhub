@@ -360,7 +360,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    .setTitle(tx("مشغّل 4:2:2","Choose 4:2:2 player"))
    .setSingleChoiceItems(engines,selected,(dialog,index)->{
      dialog.dismiss();
-     String engine=index==1?"mpv":"vlc";
+     String engine=index==2?"isolated":index==1?"mpv":"vlc";
      prefs().edit().putString("decoder_422_engine",engine).apply();
      launchSoftware(ch,engine);
    })
