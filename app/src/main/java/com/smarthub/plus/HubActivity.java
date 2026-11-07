@@ -54,7 +54,11 @@ public class HubActivity extends Activity {
  protected TextView text(String value,int sp,boolean bold) { TextView v=new TextView(this);v.setText(value);v.setTextSize(font(sp));v.setTextColor(WHITE);v.setGravity(ar?Gravity.RIGHT:Gravity.LEFT);v.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);if(bold)v.setTypeface(null,Typeface.BOLD);return v; }
  protected GradientDrawable shape(int color,int radius) { GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d; }
  protected StateListDrawable selection(int color){return RxSkin.focus(this);}
- protected Button button(String label) { Button b=new Button(this);b.setText(label);b.setTextSize(font(16));b.setAllCaps(false);b.setTextColor(WHITE);b.setFocusable(true);b.setMinHeight(dp(46));b.setPadding(dp(14),dp(8),dp(14),dp(8));b.setBackground(RxSkin.focus(this));b.setElevation(dp(2));return b; }
+ protected Button button(String label) { Button b=new Button(this);b.setText(label);b.setTextSize(font(16));b.setAllCaps(false);b.setTextColor(WHITE);b.setFocusable(true);b.setMinHeight(dp(46));b.setPadding(dp(14),dp(8),dp(14),dp(8));b.setBackground(RxSkin.focus(this));b.setElevation(dp(2));
+ b.setOnFocusChangeListener((view,focused)->{
+  view.animate().scaleX(focused?1.012f:1f).setDuration(95).start();
+ });
+ return b; }
  protected Button action(LinearLayout box,String label,Runnable run) {Button b=button(label);b.setOnClickListener(v->run.run());LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(8);box.addView(b,p);return b;}
  protected LinearLayout card(LinearLayout box) {LinearLayout c=col();c.setPadding(dp(16),dp(14),dp(16),dp(14));c.setBackground(RxSkin.glass(this,false));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(12);box.addView(c,p);return c;}
  protected EditText field(LinearLayout box,String hint,String value) {EditText e=new EditText(this);e.setSingleLine(true);e.setTextColor(WHITE);e.setHintTextColor(MUTED);e.setTextSize(font(16));e.setHint(hint);e.setText(value);e.setPadding(dp(12),dp(12),dp(12),dp(12));e.setBackground(RxSkin.glass(this,false));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(10);box.addView(e,p);return e;}
