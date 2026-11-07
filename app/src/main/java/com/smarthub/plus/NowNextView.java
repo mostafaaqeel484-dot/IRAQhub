@@ -99,7 +99,7 @@ final class NowNextView extends FrameLayout {
   posterTray.setGravity(Gravity.CENTER);
   posterTray.setPadding(dp(9),0,dp(9),0);
   primary.addView(posterTray,new LinearLayout.LayoutParams(dp(175),-2));
-  posterTray.setVisibility(prefs.getBoolean("osd_tiger_expanded_posters",false)?VISIBLE:GONE);
+  posterTray.setVisibility(GONE);
   LinearLayout left=column();left.setGravity(Gravity.CENTER);
   currentTitle=label(tx("الآن","NOW"),9,true);
   currentTitle.setGravity(Gravity.CENTER);currentTitle.setTextColor(accent);
