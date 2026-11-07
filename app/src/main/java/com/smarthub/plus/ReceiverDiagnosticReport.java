@@ -52,7 +52,15 @@ final class ReceiverDiagnosticReport {
    .append(" dropped=").append(p.getLong("decoder_dropped_frames",0))
    .append(" processed=").append(p.getLong("decoder_processed_frames",0)).append('\n');
   b.append("TS bitrate=").append(p.getLong("software_ts_bitrate",0)).append(" bits/s\n");
+  b.append("TS capture bytes=").append(p.getLong("software_ts_capture_bytes",0))
+   .append(" error=").append(safe(p.getString("software_ts_capture_error","NONE"))).append('\n');
+  b.append("LibVLC video outputs=").append(p.getInt("libvlc_vout_count",0))
+   .append(" first_vout_latency_ms=").append(p.getLong("libvlc_vout_latency_ms",0))
+   .append('\n');
+  b.append("Note: OEM advancing frames are NOT LibVLC video outputs.\n");
   line(b,"last_decoder_error",p.getString("decoder_last_error","NONE"));
+  line(b,"manual_capture_failure_analysis",
+    "zero capture_bytes means no MPEG-TS delivered, PSI parsing cannot discover services");
   b.append("\n[EPG, posters and logos]\n");
   line(b,"XMLTV",p.getString("iraqhub_unified_sync_state","NOT_TESTED"));
   line(b,"Poster",p.getString("poster_sync_status","NOT_TESTED"));
