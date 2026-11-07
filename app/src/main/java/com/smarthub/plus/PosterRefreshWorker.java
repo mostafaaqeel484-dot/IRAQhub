@@ -27,6 +27,15 @@ public final class PosterRefreshWorker extends Worker {
    // Isolate sources: a failed movie/TV lookup must not block sports.
    // A missing sports event must not erase film/series posters either.
    int verified=0,sports=0;
+   // Sports must not depend on the user opening Sports Center first.
+   // Network refresh runs on MatchRepository's bounded background executor;
+   // when it completes, it prefetches source-verified images independently.
+   try{
+    MatchRepository.get(c).refresh(
+      java.time.LocalDate.now(java.time.ZoneId.of("Asia/Baghdad")),"day",false);
+   }catch(Exception unavailable){
+    p.edit().putString("sports_match_refresh_error",unavailable.getClass().getSimpleName()).apply();
+   }
    try{verified=UnifiedArtworkPrefetch.currentAndNext(c,provider);}
    catch(Exception unavailable){
     p.edit().putString("film_poster_prefetch_error",unavailable.getClass().getSimpleName()).apply();
