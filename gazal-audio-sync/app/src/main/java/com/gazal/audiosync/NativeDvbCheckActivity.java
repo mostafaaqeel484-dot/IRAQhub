@@ -58,7 +58,17 @@ public final class NativeDvbCheckActivity extends Activity {
             result.append("demux6: ").append(new File("/dev/dvb0.demux6").exists()).append("\n");
             result.append("dvr6: ").append(new File("/dev/dvb0.dvr6").exists()).append("\n");
             if(loaded) {
+                boolean valid=false;
                 try {
+                    valid=com.ben10.matchaudio.online.NativeSecurity.valid();
+                    result.append("Original native authorization: ").append(valid ? "VALID" : "UNAVAILABLE").append("\\n");
+                }catch(Throwable securityError){
+                    result.append("Native security check failed: ")
+                        .append(securityError.getClass().getSimpleName()).append("\\n");
+                }
+                if(!valid) {
+                    result.append("DVB FTA capture disabled: original native library is not authorized.\\n");
+                } else try {
                     int pid=FtaDvbNative.detectActiveAudioPid();
                     result.append("Active audio PID: ")
                         .append(pid>=0?String.format(Locale.US,"%d / 0x%X",pid,pid):"UNAVAILABLE "+pid)
