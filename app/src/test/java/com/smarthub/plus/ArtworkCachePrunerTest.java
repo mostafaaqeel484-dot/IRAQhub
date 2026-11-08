@@ -33,6 +33,9 @@ public final class ArtworkCachePrunerTest {
   ArtworkCachePruner.prune(dir,protectedFile);
   assertTrue(protectedFile.exists());
   assertTrue(inProgress.exists());
+  int remaining=0;
+  for(File item:dir.listFiles())if(item.getName().matches("[0-9a-f]{64}"))remaining++;
+  assertEquals(ArtworkCachePruner.MAX_IMAGES,remaining);
  }
  @Test public void neverDeletesRandomFilesOrDirectories()throws Exception{
   File dir=temp.newFolder("random");
