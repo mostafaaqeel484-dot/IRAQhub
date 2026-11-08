@@ -149,12 +149,8 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("epg_art_changed_at",0);
   boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
     (!state.nextTitle.isEmpty()&&nextPoster==null);
-  if(PlaybackResourceMode.active()||
-      !prefs.getBoolean("osd_posters",true)){
-   // 4.0.1: hidden artwork must not trigger CPU/network work while rendering
-   // live TV; preserve cached files for later optional reactivation.
-   // Preserve artwork on disk; free existing bitmap references and skip all
-   // poster decode/lookups while software 4:2:2 needs CPU/RAM/GPU.
+  if(!prefs.getBoolean("osd_posters",true)){
+   // Explicitly disabled by viewer; keep disk cache for later use.
    imageKey=art;currentPoster=null;nextPoster=null;
   }else if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
    imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
@@ -202,21 +198,31 @@ final class LocalInfoBarController implements AutoCloseable {
  }
 
  private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
-  if(PlaybackResourceMode.active()||
-     !prefs.getBoolean("osd_posters",false)||
-     prefs.getBoolean("software_dvb_422_active",false)){
-   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
-     "VIDEO_PRIORITY_DECODE_DEFERRED").apply();
+  String title=upcoming?snapshot.nextTitle:snapshot.title;
+  boolean enabled=prefs.getBoolean("osd_posters",true);
+  if(!PosterLoadPolicy.cacheAllowed(enabled,title))return;
+  boolean focus=PlaybackResourceMode.active();
+  boolean sw422=prefs.getBoolean("software_dvb_422_active",false);
+  boolean tuning=prefs.getBoolean("dvb_tuning",false);
+  if(focus||sw422){
+   // Real-time 4:2:2: render only images already verified and on disk.
+   // Never run TMDB/CHMAX/TVmaze HTTP or heavy full-res image allocation here.
+   try{
+    Bitmap cached=EpgArtwork.loadInfobarCached(host,snapshot,title,upcoming);
+    if(cached!=null)publishPoster(expected,upcoming,compactPoster(cached));
+    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      cached==null?"VIDEO_FOCUS_CACHE_MISS":"VIDEO_FOCUS_CACHED_IMAGE").apply();
+   }catch(Exception problem){
+    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      "VIDEO_FOCUS_CACHE_"+problem.getClass().getSimpleName()).apply();
+   }
    return;
   }
-  String title=upcoming?snapshot.nextTitle:snapshot.title;
-  if(title==null||title.trim().isEmpty())return;
   Bitmap image=poster(snapshot,upcoming);
   if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
-  if(image==null&&!prefs.getBoolean("software_dvb_422_active",false)&&
-     !prefs.getBoolean("dvb_tuning",false)){
-    image=onlinePoster(snapshot,upcoming);
-    if(image!=null)publishPoster(expected,upcoming,image);
+  if(image==null&&PosterLoadPolicy.networkAllowed(enabled,focus,sw422,tuning,title)){
+   image=onlinePoster(snapshot,upcoming);
+   if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
   }
  }
  private void publishPoster(String expected,boolean upcoming,Bitmap image){
