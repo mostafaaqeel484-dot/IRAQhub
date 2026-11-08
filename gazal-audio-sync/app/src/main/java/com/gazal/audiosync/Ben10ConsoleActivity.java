@@ -152,6 +152,7 @@ public final class Ben10ConsoleActivity extends Activity {
         addFlexible(shortcuts,btn("YELLOW • Delay −0.5s",0xFF86721A,v -> adjustAudio(-500)),2);
         addFlexible(shortcuts,btn("BLUE • Delay +0.5s",0xFF1A659A,v -> adjustAudio(500)),2);
         addFlexible(shortcuts,btn("DVB Session",0xFF436784,v -> startActivity(new Intent(this,DvbSessionActivity.class))),1);
+        addFlexible(shortcuts,btn("Native DVB Check",0xFF436784,v -> startActivity(new Intent(this,NativeDvbCheckActivity.class))),1);
         addFlexible(shortcuts,btn("Advanced",0xFF436784,v -> startActivity(new Intent(this,MainActivity.class))),1);
         panel.addView(shortcuts);
         setContentView(outer);
