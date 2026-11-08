@@ -16,7 +16,10 @@ final class UserTypeface {
  private static volatile long loadedVersion=-1;
  private UserTypeface(){}
  private static File stored(Context c){return new File(c.getFilesDir(),"user-interface-font.otf");}
- static Typeface get(Context context){
+ static Typeface get(Context context){return get(context,false);}
+ static Typeface get(Context context,boolean bold){
+  Typeface family=ThmanyahPrivateFamily.select(context,bold);
+  if(family!=null)return family;
   if(!context.getSharedPreferences("smarthub",0).getBoolean("user_font_enabled",false))
    return null;
   File file=stored(context.getApplicationContext());
