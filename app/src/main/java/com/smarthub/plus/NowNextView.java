@@ -17,6 +17,7 @@ final class NowNextView extends FrameLayout {
  private final TextView[] resolutionChips=new TextView[5];
  private final TextView[] featureChips=new TextView[6];
  private final TextView[] caChips=new TextView[CaBadgePolicy.LABELS.length];
+ private final int[] caDrawn=new int[CaBadgePolicy.LABELS.length];
  private final int[] resolutionDrawn=new int[5],featureDrawn=new int[6];
  private int encryptionDrawn=-1;
  private final ProgressBar progress,strengthBar,qualityBar;
@@ -28,6 +29,7 @@ final class NowNextView extends FrameLayout {
   prefs=context.getSharedPreferences("smarthub",0);
   java.util.Arrays.fill(resolutionDrawn,-1);
   java.util.Arrays.fill(featureDrawn,-1);
+  java.util.Arrays.fill(caDrawn,-1);
   accent=RxSkin.accent(context);
   try{accent=Color.parseColor(prefs.getString("osd_accent",
       String.format(Locale.ROOT,"#%06X",accent&0xffffff)));}catch(Exception ignored){}
@@ -37,16 +39,15 @@ final class NowNextView extends FrameLayout {
   final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
   int barH=dp(TigerOsdMetrics.barHeightDp(detailed));
   int tickerH=prefs.getBoolean("sports_ticker",false)?dp(62):0;
-  compact=barH<dp(145);
-  textScale=Math.max(.90f,Math.min(1.06f,barH/(150f*
-       getResources().getDisplayMetrics().density)));
+  compact=TigerOsdMetrics.isCompact(detailed);
+  textScale=compact?.96f:1.02f;
   int alpha=Math.max(30,Math.min(95,prefs.getInt("osd_opacity",88)))*255/100;
   bar=column();bar.setGravity(Gravity.CENTER_VERTICAL);
   bar.setPadding(dp(20),dp(8),dp(20),dp(7));
   GradientDrawable dark=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
    new int[]{Color.argb(alpha,0,0,0),Color.argb(Math.min(255,alpha+12),6,6,8)});
   dark.setCornerRadius(0);bar.setBackground(dark);
-  bar.setElevation(dp(6));
+  bar.setElevation(0);
   LayoutParams barPosition=new LayoutParams(-1,barH,Gravity.BOTTOM);
   barPosition.setMargins(0,0,0,0);
   addView(bar,barPosition);
@@ -303,16 +304,21 @@ final class NowNextView extends FrameLayout {
   String ca=info.encryption;
   boolean[] caActive=CaBadgePolicy.active(ca);
   for(int i=0;i<caChips.length;i++){
+   int value=caActive[i]?1:0;
+   if(caDrawn[i]==value)continue;
+   caDrawn[i]=value; // No 9 drawable allocations every clock refresh.
    TextView chip=caChips[i];
-   boolean active=caActive[i];
-   chip.setTextColor(active?0xff17100a:0xff8f969c);
+   chip.setTextColor(value==1?0xff17100a:0xff8f969c);
    GradientDrawable bg=new GradientDrawable();
-   bg.setColor(active?0xfff8c64a:0xff29313b);
+   bg.setColor(value==1?0xfff8c64a:0xff29313b);
    bg.setCornerRadius(dp(3));
-   bg.setStroke(dp(1),active?0xfffae08d:0xff404a54);
+   bg.setStroke(dp(1),value==1?0xfffae08d:0xff404a54);
    chip.setBackground(bg);
+   chip.setContentDescription(CaBadgePolicy.LABELS[i]+
+       (value==1?" · active":" · inactive"));
   }
-  boolean encrypted=!ca.isEmpty()&&!ca.startsWith("FTA")&&!ca.contains("مفتوحة");
+  // English "Free-to-air · FTA" must not be shown as encrypted.
+  boolean encrypted=caActive[0];
   encryptionLine.setText(ca.isEmpty()?tx("CA —","CA —"):encrypted?"🔒 "+ca:"🔓 "+ca);
   int caState=encrypted?1:0;
   if(encryptionDrawn!=caState){
