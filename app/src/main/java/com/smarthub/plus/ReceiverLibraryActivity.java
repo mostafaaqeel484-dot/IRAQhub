@@ -318,6 +318,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  private void types(){ReceiverPanelStyle.choose(this,tx("نوع القنوات","Channel type"),new String[]{tx("الكل","All"),"TV",tx("راديو","Radio"),tx("غير منشور","Unknown")},Math.max(0,type+1),index->{type=index-1;search(true);});}
  private void favorite(ReceiverCatalog.Channel ch){boolean on=!favorites.contains(ch.id);io.execute(()->{catalog.favorite(ch.id,on);main.post(()->search(false));});}
  private void play(ReceiverCatalog.Channel ch){
+  if(SafePlaybackMode.enabled(this)){playHardware(ch);return;}
   if((prefs().getBoolean("dvb_422_compat_all",false)||
     getIntent().getBooleanExtra("prefer_422_engine",false))&&ch.ca>=0&&ch.tv==0)
    playSoftware(ch);
