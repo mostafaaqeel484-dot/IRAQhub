@@ -23,14 +23,14 @@ public final class FtaDvbNative {
         LOADED = ok;
         LOAD_STATUS = result;
     }
-    private FtaDvbNative() {}
+    public FtaDvbNative() {}
     public static boolean isLoaded() { return LOADED; }
     public static String loadStatus() { return LOAD_STATUS; }
-    public static native int detectActiveAudioPid();
-    public static native void resetAudioTap();
-    public static native int prepareFreshCapture(int audioPid);
-    public static native long captureAudioTs(int audioPid, String outputPath, int captureMillis);
-    public static native long getCaptureFirstDataMs();
-    public static native long getTapGeneration();
-    public static native int getAttachedPid();
+    public native int detectActiveAudioPid();
+    public native void resetAudioTap();
+    public native int prepareFreshCapture(int audioPid);
+    public native long captureAudioTs(int audioPid, String outputPath, int captureMillis);
+    public native long getCaptureFirstDataMs();
+    public native long getTapGeneration();
+    public native int getAttachedPid();
 }
