@@ -7,13 +7,19 @@ package com.smarthub.plus;
  */
 final class Mpv422FluidPolicy {
  static final String AUTO="auto_720",P720="420_720",P540="420_540",
-   P480="420_480",P360="420_360",P1080="420_1080",
+   P480="420_480",P360="420_360",P260="420_260",P1080="420_1080",
    Y422_1080="422_1080",Y422_720="422_720",Y422_540="422_540",
-   Y422_480="422_480",Y422_360="422_360",
+   Y422_480="422_480",Y422_360="422_360",Y422_260="422_260",
    GPU_NATIVE="gpu_native";
  static final String SW="sw",HW="hw";
- private static final String[] MODES={AUTO,P720,P540,P480,P360,P1080,
-   Y422_1080,Y422_720,Y422_540,Y422_480,Y422_360,GPU_NATIVE};
+ private static final String[] MODES={AUTO,P720,P540,P480,P360,P260,P1080,
+   Y422_1080,Y422_720,Y422_540,Y422_480,Y422_360,Y422_260,GPU_NATIVE};
+ // One public panel rather than two competing "4:2:2 engines".
+ // 480p remains accepted for users upgrading from previous releases.
+ private static final String[] PUBLIC_MODES={
+   AUTO,P1080,P720,P540,P360,P260,
+   Y422_1080,Y422_720,Y422_540,Y422_360,Y422_260,GPU_NATIVE};
+ static String[] publicModes(){return PUBLIC_MODES.clone();}
  private Mpv422FluidPolicy(){}
 
  static String[] modes(){return MODES.clone();}
@@ -40,6 +46,7 @@ final class Mpv422FluidPolicy {
   if(P540.equals(value)||Y422_540.equals(value))return 540;
   if(P480.equals(value)||Y422_480.equals(value))return 480;
   if(P360.equals(value)||Y422_360.equals(value))return 360;
+  if(P260.equals(value)||Y422_260.equals(value))return 260;
   return 0; // native GPU with no forced video filter
  }
  static boolean is422(String mode){
@@ -52,13 +59,14 @@ final class Mpv422FluidPolicy {
   // Preserve 16:9 output pixels for typical broadcast HD frames.
   // 422 output keeps 10-bit; 420 output intentionally chooses 8-bit.
   int width=height==1080?1920:height==720?1280:
-    height==540?960:height==480?854:640;
+    height==540?960:height==480?854:height==260?462:640;
   String format=is422(renderMode)?"yuv422p10le":"yuv420p";
   return "lavfi=[scale=w="+width+":h="+height+
     ":flags=fast_bilinear,format=pix_fmts="+format+"]";
  }
  static String readable(String value){
-  if(GPU_NATIVE.equals(value))return "GPU native / original pixel format";
+  if(AUTO.equals(value))return "AUTO / LibVLC + FFmpeg, adaptive MPV fallback";
+  if(GPU_NATIVE.equals(value))return "GPU FAST / native GPU output (no forced software scaling)";
   String normalized=normalized(value);
   return targetHeight(normalized)+"p "+
     (is422(normalized)?"4:2:2 10-bit":"4:2:0 8-bit");
@@ -80,6 +88,7 @@ final class Mpv422FluidPolicy {
  static String nextAutoMode(String current){
   if(P720.equals(current))return P540;
   if(P540.equals(current))return P360;
+  if(P360.equals(current))return P260;
   return current;
  }
  /** Exactly one GPU-native recovery after filtered loading failure. */

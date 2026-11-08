@@ -83,6 +83,44 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
    db.setTransactionSuccessful();
   }finally{db.endTransaction();}
  }
+ /**
+  * Index only physically verified tuner events. Keep the native EIT
+  * service identity, not the display name, to prevent cross-channel EPG.
+  * Called by EIT receiver/worker off the UI thread.
+  */
+ synchronized void recordNative(String channel,java.util.List<NativeEpgEvents.Event> nativeEvents,
+     long now){
+  if(channel==null||!channel.startsWith("DVB:")||
+      nativeEvents==null||nativeEvents.isEmpty())return;
+  java.util.Map<String,SatelliteGuideRepository.Event> mapped=new java.util.HashMap<>();
+  for(NativeEpgEvents.Event event:nativeEvents){
+   if(event==null||!valid(channel,event.start,event.end,event.title,now))continue;
+   SatelliteGuideRepository.Event e=new SatelliteGuideRepository.Event();
+   e.channelId=channel;
+   e.title=event.title;
+   e.startMs=event.start;e.endMs=event.end;
+   e.image=event.image==null?"":event.image;
+   e.source="DVB EIT · native receiver";
+   e.observedAt=now;
+   mapped.put(channel+"|"+event.start,e);
+  }
+  if(!mapped.isEmpty())record(mapped,now);
+ }
+ synchronized SatelliteGuideRepository.Event next(String channel,long now){
+  if(channel==null||!channel.startsWith("DVB:"))return null;
+  try(Cursor cursor=getReadableDatabase().rawQuery(
+    "SELECT title,start_ms,end_ms,image,source FROM epg "+
+    "WHERE channel_id=? AND start_ms>? AND end_ms>start_ms "+
+    "ORDER BY start_ms ASC,source_rank DESC LIMIT 1",
+    new String[]{channel,Long.toString(now)})){
+   if(!cursor.moveToFirst())return null;
+   SatelliteGuideRepository.Event e=new SatelliteGuideRepository.Event();
+   e.channelId=channel;e.title=cursor.getString(0);
+   e.startMs=cursor.getLong(1);e.endMs=cursor.getLong(2);
+   e.image=cursor.getString(3);e.source=cursor.getString(4);
+   return e;
+  }
+ }
  synchronized SatelliteGuideRepository.Event current(String channel,long now){
   if(channel==null||!channel.startsWith("DVB:"))return null;
   try(Cursor cursor=getReadableDatabase().rawQuery(

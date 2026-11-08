@@ -323,7 +323,7 @@ public final class Independent422Activity extends HubActivity {
    }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
  private void chooseRenderMode(){
-  final String[] modes=Mpv422FluidPolicy.modes();
+  final String[] modes=Mpv422FluidPolicy.publicModes();
   String[] options=new String[modes.length];
   for(int i=0;i<modes.length;i++){
    String mode=modes[i];

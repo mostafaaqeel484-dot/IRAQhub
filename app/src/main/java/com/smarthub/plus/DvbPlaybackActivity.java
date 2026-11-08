@@ -3,11 +3,15 @@ import android.app.AlertDialog;import android.content.*;import android.graphics.
 
 /** Own DVB viewing window: the firmware decoder renders video under this transparent surface. */
 public final class DvbPlaybackActivity extends HubActivity {
- private final ExecutorService io=Executors.newSingleThreadExecutor();private final Handler main=new Handler(Looper.getMainLooper());private ReceiverPlayback player;private LocalInfoBarController localInfo;private volatile ReceiverCatalog.Channel channel,selection;private TextView message;private boolean closed,resumed,playing;private int audioIndex;private IPAudioController internetAudio;private final BlueKeyGesture blue=new BlueKeyGesture(new BlueKeyGesture.Clock(){public long now(){return SystemClock.elapsedRealtime();}public void post(Runnable r,long delay){main.postDelayed(r,delay);}public void cancel(Runnable r){main.removeCallbacks(r);}},new BlueKeyGesture.Listener(){public void single(){info();}public void signal(){DvbPlaybackActivity.this.signal();}public void assistant(){companion();}});
+ private final ExecutorService io=Executors.newSingleThreadExecutor();private final Handler main=new Handler(Looper.getMainLooper());private ReceiverPlayback player;private LocalInfoBarController localInfo;private volatile ReceiverCatalog.Channel channel,selection;private TextView message;private boolean closed,resumed,playing;private int audioIndex;private IPAudioController internetAudio;
+ private ReceiverPlaybackOverlay remote;private ReceiverSignalMiniOverlay signalMini;
+ private final ChannelNumberInput numbers=new ChannelNumberInput();
+ private final Runnable autoZap=this::commitNumber;private final BlueKeyGesture blue=new BlueKeyGesture(new BlueKeyGesture.Clock(){public long now(){return SystemClock.elapsedRealtime();}public void post(Runnable r,long delay){main.postDelayed(r,delay);}public void cancel(Runnable r){main.removeCallbacks(r);}},new BlueKeyGesture.Listener(){public void single(){if(signalMini!=null)signalMini.toggle();}public void signal(){DvbPlaybackActivity.this.signal();}public void assistant(){companion();}});
  @Override public void onCreate(Bundle saved){super.onCreate(saved);getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));getWindow().setFormat(PixelFormat.TRANSLUCENT);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);FrameLayout root=new FrameLayout(this);root.setBackgroundColor(Color.TRANSPARENT);message=text(tx("تحضير البث الفضائي…","Opening satellite TV…"),17,true);message.setBackgroundColor(0xc0101b31);message.setPadding(dp(16),dp(8),dp(16),dp(8));root.addView(message,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
- setContentView(root);localInfo=new LocalInfoBarController(this,root);player=new ReceiverPlayback(this,new ReceiverPlayback.Listener(){public void accepted(ReceiverCatalog.Channel c){if(channel!=null&&channel.id!=c.id)prefs().edit().putLong("own_dvb_previous",channel.id).apply();playing=true;channel=c;
+ setContentView(root);localInfo=new LocalInfoBarController(this,root);remote=new ReceiverPlaybackOverlay(this,root);signalMini=new ReceiverSignalMiniOverlay(this,root);player=new ReceiverPlayback(this,new ReceiverPlayback.Listener(){public void accepted(ReceiverCatalog.Channel c){if(channel!=null&&channel.id!=c.id)prefs().edit().putLong("own_dvb_previous",channel.id).apply();playing=true;channel=c;
  io.execute(()->{
   int number=ReceiverCatalog.get(DvbPlaybackActivity.this).satelliteNumber(c);
+  FrontPanelBridge.publish(DvbPlaybackActivity.this,c,number);
   main.post(()->{if(!closed&&channel!=null&&channel.id==c.id)
    prefs().edit().putInt("own_dvb_sat_number",number)
     .putString("own_dvb_sat_number_channel","DVB:"+c.physical()).apply();
@@ -21,11 +25,38 @@ public final class DvbPlaybackActivity extends HubActivity {
  private String errorText(String code){switch(code){case "DVB_TUNING_PROFILE_REQUIRED":return tx("احفظ إعداد LNB لهذا القمر من قائمة IRAQhub ← أدوات الرسيفر ← ضبط الموالف.","Save this satellite’s LNB profile in IRAQhub → Receiver tools → Tuner settings.");case "DVB_RADIO_AUDIO_REQUIRED":return tx("ملف القناة لا يتضمن مسار راديو صالحاً.","Channel metadata has no valid radio audio track.");case "DVB_METADATA_REQUIRED":return tx("استورد ملف CHL الكامل الذي يتضمن بيانات الفيديو والصوت.","Import a full CHL file with video and audio metadata.");case "DVB_VIDEO_STALLED":return tx("إشارة القمر موجودة لكن عداد إطارات الفيديو توقف. افحص توافق 4:2:2 أو بث TS من تشخيص الجهاز؛ لم يثبت سبب العطل.","Satellite signal is locked but video frames stalled. Check 4:2:2 compatibility or TS diagnostics; the cause is not confirmed.");case "DVB_CA_VIDEO_UNCONFIRMED":return tx("توقف تقدم إطارات الفيديو. افحص حالة التخويل وBISS وبث TS وتوافق 4:2:2؛ هذا لا يثبت أن الشفرة خاطئة.","Video frames stopped advancing. Check CA/BISS status, TS and 4:2:2 support; this does not prove the key is wrong.");case "DVB_CA_METADATA_REQUIRED":return tx("بيانات CA أو PMT غير مكتملة؛ افتح خدمات القناة الأصلية.","CA / PMT metadata missing; open firmware channel services.");case "DVB_ENCRYPTED_NOT_VERIFIED":return tx("التشغيل المستقل للقنوات المشفرة لم يُتحقق منه بعد.","Independent encrypted-channel playback is not verified yet.");case "DVB_NOT_LOCKED":return tx("الموالف غير مقفل على إشارة؛ تحقق من التردد وإعدادات الطبق.","No tuner lock; check the transponder and dish configuration.");default:return tx("تعذر تشغيل البث أو مسار الصوت: ","Playback or audio failed: ")+code;}}
  @Override protected void onResume(){super.onResume();resumed=true;prefs().edit().putBoolean("dvb_player_visible",playing).apply();if(playing&&channel!=null&&internetAudio!=null){internetAudio.apply(channel.physical());ReceiverCatalog.Channel active=channel;boolean restore=prefs().getBoolean("own_dvb_restore_after_oem",false);prefs().edit().remove("own_dvb_restore_after_oem").apply();io.execute(()->{try{ReceiverSignalReading frame=DvbTuner.read();if(restore||frame.locked!=1||frame.tp!=prefs().getInt("own_dvb_runtime_tp",-1))main.post(()->{if(!closed&&resumed&&channel==active){playing=false;internetAudio.stop();message.setVisibility(View.VISIBLE);message.setText(tx("استعادة تردد القناة…","Restoring channel tuning…"));player.play(active);}});}catch(Exception unavailable){}});}}
  @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);long id=intent.getLongExtra("channel",channel==null?-1:channel.id);if(channel==null||id!=channel.id)playing=false;io.execute(()->{ReceiverCatalog.Channel selected=ReceiverCatalog.get(this).channel(id);if(selected!=null)selection=selected;main.post(()->{if(!closed&&selected!=null){message.setVisibility(View.VISIBLE);message.setText(selected.name);if(channel!=null&&channel.id==selected.id&&playing){if(internetAudio!=null)internetAudio.apply(selected.physical());}else{playTarget(selected);}}});});}
- @Override protected void onPause(){resumed=false;blue.cancel();if(localInfo!=null)localInfo.dismiss();prefs().edit().putBoolean("dvb_player_visible",false).apply();super.onPause();}
+ @Override protected void onPause(){resumed=false;blue.cancel();if(signalMini!=null)signalMini.hide();main.removeCallbacks(autoZap);numbers.clear();if(remote!=null)remote.digits("");if(localInfo!=null)localInfo.dismiss();prefs().edit().putBoolean("dvb_player_visible",false).apply();super.onPause();}
  private void publishAudio(int index){if(channel==null)return;org.json.JSONArray tracks=channel.audio();org.json.JSONObject selected=null;int valid=0;for(int n=0;n<tracks.length();n++){org.json.JSONObject t=tracks.optJSONObject(n);if(t!=null&&DvbPlayRequest.audio(t.optString("Type"))>=0&&t.optInt("PID",8191)>0&&t.optInt("PID",8191)<8191){if(valid++==index){selected=t;break;}}}if(selected!=null)prefs().edit().putString("own_dvb_audio",selected.optString("Lang")+" · "+selected.optString("Type")).apply();}
  private void companion(){startActivity(new Intent(this,SatelliteActivity.class));}
  private void info(){if(localInfo!=null)localInfo.showDetails();}
- private void volume(int key){int level=prefs().getInt("dvb_volume",20);boolean mute=prefs().getBoolean("dvb_muted",false);if(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN){level=Math.max(0,Math.min(100,level+(key==KeyEvent.KEYCODE_VOLUME_UP?5:-5)));mute=false;}else mute=!mute;prefs().edit().putInt("dvb_volume",level).putBoolean("dvb_muted",mute).apply();player.volumeChanged();if(internetAudio!=null)internetAudio.remoteVolume(level,mute);toast(mute?tx("كتم الصوت","Muted"):tx("الصوت ","Volume ")+level+"%");}
+ private void volume(int key){int level=prefs().getInt("dvb_volume",20);boolean mute=prefs().getBoolean("dvb_muted",false);if(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN){level=Math.max(0,Math.min(100,level+(key==KeyEvent.KEYCODE_VOLUME_UP?5:-5)));mute=false;}else mute=!mute;prefs().edit().putInt("dvb_volume",level).putBoolean("dvb_muted",mute).apply();player.volumeChanged();if(internetAudio!=null)internetAudio.remoteVolume(level,mute);if(remote!=null)remote.volume(level,mute);}
+ private void numberDigit(int digit){
+  numbers.add(digit);
+  if(remote!=null)remote.digits(numbers.display());
+  main.removeCallbacks(autoZap);
+  main.postDelayed(autoZap,2300);
+ }
+ private void commitNumber(){
+  main.removeCallbacks(autoZap);
+  int requested=numbers.number();
+  numbers.clear();
+  if(remote!=null)remote.digits("");
+  if(requested<1)return;
+  ReceiverCatalog.Channel active=selection==null?channel:selection;
+  if(active==null)return;
+  io.execute(()->{
+   ReceiverCatalog.Channel target=ReceiverCatalog.get(this).channelAtNumber(active,requested);
+   main.post(()->{
+    if(closed||!resumed)return;
+    if(target==null){
+     toast(tx("رقم القناة غير موجود: ","Channel number unavailable: ")+requested);
+     return;
+    }
+    selection=target;
+    playTarget(target);
+   });
+  });
+ }
  private void bissPopup(){
   ReceiverCatalog.Channel current=channel==null?selection:channel;
   if(current==null){toast(tx("اختر قناة أولاً","Select a channel first"));return;}
@@ -51,10 +82,36 @@ public final class DvbPlaybackActivity extends HubActivity {
  private void next(int direction,int steps){io.execute(()->{ReceiverCatalog.Channel before=selection==null?channel:selection;if(before==null)return;ReceiverCatalog db=ReceiverCatalog.get(this);ChannelScope scope=db.validScope(ChannelScope.read(this));scope.save(this);ReceiverCatalog.Channel target=db.adjacent(before,direction,scope,steps);if(target!=null)selection=target;main.post(()->{if(closed)return;if(target==null){toast(tx("لا توجد قنوات في القائمة المحددة","No channels in the selected list"));return;}playTarget(target);});});}
 
 
- @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();if(key==KeyEvent.KEYCODE_PAGE_DOWN||key==KeyEvent.KEYCODE_F3){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)bissPopup();return true;}if(key==KeyEvent.KEYCODE_PAGE_UP){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)
+ @Override public boolean dispatchKeyEvent(KeyEvent event){int key=event.getKeyCode();
+  int digit=key>=KeyEvent.KEYCODE_0&&key<=KeyEvent.KEYCODE_9?
+      key-KeyEvent.KEYCODE_0:
+      key>=KeyEvent.KEYCODE_NUMPAD_0&&key<=KeyEvent.KEYCODE_NUMPAD_9?
+        key-KeyEvent.KEYCODE_NUMPAD_0:-1;
+  if(digit>=0){
+   if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)numberDigit(digit);
+   return true;
+  }
+  if(numbers.hasInput()){
+   if(key==KeyEvent.KEYCODE_DPAD_CENTER||key==KeyEvent.KEYCODE_ENTER){
+    if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)commitNumber();
+    return true;
+   }
+   if(key==KeyEvent.KEYCODE_BACK){
+    if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
+     numbers.clear();main.removeCallbacks(autoZap);if(remote!=null)remote.digits("");
+    }
+    return true;
+   }
+  }
+  if(key==KeyEvent.KEYCODE_BACK&&signalMini!=null&&signalMini.visible()){
+   if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)
+    signalMini.hide();
+   return true;
+  }
+  if(key==KeyEvent.KEYCODE_PAGE_DOWN||key==KeyEvent.KEYCODE_F3){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)bissPopup();return true;}if(key==KeyEvent.KEYCODE_PAGE_UP){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)
   startActivity(new Intent(this,ReceiverChannelsActivity.class).putExtra("encrypted_only",true).putExtra("type",0));return true;}
  if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT){
   if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)
     next(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1,10);return true;}if(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN||key==KeyEvent.KEYCODE_VOLUME_MUTE||key==KeyEvent.KEYCODE_MUTE){if(event.getAction()==KeyEvent.ACTION_DOWN&&(event.getRepeatCount()==0||key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN))volume(key);return true;}if(key==174||key==KeyEvent.KEYCODE_LAST_CHANNEL||key==KeyEvent.KEYCODE_GUIDE||key==441||key==170||key==KeyEvent.KEYCODE_TV_RADIO_SERVICE){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){if(key==174||key==KeyEvent.KEYCODE_LAST_CHANNEL)recall();else if(key==KeyEvent.KEYCODE_GUIDE||key==441)startActivity(new Intent(this,SatelliteGuideActivity.class));else startActivity(new Intent(this,ReceiverChannelsActivity.class).putExtra("type",channel!=null&&channel.tv==1?0:1));}return true;}if(key==KeyEvent.KEYCODE_PROG_GREEN||key==KeyEvent.KEYCODE_PROG_YELLOW){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){if(key==KeyEvent.KEYCODE_PROG_GREEN)startActivity(new Intent(this,LiveTranslationActivity.class));else pip();}return true;}if(key==KeyEvent.KEYCODE_WINDOW){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)pip();return true;}if(key==KeyEvent.KEYCODE_CAPTIONS||key==439){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)startActivity(new Intent(this,ReceiverAvPanelActivity.class).putExtra("show_subtitle",true));return true;}if(key==KeyEvent.KEYCODE_INFO||key==1202){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)info();return true;}if(key==34||key==440||key==17||key==237){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)startActivity(new Intent(this,ReceiverChannelsActivity.class).putExtra("favorites",key==34||key==440).putExtra("satellite_popup",key==17||key==237));return true;}if(key==KeyEvent.KEYCODE_PROG_BLUE){if(event.getAction()==KeyEvent.ACTION_DOWN)return blue.down();if(event.getAction()==KeyEvent.ACTION_UP)return blue.up();}if(key==KeyEvent.KEYCODE_PROG_RED||key==KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK||key==1200||key==222){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)audio();return true;}if(key==KeyEvent.KEYCODE_CHANNEL_UP||key==KeyEvent.KEYCODE_CHANNEL_DOWN||key==KeyEvent.KEYCODE_DPAD_UP||key==KeyEvent.KEYCODE_DPAD_DOWN){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)next(key==KeyEvent.KEYCODE_CHANNEL_UP||key==KeyEvent.KEYCODE_DPAD_UP?1:-1);return true;}if(key==KeyEvent.KEYCODE_DPAD_CENTER){if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)startActivity(new Intent(this,ReceiverChannelsActivity.class));return true;}return super.dispatchKeyEvent(event);}
- @Override protected void onDestroy(){closed=true;if(localInfo!=null)localInfo.close();main.removeCallbacksAndMessages(null);io.shutdownNow();if(internetAudio!=null)internetAudio.close();if(player!=null)player.close();if(player==null||player.owns())prefs().edit().putBoolean("dvb_player_visible",false).apply();super.onDestroy();}
+ @Override protected void onDestroy(){closed=true;if(signalMini!=null)signalMini.close();if(remote!=null)remote.close();main.removeCallbacks(autoZap);if(localInfo!=null)localInfo.close();main.removeCallbacksAndMessages(null);io.shutdownNow();if(internetAudio!=null)internetAudio.close();if(player!=null)player.close();if(player==null||player.owns())prefs().edit().putBoolean("dvb_player_visible",false).apply();super.onDestroy();}
 }

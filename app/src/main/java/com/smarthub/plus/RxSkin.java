@@ -34,7 +34,10 @@ final class RxSkin {
   }
   return index(prefs.getString(KEY,"rx-dark"));
  }
- static int accent(Context c){return ACCENTS[selected(c)];}
+ static int accent(Context c){
+  int theme=c.getSharedPreferences("smarthub",0).getInt("launcher_theme",0);
+  return AppearancePalette.accent(theme,ACCENTS[selected(c)]);
+ }
  static String title(Context c,int i){
   return c.getSharedPreferences("smarthub",0).getBoolean("arabic",true)?AR[i]:EN[i];
  }

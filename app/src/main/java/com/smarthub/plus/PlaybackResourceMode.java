@@ -56,9 +56,27 @@ final class PlaybackResourceMode {
  }
  static void clearStaleOnLauncherStart(Context context){
   synchronized(LOCK){
-   if(viewers==0)context.getApplicationContext()
-    .getSharedPreferences("smarthub",0).edit()
-    .putBoolean("video_priority_active",false).apply();
+   // Opening HOME must never release a live service or its bound 422 focus.
+   if(viewers!=0)return;
+   Context app=context.getApplicationContext();
+   SharedPreferences prefs=app.getSharedPreferences("smarthub",0);
+   boolean staleSoftware=prefs.getBoolean("software_dvb_422_active",false);
+   boolean stalePriority=prefs.getBoolean("video_priority_active",false);
+   if(DecoderStaleRecovery.shouldClear(false,staleSoftware,stalePriority)){
+    // If Android killed the previous decoder process, its onStop/onDestroy
+    // could not clear software_dvb_422_active. Leaving it true permanently
+    // prevented both EPG and poster WorkManager schedules from restarting.
+    prefs.edit().putBoolean("video_priority_active",false)
+      .putBoolean("software_dvb_422_active",false)
+      .putString("video_priority_mode","NORMAL")
+      .putString("video_priority_jobs","RECOVERED_STALE_DECODER_ON_HOME")
+      .putString("software_422_runtime","STALE_PROCESS_RECOVERED").apply();
+    LogoRepository.get(app).resumeAfterVideo();
+   }else{
+    prefs.edit().putBoolean("video_priority_active",false).apply();
+   }
+   // The launcher invokes IraqHubSyncScheduler.ensure immediately after this,
+   // which can now safely restore optional periodic poster and EPG work.
   }
  }
  static int sessionCount(){synchronized(LOCK){return viewers;}}

@@ -11,11 +11,13 @@ import java.util.*;
 /** Lightweight native-TV OSD with channel left and service-provider branding at the far right. */
 final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
- private final TextView currentTitle,nextTitle,heading,nowLine,nextLine,status,clock,year;
+ private final TextView currentTitle,nextTitle,currentWorkName,nextWorkName,currentSynopsis,nextSynopsis,heading,nowLine,nextLine,status,clock,year;
  private final TextView broadcast,remaining,technical,weather,strengthLabel,qualityLabel,signalDetail,signalSource,encryptionLine,bitrateLabel,providerName,providerCaption;
  private final LinearLayout providerPanel,resolutionStrip,details,bar,leftPosterBox,rightPosterBox;
  private final TextView[] resolutionChips=new TextView[5];
  private final TextView[] featureChips=new TextView[6];
+ private final TextView[] caChips=new TextView[CaBadgePolicy.LABELS.length];
+ private final int[] caDrawn=new int[CaBadgePolicy.LABELS.length];
  private final int[] resolutionDrawn=new int[5],featureDrawn=new int[6];
  private int encryptionDrawn=-1;
  private final ProgressBar progress,strengthBar,qualityBar;
@@ -27,6 +29,7 @@ final class NowNextView extends FrameLayout {
   prefs=context.getSharedPreferences("smarthub",0);
   java.util.Arrays.fill(resolutionDrawn,-1);
   java.util.Arrays.fill(featureDrawn,-1);
+  java.util.Arrays.fill(caDrawn,-1);
   accent=RxSkin.accent(context);
   try{accent=Color.parseColor(prefs.getString("osd_accent",
       String.format(Locale.ROOT,"#%06X",accent&0xffffff)));}catch(Exception ignored){}
@@ -36,18 +39,17 @@ final class NowNextView extends FrameLayout {
   final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
   int barH=dp(TigerOsdMetrics.barHeightDp(detailed));
   int tickerH=prefs.getBoolean("sports_ticker",false)?dp(62):0;
-  compact=barH<dp(145);
-  textScale=Math.max(.90f,Math.min(1.06f,barH/(150f*
-       getResources().getDisplayMetrics().density)));
+  compact=TigerOsdMetrics.isCompact(detailed);
+  textScale=compact?.96f:1.02f;
   int alpha=Math.max(30,Math.min(95,prefs.getInt("osd_opacity",88)))*255/100;
   bar=column();bar.setGravity(Gravity.CENTER_VERTICAL);
   bar.setPadding(dp(20),dp(8),dp(20),dp(7));
   GradientDrawable dark=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
    new int[]{Color.argb(alpha,0,0,0),Color.argb(Math.min(255,alpha+12),6,6,8)});
-  dark.setCornerRadius(dp(9));bar.setBackground(dark);
-  bar.setElevation(dp(6));
+  dark.setCornerRadius(0);bar.setBackground(dark);
+  bar.setElevation(0);
   LayoutParams barPosition=new LayoutParams(-1,barH,Gravity.BOTTOM);
-  barPosition.setMargins(dp(8),0,dp(8),dp(3));
+  barPosition.setMargins(0,0,0,0);
   addView(bar,barPosition);
 
   // Reference: channel left, small year + day/date/time at right; icons BELOW date.
@@ -55,8 +57,8 @@ final class NowNextView extends FrameLayout {
   header.setGravity(Gravity.CENTER_VERTICAL);
   LinearLayout headLeft=column();headLeft.setGravity(Gravity.CENTER_VERTICAL);
   LinearLayout headRight=column();headRight.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
-  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.15f));
-  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,1.45f));
+  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.35f));
+  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,1f));
   bar.addView(header,new LinearLayout.LayoutParams(-1,dp(TigerOsdMetrics.headerHeightDp())));
 
   LinearLayout primary=new LinearLayout(context);
@@ -64,7 +66,7 @@ final class NowNextView extends FrameLayout {
   bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
   LinearLayout brand=column();brand.setGravity(Gravity.CENTER);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(92),dp(72)));
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(68),dp(49)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -78,7 +80,7 @@ final class NowNextView extends FrameLayout {
   providerPanel.addView(providerName);
   providerPanel.setVisibility(detailed?VISIBLE:GONE);
   brand.addView(providerPanel);
-  primary.addView(brand,new LinearLayout.LayoutParams(dp(108),-2));
+  primary.addView(brand,new LinearLayout.LayoutParams(dp(76),-2));
 
   LinearLayout programme=column();
   programme.setPadding(dp(10),0,dp(10),0);
@@ -103,27 +105,51 @@ final class NowNextView extends FrameLayout {
   status=label("",10,false);status.setTextColor(muted);
   status.setVisibility(GONE);programme.addView(status);
 
-  // Fix 12: EPG posters float ABOVE the InfoBar at opposite screen edges.
-  // They are children of the outer FrameLayout, not the horizontal bar.
-  // This keeps channel details, clock, tuner signal and 4:2:2 video unchanged.
-  LinearLayout left=column();left.setGravity(Gravity.CENTER);
+  // Independent left/right NOW/NEXT cards stay visible alongside the bottom
+  // InfoBar. Image, programme name and synopsis are one coherent TV card.
+  // Never move the video surface or cover the channel/date ribbon.
+  LinearLayout left=column();left.setGravity(Gravity.CENTER_HORIZONTAL);
+  left.setPadding(dp(7),dp(6),dp(7),dp(7));
+  left.setBackground(card(0xeb09131e,9));
   currentTitle=label(tx("الآن","NOW"),10,true);
   currentTitle.setGravity(Gravity.CENTER);currentTitle.setTextColor(accent);
   currentPoster=poster();
+  currentWorkName=label("",11,true);
+  currentWorkName.setSingleLine(false);currentWorkName.setMaxLines(2);
+  currentWorkName.setGravity(Gravity.CENTER);currentWorkName.setTextColor(ink);
+  currentSynopsis=label("",10,false);
+  currentSynopsis.setSingleLine(false);currentSynopsis.setMaxLines(3);
+  currentSynopsis.setEllipsize(TextUtils.TruncateAt.END);
+  currentSynopsis.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);
+  currentSynopsis.setTextColor(0xffc1ccd7);
   left.addView(currentTitle);
-  left.addView(currentPoster,new LinearLayout.LayoutParams(dp(100),dp(135)));
-  LinearLayout right=column();right.setGravity(Gravity.CENTER);
+  left.addView(currentPoster,new LinearLayout.LayoutParams(dp(108),dp(143)));
+  left.addView(currentWorkName,new LinearLayout.LayoutParams(-1,-2));
+  left.addView(currentSynopsis,new LinearLayout.LayoutParams(-1,-2));
+  LinearLayout right=column();right.setGravity(Gravity.CENTER_HORIZONTAL);
+  right.setPadding(dp(7),dp(6),dp(7),dp(7));
+  right.setBackground(card(0xeb09131e,9));
   nextTitle=label(tx("التالي","NEXT"),10,true);
   nextTitle.setGravity(Gravity.CENTER);nextTitle.setTextColor(0xffd3d7db);
   nextPoster=poster();
+  nextWorkName=label("",11,true);
+  nextWorkName.setSingleLine(false);nextWorkName.setMaxLines(2);
+  nextWorkName.setGravity(Gravity.CENTER);nextWorkName.setTextColor(ink);
+  nextSynopsis=label("",10,false);
+  nextSynopsis.setSingleLine(false);nextSynopsis.setMaxLines(3);
+  nextSynopsis.setEllipsize(TextUtils.TruncateAt.END);
+  nextSynopsis.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);
+  nextSynopsis.setTextColor(0xffc1ccd7);
   right.addView(nextTitle);
-  right.addView(nextPoster,new LinearLayout.LayoutParams(dp(100),dp(135)));
+  right.addView(nextPoster,new LinearLayout.LayoutParams(dp(108),dp(143)));
+  right.addView(nextWorkName,new LinearLayout.LayoutParams(-1,-2));
+  right.addView(nextSynopsis,new LinearLayout.LayoutParams(-1,-2));
   leftPosterBox=left;rightPosterBox=right;
   boolean swap=prefs.getBoolean("osd_swap_posters",false);
-  LayoutParams leftPosition=new LayoutParams(dp(116),-2,Gravity.START|Gravity.BOTTOM);
-  leftPosition.setMargins(dp(20),0,0,barH+dp(17));
-  LayoutParams rightPosition=new LayoutParams(dp(116),-2,Gravity.END|Gravity.BOTTOM);
-  rightPosition.setMargins(0,0,dp(20),barH+dp(17));
+  LayoutParams leftPosition=new LayoutParams(dp(184),-2,Gravity.START|Gravity.BOTTOM);
+  leftPosition.setMargins(dp(12),0,0,barH+dp(12));
+  LayoutParams rightPosition=new LayoutParams(dp(184),-2,Gravity.END|Gravity.BOTTOM);
+  rightPosition.setMargins(0,0,dp(12),barH+dp(12));
   addView(swap?right:left,leftPosition);
   addView(swap?left:right,rightPosition);
   leftPosterBox.setVisibility(GONE);rightPosterBox.setVisibility(GONE);
@@ -178,6 +204,7 @@ final class NowNextView extends FrameLayout {
   details.addView(signalDetail);
   details.addView(bitrateLabel);
   details.addView(weather);
+  details.addView(encryptionLine);
   // Expanded-only diagnostics must not crowd the compact reference ribbon.
   details.setVisibility(detailed?VISIBLE:GONE);
   bar.addView(details,new LinearLayout.LayoutParams(-1,-2));
@@ -188,8 +215,21 @@ final class NowNextView extends FrameLayout {
   technical.setSingleLine(true);
   technical.setEllipsize(android.text.TextUtils.TruncateAt.END);
   technical.setTextColor(0xffd7dadd);
+  LinearLayout caStrip=new LinearLayout(context);
+  caStrip.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+  for(int i=0;i<caChips.length;i++){
+   TextView chip=label(CaBadgePolicy.LABELS[i],9,true);
+   chip.setGravity(Gravity.CENTER);
+   chip.setPadding(dp(3),0,dp(3),0);
+   caChips[i]=chip;
+   int w=i==3?dp(76):i==4?dp(43):dp(41);
+   LinearLayout.LayoutParams caParams=new LinearLayout.LayoutParams(w,dp(20));
+   caParams.rightMargin=dp(2);
+   caStrip.addView(chip,caParams);
+  }
+  footer.addView(caStrip,new LinearLayout.LayoutParams(-2,dp(20)));
+  technical.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
   footer.addView(technical,new LinearLayout.LayoutParams(0,-1,1));
-  footer.addView(encryptionLine,new LinearLayout.LayoutParams(-2,dp(20)));
   bar.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
 
   if(tickerH>0){
@@ -208,9 +248,11 @@ final class NowNextView extends FrameLayout {
   expanded=value;
   // Poster images show with the FIRST INFO press, not only expanded details.
   // Empty event artwork stays invisible until its verified image is ready.
-  boolean showPosters=prefs.getBoolean("osd_posters",false);
-  leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
-  rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
+  boolean showPosters=prefs.getBoolean("osd_posters",true);
+  // Do not leave two empty picture boxes above the TV when no verified art
+  // exists yet. INFO exposes posters immediately as soon as they are cached.
+  leftPosterBox.setVisibility(showPosters&&currentPoster.getDrawable()!=null?VISIBLE:GONE);
+  rightPosterBox.setVisibility(showPosters&&nextPoster.getDrawable()!=null?VISIBLE:GONE);
   // Keep poster corners just above the expanded/compact bar.
   int top=dp(TigerOsdMetrics.posterBottomMarginDp(value));
   FrameLayout.LayoutParams left=(FrameLayout.LayoutParams)leftPosterBox.getLayoutParams();
@@ -224,9 +266,9 @@ final class NowNextView extends FrameLayout {
  }
  void bind(SatelliteState s,Bitmap current,Bitmap next,Bitmap channelLogo,String message){
   boolean lite=PlaybackResourceMode.lite(getContext());
-  // Avoid holding two decoded programme posters while X5M must render 4:2:2.
-  // They remain on disk and reappear when the software decoder closes.
-  if(lite){current=null;next=null;}
+  // Verified <=512px cached artwork is safe to display during 4:2:2.
+  // Network lookups are budgeted by LocalInfoBarController; never blank
+  // already-cached programme images merely because the decoder is active.
   if(!liteApplied||lite!=lastLiteValue){
    bar.setElevation(lite?0:dp(6));
    currentPoster.setElevation(lite?0:dp(8));
@@ -253,10 +295,15 @@ final class NowNextView extends FrameLayout {
    }
   }
   resolutionStrip.setContentDescription(badge.isEmpty()?tx("الدقة غير متاحة","Video resolution not available"):badge);
-  broadcast.setText(info.broadcast);broadcast.setVisibility(info.broadcast.isEmpty()?GONE:VISIBLE);
+  // The transponder belongs in the channel-list footer, not below the channel title.
+  broadcast.setText("");broadcast.setVisibility(GONE);
   currentPoster.setImageBitmap(current);nextPoster.setImageBitmap(next);
   if(current==null)currentPoster.setImageDrawable(null);if(next==null)nextPoster.setImageDrawable(null);currentPoster.setAlpha(current==null?.2f:1);nextPoster.setAlpha(next==null?.2f:1);
-  currentPoster.setContentDescription(tx("الآن · ","NOW · ")+s.title);nextPoster.setContentDescription(tx("التالي · ","NEXT · ")+s.nextTitle);currentTitle.setText(tx("الآن · ","NOW · ")+shortTime(s.startMs));nextTitle.setText(tx("التالي · ","NEXT · ")+shortTime(s.nextStartMs));
+  currentPoster.setContentDescription(tx("الآن · ","NOW · ")+s.title);
+  nextPoster.setContentDescription(tx("التالي · ","NEXT · ")+s.nextTitle);
+  currentTitle.setText(tx("الآن · ","NOW · ")+shortTime(s.startMs));
+  nextTitle.setText(tx("التالي · ","NEXT · ")+shortTime(s.nextStartMs));
+  currentWorkName.setText(s.title);nextWorkName.setText(s.nextTitle);
   String number=s.channelId.replaceFirst("^Aurum:","");
   if(s.channelId.startsWith("DVB:")){
    int ordinal=prefs.getInt("own_dvb_sat_number",0);
@@ -285,7 +332,23 @@ final class NowNextView extends FrameLayout {
   String strength=ReceptionData.value(getContext(),s,"strength"),quality=ReceptionData.value(getContext(),s,"quality");strengthLabel.setText("S: "+(strength.isEmpty()?"—":strength));qualityLabel.setText("Q: "+(quality.isEmpty()?"—":quality));strengthBar.setProgress(percent(strength),true);qualityBar.setProgress(percent(quality),true);strengthBar.setVisibility(strength.isEmpty()?INVISIBLE:VISIBLE);qualityBar.setVisibility(quality.isEmpty()?INVISIBLE:VISIBLE);
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   String ca=info.encryption;
-  boolean encrypted=!ca.isEmpty()&&!ca.startsWith("FTA")&&!ca.contains("مفتوحة");
+  boolean[] caActive=CaBadgePolicy.active(ca);
+  for(int i=0;i<caChips.length;i++){
+   int value=caActive[i]?1:0;
+   if(caDrawn[i]==value)continue;
+   caDrawn[i]=value; // No 9 drawable allocations every clock refresh.
+   TextView chip=caChips[i];
+   chip.setTextColor(value==1?0xff17100a:0xff8f969c);
+   GradientDrawable bg=new GradientDrawable();
+   bg.setColor(value==1?0xfff8c64a:0xff29313b);
+   bg.setCornerRadius(dp(3));
+   bg.setStroke(dp(1),value==1?0xfffae08d:0xff404a54);
+   chip.setBackground(bg);
+   chip.setContentDescription(CaBadgePolicy.LABELS[i]+
+       (value==1?" · active":" · inactive"));
+  }
+  // English "Free-to-air · FTA" must not be shown as encrypted.
+  boolean encrypted=caActive[0];
   encryptionLine.setText(ca.isEmpty()?tx("CA —","CA —"):encrypted?"🔒 "+ca:"🔓 "+ca);
   int caState=encrypted?1:0;
   if(encryptionDrawn!=caState){
@@ -358,11 +421,28 @@ final class NowNextView extends FrameLayout {
     s.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""));
   setStatus(noSignal?tx("لا يوجد إشارة","No signal"):message);
  }
+
+ /** Summary is scoped to the same event as each NOW/NEXT poster. */
+ void synopses(String now,String next){
+  String a=ProgrammeSynopsisText.clean(now,160);
+  String b=ProgrammeSynopsisText.clean(next,160);
+  // Display a truthful empty-metadata hint instead of an unexplained blank
+  // under a successful programme poster.
+  if(a.isEmpty()&&currentPoster.getDrawable()!=null)
+   a=tx("النبذة غير متاحة","Synopsis unavailable");
+  if(b.isEmpty()&&nextPoster.getDrawable()!=null)
+   b=tx("النبذة غير متاحة","Synopsis unavailable");
+  currentSynopsis.setText(a);nextSynopsis.setText(b);
+  currentSynopsis.setVisibility(a.isEmpty()?GONE:VISIBLE);
+  nextSynopsis.setVisibility(b.isEmpty()?GONE:VISIBLE);
+ }
  void metadata(MediaRepository.Item item){if(item!=null&&!item.id.startsWith("epg:")){String detail=item.release+(item.ratings.isEmpty()?"":" · ★ "+item.ratings);if(!detail.isEmpty()){remaining.setText(remaining.getText()+" · "+detail);remaining.setVisibility(VISIBLE);}if(prefs.getBoolean("osd_description",true)&&!item.summary.isEmpty())setStatus(item.summary);}}
  /** Release displayed images when the ribbon is hidden, keeping no large
   * ImageView references during software video decoding. */
  void clearArtwork(){
   currentPoster.setImageDrawable(null);nextPoster.setImageDrawable(null);
+  currentSynopsis.setText("");nextSynopsis.setText("");
+  currentWorkName.setText("");nextWorkName.setText("");
   logo.setImageDrawable(null);providerLogo.setImageDrawable(null);
  }
  void provider(Bitmap image){providerLogo.setImageBitmap(image);providerLogo.setVisibility(image==null?GONE:VISIBLE);providerName.setVisibility(image==null?VISIBLE:GONE);}

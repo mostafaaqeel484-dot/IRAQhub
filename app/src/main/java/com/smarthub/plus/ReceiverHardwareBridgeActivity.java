@@ -81,6 +81,20 @@ public final class ReceiverHardwareBridgeActivity extends HubActivity {
   LinearLayout panel=card(body);
   panel.addView(text(tx("ربط اللوحة الأمامية","Front-panel interface"),20,true));
   front=text("",13,false);panel.addView(front);
+  CheckBox export=check(panel,
+    tx("تصدير هوية القناة إلى Front Panel companion",
+       "Export tuned channel identity to front-panel companion"),
+    prefs().getBoolean("front_panel_export_enabled",true));
+  export.setOnCheckedChangeListener((v,on)->
+    prefs().edit().putBoolean("front_panel_export_enabled",on).apply());
+  CheckBox number=check(panel,
+    tx("تضمين رقم القناة في تسليم Front Panel",
+       "Include visible satellite channel number in handoff"),
+    prefs().getBoolean("front_panel_export_number",true));
+  number.setOnCheckedChangeListener((v,on)->
+    prefs().edit().putBoolean("front_panel_export_number",on).apply());
+  note(panel,tx("التسليم ملف JSON فقط، وليس تحكماً مضموناً بشاشة VFD. لا يكتب التطبيق إلى /dev/vfd أو sysfs.",
+    "JSON handoff only; OEM VFD display is not verified. No unsafe writes to /dev/vfd or sysfs."));
   action(panel,tx("إعادة فحص جهاز X5M واللوحة","Recheck X5M panel compatibility"),this::refresh);
   note(panel,tx("عند نجاح أمر تشغيل DVB، يُكتب اسم القناة في state.json. التحكم الفعلي بشاشة VFD يحتاج بروتوكول OEM مؤكد؛ ADB IP وحده لا يمنح تطبيق اللانشر صلاحيات shell.",
     "On accepted DVB play, channel identity is exported to state.json. OEM panel control requires its actual protocol; ADB connection does not change the APK's Android UID."));

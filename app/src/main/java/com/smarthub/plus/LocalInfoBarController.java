@@ -29,6 +29,8 @@ final class LocalInfoBarController implements AutoCloseable {
  private final PublishedEpgArtwork published;
  private String logoKey="",imageKey="",lastPrefetchEvent="";
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
+ private String currentSynopsis="",nextSynopsis="";
+ private String paintedCurrentSynopsis="",paintedNextSynopsis="";
  private long logoRetry,posterRetryAt,lastPaintAt;
  private String lastPaintState="";
  private Bitmap paintedChannel,paintedProvider,paintedNow,paintedNext;
@@ -73,7 +75,9 @@ final class LocalInfoBarController implements AutoCloseable {
   bar.setVisibility(View.GONE);
   FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
      FrameLayout.LayoutParams.MATCH_PARENT,OsdGeometry.window(activity),Gravity.BOTTOM);
-  params.bottomMargin=OsdGeometry.bottom(activity);
+  // 4.0.2: anchor the OSD to the physical bottom edge (no floating gap).
+  // Keep legacy offset only when explicitly requested by the user.
+  params.bottomMargin=prefs.getBoolean("osd_dock_to_bottom",true)?0:OsdGeometry.bottom(activity);
   root.addView(bar,params);
  }
 
@@ -112,32 +116,29 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("providers_changed_at",0)+"|"+prefs.getLong("osd_changed_at",0);
   if(!logos.equals(logoKey)){
    logoKey=logos;
-   if(PlaybackResourceMode.active()){
-    // Avoid synchronous OEM/CHMAX logo decode on UI during decoder startup.
-    channelLogo=null;providerLogo=null;
-   }else{
-    channelLogo=CHMAXIntegration.logo(host,state,false);
-    providerLogo=CHMAXIntegration.logo(host,state,true);
-   }
-   logoRetry=0;
-   if(!PlaybackResourceMode.active()&&!state.channelName.isEmpty()){
-    // Video focus: disk PNG/SVG decodes and logo network jobs are nonessential.
-    // Keep verified files for the following normal satellite programme.
+   // Never decode CHMAX/PNG/SVG synchronously on INFO or channel zap.
+   // Keep cached logos available even during software 4:2:2 focus; all
+   // disk/receiver work stays on LogoRepository's bounded IO worker.
+   channelLogo=null;providerLogo=null;logoRetry=0;
+   if(!state.channelName.isEmpty()){
     final String expected=logos;
     LogoRepository repository=LogoRepository.get(host);
     LogoRepository.Listener images=new LogoRepository.Listener(){
      @Override public void channel(Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
-       if(image!=null)channelLogo=image;paint();
+       if(image!=null)channelLogo=image;
+       paint();
       }});
      }
      @Override public void provider(String name,Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
-       if(image!=null)providerLogo=image;paint();
+       if(image!=null)providerLogo=image;
+       paint();
       }});
      }
     };
-    if(prefs.getBoolean("software_dvb_422_active",false))
+    if(PlaybackResourceMode.active()||
+       prefs.getBoolean("software_dvb_422_active",false))
       repository.requestCached(state.channelName,state.channelId,images);
     else repository.request(state.channelName,state.channelId,images);
    }
@@ -147,16 +148,14 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("epg_art_changed_at",0);
   boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
     (!state.nextTitle.isEmpty()&&nextPoster==null);
-  if(PlaybackResourceMode.active()||SafePlaybackMode.enabled(host)||
-      !prefs.getBoolean("osd_posters",false)){
-   // 4.0.1: hidden artwork must not trigger CPU/network work while rendering
-   // live TV; preserve cached files for later optional reactivation.
-   // Preserve artwork on disk; free existing bitmap references and skip all
-   // poster decode/lookups while software 4:2:2 needs CPU/RAM/GPU.
+  if(!prefs.getBoolean("osd_posters",true)){
+   // Explicitly disabled by viewer; keep disk cache for later use.
    imageKey=art;currentPoster=null;nextPoster=null;
+   currentSynopsis="";nextSynopsis="";
   }else if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
    imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
    currentPoster=null;nextPoster=null;
+   currentSynopsis="";nextSynopsis="";
    final String expected=art;
    final SatelliteState snapshot=state.copy();
    // Two independent pipelines: a slow TMDB movie lookup must not delay NEXT.
@@ -200,22 +199,43 @@ final class LocalInfoBarController implements AutoCloseable {
  }
 
  private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
-  if(PlaybackResourceMode.active()||SafePlaybackMode.enabled(host)||
-     !prefs.getBoolean("osd_posters",false)||
-     prefs.getBoolean("software_dvb_422_active",false)){
-   prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
-     "VIDEO_PRIORITY_DECODE_DEFERRED").apply();
+  String title=upcoming?snapshot.nextTitle:snapshot.title;
+  boolean enabled=prefs.getBoolean("osd_posters",true);
+  if(!PosterLoadPolicy.cacheAllowed(enabled,title))return;
+  String local=ProgrammeSynopsisSource.local(host,snapshot,upcoming);
+  if(!local.isEmpty())publishSynopsis(expected,upcoming,local);
+  boolean focus=PlaybackResourceMode.active();
+  boolean sw422=prefs.getBoolean("software_dvb_422_active",false);
+  boolean tuning=prefs.getBoolean("dvb_tuning",false);
+  if(focus||sw422){
+   // Real-time 4:2:2: render only images already verified and on disk.
+   // Never run TMDB/CHMAX/TVmaze HTTP or heavy full-res image allocation here.
+   try{
+    Bitmap cached=EpgArtwork.loadInfobarCached(host,snapshot,title,upcoming);
+    if(cached!=null)publishPoster(expected,upcoming,compactPoster(cached));
+    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      cached==null?"VIDEO_FOCUS_CACHE_MISS":"VIDEO_FOCUS_CACHED_IMAGE").apply();
+   }catch(Exception problem){
+    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
+      "VIDEO_FOCUS_CACHE_"+problem.getClass().getSimpleName()).apply();
+   }
    return;
   }
-  String title=upcoming?snapshot.nextTitle:snapshot.title;
-  if(title==null||title.trim().isEmpty())return;
   Bitmap image=poster(snapshot,upcoming);
   if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
-  if(image==null&&!prefs.getBoolean("software_dvb_422_active",false)&&
-     !prefs.getBoolean("dvb_tuning",false)){
-    image=onlinePoster(snapshot,upcoming);
-    if(image!=null)publishPoster(expected,upcoming,image);
+  if(image==null&&PosterLoadPolicy.networkAllowed(enabled,focus,sw422,tuning,title)){
+   image=onlinePoster(snapshot,upcoming,expected);
+   if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
   }
+ }
+ private void publishSynopsis(String expected,boolean upcoming,String description){
+  final String shortText=ProgrammeSynopsisText.clean(description,160);
+  if(shortText.isEmpty())return;
+  main.post(()->{
+   if(closed||!visible||!expected.equals(imageKey))return;
+   if(upcoming)nextSynopsis=shortText;else currentSynopsis=shortText;
+   paint();
+  });
  }
  private void publishPoster(String expected,boolean upcoming,Bitmap image){
   main.post(()->{
@@ -239,11 +259,16 @@ final class LocalInfoBarController implements AutoCloseable {
    return null;
   }
  }
- private Bitmap onlinePoster(SatelliteState state,boolean upcoming){
+ private Bitmap onlinePoster(SatelliteState state,boolean upcoming,String expected){
   String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().length()<3)return null;
   try{
    OnlineProgramme programme=OnlineProgramme.fetch(host,state,title,upcoming);
+   if(programme!=null&&programme.item!=null&&
+       programme.item.summary!=null&&!programme.item.summary.trim().isEmpty()){
+    // Metadata belongs to this event only; never leak a prior-channel synopsis.
+    publishSynopsis(expected,upcoming,programme.item.summary);
+   }
    Bitmap image=programme==null?null:programme.poster;
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
       image==null?"NO_VERIFIED_TMDB_BETTER_TVMAZE_MATCH":"ONLINE_POSTER_OK").apply();
@@ -268,19 +293,25 @@ final class LocalInfoBarController implements AutoCloseable {
     latest.startMs+"|"+latest.endMs+"|"+latest.nextTitle+"|"+
     latest.nextStartMs+"|"+latest.nextEndMs+"|"+expanded;
   boolean changed=!state.equals(lastPaintState)||paintedChannel!=channelLogo||
-     paintedProvider!=providerLogo||paintedNow!=currentPoster||paintedNext!=nextPoster;
+     paintedProvider!=providerLogo||paintedNow!=currentPoster||paintedNext!=nextPoster||
+     !paintedCurrentSynopsis.equals(currentSynopsis)||
+     !paintedNextSynopsis.equals(nextSynopsis);
   // Always repaint immediately on event/artwork/INFO changes. Throttle only
   // unchanged live status while the CPU is busy with software 4:2:2.
   if(PlaybackResourceMode.lite(host)&&!changed&&now-lastPaintAt<4000)return;
   lastPaintState=state;lastPaintAt=now;
   paintedChannel=channelLogo;paintedProvider=providerLogo;
   paintedNow=currentPoster;paintedNext=nextPoster;
+  paintedCurrentSynopsis=currentSynopsis;paintedNextSynopsis=nextSynopsis;
   bar.bind(latest,currentPoster,nextPoster,channelLogo,"");
+  bar.synopses(currentSynopsis,nextSynopsis);
   bar.provider(providerLogo);
  }
  private void releaseHiddenArtwork(){
   // Free references held by both controller and ImageViews on dismissal.
   channelLogo=null;providerLogo=null;currentPoster=null;nextPoster=null;
+  currentSynopsis="";nextSynopsis="";
+  paintedCurrentSynopsis="";paintedNextSynopsis="";
   paintedChannel=null;paintedProvider=null;paintedNow=null;paintedNext=null;
   logoKey="";imageKey="";lastPaintState="";lastPaintAt=0;
   posterRetryAt=0;logoRetry=0;

@@ -4,7 +4,7 @@ import org.junit.Test;
 
 public final class Mpv422FluidPolicyTest {
  @Test public void exposesBothPixelFormatsAcrossResolutions(){
-  for(int height:new int[]{1080,720,540,480,360}){
+  for(int height:new int[]{1080,720,540,480,360,260}){
    for(String prefix:new String[]{"420_","422_"}){
     String mode=prefix+height;
     assertEquals(mode,Mpv422FluidPolicy.normalized(mode));
@@ -16,6 +16,8 @@ public final class Mpv422FluidPolicyTest {
    }
   }
   assertTrue(Mpv422FluidPolicy.videoFilter(Mpv422FluidPolicy.P360).contains("w=640"));
+  assertTrue(Mpv422FluidPolicy.videoFilter(Mpv422FluidPolicy.P260).contains("w=462"));
+  assertEquals(12,Mpv422FluidPolicy.publicModes().length);
   assertEquals("",Mpv422FluidPolicy.videoFilter(Mpv422FluidPolicy.GPU_NATIVE));
   assertEquals(Mpv422FluidPolicy.P720,Mpv422FluidPolicy.initialRenderMode(null));
   assertEquals(Mpv422FluidPolicy.AUTO,Mpv422FluidPolicy.normalized("dangerous vf injection"));
@@ -30,8 +32,10 @@ public final class Mpv422FluidPolicyTest {
     Mpv422FluidPolicy.nextAutoMode(Mpv422FluidPolicy.P720));
   assertEquals(Mpv422FluidPolicy.P360,
     Mpv422FluidPolicy.nextAutoMode(Mpv422FluidPolicy.P540));
-  assertEquals(Mpv422FluidPolicy.P360,
+  assertEquals(Mpv422FluidPolicy.P260,
     Mpv422FluidPolicy.nextAutoMode(Mpv422FluidPolicy.P360));
+  assertEquals(Mpv422FluidPolicy.P260,
+    Mpv422FluidPolicy.nextAutoMode(Mpv422FluidPolicy.P260));
   int a=Mpv422FluidPolicy.poorDropSamples(30,40,4800,0);
   int b=Mpv422FluidPolicy.poorDropSamples(40,51,4800,a);
   assertEquals(1,a);assertEquals(2,b);

@@ -54,6 +54,7 @@ final class ArtworkCache {
   FileOutputStream out=safe.startWrite();
   try{out.write(bytes);safe.finishWrite(out);}
   catch(Exception failed){safe.failWrite(out);throw failed;}
+  ArtworkCachePruner.prune(dir,new File(dir,key.toString()));
  }
  static byte[] fetch(Context c,URL url,int limit)throws Exception{
   if(!"https".equals(url.getProtocol()))throw new IOException("Image must use HTTPS");StringBuilder key=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(url.toString().getBytes(StandardCharsets.UTF_8)))key.append(String.format(Locale.ROOT,"%02x",b&255));File dir=new File(c.getCacheDir(),"online-artwork");dir.mkdirs();File saved=new File(dir,key.toString());
@@ -72,7 +73,7 @@ final class ArtworkCache {
   FileOutputStream out=atomic.startWrite();
   try{out.write(bytes);atomic.finishWrite(out);}
   catch(Exception failure){atomic.failWrite(out);throw failure;}
-  File[] files=dir.listFiles();if(files!=null){Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());long total=0;for(int n=0;n<files.length;n++){total+=files[n].length();if(n>=24||total>40*1024*1024)files[n].delete();}}
+  ArtworkCachePruner.prune(dir,saved);
   return bytes;
  }
 }
