@@ -235,7 +235,11 @@ public final class Independent422Activity extends HubActivity {
   status.setTextSize(14);
   status.setBackgroundColor(0xbb050505);
   status.setPadding(dp(16),dp(9),dp(16),dp(9));
-  status.setText(tx("تهيئة محرك 4:2:2 المستقل · libmpv","Preparing isolated 4:2:2 libmpv engine"));
+  status.setText("jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))?
+    tx("تهيئة المحرك المستقل FFmpeg JNI · فيديو فقط",
+      "Preparing direct FFmpeg JNI · video only"):
+    tx("تهيئة محرك 4:2:2 المستقل · libmpv",
+      "Preparing isolated 4:2:2 libmpv engine"));
   FrameLayout.LayoutParams top=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);
   videoRoot.addView(status,top);
 
@@ -274,8 +278,12 @@ public final class Independent422Activity extends HubActivity {
   FrameLayout.LayoutParams bottom=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);
   videoRoot.addView(controls,bottom);
   setContentView(videoRoot);
+  boolean jni="jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"));
+  if(jni){audioButton.setEnabled(false);decoderButton.setEnabled(false);
+    subtitles.setEnabled(false);}
   prefs().edit().putString("independent_422_runtime","CREATED")
-    .putString("decoder_kind","SOFTWARE_LIBMPV_INDEPENDENT_PROCESS").apply();
+    .putString("decoder_kind",jni?
+      "DIRECT_LIBAVCODEC_JNI_OPTIONAL":"SOFTWARE_LIBMPV_INDEPENDENT_PROCESS").apply();
  }
 
  private Button small(String text){
