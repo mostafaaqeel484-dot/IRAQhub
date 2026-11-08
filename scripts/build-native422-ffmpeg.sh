@@ -55,8 +55,15 @@ for name in avformat avcodec swscale avutil; do
   echo "FFmpeg missing lib${name}.so" >&2;exit 5;
  }
  file "$DEST/lib/lib${name}.so"
- llvm-readelf -h "$DEST/lib/lib${name}.so" | grep -q 'Class:.*ELF32'
- llvm-readelf -h "$DEST/lib/lib${name}.so" | grep -q 'Machine:.*ARM'
+ python3 - "$DEST/lib/lib${name}.so" <<'PY'
+import sys,struct
+with open(sys.argv[1],"rb") as file:
+    header=file.read(20)
+if header[:4]!=b"\\x7fELF" or header[4]!=1 or header[5]!=1:
+    raise SystemExit("Not little-endian ELF32: "+sys.argv[1])
+if struct.unpack_from("<H",header,18)[0]!=40:
+    raise SystemExit("ELF machine is not 32-bit ARM: "+sys.argv[1])
+PY
 done
 echo "Verified FFmpeg 9.0.2 ARMv7 native libraries: $DEST"
 echo "Keep FFmpeg copyright, license notices and share source/build scripts."
