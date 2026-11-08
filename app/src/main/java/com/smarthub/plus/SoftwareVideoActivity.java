@@ -443,6 +443,13 @@ public final class SoftwareVideoActivity extends HubActivity {
         prefs().edit().putString("software_422_runtime","MPV_OPENING")
           .putString("decoder_kind","SOFTWARE_LIBMPV_FFMPEG")
           .putString("decoder_name","libmpv Android").apply();
+        String chosen=Mpv422FluidPolicy.normalized(prefs().getString(
+          "unified_422_output_mode",Mpv422FluidPolicy.AUTO));
+        String fluid=Mpv422FluidPolicy.initialRenderMode(chosen);
+        String decoder=Mpv422FluidPolicy.decoderMode(prefs().getString(
+          "independent_422_decoder_mode",Mpv422FluidPolicy.SW));
+        boolean videoOnly="unified".equals(getIntent().getStringExtra("decoder_engine"))&&
+          prefs().getBoolean("unified_422_video_only",true);
         mpvRenderer=new Mpv422Renderer(this,playerRoot,new Mpv422Renderer.Listener(){
           @Override public void ready(){
             if(released||backgroundStopped)return;
@@ -458,7 +465,7 @@ public final class SoftwareVideoActivity extends HubActivity {
             status.setText(tx("تعذر تشغيل mpv · التحويل إلى VLC","mpv failed · switching to VLC"));
             open(playbackUri);
           }
-        });
+        },videoOnly,fluid,decoder);
         return mpvRenderer.start(source);
       }catch(Throwable t){
         prefs().edit().putString("decoder_last_error","MPV_INIT_"+t.getClass().getSimpleName()).apply();
