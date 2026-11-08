@@ -20,7 +20,12 @@ final class SportsProgrammeArtwork {
  private SportsProgrammeArtwork(){}
 
  static boolean verified(SportsMatch match){
-  return match!=null&&match.id!=null&&match.id.matches("tsdb:[0-9]+")
+  if(match==null||match.id==null)return false;
+  boolean sportsdb=match.id.matches("tsdb:[1-9][0-9]*");
+  boolean openliga=match.id.matches("openliga:[1-9][0-9]*")&&
+    match.homeId!=null&&match.homeId.matches("openliga:[1-9][0-9]*")&&
+    match.awayId!=null&&match.awayId.matches("openliga:[1-9][0-9]*");
+  return (sportsdb||openliga)
     &&match.leagueId!=null&&!match.leagueId.isEmpty()
     &&match.homeId!=null&&!match.homeId.isEmpty()
     &&match.awayId!=null&&!match.awayId.isEmpty()
@@ -32,11 +37,7 @@ final class SportsProgrammeArtwork {
   if(!verified(match))return null;
   Bitmap home=badge(context,match.homeLogo,cacheOnly);
   Bitmap away=badge(context,match.awayLogo,cacheOnly);
-  if(home==null||away==null){
-   if(home!=null)home.recycle();
-   if(away!=null)away.recycle();
-   return null;
-  }
+  // Verified event: show a neutral team-name card even when badges are absent.
   Bitmap league=badge(context,match.leagueLogo,true);
   try{
    Bitmap result=Bitmap.createBitmap(800,440,Bitmap.Config.RGB_565);
@@ -51,8 +52,10 @@ final class SportsProgrammeArtwork {
    paint.setTextSize(25);
    canvas.drawText(shorten(match.league,42),400,55,paint);
    if(league!=null)drawBadge(canvas,paint,league,367,65,66);
-   drawBadge(canvas,paint,home,113,108,160);
-   drawBadge(canvas,paint,away,527,108,160);
+   if(home!=null)drawBadge(canvas,paint,home,113,108,160);
+   else drawFallbackMark(canvas,paint,match.home,113,108,160);
+   if(away!=null)drawBadge(canvas,paint,away,527,108,160);
+   else drawFallbackMark(canvas,paint,match.away,527,108,160);
    paint.setTextSize(25);paint.setColor(Color.rgb(242,243,245));
    canvas.drawText(shorten(match.home,22),193,313,paint);
    canvas.drawText(shorten(match.away,22),607,313,paint);
@@ -62,9 +65,22 @@ final class SportsProgrammeArtwork {
    canvas.drawText(shorten(match.time(),46),400,375,paint);
    return result;
   }finally{
-   home.recycle();away.recycle();
+   if(home!=null)home.recycle();
+   if(away!=null)away.recycle();
    if(league!=null)league.recycle();
   }
+ }
+ private static void drawFallbackMark(Canvas canvas,Paint paint,String name,
+     int left,int top,int side){
+  // An initial only: never invent an official club crest.
+  paint.setColor(Color.rgb(48,67,85));
+  canvas.drawRoundRect(new RectF(left,top,left+side,top+side),20,20,paint);
+  paint.setColor(Color.WHITE);
+  paint.setTextAlign(Paint.Align.CENTER);
+  paint.setTextSize(64);
+  String initial=name==null||name.isEmpty()?"?":
+    name.substring(0,1).toUpperCase(java.util.Locale.ROOT);
+  canvas.drawText(initial,left+side/2f,top+side/2f+23,paint);
  }
  private static String shorten(String raw,int count){
   String value=raw==null?"":raw.trim();
