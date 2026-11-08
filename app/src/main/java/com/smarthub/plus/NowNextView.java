@@ -44,10 +44,10 @@ final class NowNextView extends FrameLayout {
   bar.setPadding(dp(20),dp(8),dp(20),dp(7));
   GradientDrawable dark=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
    new int[]{Color.argb(alpha,0,0,0),Color.argb(Math.min(255,alpha+12),6,6,8)});
-  dark.setCornerRadius(dp(9));bar.setBackground(dark);
+  dark.setCornerRadius(0);bar.setBackground(dark);
   bar.setElevation(dp(6));
   LayoutParams barPosition=new LayoutParams(-1,barH,Gravity.BOTTOM);
-  barPosition.setMargins(dp(8),0,dp(8),dp(3));
+  barPosition.setMargins(0,0,0,0);
   addView(bar,barPosition);
 
   // Reference: channel left, small year + day/date/time at right; icons BELOW date.
