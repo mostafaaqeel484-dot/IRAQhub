@@ -70,7 +70,7 @@ jobs:
           python3 - /tmp/native422.so <<'PY'
           import sys,struct
           h=open(sys.argv[1],"rb").read(20)
-          assert h[:4]==b"\\x7fELF" and h[4]==1 and h[5]==1
+          assert h[:4]==b"\x7fELF" and h[4]==1 and h[5]==1
           assert struct.unpack_from("<H",h,18)[0]==40
           PY
           readelf -Ws /tmp/native422.so |
