@@ -26,14 +26,15 @@ public class ReceiverLibraryActivity extends HubActivity {
   android.graphics.drawable.GradientDrawable tigerPanel=new android.graphics.drawable.GradientDrawable(
       android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
       new int[]{0xff050505,0xff000000});
-   tigerPanel.setCornerRadius(dp(19));tigerPanel.setStroke(dp(2),0xffc6aec3);
+   // Flush side list, with a subtle border rather than a floating card.
+   tigerPanel.setCornerRadius(0);tigerPanel.setStroke(dp(1),0xff455563);
    root.setBackground(tigerPanel);
   int screenWidth=getResources().getDisplayMetrics().widthPixels;
   int targetWidth=Math.min(dp(wideList?900:570),
      (int)(screenWidth*(wideList?.78f:.52f)));
   FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(
      targetWidth,-1,wideList?Gravity.CENTER_HORIZONTAL:Gravity.LEFT);
-  panel.setMargins(dp(11),dp(10),dp(11),dp(10));
+  panel.setMargins(0,0,0,0);
   backdrop.addView(root,panel);
 
   LinearLayout top=row();top.setGravity(Gravity.CENTER_VERTICAL);
@@ -64,10 +65,10 @@ public class ReceiverLibraryActivity extends HubActivity {
   list.setBackgroundColor(0xff000000);
   list.setCacheColorHint(0xff000000);
   list.setScrollingCacheEnabled(false);
-  list.setDividerHeight(dp(2));
+  list.setDividerHeight(dp(1));
   list.setDivider(new ColorDrawable(0x224a6070));
   android.graphics.drawable.GradientDrawable selected=new android.graphics.drawable.GradientDrawable();
-   selected.setColor(0x221f1218);selected.setStroke(dp(3),0xfff6f6f6);
+   selected.setColor(0x442b3f39);selected.setStroke(dp(2),0xffffc755);
    list.setSelector(selected);list.setDrawSelectorOnTop(true);
    list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
   list.setOnItemClickListener((p,v,index,id)->play(shown.get(index)));
@@ -94,7 +95,7 @@ public class ReceiverLibraryActivity extends HubActivity {
   // Compact RF strip follows the highlighted channel; S/Q values are shown
   // only if the tuner is ACTUALLY tuned to that same physical service.
   LinearLayout frequencyStrip=col();
-  frequencyStrip.setPadding(dp(8),dp(5),dp(8),dp(5));
+  frequencyStrip.setPadding(dp(8),dp(3),dp(8),dp(3));
   frequencyStrip.setBackgroundColor(0xff131c26);
   rf.setTextColor(0xffdfeaf2);rf.setSingleLine(true);
   rf.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -109,7 +110,7 @@ public class ReceiverLibraryActivity extends HubActivity {
   meters.addView(quality,qParams);
   frequencyStrip.addView(meters,new LinearLayout.LayoutParams(-1,dp(8)));
   frequencyStrip.addView(signalDetail,new LinearLayout.LayoutParams(-1,dp(19)));
-  root.addView(frequencyStrip,new LinearLayout.LayoutParams(-1,dp(54)));
+  root.addView(frequencyStrip,new LinearLayout.LayoutParams(-1,dp(56)));
   String initial=getIntent().getStringExtra("query");
   query.setText("");
   getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
@@ -245,7 +246,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    labels[i]=letters[i].isEmpty()?tx("كل القنوات","All channels"):letters[i];
    if(letters[i].equals(initialFilter))selected=i;
   }
-  ReceiverPanelStyle.choose(this,tx("الحروف • الأصفر","Letters • Yellow"),labels,
+  ReceiverPanelStyle.chooseLetters(this,tx("الحروف • الأصفر","Letters • Yellow"),labels,
     selected,index->{
      initialFilter=letters[index];
      prefs().edit().putString("receiver_initial_filter",initialFilter).apply();
