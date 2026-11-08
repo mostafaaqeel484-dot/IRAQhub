@@ -24,8 +24,48 @@ final class MatchRepository {
  private static boolean sameTeam(String a,String shortA,String b,String shortB){for(String left:new String[]{a,shortA})for(String right:new String[]{b,shortB})if(!left.isEmpty()&&!right.isEmpty()&&tokens(left).equals(tokens(right)))return true;return false;}
  private static boolean sameEvent(SportsMatch a,SportsMatch b){return sameTeam(a.home,a.homeShort,b.home,b.homeShort)&&sameTeam(a.away,a.awayShort,b.away,b.awayShort)&&Math.abs(a.kickoff-b.kickoff)<3600000;}
  synchronized SportsMatch find(String id){return rows.get(id);}
- synchronized SportsMatch forProgramme(SatelliteState state){if(state.title.isEmpty()||state.startMs<=0||state.endMs<=System.currentTimeMillis())return null;SportsMatch found=null;for(SportsMatch m:rows.values()){if(m.kickoff<=0||Math.abs(m.kickoff-state.startMs)>3*3600000L||!programmeMatches(state.title,m.home,m.away)&&!programmeMatches(state.title,m.homeShort,m.awayShort))continue;if(found!=null)return null;found=m;}return found;}
- private static String tokens(String value){return PlaylistRepository.normalize(value).replaceAll("[^\\p{L}\\p{N}]+"," ").trim();}
+ synchronized SportsMatch forProgramme(SatelliteState state){
+  if(state==null)return null;
+  return selectForProgramme(rows.values(),state.title,state.startMs,state.endMs,
+    System.currentTimeMillis());
+ }
+ /** An EPG fixture may arrive twice (TheSportsDB and OpenLigaDB).
+  * Prefer the event with artwork without conflating separate fixtures. */
+ static SportsMatch selectForProgramme(Iterable<SportsMatch> available,String title,
+     long start,long end,long now){
+  if(available==null||title==null||title.trim().isEmpty()||
+     start<=0||end<=now)return null;
+  SportsMatch found=null;
+  for(SportsMatch m:available){
+   if(m==null||m.kickoff<=0||Math.abs(m.kickoff-start)>3*3600000L||
+      !(programmeMatches(title,m.home,m.away)||
+        programmeMatches(title,m.homeShort,m.awayShort)))continue;
+   if(found==null){found=m;continue;}
+   boolean duplicate=Math.abs(found.kickoff-m.kickoff)<3600000L&&
+     (sameEvent(found,m)||
+      (programmeMatches(title,found.home,found.away)&&
+       programmeMatches(title,m.home,m.away)));
+   if(!duplicate)return null;
+   if(artworkScore(m)>artworkScore(found))found=m;
+  }
+  return found;
+ }
+ private static int artworkScore(SportsMatch m){
+  return (m.image==null||m.image.isEmpty()?0:8)+
+    (m.homeLogo==null||m.homeLogo.isEmpty()?0:2)+
+    (m.awayLogo==null||m.awayLogo.isEmpty()?0:2)+
+    (m.id!=null&&m.id.startsWith("tsdb:")?1:0);
+ }
+ private static String tokens(String value){
+  String normalized=PlaylistRepository.normalize(value)
+    .replaceAll("[^\\p{L}\\p{N}]+"," ").trim();
+  // Common EPG abbreviations only; both teams must still match.
+  return normalized.replaceAll("\\bman\\b","manchester")
+    .replaceAll("\\butd\\b","united")
+    .replaceAll("\\bbarca\\b","barcelona")
+    .replaceAll("\\b(fc|afc|cf)\\b"," ")
+    .replaceAll("\\s+"," ").trim();
+ }
  static boolean programmeMatches(String programme,String home,String away){String p=" "+tokens(programme)+" ",h=tokens(home),a=tokens(away);return h.length()>=4&&a.length()>=4&&p.contains(" "+h+" ")&&p.contains(" "+a+" ");}
  private File file(){return new File(context.getFilesDir(),"sports_matches.json");}
  private synchronized void load(){try(InputStream in=new FileInputStream(file())){JSONArray a=new JSONArray(PlaylistRepository.readBounded(in));for(int i=0;i<Math.min(a.length(),3000);i++){SportsMatch m=SportsMatch.from(a.getJSONObject(i));m.cached=true;rows.put(m.id,m);}status="Saved results · online update pending";}catch(Exception ignored){}}

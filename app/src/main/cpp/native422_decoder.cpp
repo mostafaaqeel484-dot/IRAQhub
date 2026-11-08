@@ -185,7 +185,25 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
  jmethodID onFrame=env->GetMethodID(klass,"onNativeFrame","(I)V");
  if(!onFrame){env->DeleteLocalRef(klass);return -19;}
  auto begin=std::chrono::steady_clock::now();
- int idleErrors=0;
+ int idleErrors=0,sendErrors=0;
+ // FFmpeg's send/receive API requires draining BEFORE retrying packets
+ // rejected with EAGAIN. Dropping those packets loses HEVC references.
+ auto drainDecoded=[&](){
+  while(!session->stopped.load(std::memory_order_relaxed)){
+   const int received=avcodec_receive_frame(codec.get(),frame.get());
+   if(received==AVERROR(EAGAIN)||received==AVERROR_EOF)break;
+   if(received<0)break;
+   session->decoded.fetch_add(1,std::memory_order_relaxed);
+   if(output->present(frame.get(),outWidth,outHeight,use420,window)){
+    const auto shown=session->displayed.fetch_add(1,std::memory_order_relaxed)+1;
+    if(shown==1||shown%60==0){
+     env->CallVoidMethod(self,onFrame,static_cast<jint>(shown));
+     if(env->ExceptionCheck())env->ExceptionClear();
+    }
+   }
+   av_frame_unref(frame.get());
+  }
+ };
  while(!session->stopped.load(std::memory_order_relaxed)){
   ret=av_read_frame(opened,packet.get());
   if(ret<0){
@@ -195,22 +213,16 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
   idleErrors=0;
   if(packet->stream_index==index){
    int pushed=avcodec_send_packet(codec.get(),packet.get());
-   if(pushed>=0||pushed==AVERROR(EAGAIN)){
-    while(!session->stopped.load(std::memory_order_relaxed)){
-     int received=avcodec_receive_frame(codec.get(),frame.get());
-     if(received==AVERROR(EAGAIN)||received==AVERROR_EOF)break;
-     if(received<0)break;
-     session->decoded.fetch_add(1,std::memory_order_relaxed);
-     if(output->present(frame.get(),outWidth,outHeight,use420,window)){
-      auto shown=session->displayed.fetch_add(1,std::memory_order_relaxed)+1;
-      if(shown==1||shown%60==0){
-       env->CallVoidMethod(self,onFrame,static_cast<jint>(shown));
-       if(env->ExceptionCheck())env->ExceptionClear();
-      }
-     }
-     av_frame_unref(frame.get());
-    }
+   int retries=0;
+   while(pushed==AVERROR(EAGAIN)&&retries++<2&&
+         !session->stopped.load(std::memory_order_relaxed)){
+    drainDecoded();
+    pushed=avcodec_send_packet(codec.get(),packet.get());
    }
+   if(pushed>=0)drainDecoded();
+   else if(!session->stopped.load(std::memory_order_relaxed)&&
+           (++sendErrors<=5||sendErrors%100==0))
+    LOGE("FFmpeg packet submission error=%d total=%d",pushed,sendErrors);
   }
   av_packet_unref(packet.get());
   if(std::chrono::steady_clock::now()-begin>std::chrono::hours(8))break;

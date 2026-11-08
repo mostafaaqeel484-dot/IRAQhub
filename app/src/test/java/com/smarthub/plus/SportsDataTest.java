@@ -14,4 +14,32 @@ public class SportsDataTest {
  @Test public void arbitraryImageHostsAndHugeEmbeddedImagesAreRejected(){assertFalse(TeamLogoManager.trusted("https://192.168.0.1/private"));assertFalse(TeamLogoManager.trusted("javascript:alert(1)"));assertTrue(TeamLogoManager.trusted("https://r2.thesportsdb.com/images/badge.png"));assertTrue(TeamLogoManager.trusted("data:image/png;base64,aGVsbG8="));}
  @Test public void matchStoragePreservesSourceIdentityAndTimestamp()throws Exception{SportsMatch a=TheSportsDBProvider.parse(event(),LeagueRepository.byId("4328"),123456,false),b=SportsMatch.from(a.json());assertEquals(a.id,b.id);assertEquals(a.homeId,b.homeId);assertEquals(a.kickoff,b.kickoff);assertEquals(123456,b.updatedAt);}
  @Test public void tunerValuesKeepUnitsAndScientificBer(){assertEquals("2.3E-7",ReceptionData.ber("BER: 2.3E-7"));assertEquals("7.25 Mbps",ReceptionData.bitrate("7.25 Mbps"));assertEquals("",ReceptionData.bitrate("1080p"));}
+ @Test public void similarAbbreviationsMatchBothRealTeams(){
+  assertTrue(MatchRepository.programmeMatches("Man Utd v Liverpool",
+    "Manchester United","Liverpool FC"));
+  assertFalse(MatchRepository.programmeMatches("Man Utd v Liverpool",
+    "Manchester United","Manchester City"));
+ }
+ @Test public void duplicateSportProvidersPreferActualPoster(){
+  long now=1700000000000L,at=now+3600000L;
+  SportsMatch a=new SportsMatch();
+  a.id="openliga:124";a.kickoff=at;a.home="Manchester United";
+  a.away="Liverpool FC";
+  SportsMatch b=new SportsMatch();
+  b.id="tsdb:300";b.kickoff=at+120000L;b.home="Man Utd";
+  b.away="Liverpool";b.image="https://r2.thesportsdb.com/images/fixture.jpg";
+  assertSame(b,MatchRepository.selectForProgramme(
+    java.util.Arrays.asList(a,b),"Man Utd vs Liverpool",at,at+7200000L,now));
+  assertNull(MatchRepository.selectForProgramme(
+    java.util.Arrays.asList(a,b),"Man Utd vs Liverpool",at,at+7200000L,at+7300000L));
+ }
+ @Test public void distinctKickoffsRemainAmbiguous(){
+  long now=1700000000000L,at=now+3600000L;
+  SportsMatch a=new SportsMatch();a.id="tsdb:1";a.kickoff=at;
+  a.home="Arsenal";a.away="Liverpool";
+  SportsMatch b=new SportsMatch();b.id="tsdb:2";b.kickoff=at+7200000L;
+  b.home="Arsenal";b.away="Liverpool";
+  assertNull(MatchRepository.selectForProgramme(java.util.Arrays.asList(a,b),
+    "Arsenal v Liverpool",at,at+10000000L,now));
+ }
 }

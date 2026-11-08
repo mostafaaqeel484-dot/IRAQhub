@@ -16,4 +16,13 @@ public class UnifiedEpgIndexPriorityTest {
   assertEquals(100,UnifiedEpgIndex.sourceRank(""));
   assertEquals(300,UnifiedEpgIndex.sourceRank("DVB EIT"));
  }
+
+ @Test public void nativeEventKeyIsNeverUsedAsPhysicalChannel(){
+  SatelliteGuideRepository.Event event=new SatelliteGuideRepository.Event();
+  event.channelId="DVB:19:10723:1:210";
+  event.startMs=1794171600000L;
+  assertEquals("DVB:19:10723:1:210",UnifiedEpgIndex.eventChannel(event));
+  assertNotEquals(event.channelId+"|"+event.startMs,UnifiedEpgIndex.eventChannel(event));
+  assertEquals("",UnifiedEpgIndex.eventChannel(null));
+ }
 }
