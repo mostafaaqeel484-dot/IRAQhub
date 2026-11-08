@@ -74,7 +74,7 @@ public final class AudioService extends Service {
         return START_NOT_STICKY;
     }
     private Notification notification() {
-        Intent open = new Intent(this, MainActivity.class);
+        Intent open = new Intent(this, Ben10ConsoleActivity.class);
         PendingIntent p = PendingIntent.getActivity(this, 0, open,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder n = Build.VERSION.SDK_INT >= 26
