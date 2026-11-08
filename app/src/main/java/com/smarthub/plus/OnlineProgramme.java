@@ -35,9 +35,13 @@ final class OnlineProgramme {
    id=remembered.optString("id");type=remembered.optString("type");
   }
   JSONObject j=new JSONObject().put("status","not_found");
+  JSONObject approximateCandidates=null;
+  boolean similarPoster=false;
   // A failed TMDB call is not a reason to disable BetterPosters and TVmaze.
   if(!tmdbKey.isEmpty()&&(id.isEmpty()||id.startsWith("tmdb:")))try{
    j=new TmdbProvider(context,tmdbKey).resolve(raw,id,type,imdb,duration);
+   if("ambiguous".equals(j.optString("status"))&&!j.isNull("candidates"))
+    approximateCandidates=j;
   }catch(Exception unavailable){/* Try independent providers. */}
   if(!"matched".equals(j.optString("status")))try{
    JSONObject other=new BetterPostersProvider(context).resolve(raw,
@@ -49,8 +53,31 @@ final class OnlineProgramme {
    JSONObject other=new TvmazeProvider(context).resolve(raw,imdb);
    if("matched".equals(other.optString("status")))j=other;
   }catch(Exception unavailable){/* Preserve verified EPG artwork. */}
+  if(!"matched".equals(j.optString("status"))&&approximateCandidates!=null
+      &&id.isEmpty()&&imdb.isEmpty()&&!tmdbKey.isEmpty()
+      &&context.getSharedPreferences("smarthub",0)
+        .getBoolean("osd_similar_posters",true)){
+   JSONObject guess=SimilarPosterChoice.choose(
+     approximateCandidates.optJSONArray("candidates"),raw);
+   if(guess!=null)try{
+    JSONObject detail=new TmdbProvider(context,tmdbKey).resolve(raw,
+      guess.optString("id"),guess.optString("type"),"",duration);
+    if("matched".equals(detail.optString("status"))){
+     j=detail;
+     similarPoster=true;
+    }
+   }catch(Exception unavailable){/* Preserve the normal EPG fallback. */}
+  }
   if(!"matched".equals(j.optString("status")))return epg(context,event,raw,upcoming);
-  PosterSelection.save(context,event,raw,upcoming,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));item.id=tmdb?j.optString("id"):(better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · حقوق الصور لأصحابها";item.imageCredit=tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
+  if(!similarPoster)PosterSelection.save(context,event,raw,upcoming,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));item.id=tmdb?j.optString("id"):(better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · حقوق الصور لأصحابها";item.imageCredit=tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
+  if(similarPoster){
+   item.imageCredit="TMDB · similar title (unverified)";
+   if(!item.summary.isEmpty())item.summary=
+     (context.getSharedPreferences("smarthub",0).getBoolean("arabic",true)?
+       "≈ نبذة لعنوان مشابه وليست تأكيداً لنفس العمل: ":
+       "≈ Similar-title synopsis, not confirmed for this programme: ")+
+     item.summary;
+  }
   String address=j.optString("poster");Bitmap bitmap=posterBitmap(context,address);
   if(bitmap==null&&tmdb)try{
    // Reuse verified TMDB/IMDb identity; never pick a different named movie.
