@@ -35,6 +35,12 @@ android {
    versionNameSuffix '-x5m402-preview'
    matchingFallbacks = ['debug']
   }
+  native422Preview {
+   initWith debug
+   applicationIdSuffix '.x5m403jni'
+   versionNameSuffix '-x5m403jni-experimental'
+   matchingFallbacks = ['debug']
+  }
  }
  // This Draft build targets the reported 32-bit Android TV / ARMv7-A ROM.
  // Keep the arm64-v8a dual-ABI application on PR #39 unchanged.
@@ -42,6 +48,22 @@ android {
  kotlinOptions { jvmTarget = '11' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
  testOptions { unitTests.returnDefaultValues=true }
+ // Direct FFmpeg JNI is separate from default builds until the X5M real
+ // hardware acceptance checks pass. The path must point to a PGP-verified
+ // native Android FFmpeg build, NEVER a host or 64-bit .so.
+ if(project.hasProperty('native422FfmpegRoot')) {
+  externalNativeBuild {
+   cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' }
+  }
+  defaultConfig {
+   externalNativeBuild {
+    cmake {
+     arguments "-DNATIVE422_FFMPEG_ROOT=${project.property('native422FfmpegRoot')}",
+       "-DANDROID_STL=c++_shared"
+    }
+   }
+  }
+ }
 }
 dependencies {
  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
@@ -69,7 +91,7 @@ dependencies {
 // silently selecting an old dependency. Replace ONLY the merged libc++
 // with the pinned modern Android NDK runtime BEFORE strip/package for
 // both Debug/Release, leaving MPV/VLC and the OEM/DVB libs untouched.
-tasks.matching { it.name in ['mergeDebugNativeLibs','mergeReleaseNativeLibs','mergeX5mPreviewNativeLibs'] }
+tasks.matching { it.name in ['mergeDebugNativeLibs','mergeReleaseNativeLibs','mergeX5mPreviewNativeLibs','mergeNative422PreviewNativeLibs'] }
  .configureEach { mergeTask ->
   mergeTask.doLast {
    def home=System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT') ?: android.sdkDirectory.absolutePath
