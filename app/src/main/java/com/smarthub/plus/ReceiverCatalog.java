@@ -74,6 +74,18 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   }catch(Exception unavailable){return 0;}
  }
 
+ /** Resolve a remote number using exactly the same DVB satellite/TV ranking
+  * as satelliteNumber(), not a SQLite id or a filtered A-Z position.
+  */
+ Channel bySatelliteNumber(Channel active,int number){
+  if(active==null||number<1||number>20000)return null;
+  try(Cursor c=getReadableDatabase().rawQuery(
+   JOIN+" WHERE t.sat_id=? AND c.tv=? ORDER BY c.order_index,c._id LIMIT 1 OFFSET ?",
+   new String[]{Integer.toString(active.satId),Integer.toString(active.tv),
+     Integer.toString(number-1)})){
+   return c.moveToFirst()?new Channel(c):null;
+  }catch(Exception unavailable){return null;}
+ }
  List<String> transponders(long satellite){List<String> out=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT freq,pol,sr,fec FROM tp WHERE sat_id=? ORDER BY freq,pol",new String[]{Long.toString(satellite)})){while(c.moveToNext())out.add(c.getInt(0)+" "+c.getString(1)+" · "+c.getInt(2)+(c.getString(3).isEmpty()?"":" · "+c.getString(3)));}return out;}
  Set<Long> favorites(){Set<Long> out=new HashSet<>();try(Cursor c=getReadableDatabase().rawQuery("SELECT channel_id FROM favorite",null)){while(c.moveToNext())out.add(c.getLong(0));}return out;}
  /**
