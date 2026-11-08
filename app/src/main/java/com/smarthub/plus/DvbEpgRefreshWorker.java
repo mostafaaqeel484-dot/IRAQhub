@@ -59,6 +59,9 @@ public final class DvbEpgRefreshWorker extends Worker {
     prefs.edit().putString("native_epg_sync_status","CHANNEL_CHANGED").apply();
     return Result.success();
    }
+   // Populate the query-optimized NOW/NEXT cache as soon as the native EIT
+   // packet is verified. Do not block on periodic XMLTV or poster workers.
+   UnifiedEpgIndex.get(c).recordNative(latest.channelId,events,now);
    SatelliteState timed=latest.copy();
    timed.source="DVB EIT · native receiver";
    timed.observedAt=now;
