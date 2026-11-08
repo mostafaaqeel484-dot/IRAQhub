@@ -61,6 +61,21 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   }
   return ambiguous;
  }
+ /**
+  * Satellite-local visible channel number, TV and radio independently,
+  * unchanged by A-Z browsing or favourites. Matching the InfoBar numbering.
+  */
+ Channel channelAtNumber(Channel active,int number){
+  if(active==null||number<1||number>99999)return null;
+  String sql=JOIN+" WHERE t.sat_id=? AND c.tv=? "+
+    "ORDER BY c.order_index,c._id LIMIT 1 OFFSET ?";
+  try(Cursor cursor=getReadableDatabase().rawQuery(sql,
+       new String[]{Integer.toString(active.satId),Integer.toString(active.tv),
+        Integer.toString(number-1)})){
+   if(cursor.moveToFirst())return new Channel(cursor);
+  }catch(Exception unavailable){}
+  return null;
+ }
  int satelliteNumber(Channel active){
   if(active==null)return 0;int order=0;
   try(Cursor c=getReadableDatabase().rawQuery("SELECT order_index FROM ch WHERE _id=?",
