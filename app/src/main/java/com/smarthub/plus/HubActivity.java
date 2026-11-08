@@ -23,8 +23,12 @@ public class HubActivity extends Activity {
   }
   return super.dispatchKeyEvent(event);
  }
- @Override public void onCreate(Bundle state) { super.onCreate(state); ar=prefs().getBoolean("arabic",true);int theme=prefs().getInt("launcher_theme",0);if(theme==1){BG=0xff091c22;PANEL=0xff14343b;TILE=0xff214850;ACCENT=0xff53d8b5;}else if(theme==2){BG=0xff09182c;PANEL=0xff172f4b;TILE=0xff254564;ACCENT=0xff70baff;}BG=0xff09101c;PANEL=0xe8182538;TILE=0xff1c3045;ACCENT=RxSkin.accent(this);MUTED=0xffb1c3d1;WHITE=0xfff1f1f5;AMBER=ACCENT;appliedAppearance=appearance();getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN); }
- private String appearance(){return RxSkin.selected(this)+"/"+prefs().getBoolean("rx_glass_effect",true)+"/"+prefs().getInt("ui_font_percent",100)+"/"+prefs().getBoolean("arabic",true);}
+ @Override public void onCreate(Bundle state) { super.onCreate(state); ar=prefs().getBoolean("arabic",true);int theme=prefs().getInt("launcher_theme",0);
+ BG=AppearancePalette.background(theme);
+ PANEL=AppearancePalette.panel(theme);
+ TILE=AppearancePalette.tile(theme);
+ ACCENT=RxSkin.accent(this);MUTED=0xffb1c3d1;WHITE=0xfff1f1f5;AMBER=ACCENT;appliedAppearance=appearance();getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN); }
+ private String appearance(){return RxSkin.selected(this)+"/"+prefs().getInt("launcher_theme",0)+"/"+prefs().getBoolean("rx_glass_effect",true)+"/"+prefs().getInt("ui_font_percent",100)+"/"+prefs().getBoolean("arabic",true);}
  @Override protected void onResume(){super.onResume();if(!appearance().equals(appliedAppearance))recreate();}
  protected float font(int sp){return sp*Math.max(85,Math.min(125,prefs().getInt("ui_font_percent",100)))/100f;}
  protected SharedPreferences prefs() { return getSharedPreferences("smarthub",MODE_PRIVATE); }
