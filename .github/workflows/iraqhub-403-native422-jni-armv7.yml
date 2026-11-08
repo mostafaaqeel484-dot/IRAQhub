@@ -1,11 +1,12 @@
-name: IRAQhub 4.0.3 Direct FFmpeg JNI ARMv7 Experimental Preflight
+name: IRAQhub 4.0.4 Direct FFmpeg JNI ARMv7 Experimental Preflight
 on:
   push:
     branches: ['feature/iraqhub-403-native422-ffmpeg-jni-multires-20261109', 'fix/iraqhub-404-epg-sports-native422-20261109']
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # Allow a private draft release only when Actions artifact storage is exhausted.
+  contents: write
 
 concurrency:
   group: iraqhub-403-native-${{ github.ref }}
@@ -80,10 +81,37 @@ jobs:
             grep -q "package: name='com.smarthub.plus.x5m403jni'"
           echo "Native JNI compiles and APK passes static ELF/signature tests."
           echo "Physical X5M decoded/moving video FPS remains UNVERIFIED."
-      - name: Publish experimental APK as non-release CI artifact only
-        if: success()
+      - name: Publish experimental APK to Actions artifacts (when quota allows)
+        id: upload_ci
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: IRAQhub_403_Experimental_Native422_ARMv7_Debug_NOT_DEVICE_VERIFIED
+          name: IRAQhub_404_Experimental_Native422_ARMv7_Debug_NOT_DEVICE_VERIFIED
           path: app/build/outputs/apk/native422Preview/app-native422Preview.apk
+          if-no-files-found: error
           retention-days: 7
+      - name: Preserve experimental APK in a private draft release if artifact upload failed
+        if: steps.upload_ci.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/native422Preview/app-native422Preview.apk
+          test -s "$APK"
+          sha256sum "$APK" > "$RUNNER_TEMP/SHA256SUMS.txt"
+          TAG="iraqhub-404-native422-ci-${GITHUB_RUN_ID}"
+          # Draft: no public release, no production tag, no main branch changes.
+          gh release create "$TAG" \
+            "$APK#IRAQhub_4.0.4_Native422_ARMv7_Experimental_Debug.apk" \
+            "$RUNNER_TEMP/SHA256SUMS.txt" \
+            --target "$GITHUB_SHA" \
+            --title "IRAQhub 4.0.4 Native422 X5M (CI experimental, NOT device verified)" \
+            --notes "Side-by-side Android ARMv7 debug preview. CI JVM, FFmpeg, ELF and APK-signing checks passed. Continuous 4:2:2 playback on physical Amlogic X5M has NOT been verified. Built from commit $GITHUB_SHA." \
+            --draft --prerelease
+          echo "APK preserved as a DRAFT release asset (not published): $TAG"
+          gh release view "$TAG" --json assets --jq '.assets[].name'
+      - name: Report artifact upload outcome
+        if: always() && steps.upload_ci.outcome == 'success'
+        shell: bash
+        run: echo "Experimental APK uploaded as an Actions artifact."
