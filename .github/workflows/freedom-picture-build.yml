@@ -3,7 +3,12 @@ on:
   push:
     branches:
       - feature/freedom-picture-100-20261108
+    paths:
+      - .source/FreedomPicture_1.0_Source.zip
+      - .github/workflows/freedom-picture-build.yml
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -16,17 +21,14 @@ jobs:
           java-version: '17'
       - name: Extract Freedom Picture independent source
         run: unzip -q .source/FreedomPicture_1.0_Source.zip -d .
-      - name: Inspect preinstalled tools
-        run: |
-          gradle --version
-          ls -l "$ANDROID_HOME/platforms" || true
       - name: Compile Android installable debug APK
         working-directory: FreedomPicture
-        run: gradle --no-daemon --stacktrace assembleDebug
-      - name: Upload Freedom Picture APK
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: FreedomPicture-1.0-debug-apk
-          path: FreedomPicture/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: warn
+        run: gradle --no-daemon assembleDebug
+      - name: Publish APK into this isolated build branch
+        run: |
+          cp FreedomPicture/app/build/outputs/apk/debug/app-debug.apk FreedomPicture_1.0_Debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add FreedomPicture_1.0_Debug.apk
+          git -c commit.gpgsign=false commit -m "build: Freedom Picture 1.0 installable APK [skip ci]"
+          git push origin HEAD:refs/heads/feature/freedom-picture-100-20261108
