@@ -41,7 +41,7 @@ final class Native422Decoder implements SurfaceHolder.Callback,AutoCloseable {
   }catch(Exception invalid){return false;}
  }
  private static native long nativeCreate();
- private static native int nativeRun(long handle,String url,Surface surface,
+ private native int nativeRun(long handle,String url,Surface surface,
                                     int width,int height,boolean convert420);
  private static native void nativeStop(long handle);
  private static native void nativeDestroy(long handle);
