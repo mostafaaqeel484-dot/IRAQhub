@@ -10,6 +10,10 @@ public final class TigerOsdMetricsTest {
   // 2026 reference: year + local date/time + two fixed-height badge rows.
   assertTrue(TigerOsdMetrics.headerHeightDp()>=2*TigerOsdMetrics.iconHeightDp()+24);
  }
+ @Test public void compactModeIsNotBasedOnImpossibleHeightThreshold(){
+  assertTrue(TigerOsdMetrics.isCompact(false));
+  assertFalse(TigerOsdMetrics.isCompact(true));
+ }
  @Test public void postersStayAboveBothInfoBarSizes(){
   for(boolean expanded:new boolean[]{false,true}){
    int bar=TigerOsdMetrics.barHeightDp(expanded);
