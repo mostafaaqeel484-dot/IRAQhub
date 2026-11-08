@@ -64,7 +64,7 @@ final class NowNextView extends FrameLayout {
   bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
   LinearLayout brand=column();brand.setGravity(Gravity.CENTER);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(92),dp(72)));
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(68),dp(49)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -78,7 +78,7 @@ final class NowNextView extends FrameLayout {
   providerPanel.addView(providerName);
   providerPanel.setVisibility(detailed?VISIBLE:GONE);
   brand.addView(providerPanel);
-  primary.addView(brand,new LinearLayout.LayoutParams(dp(108),-2));
+  primary.addView(brand,new LinearLayout.LayoutParams(dp(76),-2));
 
   LinearLayout programme=column();
   programme.setPadding(dp(10),0,dp(10),0);
@@ -208,7 +208,7 @@ final class NowNextView extends FrameLayout {
   expanded=value;
   // Poster images show with the FIRST INFO press, not only expanded details.
   // Empty event artwork stays invisible until its verified image is ready.
-  boolean showPosters=prefs.getBoolean("osd_posters",false);
+  boolean showPosters=prefs.getBoolean("osd_posters",true);
   leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   // Keep poster corners just above the expanded/compact bar.
@@ -253,7 +253,8 @@ final class NowNextView extends FrameLayout {
    }
   }
   resolutionStrip.setContentDescription(badge.isEmpty()?tx("الدقة غير متاحة","Video resolution not available"):badge);
-  broadcast.setText(info.broadcast);broadcast.setVisibility(info.broadcast.isEmpty()?GONE:VISIBLE);
+  // The transponder belongs in the channel-list footer, not below the channel title.
+  broadcast.setText("");broadcast.setVisibility(GONE);
   currentPoster.setImageBitmap(current);nextPoster.setImageBitmap(next);
   if(current==null)currentPoster.setImageDrawable(null);if(next==null)nextPoster.setImageDrawable(null);currentPoster.setAlpha(current==null?.2f:1);nextPoster.setAlpha(next==null?.2f:1);
   currentPoster.setContentDescription(tx("الآن · ","NOW · ")+s.title);nextPoster.setContentDescription(tx("التالي · ","NEXT · ")+s.nextTitle);currentTitle.setText(tx("الآن · ","NOW · ")+shortTime(s.startMs));nextTitle.setText(tx("التالي · ","NEXT · ")+shortTime(s.nextStartMs));
