@@ -1,0 +1,241 @@
+name: IRAQhub+ 4.0.2 X5M Verified Pre-release Build
+
+on:
+  push:
+    branches: [ 'release/iraqhub-402-armv7-verified-alpha-20261108' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: iraqhub-402-verified-alpha-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Upstream dev.jdtech.mpv:libmpv:1.0.0 publishes classfile major 65
+          # (Java 21); Java 17 javac rejects MPVLib before Android dexing.
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865'
+      # Installed runner Gradle 9.x is incompatible with AGP 8.10.1.
+      # setup-gradle's distribution installer returned repeated HTTP 504s.
+      # Download Gradle 8.11.1 directly from official Gradle CDN with
+      # retries/resume, avoiding the broken setup-gradle action endpoint.
+      - name: Install compatible Gradle 8.11.1 using retryable direct download
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/gradle-8.11.1-bin.zip"
+          mkdir -p "$RUNNER_TEMP/gradle811"
+          curl --fail --location --show-error --silent \
+            --connect-timeout 20 --max-time 480 \
+            --retry 10 --retry-delay 5 --retry-all-errors \
+            --continue-at - \
+            --output "$DIST" \
+            "https://downloads.gradle.org/distributions/gradle-8.11.1-bin.zip"
+          unzip -tq "$DIST"
+          unzip -q "$DIST" -d "$RUNNER_TEMP/gradle811"
+          GRADLE="$RUNNER_TEMP/gradle811/gradle-8.11.1/bin"
+          test -x "$GRADLE/gradle"
+          echo "$GRADLE" >> "$GITHUB_PATH"
+          "$GRADLE/gradle" --version
+      - name: Unit tests, including Commons attribution
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Validate HEVC packet integrity and bounded stall recovery unit tests
+        run: |
+          gradle :app:testDebugUnitTest --tests 'com.smarthub.plus.TsSpliceContinuityTest' --tests 'com.smarthub.plus.Mpv422StreamHealthPolicyTest' --no-daemon --stacktrace
+      - name: Run four-stage + remote-control 4.0.2 regression tests
+        run: |
+          gradle :app:testDebugUnitTest \
+            --tests 'com.smarthub.plus.ChannelInitialFilterTest' \
+            --tests 'com.smarthub.plus.OsdDateFormatterTest' \
+            --tests 'com.smarthub.plus.BackupZipInspectorTest' \
+            --tests 'com.smarthub.plus.Native422V2ProfileTest' \
+            --tests 'com.smarthub.plus.ChannelNumberInputTest' \
+            --tests 'com.smarthub.plus.CaBadgePolicyTest' \
+            --no-daemon --stacktrace
+      - name: Compile and assemble Debug
+        run: gradle :app:assembleX5mPreview --no-daemon --stacktrace
+      - name: Verify MPV class and native libraries in the ACTUAL APK
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          name="app/build/outputs/apk/x5mPreview/app-x5mPreview.apk"
+          with zipfile.ZipFile(name) as apk:
+              names=set(apk.namelist())
+              for abi in ("armeabi-v7a",):
+                  for lib in ("libmpv.so","libplayer.so"):
+                      path=f"lib/{abi}/{lib}"
+                      print(path, "PRESENT" if path in names else "MISSING")
+                      assert path in names, f"Missing {path}"
+              # Reject accidental dual ABI or missing ARMv7 binaries: this
+              # experiment must be installable on a 32-bit-only Android TV.
+              native=[n for n in names if n.startswith("lib/") and n.endswith(".so")]
+              assert native, "No native libraries in APK"
+              unexpected=sorted(n for n in native if not n.startswith("lib/armeabi-v7a/"))
+              assert not unexpected, f"Unexpected non-ARMv7 native libraries: {unexpected[:12]}"
+              assert "lib/armeabi-v7a/libc++_shared.so" in names, "Missing ARMv7 C++ runtime"
+              print("32-bit ARMv7-only native payload validated:",len(native),"shared libraries")
+              dex=[n for n in names if n.startswith("classes") and n.endswith(".dex")]
+              assert dex,"No app DEX"
+              # Search actual DEX class_defs, NOT constant pool references:
+              # a Java caller may reference MPVLib without the AAR class
+              # being packaged, causing exactly NoClassDefFoundError.
+              from struct import unpack_from
+              def has_class(data, descriptor):
+                  if data[:4]!=bytes((100,101,120,10)): return False
+                  u32=lambda off:unpack_from("<I",data,off)[0]
+                  strings_off=u32(0x3c)
+                  types_off=u32(0x44)
+                  classes_count=u32(0x60)
+                  classes_off=u32(0x64)
+                  for i in range(classes_count):
+                      class_idx=u32(classes_off+32*i)
+                      name_idx=u32(types_off+4*class_idx)
+                      pointer=u32(strings_off+4*name_idx)
+                      # Skip string_data_item UTF16 length, encoded ULEB128.
+                      for k in range(5):
+                          b=data[pointer]
+                          pointer+=1
+                          if b<128:break
+                      stop=data.index(0,pointer)
+                      if data[pointer:stop].decode("utf8","replace")==descriptor:
+                          return True
+                  return False
+              found=any(has_class(apk.read(n),
+                     "Ldev/jdtech/mpv/MPVLib;") for n in dex)
+              print("MPVLib class-definition packaged:",found,"DEX files",len(dex))
+              assert found, "MPVLib actual class_def absent from installable APK"
+          PY
+      - name: Verify packaged 32-bit ARMv7 libmpv and libc++ ABI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ndk="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64"
+          test -x "$ndk/bin/llvm-nm"
+          python3 - <<'PY'
+          import zipfile,os,pathlib,hashlib
+          apk="app/build/outputs/apk/x5mPreview/app-x5mPreview.apk"
+          out=pathlib.Path("build/cxx-audit")
+          out.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile(apk) as package:
+            for abi in ("armeabi-v7a",):
+              for lib in ("libmpv.so","libc++_shared.so","libplayer.so"):
+                key=f"lib/{abi}/{lib}"
+                assert key in package.namelist(),f"Missing {key}"
+                data=package.read(key)
+                loc=out/abi/lib
+                loc.parent.mkdir(parents=True,exist_ok=True)
+                loc.write_bytes(data)
+                assert data[:4]==bytes((127,69,76,70)),f"Invalid ELF in {key}"
+                print(key,len(data),hashlib.sha256(data).hexdigest())
+          PY
+          python3 - <<'PY'
+          import pathlib, subprocess, os
+          bin_dir=pathlib.Path(os.environ['ANDROID_HOME']) / 'ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin'
+          nm=str(bin_dir/'llvm-nm')
+          elf=str(bin_dir/'llvm-readelf')
+          def exported(path):
+              output=subprocess.check_output([nm,'-D','--defined-only',str(path)],text=True)
+              return {line.rsplit(' ',1)[-1].split('@')[0] for line in output.splitlines() if line.strip()}
+          def undefined(path):
+              output=subprocess.check_output([nm,'-D','--undefined-only',str(path)],text=True)
+              return {line.rsplit(' ',1)[-1].split('@')[0] for line in output.splitlines() if line.strip()}
+          for abi in ('armeabi-v7a',):
+              root=pathlib.Path('build/cxx-audit')/abi
+              runtime=root/'libc++_shared.so'
+              mpv=root/'libmpv.so'
+              player=root/'libplayer.so'
+              native_exports=exported(runtime)
+              print(abi, 'runtime exports:',len(native_exports),flush=True)
+              expected_prefix='_ZNSt6__ndk127__from_chars_floating_point'
+              assert any(x.startswith(expected_prefix) for x in native_exports),(
+                  f'{abi}: packaged libc++ lacks libc++20 floating from_chars')
+              assert '_ZNSt6__ndk18to_charsEPcS0_f' in native_exports,(
+                  f'{abi}: missing original to_chars(float) export')
+              for name in (mpv,player):
+                  imported=undefined(name)
+                  std={x for x in imported if x.startswith('_ZNSt6__ndk1')}
+                  missing=sorted(std-native_exports)
+                  print(f'{abi} {name.name}: imported {len(std)} std::__ndk1 symbols; unresolved {len(missing)}',flush=True)
+                  if missing:
+                      print('UNRESOLVED C++ ABI:','\n'.join(missing[:100]),flush=True)
+                  assert not missing, f'{abi} {name.name} has {len(missing)} absent C++ ABI symbols'
+              for name in (runtime,mpv,player):
+                  result=subprocess.check_output([elf,'-h',str(name)],text=True)
+                  klass='ELF32' if abi=='armeabi-v7a' else 'ELF64'
+                  assert klass in result, f'{abi} wrong ELF class for {name}'
+              print(f'{abi}: all C++ runtime ABI contracts verified',flush=True)
+          PY
+      - name: Verify Debug signature and alignment
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/x5mPreview/app-x5mPreview.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "name='com.smarthub.plus.x5m402'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "native-code: 'armeabi-v7a'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "sdkVersion:'26'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "targetSdkVersion:'34'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionCode='43'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='4.0.2-alpha1-x5m402-preview'"
+          # Installation guard: Android blocks two apps that expose an
+          # identical FileProvider authority (INSTALL_FAILED_CONFLICTING_PROVIDER).
+          # Verify the BINARY manifest, not just Gradle or manifest source.
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > /tmp/iraqhub402-manifest.txt
+          grep -F 'com.smarthub.plus.x5m402.files' /tmp/iraqhub402-manifest.txt
+          if grep -Fq 'com.smarthub.plus.files' /tmp/iraqhub402-manifest.txt; then
+            echo 'ERROR: preview still uses original IRAQhub FileProvider authority'; exit 1
+          fi
+          echo 'Installer provider authority isolated from com.smarthub.plus'
+          # Existing installation keeps its original package/UID/data intact.
+          if "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -q "name='com.smarthub.plus' "; then
+             echo 'ERROR: Preview would overwrite original IRAQhub'; exit 1
+          fi
+          python3 - <<'PY'
+          import zipfile
+          apk="app/build/outputs/apk/x5mPreview/app-x5mPreview.apk"
+          with zipfile.ZipFile(apk) as pkg:
+              assert pkg.testzip() is None, "APK ZIP CRC integrity failed"
+          print("Preview APK all ZIP CRC checks passed")
+          PY
+      # CI assets can exceed Actions artifact storage quota; publish to private
+      # GitHub Releases instead. Never overwrite or uninstall the original app.
+      # Pre-release is visible to signed-in repo collaborators, NOT public.
+      - name: Publish 4.0.2 Debug Alpha to PRIVATE GitHub Pre-release (non-Draft)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-402-x5m-android14-armv7-alpha-20261108
+          APK=app/build/outputs/apk/x5mPreview/app-x5mPreview.apk
+          test -s "$APK"
+          mkdir -p dist
+          cp "$APK" dist/IRAQhubPlus_4.0.2_Alpha_X5M_Android14_ARMv7.apk
+          # Never attempt a release upload if the expected output is missing.
+          test -s "dist/IRAQhubPlus_4.0.2_Alpha_X5M_Android14_ARMv7.apk"
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub+ 4.0.2 Alpha · X5M Android 14 ARMv7" \
+              --notes "IRAQhub+ 4.0.2 ALPHA PRIVATE PRERELEASE for X5M Android TV14 ARMv7, package com.smarthub.plus.x5m402. Pre-build 4.0.2 source and all JUnit gate PASSED. New app icon from user-supplied IRAQhub+ artwork, docked shorter InfoBar, restored NOW/NEXT posters with cache refresh, CA multi-family yellow badges, compact channel-menu RF signal strip with physical-identity gating, volume OSD, numeric channel zap and safe front-panel JSON channel-number handoff. Original CHMAX/EPG/manual scan/PVR and experimental Native422 V2 retained; this is NOT a new independent JNI decoder. 4:2:2 HEVC video on real X5M remains UNVERIFIED. Original com.smarthub.plus and old previews remain intact; do not uninstall them."
+          fi
+          # Existing tag created by a previous run may still be Draft.
+          gh release edit "$TAG" --draft=false --prerelease
+          gh release upload "$TAG" \
+            dist/IRAQhubPlus_4.0.2_Alpha_X5M_Android14_ARMv7.apk \
+            dist/SHA256SUMS.txt --clobber
+          gh release view "$TAG" --json isDraft,assets --jq '{draft:.isDraft,assets:[.assets[].name]}'
