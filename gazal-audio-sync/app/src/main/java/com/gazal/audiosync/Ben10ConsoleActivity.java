@@ -133,10 +133,10 @@ public final class Ben10ConsoleActivity extends Activity {
         sourceColumn.setPadding(4,8,6,8); sourceColumn.setBackgroundColor(TILE);
         count = text("AUDIO SOURCES • " + sources.size(),13,0xFF60D8FF,true);
         sourceColumn.addView(count);
-        body.addView(sourceColumn,new LinearLayout.LayoutParams(0,0,4));
+        body.addView(sourceColumn,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.MATCH_PARENT,4));
         rightColumn = new LinearLayout(this); rightColumn.setOrientation(LinearLayout.VERTICAL);
         rightColumn.setPadding(8,6,8,6); rightColumn.setBackgroundColor(TILE);
-        body.addView(rightColumn,new LinearLayout.LayoutParams(0,0,6));
+        body.addView(rightColumn,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.MATCH_PARENT,6));
         LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(-1,0,1);
         bodyParams.topMargin = 7; panel.addView(body, bodyParams);
         fillSources(); fillRight();
