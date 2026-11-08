@@ -27,7 +27,7 @@ import java.util.ArrayList;
 
 public final class MainActivity extends Activity {
     private static final int PICK_FILE = 101;
-    private static final int BACKGROUND = 0x071324;
+    private static final int BACKGROUND = 0xFF071324;
     private static final int CARD = 0xFF102943;
     private static final int BLUE = 0xFF1766A0;
     private static final int GREEN = 0xFF168568;
@@ -215,7 +215,7 @@ public final class MainActivity extends Activity {
         EditText url = new EditText(this);
         url.setSingleLine(true);
         url.setHint("https://example.com/live.m3u8");
-        url.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        url.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
         form.addView(name); form.addView(url);
         new AlertDialog.Builder(this).setTitle("إضافة مصدر صوت").setView(form)
             .setPositiveButton("حفظ", (d,w) -> {
