@@ -59,7 +59,7 @@ for name in avformat avcodec swscale avutil; do
 import sys,struct
 with open(sys.argv[1],"rb") as file:
     header=file.read(20)
-if header[:4]!=b"\\x7fELF" or header[4]!=1 or header[5]!=1:
+if header[:4]!=b"\x7fELF" or header[4]!=1 or header[5]!=1:
     raise SystemExit("Not little-endian ELF32: "+sys.argv[1])
 if struct.unpack_from("<H",header,18)[0]!=40:
     raise SystemExit("ELF machine is not 32-bit ARM: "+sys.argv[1])
