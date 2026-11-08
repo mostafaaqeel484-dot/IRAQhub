@@ -25,7 +25,10 @@ jobs:
         with:
           gradle-version: '8.10.2'
       - name: Install Android SDK 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          SDKROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$SDKROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
       - name: Compile standalone Gazal app
         working-directory: gazal-audio-sync
         run: gradle --no-daemon assembleDebug --stacktrace
