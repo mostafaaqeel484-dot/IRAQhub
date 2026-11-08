@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  # Allow a private draft release only when Actions artifact storage is exhausted.
+  # Only the experimental tagged Draft Release receives write access.
   contents: write
 
 concurrency:
@@ -53,65 +53,83 @@ jobs:
           gradle :app:assembleNative422Preview \
             -Pnative422FfmpegRoot="$GITHUB_WORKSPACE/.native422/ffmpeg-armv7" \
             --no-daemon --stacktrace
-      - name: Verify ARM32 JNI, FFmpeg dependencies, signing and isolated process
+      - name: Re-align and FINAL-sign installable APK (v1/v2/v3, Android 14)
         shell: bash
         run: |
           set -euo pipefail
-          APK=app/build/outputs/apk/native422Preview/app-native422Preview.apk
-          test -s "$APK"
-          unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libiraqhub_native422.so'
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          INPUT=app/build/outputs/apk/native422Preview/app-native422Preview.apk
+          ALIGNED="$RUNNER_TEMP/iraqhub-404-unsigned-aligned.apk"
+          mkdir -p dist
+          FINAL="dist/IRAQhub_4.0.4_Native422_ARMv7_ReSigned_Debug.apk"
+          test -s "$INPUT"
+          unzip -tq "$INPUT"
+          # ZIP alignment must finish BEFORE signing. Never mutate the final signed APK.
+          "$BT/zipalign" -P 16 -f 4 "$INPUT" "$ALIGNED"
+          KEYSTORE="$RUNNER_TEMP/iraqhub-ci-ephemeral.p12"
+          keytool -genkeypair -noprompt -storetype PKCS12 \
+            -keystore "$KEYSTORE" -storepass changeit -keypass changeit \
+            -alias iraqhubtest -keyalg RSA -keysize 3072 -validity 14 \
+            -dname "CN=IRAQhub 4.0.4 Experimental Debug Build"
+          "$BT/apksigner" sign \
+            --ks "$KEYSTORE" --ks-type PKCS12 --ks-key-alias iraqhubtest \
+            --ks-pass pass:changeit --key-pass pass:changeit \
+            --v1-signing-enabled true --v2-signing-enabled true \
+            --v3-signing-enabled true --out "$FINAL" "$ALIGNED"
+          test -s "$FINAL"
+          # Verify the exact bytes of the FINAL signed distributable, not Gradle's intermediate.
+          "$BT/zipalign" -c -P 16 -v 4 "$FINAL"
+          "$BT/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$FINAL"
+          "$BT/apksigner" verify --min-sdk-version 34 --verbose --print-certs "$FINAL"
+          unzip -tq "$FINAL"
+          "$BT/aapt" dump badging "$FINAL" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "package: name='com.smarthub.plus.x5m404jni'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "native-code: 'armeabi-v7a'" "$RUNNER_TEMP/apk-badging.txt"
+          unzip -Z1 "$FINAL" > "$RUNNER_TEMP/apk-entries.txt"
+          grep -Fx 'lib/armeabi-v7a/libiraqhub_native422.so' "$RUNNER_TEMP/apk-entries.txt"
           for lib in avformat avcodec swscale avutil; do
-            unzip -l "$APK" | grep -q "lib/armeabi-v7a/lib${lib}.so"
+            grep -Fx "lib/armeabi-v7a/lib${lib}.so" "$RUNNER_TEMP/apk-entries.txt"
           done
-          if unzip -Z1 "$APK" | grep -q '^lib/arm64-v8a/'; then
-            echo "Unexpected 64-bit ABI in X5M build";exit 2
+          if grep -q '^lib/arm64-v8a/' "$RUNNER_TEMP/apk-entries.txt"; then
+            echo "ERROR: Unexpected 64-bit ABI"; exit 2
           fi
-          unzip -p "$APK" lib/armeabi-v7a/libiraqhub_native422.so > /tmp/native422.so
-          LLVM="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          python3 - /tmp/native422.so <<'PY'
+          unzip -p "$FINAL" lib/armeabi-v7a/libiraqhub_native422.so > "$RUNNER_TEMP/native422.so"
+          python3 - "$RUNNER_TEMP/native422.so" <<'PY'
           import sys,struct
           h=open(sys.argv[1],"rb").read(20)
           assert h[:4]==b"\x7fELF" and h[4]==1 and h[5]==1
           assert struct.unpack_from("<H",h,18)[0]==40
           PY
-          readelf -Ws /tmp/native422.so |
-            grep 'Java_com_smarthub_plus_Native422Decoder_nativeRun'
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" |
-            grep -q "package: name='com.smarthub.plus.x5m403jni'"
-          echo "Native JNI compiles and APK passes static ELF/signature tests."
-          echo "Physical X5M decoded/moving video FPS remains UNVERIFIED."
-      - name: Publish experimental APK to Actions artifacts (when quota allows)
-        id: upload_ci
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: IRAQhub_404_Experimental_Native422_ARMv7_Debug_NOT_DEVICE_VERIFIED
-          path: app/build/outputs/apk/native422Preview/app-native422Preview.apk
-          if-no-files-found: error
-          retention-days: 7
-      - name: Preserve experimental APK in a private draft release if artifact upload failed
-        if: steps.upload_ci.outcome == 'failure'
+          readelf -Ws "$RUNNER_TEMP/native422.so" |
+            grep -F 'Java_com_smarthub_plus_Native422Decoder_nativeRun'
+          (cd dist && sha256sum IRAQhub_4.0.4_Native422_ARMv7_ReSigned_Debug.apk > SHA256SUMS.txt)
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+          echo "FINAL APK passed post-sign v1/v2/v3, ZIP, ARMv7, JNI, SHA-256 tests."
+          echo "Install on a physical Amlogic X5M is NOT YET VERIFIED."
+      - name: Upload and verify FINAL signed APK from GitHub Draft Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          APK=app/build/outputs/apk/native422Preview/app-native422Preview.apk
-          test -s "$APK"
-          sha256sum "$APK" > "$RUNNER_TEMP/SHA256SUMS.txt"
-          TAG="iraqhub-404-native422-ci-${GITHUB_RUN_ID}"
-          # Draft: no public release, no production tag, no main branch changes.
+          TAG="iraqhub-404-resigned-ci-${GITHUB_RUN_ID}"
+          FINAL=IRAQhub_4.0.4_Native422_ARMv7_ReSigned_Debug.apk
           gh release create "$TAG" \
-            "$APK#IRAQhub_4.0.4_Native422_ARMv7_Experimental_Debug.apk" \
-            "$RUNNER_TEMP/SHA256SUMS.txt" \
+            "dist/$FINAL" "dist/SHA256SUMS.txt" \
             --target "$GITHUB_SHA" \
-            --title "IRAQhub 4.0.4 Native422 X5M (CI experimental, NOT device verified)" \
-            --notes "Side-by-side Android ARMv7 debug preview. CI JVM, FFmpeg, ELF and APK-signing checks passed. Continuous 4:2:2 playback on physical Amlogic X5M has NOT been verified. Built from commit $GITHUB_SHA." \
+            --title "IRAQhub 4.0.4 Android 14 X5M ARMv7 re-signed APK (device test)" \
+            --notes "EXPERIMENTAL side-by-side com.smarthub.plus.x5m404jni. ZIP-aligned before final v1/v2/v3 signing; validated for Android 14 and checksum checked after download. Not yet tested for real 4:2:2 playback on a physical receiver." \
             --draft --prerelease
-          echo "APK preserved as a DRAFT release asset (not published): $TAG"
-          gh release view "$TAG" --json assets --jq '.assets[].name'
-      - name: Report artifact upload outcome
-        if: always() && steps.upload_ci.outcome == 'success'
-        shell: bash
-        run: echo "Experimental APK uploaded as an Actions artifact."
+          mkdir -p "$RUNNER_TEMP/verify-release"
+          gh release download "$TAG" -D "$RUNNER_TEMP/verify-release" \
+            -p "$FINAL" -p SHA256SUMS.txt
+          (
+            cd "$RUNNER_TEMP/verify-release"
+            sha256sum -c SHA256SUMS.txt
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+              --min-sdk-version 34 --verbose --print-certs "$FINAL"
+            unzip -tq "$FINAL"
+          )
+          cmp "dist/$FINAL" "$RUNNER_TEMP/verify-release/$FINAL"
+          echo "PASS: Draft Release download matches byte-for-byte AND has valid Android 14 signature."
+          echo "Release tag: $TAG"
