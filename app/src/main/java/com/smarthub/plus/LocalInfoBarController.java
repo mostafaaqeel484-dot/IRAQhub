@@ -144,38 +144,41 @@ final class LocalInfoBarController implements AutoCloseable {
    }
   }
   String art=id+"|"+state.title+"|"+state.startMs+"|"+state.nextTitle+"|"+
-    state.nextStartMs+"|"+state.image+"|"+state.nextImage+"|"+
-    prefs.getLong("epg_art_changed_at",0);
+   state.nextStartMs+"|"+state.image+"|"+state.nextImage+"|"+
+   prefs.getLong("epg_art_changed_at",0);
+  String broadcastKey=id+"|"+state.title+"|"+state.startMs+"|"+
+   state.nextTitle+"|"+state.nextStartMs;
+  boolean eventChanged=!broadcastKey.equals(lastPrefetchEvent);
   boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
     (!state.nextTitle.isEmpty()&&nextPoster==null);
   if(!prefs.getBoolean("osd_posters",true)){
-   // Explicitly disabled by viewer; keep disk cache for later use.
    imageKey=art;currentPoster=null;nextPoster=null;
    currentSynopsis="";nextSynopsis="";
   }else if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
    imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
-   currentPoster=null;nextPoster=null;
-   currentSynopsis="";nextSynopsis="";
+   // A cache timestamp update does not change the NOW/NEXT event.
+   // Keep the displayed poster and synopsis until a new image arrives.
+   if(eventChanged){
+    currentPoster=null;nextPoster=null;
+    currentSynopsis="";nextSynopsis="";
+   }
    final String expected=art;
    final SatelliteState snapshot=state.copy();
-   // Two independent pipelines: a slow TMDB movie lookup must not delay NEXT.
-   // The artwork cache's update timestamp can change repeatedly; only schedule
-   // once per *broadcast event*, not once per cache invalidation or UI repaint.
-   String broadcastKey=id+"|"+snapshot.title+"|"+snapshot.startMs+"|"+
-     snapshot.nextTitle+"|"+snapshot.nextStartMs;
-   if(!broadcastKey.equals(lastPrefetchEvent)){
+   if(eventChanged){
     lastPrefetchEvent=broadcastKey;
     if(!prefs.getBoolean("software_dvb_422_active",false)&&
        !prefs.getBoolean("dvb_tuning",false)&&snapshot.startMs>0)
      IraqHubSyncScheduler.programmeChanged(host);
    }
-   io.execute(()->{
-    try{if(!prefs.getBoolean("software_dvb_422_active",false))
-      published.refresh(snapshot,System.currentTimeMillis());}
-    catch(Exception ignored){}
-    loadPoster(snapshot,false,expected);
-   });
+   // Show NOW and NEXT independently before the slower published-EPG scan.
+   // A later provider cache update is handled by the next tick.
+   io.execute(()->loadPoster(snapshot,false,expected));
    io.execute(()->loadPoster(snapshot,true,expected));
+   if(!prefs.getBoolean("software_dvb_422_active",false))
+    io.execute(()->{
+     try{published.refresh(snapshot,System.currentTimeMillis());}
+     catch(Exception ignored){}
+    });
   }
   if(System.currentTimeMillis()>=logoRetry&&!state.channelName.isEmpty()){
    logoRetry=System.currentTimeMillis()+60000;
