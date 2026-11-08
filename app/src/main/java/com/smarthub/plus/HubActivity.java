@@ -51,7 +51,7 @@ public class HubActivity extends Activity {
   if(!subtitle.isEmpty()){TextView sub=text(subtitle,14,false);sub.setTextColor(ACCENT);sub.setPadding(0,dp(5),0,dp(12));root.addView(sub);}
   ScrollView scroll=new ScrollView(this);LinearLayout body=col();body.setPadding(0,dp(12),0,dp(90));scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);return body;
  }
- protected TextView text(String value,int sp,boolean bold) { TextView v=new TextView(this);v.setText(value);v.setTextSize(font(sp));v.setTextColor(WHITE);v.setGravity(ar?Gravity.RIGHT:Gravity.LEFT);v.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);Typeface original=UserTypeface.get(this);if(original==null)original=RxOriginalAssets.font(this);
+ protected TextView text(String value,int sp,boolean bold) { TextView v=new TextView(this);v.setText(value);v.setTextSize(font(sp));v.setTextColor(WHITE);v.setGravity(ar?Gravity.RIGHT:Gravity.LEFT);v.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);Typeface original=UserTypeface.get(this,bold);if(original==null)original=RxOriginalAssets.font(this);
  if(original!=null&&ar)v.setTypeface(original,bold?Typeface.BOLD:Typeface.NORMAL);
  else if(bold)v.setTypeface(null,Typeface.BOLD);
  return v; }
