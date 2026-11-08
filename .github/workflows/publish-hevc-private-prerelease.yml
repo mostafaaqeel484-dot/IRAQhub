@@ -1,0 +1,46 @@
+name: Make existing X5M HEVC APK downloadable from private GitHub release
+
+on:
+  push:
+    branches: ['fix/hevc-apk-download-private-prerelease-20261108']
+    paths: ['.github/workflows/publish-hevc-private-prerelease.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-existing-asset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check existing Draft APK and promote to PRIVATE prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-400-x5m-hevc-ts-recovery-preview-20261108
+          NAME=IRAQhub_4.0.0_X5M_Android14_ARMv7_HEVC_TS_Recovery_Preview.apk
+          RELEASE_ID=437939796
+          EXPECTED_BYTES=92809965
+
+          # Only publish the already-built APK; never recompile or upload any
+          # unrelated assets and never expose the private repo to the public.
+          info="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID")"
+          actual_tag="$(jq -r '.tag_name' <<<"$info")"
+          test "$actual_tag" = "$TAG"
+          test "$(jq -r --arg name "$NAME" '[.assets[]|select(.name==$name)]|length' <<<"$info")" = 1
+          test "$(jq -r --arg name "$NAME" '.assets[]|select(.name==$name)|.size' <<<"$info")" = "$EXPECTED_BYTES"
+          test "$(jq -r --arg name "$NAME" '.assets[]|select(.name==$name)|.state' <<<"$info")" = "uploaded"
+          echo "Verified existing private draft release ID=$RELEASE_ID asset=$NAME bytes=$EXPECTED_BYTES"
+
+          gh release edit "$TAG" \
+            --draft=false \
+            --prerelease \
+            --title "IRAQhub 4.0.0 X5M HEVC TS Recovery · PRIVATE FIELD TEST (ARMv7 32-bit)" \
+            --notes "PRIVATE PRE-RELEASE ONLY, NOT PRODUCTION-VERIFIED. Existing APK from PR #41 Android TV 14 armeabi-v7a build. No recompile. New package com.smarthub.plus.x5mhevc installs beside existing IRAQhub. Do not uninstall original app. HEVC video motion remains unverified until X5M testing. Open with the GitHub owner account signed in because this repository is private."
+
+          gh release view "$TAG" --json isDraft,isPrerelease,url,assets \
+            --jq '{url:.url,isDraft:.isDraft,isPrerelease:.isPrerelease,assets:[.assets[]|{name:.name,size:.size}]}'
