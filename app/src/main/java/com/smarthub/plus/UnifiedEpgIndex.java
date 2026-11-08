@@ -47,6 +47,9 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
    start>0&&end>start&&end-start<=24*3600000L&&
    end>now-HISTORY_MS&&start<now+MAX_FUTURE_MS;
  }
+ static String eventChannel(SatelliteGuideRepository.Event event){
+  return event==null||event.channelId==null?"":event.channelId;
+ }
  synchronized void record(Map<String,SatelliteGuideRepository.Event> events,long now){
   if(events==null||events.isEmpty())return;
   SQLiteDatabase db=getWritableDatabase();
@@ -56,7 +59,9 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
     Long.toString(now-HISTORY_MS),Long.toString(now+MAX_FUTURE_MS)});
    for(Map.Entry<String,SatelliteGuideRepository.Event> row:events.entrySet()){
     SatelliteGuideRepository.Event e=row.getValue(),previous;
-    String id=row.getKey();
+    // Map keys distinguish multiple broadcasts (channel|start), whereas
+    // lookups must use the physical DVB channel ID in each Event.
+    String id=eventChannel(e);
     if(e==null||!valid(id,e.startMs,e.endMs,e.title,now))continue;
     int rank=sourceRank(e.source);
     try(Cursor cursor=db.rawQuery(
