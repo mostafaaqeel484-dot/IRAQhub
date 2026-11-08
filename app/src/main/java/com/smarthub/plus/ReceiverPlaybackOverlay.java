@@ -18,10 +18,11 @@ final class ReceiverPlaybackOverlay {
  private final LinearLayout volumePanel,numberPanel;
  private final ProgressBar volumeBar;
  private final TextView volumeLabel,numberLabel;
- private final Runnable hideVolume=()->volumePanel.setVisibility(View.GONE);
+ private final Runnable hideVolume;
  ReceiverPlaybackOverlay(Activity activity,FrameLayout root){
   host=activity;
   volumePanel=panel();
+  hideVolume=()->volumePanel.setVisibility(View.GONE);
   volumePanel.setOrientation(LinearLayout.VERTICAL);
   volumeLabel=label("Volume  —",16);
   volumeBar=new ProgressBar(activity,null,android.R.attr.progressBarStyleHorizontal);
