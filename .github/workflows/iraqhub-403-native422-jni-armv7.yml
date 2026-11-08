@@ -49,14 +49,14 @@ jobs:
           bash scripts/build-native422-ffmpeg.sh "$GITHUB_WORKSPACE/.native422/ffmpeg-armv7"
       - name: Build real FFmpeg-linked JNI APK (never overwrite main)
         run: |
-          gradle :app:assembleDebug \
+          gradle :app:assembleNative422Preview \
             -Pnative422FfmpegRoot="$GITHUB_WORKSPACE/.native422/ffmpeg-armv7" \
             --no-daemon --stacktrace
       - name: Verify ARM32 JNI, FFmpeg dependencies, signing and isolated process
         shell: bash
         run: |
           set -euo pipefail
-          APK=app/build/outputs/apk/debug/app-debug.apk
+          APK=app/build/outputs/apk/native422Preview/app-native422Preview.apk
           test -s "$APK"
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libiraqhub_native422.so'
           for lib in avformat avcodec swscale avutil; do
@@ -73,7 +73,7 @@ jobs:
             grep -q 'Java_com_smarthub_plus_Native422Decoder_nativeRun'
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" |
-            grep -q "package: name='com.smarthub.plus'"
+            grep -q "package: name='com.smarthub.plus.x5m403jni'"
           echo "Native JNI compiles and APK passes static ELF/signature tests."
           echo "Physical X5M decoded/moving video FPS remains UNVERIFIED."
       - name: Publish experimental APK as non-release CI artifact only
@@ -81,5 +81,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: IRAQhub_403_Experimental_Native422_ARMv7_Debug_NOT_DEVICE_VERIFIED
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/native422Preview/app-native422Preview.apk
           retention-days: 7
