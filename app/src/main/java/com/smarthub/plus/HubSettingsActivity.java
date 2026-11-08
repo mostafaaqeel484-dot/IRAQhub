@@ -73,6 +73,27 @@ public final class HubSettingsActivity extends HubActivity {
   open(viewing,tx("دليل البرامج ومصادر EPG","EPG and feed sources"),SatelliteGuideActivity.class);
   open(viewing,tx("البوسترات ومصادر الصور","Posters and artwork providers"),ProviderSetupActivity.class);
   open(viewing,tx("إصلاح 12 · مصادر لوغوات وبوسترات TVmaze والرياضة وWikimedia","Fix 12 · TVmaze, sports and Commons artwork sources"),ArtworkSourcesActivity.class);
+  LinearLayout panel=card(page);
+  panel.addView(text(tx("شاشة الرسيفر الأمامية · X5M","Front Panel · X5M"),22,true));
+  action(panel,tx("وضع اللوحة: اسم القناة","Panel mode: Channel"),()->{
+   prefs().edit().putString("front_panel_mode","channel").apply();
+   toast(tx("تم حفظ وضع القناة","Channel mode saved"));
+  });
+  action(panel,tx("وضع اللوحة: الساعة","Panel mode: Clock"),()->{
+   prefs().edit().putString("front_panel_mode","clock").apply();
+   toast(tx("وضع الساعة للمرافق فقط","Clock handoff mode saved"));
+  });
+  action(panel,tx("تعطيل تحديث اللوحة من التطبيق","Disable panel handoff"),()->{
+   prefs().edit().putString("front_panel_mode","off").apply();
+   toast(tx("توقف إرسال ملف حالة اللوحة","Panel handoff disabled"));
+  });
+  action(panel,tx("فحص واجهة Front Panel المتاحة","Inspect Front Panel capabilities"),
+   ()->new android.app.AlertDialog.Builder(this)
+     .setTitle("X5M Front Panel")
+     .setMessage(FrontPanelBridge.diagnostics(this))
+     .setPositiveButton("OK",null).show());
+  note(panel,tx("لا نكتب إلى /dev/vfd أو sysfs بدون توثيق المصنع. يمكن قراءة بيانات القناة والساعة من ملف المرافق؛ عرض اللوحة المباشر غير مثبت.",
+   "No raw writes to /dev/vfd or sysfs without an OEM protocol. Channel/clock handoff is available; direct hardware control is not verified."));
   LinearLayout recovery=card(page);
   recovery.addView(text(tx("الاستقرار والنسخ الاحتياطي","Stability & backups"),22,true));
   android.widget.CheckBox safe=check(recovery,
