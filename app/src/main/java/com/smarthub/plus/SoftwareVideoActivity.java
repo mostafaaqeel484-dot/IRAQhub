@@ -199,7 +199,15 @@ public final class SoftwareVideoActivity extends HubActivity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(0xff000000);
         playerRoot=root;
-        mpvSelected="mpv".equals(getIntent().getStringExtra("decoder_engine"));
+        String requestedEngine=getIntent().getStringExtra("decoder_engine");
+        String chosenOutput=Mpv422FluidPolicy.normalized(prefs().getString(
+          "unified_422_output_mode",Mpv422FluidPolicy.AUTO));
+        // One front-end: Auto starts LibVLC/FFmpeg; fixed conversions/GPU FAST
+        // start mpv/FFmpeg. The other backend is internal fallback, not a
+        // competing receiver-visible engine.
+        mpvSelected="mpv".equals(requestedEngine)||
+          ("unified".equals(requestedEngine)&&
+            !Mpv422FluidPolicy.AUTO.equals(chosenOutput));
         videoLayout = new VLCVideoLayout(this);
         root.addView(videoLayout, new FrameLayout.LayoutParams(-1, -1));
 
@@ -459,6 +467,9 @@ public final class SoftwareVideoActivity extends HubActivity {
     }
     private void configure(Media media,String source){
         media.setHWDecoderEnabled(false,false);
+        if("unified".equals(getIntent().getStringExtra("decoder_engine"))&&
+           prefs().getBoolean("unified_422_video_only",true))
+          media.addOption(":no-audio");
         media.addOption(":avcodec-hw=none");
         media.addOption(":codec=avcodec");
         String profile=Software422Profile.effective(this);
