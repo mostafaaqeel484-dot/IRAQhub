@@ -426,6 +426,12 @@ final class NowNextView extends FrameLayout {
  void synopses(String now,String next){
   String a=ProgrammeSynopsisText.clean(now,160);
   String b=ProgrammeSynopsisText.clean(next,160);
+  // Display a truthful empty-metadata hint instead of an unexplained blank
+  // under a successful programme poster.
+  if(a.isEmpty()&&currentPoster.getDrawable()!=null)
+   a=tx("النبذة غير متاحة","Synopsis unavailable");
+  if(b.isEmpty()&&nextPoster.getDrawable()!=null)
+   b=tx("النبذة غير متاحة","Synopsis unavailable");
   currentSynopsis.setText(a);nextSynopsis.setText(b);
   currentSynopsis.setVisibility(a.isEmpty()?GONE:VISIBLE);
   nextSynopsis.setVisibility(b.isEmpty()?GONE:VISIBLE);
