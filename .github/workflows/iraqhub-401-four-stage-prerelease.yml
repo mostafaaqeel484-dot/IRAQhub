@@ -167,8 +167,17 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "native-code: 'armeabi-v7a'"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "sdkVersion:'26'"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "targetSdkVersion:'34'"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionCode='41'"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='4.0.1-rc1-x5m401-preview'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionCode='42'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='4.0.1-rc2-x5m401-preview'"
+          # Installation guard: Android blocks two apps that expose an
+          # identical FileProvider authority (INSTALL_FAILED_CONFLICTING_PROVIDER).
+          # Verify the BINARY manifest, not just Gradle or manifest source.
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > /tmp/iraqhub401-manifest.txt
+          grep -F 'com.smarthub.plus.x5m401.files' /tmp/iraqhub401-manifest.txt
+          if grep -Fq 'com.smarthub.plus.files' /tmp/iraqhub401-manifest.txt; then
+            echo 'ERROR: preview still uses original IRAQhub FileProvider authority'; exit 1
+          fi
+          echo 'Installer provider authority isolated from com.smarthub.plus'
           # Existing installation keeps its original package/UID/data intact.
           if "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -q "name='com.smarthub.plus' "; then
              echo 'ERROR: Preview would overwrite original IRAQhub'; exit 1
@@ -190,22 +199,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=iraqhub-401-x5m-armv7-four-stage-prerelease-20261108
+          TAG=iraqhub-401-x5m-armv7-install-fix-rc2-20261108
           APK=app/build/outputs/apk/x5mPreview/app-x5mPreview.apk
           test -s "$APK"
           mkdir -p dist
-          cp "$APK" dist/IRAQhub_4.0.1_X5M_Android14_ARMv7_FourStage_PreRelease.apk
+          cp "$APK" dist/IRAQhub_4.0.1_RC2_X5M_Android14_ARMv7_InstallFix.apk
           # Never attempt a release upload if the expected output is missing.
-          test -s "dist/IRAQhub_4.0.1_X5M_Android14_ARMv7_FourStage_PreRelease.apk"
+          test -s "dist/IRAQhub_4.0.1_RC2_X5M_Android14_ARMv7_InstallFix.apk"
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
-              --title "IRAQhub 4.0.1 · X5M Four-Stage Major RC1 · ARMv7" \
-              --notes "IRAQhub 4.0.1 RC1 PRIVATE PRERELEASE Android TV14 ARMv7 only. Four stages: guarded experimental Native422 V2 session (libmpv FFmpeg backend, not direct FFmpeg JNI), TV channel Yellow A-Z/Arabic filter with search and large lower boxes removed, bottom InfoBar with year/date/icons, local user-imported Thmanyah font support without redistribution, safe DVB fallback, verified read-only SQLite ZIP backups and reduced hidden-poster CPU work. Existing CHMAX/EPG/manual scan/PVR retained. Real X5M HEVC 422 moving picture still UNVERIFIED. Separate applicationId com.smarthub.plus.x5m401; do not uninstall original IRAQhub. See docs/IRAQHUB_4_0_1_FOUR_STAGE_RC1_AR.md."
+              --title "IRAQhub 4.0.1 · X5M Four-Stage RC2 Installer Fix · ARMv7" \
+              --notes "IRAQhub 4.0.1 RC2 PRIVATE PRERELEASE Android TV14 ARMv7 only. Four stages: guarded experimental Native422 V2 session (libmpv FFmpeg backend, not direct FFmpeg JNI), TV channel Yellow A-Z/Arabic filter with search and large lower boxes removed, bottom InfoBar with year/date/icons, local user-imported Thmanyah font support without redistribution, safe DVB fallback, verified read-only SQLite ZIP backups and reduced hidden-poster CPU work. Existing CHMAX/EPG/manual scan/PVR retained. Real X5M HEVC 422 moving picture still UNVERIFIED. Separate applicationId com.smarthub.plus.x5m401; do not uninstall original IRAQhub. See docs/IRAQHUB_4_0_1_FOUR_STAGE_RC1_AR.md."
           fi
           # Existing tag created by a previous run may still be Draft.
           gh release edit "$TAG" --draft=false --prerelease
           gh release upload "$TAG" \
-            dist/IRAQhub_4.0.1_X5M_Android14_ARMv7_FourStage_PreRelease.apk \
+            dist/IRAQhub_4.0.1_RC2_X5M_Android14_ARMv7_InstallFix.apk \
             dist/SHA256SUMS.txt --clobber
           gh release view "$TAG" --json isDraft,assets --jq '{draft:.isDraft,assets:[.assets[].name]}'
