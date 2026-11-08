@@ -12,6 +12,12 @@ public final class CaBadgePolicyTest {
   assertFalse(CaBadgePolicy.active("")[6]);
   assertFalse(CaBadgePolicy.active("CA")[6]);
  }
+ @Test public void englishAndArabicFTAStayFree(){
+  boolean[] english=CaBadgePolicy.active("Free-to-air · FTA");
+  assertTrue(english[6]);assertFalse(english[0]);
+  boolean[] arabic=CaBadgePolicy.active("مفتوحة · FTA");
+  assertTrue(arabic[6]);assertFalse(arabic[0]);
+ }
  @Test public void familyNamesUseConservativeMapping(){
   assertTrue(CaBadgePolicy.active("NDS / VIACCESS")[3]);
   assertTrue(CaBadgePolicy.active("NDS / VIACCESS")[5]);
