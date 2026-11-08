@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -14,15 +14,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
-      - name: SDK availability
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls -l "$ANDROID_HOME/platforms" || true
       - name: Extract Freedom Picture independent source
         run: unzip -q .source/FreedomPicture_1.0_Source.zip -d .
+      - name: Inspect preinstalled tools
+        run: |
+          gradle --version
+          ls -l "$ANDROID_HOME/platforms" || true
       - name: Compile Android installable debug APK
         working-directory: FreedomPicture
         run: gradle --no-daemon --stacktrace assembleDebug
