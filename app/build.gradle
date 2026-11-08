@@ -29,6 +29,7 @@ android {
   }
   // Safe side-by-side X5M installer test. Never replaces com.smarthub.plus;
   // CI ephemeral Debug signing cannot update an app signed by an older run.
+  // The 4.0.4 test has a fresh package suffix to avoid signature conflicts.
   x5mPreview {
    initWith debug
    applicationIdSuffix '.x5m402'
@@ -37,14 +38,14 @@ android {
   }
   native422Preview {
    initWith debug
-   applicationIdSuffix '.x5m403jni'
-   versionNameSuffix '-x5m403jni-experimental'
+   applicationIdSuffix '.x5m404jni'
+   versionNameSuffix '-x5m404jni-resigned-test'
    matchingFallbacks = ['debug']
   }
  }
  // This Draft build targets the reported 32-bit Android TV / ARMv7-A ROM.
  // Keep the arm64-v8a dual-ABI application on PR #39 unchanged.
- defaultConfig { ndk { abiFilters 'armeabi-v7a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 43; versionName '4.0.2-alpha1'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
+ defaultConfig { ndk { abiFilters 'armeabi-v7a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 44; versionName '4.0.4-alpha1'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
  kotlinOptions { jvmTarget = '11' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
  testOptions { unitTests.returnDefaultValues=true }
