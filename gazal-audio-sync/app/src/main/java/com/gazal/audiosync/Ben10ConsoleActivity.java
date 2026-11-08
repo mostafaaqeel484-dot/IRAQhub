@@ -31,6 +31,7 @@ import java.util.Locale;
 /** BEN10-style TV control panel, independent of protected BEN10 core.b10. */
 public final class Ben10ConsoleActivity extends Activity {
     private static final int PICK = 501;
+    private static final int PICK_EPG = 502;
     private static final int NAVY = 0xEF071A2E;
     private static final int TILE = 0xDD17334E;
     private static final int CYAN = 0xFF1B9DD5;
@@ -123,6 +124,7 @@ public final class Ben10ConsoleActivity extends Activity {
         addFlexible(actions,btn("◇ Import CFG",0xFF174F80,v -> importFile()),1);
         addFlexible(actions,btn("⛓ Import M3U8",0xFF174F80,v -> importFile()),1);
         addFlexible(actions,btn("＋ Add Source",0xFF174F80,v -> addSource()),1);
+        addFlexible(actions,btn("EPG XMLTV",0xFF174F80,v -> importEpgFile()),1);
         panel.addView(actions);
 
         state = text("READY",12,GREEN,true); state.setBackgroundColor(0xFF0A503F);
@@ -182,8 +184,9 @@ public final class Ben10ConsoleActivity extends Activity {
         rightColumn.addView(sourceName);
         headline=text(s==null?"Choose Import or Add Source":"EXTERNAL AUDIO • select source to play",12,GREEN,true);
         rightColumn.addView(headline);
-        rightColumn.addView(text("NOW • Current programme unavailable",13,WHITE,true));
-        next=text("NEXT • EPG requires channel mapping / XMLTV",12,0xFFB7CBDC,false);
+        XmltvStore.Entry[] programme = XmltvStore.nowNext(this,s);
+        rightColumn.addView(text("NOW • "+XmltvStore.display(programme[0]),13,WHITE,true));
+        next=text("NEXT • "+XmltvStore.display(programme[1]),12,0xFFB7CBDC,false);
         rightColumn.addView(next);
         rightColumn.addView(text("DVB PCM • Requires tuner capture bridge\nEXTERNAL PCM • "+AudioService.LAST_STATE,12,0xFF71D6E9,false));
         info = text("AUTO SYNC: NOT VERIFIED\nGazal tuner delay must be tested via TV Input session.\nManual controls below are active.",12,0xFFFFC981,false);
@@ -244,9 +247,28 @@ public final class Ben10ConsoleActivity extends Activity {
         i.setType("*/*");
         startActivityForResult(i,PICK);
     }
+    private void importEpgFile() {
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("*/*");
+        startActivityForResult(i,PICK_EPG);
+    }
     @Override protected void onActivityResult(int req,int result,Intent data) {
         super.onActivityResult(req,result,data);
-        if(req!=PICK || result!=RESULT_OK || data==null || data.getData()==null)return;
+        if((req!=PICK && req!=PICK_EPG) || result!=RESULT_OK || data==null || data.getData()==null)return;
+        if(req==PICK_EPG){
+            final Uri uri=data.getData();
+            new Thread(()->{
+                try(InputStream stream=getContentResolver().openInputStream(uri)){
+                    int amount=XmltvStore.importStream(this,stream);
+                    runOnUiThread(()->{if(!isFinishing()){
+                        draw();new AlertDialog.Builder(this).setMessage("EPG imported: "+amount+" programmes").setPositiveButton("OK",null).show();
+                    }});
+                }catch(Exception error){runOnUiThread(()->{
+                    if(!isFinishing())new AlertDialog.Builder(this).setMessage("EPG parse failed: "+error.getMessage()).setPositiveButton("OK",null).show();
+                });}
+            }).start();return;
+        }
         try(InputStream in=getContentResolver().openInputStream(data.getData())) {
             if(in==null)throw new IllegalArgumentException("No input");
             ArrayList<PlaylistStore.Source> added=PlaylistStore.parse(in);
