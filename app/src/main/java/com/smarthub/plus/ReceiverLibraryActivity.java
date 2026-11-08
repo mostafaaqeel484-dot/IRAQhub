@@ -86,6 +86,20 @@ public class ReceiverLibraryActivity extends HubActivity {
   signalDetail=text("",11,false);
   rf=text("",10,false);
   strength=meter(0xff22c7e9);quality=meter(0xff9cef26);
+  // 4.0.2 narrow bottom frequency and tuner-signal ribbon.
+  LinearLayout signalStrip=col();
+  signalStrip.setPadding(dp(7),dp(4),dp(7),dp(3));
+  signalStrip.setBackgroundColor(0xff151a23);
+  rf.setTextColor(0xfff2d68a);
+  signalStrip.addView(rf);
+  LinearLayout meters=row();
+  meters.setGravity(Gravity.CENTER_VERTICAL);
+  meters.addView(strength,new LinearLayout.LayoutParams(0,dp(5),1));
+  meters.addView(quality,new LinearLayout.LayoutParams(0,dp(5),1));
+  signalStrip.addView(meters);
+  signalDetail.setTextColor(0xffc8d1dc);
+  signalStrip.addView(signalDetail);
+  root.addView(signalStrip,new LinearLayout.LayoutParams(-1,dp(55)));
   TextView hint=text(tx("الأصفر: فلترة الأحرف • OK تشغيل • INFO التفاصيل",
     "YELLOW Letters • OK Play • INFO Details"),11,false);
   hint.setTextColor(0xffbacbd5);
@@ -187,6 +201,8 @@ public class ReceiverLibraryActivity extends HubActivity {
  private void updateFocusedProgramme(int position){
   if(focusedProgramme==null||position<0||position>=shown.size())return;
   ReceiverCatalog.Channel channel=shown.get(position);
+  // RF is that of the highlighted service; S/Q below stays actual tuner.
+  if(rf!=null)rf.setText(channel.rf());
   if(wideList){
    focusedProgramme.setText(channel.name+" · "+channel.rf());
   }else{
@@ -441,7 +457,9 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
     }))
     .setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
- private void refreshSignal(){SatelliteState s=SatelliteState.read(this);if(reader!=null)reader.refresh(s);ReceiverInfoRepository.Info info=ReceiverInfoRepository.get(this).info(s);liveTitle.setText(s.channelName);String liveKey=s.channelId+"|"+s.title+"|"+(System.currentTimeMillis()/30000);if(!lastLiveTitle.equals(liveKey)){lastLiveTitle=liveKey;list.invalidateViews();}rf.setText(info.broadcast);strength.setProgress(percent(info.strength),true);quality.setProgress(percent(info.quality),true);strength.setVisibility(info.strength.isEmpty()?View.INVISIBLE:View.VISIBLE);quality.setVisibility(info.quality.isEmpty()?View.INVISIBLE:View.VISIBLE);signalDetail.setText("S: "+(info.strength.isEmpty()?"—":info.strength)+"     Q: "+(info.quality.isEmpty()?"—":info.quality)+"     "+info.signalDetail());}
+ private void refreshSignal(){SatelliteState s=SatelliteState.read(this);if(reader!=null)reader.refresh(s);ReceiverInfoRepository.Info info=ReceiverInfoRepository.get(this).info(s);liveTitle.setText(s.channelName);String liveKey=s.channelId+"|"+s.title+"|"+(System.currentTimeMillis()/30000);if(!lastLiveTitle.equals(liveKey)){lastLiveTitle=liveKey;list.invalidateViews();}if(list.getSelectedItemPosition()<0||list.getSelectedItemPosition()>=shown.size())
+   rf.setText(info.broadcast);
+  strength.setProgress(percent(info.strength),true);quality.setProgress(percent(info.quality),true);strength.setVisibility(info.strength.isEmpty()?View.INVISIBLE:View.VISIBLE);quality.setVisibility(info.quality.isEmpty()?View.INVISIBLE:View.VISIBLE);signalDetail.setText("S: "+(info.strength.isEmpty()?"—":info.strength)+"     Q: "+(info.quality.isEmpty()?"—":info.quality)+"     "+info.signalDetail());}
  private static int percent(String s){try{return (int)Float.parseFloat(s.replace("%",""));}catch(Exception no){return 0;}}
  private final class ChannelRow {
   LinearLayout container;
