@@ -13,6 +13,7 @@ final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
  private final TextView currentTitle,nextTitle,heading,nowLine,nextLine,status,clock,year;
  private final TextView broadcast,remaining,technical,weather,strengthLabel,qualityLabel,signalDetail,signalSource,encryptionLine,bitrateLabel,providerName,providerCaption;
+ private final TextView[] caChips=new TextView[CaSystemBadgePolicy.LABELS.length];
  private final LinearLayout providerPanel,resolutionStrip,details,bar,leftPosterBox,rightPosterBox;
  private final TextView[] resolutionChips=new TextView[5];
  private final TextView[] featureChips=new TextView[6];
@@ -36,18 +37,18 @@ final class NowNextView extends FrameLayout {
   final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
   int barH=dp(TigerOsdMetrics.barHeightDp(detailed));
   int tickerH=prefs.getBoolean("sports_ticker",false)?dp(62):0;
-  compact=barH<dp(145);
+  compact=!detailed;
   textScale=Math.max(.90f,Math.min(1.06f,barH/(150f*
        getResources().getDisplayMetrics().density)));
   int alpha=Math.max(30,Math.min(95,prefs.getInt("osd_opacity",88)))*255/100;
   bar=column();bar.setGravity(Gravity.CENTER_VERTICAL);
-  bar.setPadding(dp(20),dp(8),dp(20),dp(7));
+  bar.setPadding(dp(12),dp(3),dp(12),dp(3));
   GradientDrawable dark=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
    new int[]{Color.argb(alpha,0,0,0),Color.argb(Math.min(255,alpha+12),6,6,8)});
-  dark.setCornerRadius(dp(9));bar.setBackground(dark);
-  bar.setElevation(dp(6));
+  dark.setCornerRadius(0);bar.setBackground(dark);
+  bar.setElevation(0);
   LayoutParams barPosition=new LayoutParams(-1,barH,Gravity.BOTTOM);
-  barPosition.setMargins(dp(8),0,dp(8),dp(3));
+  barPosition.setMargins(0,0,0,0);
   addView(bar,barPosition);
 
   // Reference: channel left, small year + day/date/time at right; icons BELOW date.
@@ -64,7 +65,7 @@ final class NowNextView extends FrameLayout {
   bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
   LinearLayout brand=column();brand.setGravity(Gravity.CENTER);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(92),dp(72)));
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(72),dp(58)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -78,7 +79,7 @@ final class NowNextView extends FrameLayout {
   providerPanel.addView(providerName);
   providerPanel.setVisibility(detailed?VISIBLE:GONE);
   brand.addView(providerPanel);
-  primary.addView(brand,new LinearLayout.LayoutParams(dp(108),-2));
+  primary.addView(brand,new LinearLayout.LayoutParams(dp(86),-2));
 
   LinearLayout programme=column();
   programme.setPadding(dp(10),0,dp(10),0);
@@ -86,7 +87,7 @@ final class NowNextView extends FrameLayout {
   heading=label("IRAQhub",compact?18:22,true);
   heading.setTextColor(0xff3fe44d);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);headLeft.addView(heading);
   broadcast=label("",10,false);broadcast.setTextColor(0xffe0e0e0);
-  headLeft.addView(broadcast);
+  headLeft.addView(broadcast);broadcast.setVisibility(GONE);
   nowLine=label("",compact?13:16,true);
   programme.addView(nowLine);
   nextLine=label("",compact?11:13,false);
@@ -182,14 +183,24 @@ final class NowNextView extends FrameLayout {
   details.setVisibility(detailed?VISIBLE:GONE);
   bar.addView(details,new LinearLayout.LayoutParams(-1,-2));
 
-  // Reference bottom row: BER/SNR/aspect/bitrate at left and CA/FTA at right.
+  // 4.0.2: bottom-LEFT simultaneous CA badges; technical details at right.
   LinearLayout footer=new LinearLayout(context);
   footer.setGravity(Gravity.CENTER_VERTICAL);
+  LinearLayout cas=new LinearLayout(context);
+  cas.setGravity(Gravity.CENTER_VERTICAL);
+  for(int i=0;i<caChips.length;i++){
+   TextView chip=label(CaSystemBadgePolicy.LABELS[i],8,true);
+   chip.setGravity(Gravity.CENTER);
+   chip.setPadding(dp(4),0,dp(4),0);
+   caChips[i]=chip;
+   cas.addView(chip,new LinearLayout.LayoutParams(-2,dp(19)));
+  }
+  footer.addView(cas,new LinearLayout.LayoutParams(-2,dp(22)));
   technical.setSingleLine(true);
+  technical.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
   technical.setEllipsize(android.text.TextUtils.TruncateAt.END);
   technical.setTextColor(0xffd7dadd);
   footer.addView(technical,new LinearLayout.LayoutParams(0,-1,1));
-  footer.addView(encryptionLine,new LinearLayout.LayoutParams(-2,dp(20)));
   bar.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
 
   if(tickerH>0){
@@ -208,7 +219,7 @@ final class NowNextView extends FrameLayout {
   expanded=value;
   // Poster images show with the FIRST INFO press, not only expanded details.
   // Empty event artwork stays invisible until its verified image is ready.
-  boolean showPosters=prefs.getBoolean("osd_posters",false);
+  boolean showPosters=prefs.getBoolean("osd_posters",true);
   leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   // Keep poster corners just above the expanded/compact bar.
@@ -253,7 +264,7 @@ final class NowNextView extends FrameLayout {
    }
   }
   resolutionStrip.setContentDescription(badge.isEmpty()?tx("الدقة غير متاحة","Video resolution not available"):badge);
-  broadcast.setText(info.broadcast);broadcast.setVisibility(info.broadcast.isEmpty()?GONE:VISIBLE);
+  broadcast.setText(info.broadcast);broadcast.setVisibility(GONE); // Frequency is now in channel-list footer
   currentPoster.setImageBitmap(current);nextPoster.setImageBitmap(next);
   if(current==null)currentPoster.setImageDrawable(null);if(next==null)nextPoster.setImageDrawable(null);currentPoster.setAlpha(current==null?.2f:1);nextPoster.setAlpha(next==null?.2f:1);
   currentPoster.setContentDescription(tx("الآن · ","NOW · ")+s.title);nextPoster.setContentDescription(tx("التالي · ","NEXT · ")+s.nextTitle);currentTitle.setText(tx("الآن · ","NOW · ")+shortTime(s.startMs));nextTitle.setText(tx("التالي · ","NEXT · ")+shortTime(s.nextStartMs));
@@ -296,6 +307,18 @@ final class NowNextView extends FrameLayout {
    caBackground.setStroke(dp(1),encrypted?0xffe3aa7f:0xff74bea1);
    encryptionLine.setBackground(caBackground);
    encryptionLine.setPadding(dp(6),dp(1),dp(6),dp(1));
+  }
+  boolean[] caActive=CaSystemBadgePolicy.active(ca);
+  for(int i=0;i<caChips.length;i++){
+   TextView chip=caChips[i];
+   boolean on=caActive[i];
+   GradientDrawable indicator=new GradientDrawable();
+   indicator.setColor(on?0xffdfba43:0xff252932);
+   indicator.setStroke(dp(1),on?0xffffdf76:0xff515966);
+   indicator.setCornerRadius(dp(3));
+   chip.setBackground(indicator);
+   chip.setTextColor(on?0xff17191c:0xff9098a5);
+   chip.setContentDescription(CaSystemBadgePolicy.LABELS[i]+(on?" active":" inactive"));
   }
   encryptionLine.setGravity(Gravity.CENTER);
   encryptionLine.setContentDescription(ca.isEmpty()?tx("معلومات التشفير غير متاحة","CA information unknown"):ca);
