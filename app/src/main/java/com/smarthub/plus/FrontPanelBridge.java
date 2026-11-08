@@ -33,7 +33,11 @@ final class FrontPanelBridge {
    "\nOEM panel display API: NOT YET IDENTIFIED (no unsafe writes)";
  }
  static void publish(Context context,ReceiverCatalog.Channel channel){
-  if(channel==null)return;
+  publish(context,channel,0);
+ }
+ static void publish(Context context,ReceiverCatalog.Channel channel,int number){
+  if(channel==null||!context.getSharedPreferences("smarthub",0)
+      .getBoolean("front_panel_export_enabled",true))return;
   Context app=context.getApplicationContext();
   String name=channel.name,physical="DVB:"+channel.physical();
   IO.execute(()->{
@@ -46,6 +50,11 @@ final class FrontPanelBridge {
     JSONObject state=new JSONObject()
        .put("channel",name).put("physical",physical)
        .put("scrambled",channel.ca>0)
+       .put("channelNumber",context.getSharedPreferences("smarthub",0)
+         .getBoolean("front_panel_export_number",true)?Math.max(0,number):0)
+       .put("displayMode","channel")
+       .put("clockFormat","HH:mm")
+       .put("oemDriverWrites",false)
        .put("updatedAt",System.currentTimeMillis());
     try(FileOutputStream out=new FileOutputStream(tmp)){
       out.write(state.toString().getBytes(StandardCharsets.UTF_8));out.getFD().sync();
