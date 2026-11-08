@@ -38,9 +38,9 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/feature/gazal-audio-sync-standalone-20261109'
         run: |
           mkdir -p gazal-audio-sync/dist
-          cp gazal-audio-sync/app/build/outputs/apk/debug/app-debug.apk gazal-audio-sync/dist/Gazal_Audio_Sync_v0.2_debug.apk
+          cp gazal-audio-sync/app/build/outputs/apk/debug/app-debug.apk gazal-audio-sync/dist/Gazal_Audio_Sync_v0.3_debug.apk
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gazal-audio-sync/dist/Gazal_Audio_Sync_v0.2_debug.apk
+          git add -f gazal-audio-sync/dist/Gazal_Audio_Sync_v0.3_debug.apk
           git commit -m 'build: publish Gazal Android debug APK [skip ci]'
           git push origin HEAD:feature/gazal-audio-sync-standalone-20261109
