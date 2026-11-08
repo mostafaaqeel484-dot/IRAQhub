@@ -114,32 +114,29 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("providers_changed_at",0)+"|"+prefs.getLong("osd_changed_at",0);
   if(!logos.equals(logoKey)){
    logoKey=logos;
-   if(PlaybackResourceMode.active()){
-    // Avoid synchronous OEM/CHMAX logo decode on UI during decoder startup.
-    channelLogo=null;providerLogo=null;
-   }else{
-    channelLogo=CHMAXIntegration.logo(host,state,false);
-    providerLogo=CHMAXIntegration.logo(host,state,true);
-   }
-   logoRetry=0;
-   if(!PlaybackResourceMode.active()&&!state.channelName.isEmpty()){
-    // Video focus: disk PNG/SVG decodes and logo network jobs are nonessential.
-    // Keep verified files for the following normal satellite programme.
+   // Never decode CHMAX/PNG/SVG synchronously on INFO or channel zap.
+   // Keep cached logos available even during software 4:2:2 focus; all
+   // disk/receiver work stays on LogoRepository's bounded IO worker.
+   channelLogo=null;providerLogo=null;logoRetry=0;
+   if(!state.channelName.isEmpty()){
     final String expected=logos;
     LogoRepository repository=LogoRepository.get(host);
     LogoRepository.Listener images=new LogoRepository.Listener(){
      @Override public void channel(Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
-       if(image!=null)channelLogo=image;paint();
+       if(image!=null)channelLogo=image;
+       paint();
       }});
      }
      @Override public void provider(String name,Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
-       if(image!=null)providerLogo=image;paint();
+       if(image!=null)providerLogo=image;
+       paint();
       }});
      }
     };
-    if(prefs.getBoolean("software_dvb_422_active",false))
+    if(PlaybackResourceMode.active()||
+       prefs.getBoolean("software_dvb_422_active",false))
       repository.requestCached(state.channelName,state.channelId,images);
     else repository.request(state.channelName,state.channelId,images);
    }
