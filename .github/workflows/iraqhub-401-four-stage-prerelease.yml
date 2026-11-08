@@ -26,22 +26,28 @@ jobs:
           java-version: '21'
       - uses: android-actions/setup-android@v4
       - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865'
-      # The Gradle distribution CDN has been returning repeat HTTP 504
-      # while setup-gradle tries to fetch Gradle 8.11.1. Ubuntu hosted
-      # runners ship a preinstalled Gradle binary. Use it instead and
-      # avoid downloading an additional full distribution archive.
-      - name: Use hosted Gradle and verify AGP-compatible version
+      # Installed runner Gradle 9.x is incompatible with AGP 8.10.1.
+      # setup-gradle's distribution installer returned repeated HTTP 504s.
+      # Download Gradle 8.11.1 directly from official Gradle CDN with
+      # retries/resume, avoiding the broken setup-gradle action endpoint.
+      - name: Install compatible Gradle 8.11.1 using retryable direct download
         shell: bash
         run: |
           set -euo pipefail
-          command -v gradle
-          gradle --version
-          version="$(gradle --version | sed -nE 's/^Gradle ([0-9]+)\.([0-9]+).*/\1 \2/p' | head -n1)"
-          read -r major minor <<<"$version"
-          if [[ "$major" -ne 8 || "$minor" -lt 11 ]]; then
-            echo "Need hosted Gradle 8.11+ for this Android Gradle Plugin, got $version"
-            exit 1
-          fi
+          DIST="$RUNNER_TEMP/gradle-8.11.1-bin.zip"
+          mkdir -p "$RUNNER_TEMP/gradle811"
+          curl --fail --location --show-error --silent \
+            --connect-timeout 20 --max-time 480 \
+            --retry 10 --retry-delay 5 --retry-all-errors \
+            --continue-at - \
+            --output "$DIST" \
+            "https://downloads.gradle.org/distributions/gradle-8.11.1-bin.zip"
+          unzip -tq "$DIST"
+          unzip -q "$DIST" -d "$RUNNER_TEMP/gradle811"
+          GRADLE="$RUNNER_TEMP/gradle811/gradle-8.11.1/bin"
+          test -x "$GRADLE/gradle"
+          echo "$GRADLE" >> "$GITHUB_PATH"
+          "$GRADLE/gradle" --version
       - name: Unit tests, including Commons attribution
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
       - name: Validate HEVC packet integrity and bounded stall recovery unit tests
