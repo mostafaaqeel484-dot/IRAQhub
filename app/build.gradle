@@ -42,6 +42,22 @@ android {
  kotlinOptions { jvmTarget = '11' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
  testOptions { unitTests.returnDefaultValues=true }
+ // Direct FFmpeg JNI is separate from default builds until the X5M real
+ // hardware acceptance checks pass. The path must point to a PGP-verified
+ // native Android FFmpeg build, NEVER a host or 64-bit .so.
+ if(project.hasProperty('native422FfmpegRoot')) {
+  externalNativeBuild {
+   cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' }
+  }
+  defaultConfig {
+   externalNativeBuild {
+    cmake {
+     arguments "-DNATIVE422_FFMPEG_ROOT=${project.property('native422FfmpegRoot')}",
+       "-DANDROID_STL=c++_shared"
+    }
+   }
+  }
+ }
 }
 dependencies {
  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
