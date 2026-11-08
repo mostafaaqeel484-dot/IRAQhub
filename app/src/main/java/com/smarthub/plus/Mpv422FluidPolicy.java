@@ -65,6 +65,7 @@ final class Mpv422FluidPolicy {
     ":flags=fast_bilinear,format=pix_fmts="+format+"]";
  }
  static String readable(String value){
+  if(AUTO.equals(value))return "AUTO / LibVLC + FFmpeg, adaptive MPV fallback";
   if(GPU_NATIVE.equals(value))return "GPU FAST / native GPU output (no forced software scaling)";
   String normalized=normalized(value);
   return targetHeight(normalized)+"p "+
