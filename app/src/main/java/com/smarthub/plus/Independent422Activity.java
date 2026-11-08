@@ -38,7 +38,8 @@ public final class Independent422Activity extends HubActivity {
  private boolean hardwareRecoveryUsed;
  private int previousVoDrops=-1,poorDropSamples,autoDownshiftSteps;
  private long previousDropSampleAt,renderStartedAt;
- private boolean nativeRecoveryUsed;
+ private boolean nativeRecoveryUsed,frameRecoveryUsed,terminalFrameFailureShown;
+ private int noFrameSamples;
  private int rendererEpoch;
  private Mpv422Renderer renderer;
  private LiveTsRelay relay;
@@ -88,6 +89,41 @@ public final class Independent422Activity extends HubActivity {
        previousVoDrops,values.dropped,period,poorDropSamples);
      previousVoDrops=values.dropped;
      previousDropSampleAt=now;
+     noFrameSamples=Mpv422StreamHealthPolicy.missingFrameSamples(
+       noFrameSamples,values.videoFormat,values.estimatedFps);
+     if(Mpv422StreamHealthPolicy.shouldRecover(
+        loaded,frameRecoveryUsed,playbackUrl!=null&&
+          (relay==null||relay.running()),now-renderStartedAt,noFrameSamples)){
+      // One recovery on the existing MPEG-TS relay, no DVB re-tune.
+      frameRecoveryUsed=true;
+      android.util.Log.w("IRAQhub422",
+        "HEVC_NO_DECODED_FRAMES_SOFT_RETRY sw/native/videoonly"+
+        " ts_cc_gaps="+prefs().getLong("software_ts_cc_gaps",-1)+
+        " ts_tei="+prefs().getLong("software_ts_tei_packets",-1)+
+        " pvr_rollovers="+prefs().getInt("software_ts_pvr_rotations",0));
+      activeDecoderMode=Mpv422FluidPolicy.SW;
+      renderMode=Mpv422FluidPolicy.GPU_NATIVE;
+      videoOnly=true;
+      prefs().edit().putString("independent_422_auto_action",
+        "HEVC_NO_FRAMES_ONE_SHOT_SW_NATIVE_NEW_TS_CLIENT")
+        .putBoolean("independent_422_video_only",true).apply();
+      updateRenderButton();updateDecoderButton();updateAudioButton();
+      display(tx("فشل ظهور إطارات HEVC؛ محاولة SW بدون صوت وGPU أصلي على أحدث TS",
+        "No HEVC frames; one SW/video-only/native retry from latest TS"));
+      restartRenderer();
+      return;
+     }
+     if(frameRecoveryUsed&&!terminalFrameFailureShown&&
+        noFrameSamples>=4&&now-renderStartedAt>=20000){
+      terminalFrameFailureShown=true;
+      android.util.Log.e("IRAQhub422",
+        "HEVC_NO_FRAMES_AFTER_ONE_RETRY ts_cc_gaps="+
+        prefs().getLong("software_ts_cc_gaps",-1));
+      prefs().edit().putString("independent_422_health",
+        "HEVC_NO_DECODED_FRAMES_AFTER_SINGLE_RETRY").apply();
+      display(tx("لم تظهر صورة؛ افحص TS CC/TEI ومسار FFmpeg في Stats",
+        "No decoded frames after retry; inspect TS CC/TEI in Stats"));
+     }
      if(autoDownshiftSteps<2&&
         !renderMode.equals(Mpv422FluidPolicy.nextAutoMode(renderMode))&&
         Mpv422FluidPolicy.shouldDownshift(selectedRenderMode,poorDropSamples,
@@ -181,7 +217,10 @@ public final class Independent422Activity extends HubActivity {
    Button subtitles=small(tx("الترجمة","Subtitles"));
   subtitles.setOnClickListener(v->subtitlePicker());
   Button retry=small(tx("إعادة الفيديو","Retry video"));
-  retry.setOnClickListener(v->{if(playbackUrl!=null)restartRenderer();});
+  retry.setOnClickListener(v->{
+   frameRecoveryUsed=false;terminalFrameFailureShown=false;
+   if(playbackUrl!=null)restartRenderer();
+  });
   Button back=small(tx("خروج","Exit"));
   back.setOnClickListener(v->finish());
   for(Button button:new Button[]{diagnostic,audioButton,renderButton,decoderButton,subtitles,retry,back})
@@ -198,10 +237,28 @@ public final class Independent422Activity extends HubActivity {
   button.setText(text);
   button.setAllCaps(false);
   button.setTextColor(0xffffffff);
-  button.setTextSize(13);
+  button.setTextSize(12);
   button.setMinHeight(dp(48));
   button.setPadding(dp(2),0,dp(2),0);
   button.setFocusable(true);
+  // Firmware default buttons were white-on-white in field photos.
+  // Explicit dark backgrounds, bright labels and visible D-pad focus.
+  android.graphics.drawable.StateListDrawable bg=
+    new android.graphics.drawable.StateListDrawable();
+  int[][] states={
+    new int[]{android.R.attr.state_pressed},
+    new int[]{android.R.attr.state_focused},
+    new int[]{}};
+  int[] fills={0xff31546f,0xff294259,0xff1c2430};
+  for(int i=0;i<states.length;i++){
+   android.graphics.drawable.GradientDrawable shape=
+     new android.graphics.drawable.GradientDrawable();
+   shape.setColor(fills[i]);
+   shape.setStroke(dp(i==1?2:1),i==1?0xff93dcff:0xff55616f);
+   shape.setCornerRadius(dp(5));
+   bg.addState(states[i],shape);
+  }
+  button.setBackground(bg);
   return button;
  }
  private void updateAudioButton(){
@@ -243,6 +300,7 @@ public final class Independent422Activity extends HubActivity {
     activeDecoderMode=chosen;
     hardwareRecoveryUsed=false;
     nativeRecoveryUsed=false;
+    frameRecoveryUsed=false;terminalFrameFailureShown=false;
     prefs().edit().putString("independent_422_decoder_mode",chosen).apply();
     updateDecoderButton();
     if(playbackUrl!=null&&!stopped)restartRenderer();
@@ -272,6 +330,7 @@ public final class Independent422Activity extends HubActivity {
     selectedRenderMode=modes[which];
     renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
     autoDownshiftSteps=0;
+    frameRecoveryUsed=false;terminalFrameFailureShown=false;
     activeDecoderMode=selectedDecoderMode;
     hardwareRecoveryUsed=false;
     nativeRecoveryUsed=false;
@@ -384,6 +443,7 @@ public final class Independent422Activity extends HubActivity {
   final int callbackEpoch=rendererEpoch;
   loaded=false;previousPosition=-1;previousPositionAt=0;
    previousVoDrops=-1;previousDropSampleAt=0;poorDropSamples=0;
+   noFrameSamples=0;
    renderStartedAt=SystemClock.elapsedRealtime();
   prefs().edit().putString("independent_422_runtime","MPV_OPENING")
     .putString("decoder_kind","LIBMPV_INDEPENDENT_ACTIVE_REQUEST_"+activeDecoderMode)
@@ -527,6 +587,13 @@ public final class Independent422Activity extends HubActivity {
      "\nFirst filter failure: "+prefs().getString("independent_422_filter_failure","NONE")+
      "\nMPV startup: "+(renderer==null?"NOT_ACTIVE":renderer.diagnosticState())+
     "\nTS: "+String.format(Locale.ROOT,"%.2f Mbit/s",bitrate/1000000.0)+
+    "\nTS original CC gaps: "+prefs().getLong("software_ts_cc_gaps",-1)+
+    "\nTS transport error packets: "+prefs().getLong("software_ts_tei_packets",-1)+
+    "\nTS invalid sync/headers: "+prefs().getLong("software_ts_invalid_packets",-1)+
+    "\nTS last gap PID: "+prefs().getInt("software_ts_last_gap_pid",-1)+
+    "\nPVR rollovers: "+prefs().getInt("software_ts_pvr_rotations",0)+
+    "\nNo-frame samples: "+noFrameSamples+
+    "\nOne-shot HEVC recovery used: "+frameRecoveryUsed+
     "\nCapture: "+prefs().getString("software_ts_capture_error","NOT_TESTED")+
     "\nlibmpv FILE_LOADED: "+loaded+
     "\nPlayback clock: "+(m==null?"UNKNOWN":String.format(Locale.ROOT,"%.2f s",m.position))+

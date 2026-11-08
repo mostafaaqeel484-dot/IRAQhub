@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.util.Log;
 import org.json.JSONObject;
 import java.io.*;
 import java.net.*;
@@ -19,7 +20,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 final class LiveTsRelay implements AutoCloseable,Runnable {
  interface Listener {void ready(String url);void error(String cause);}
- private static final long ROTATE=24L*1024*1024;
+ // X5M recorded HEVC lost reference pictures near the old 24 MiB (~38 s)
+ // boundary. Halve the number of PVR file switches without unbounded files.
+ private static final long ROTATE=48L*1024*1024;
  private static final long RESERVED_DISK=128L*1024*1024;
  private static final long MAX_DURATION=8L*60*60*1000;
  private static final int TS=188;
@@ -39,6 +42,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  private volatile ServerSocket server;
  private volatile File current;
  private volatile int currentId;
+ private volatile int rotations;
  private volatile Thread worker;
  private File root;
  private String token;
@@ -185,6 +189,7 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
 
  private void rotate()throws Exception{
   int old=currentId,next=old==firstId?secondId:firstId;
+  long begin=SystemClock.elapsedRealtime();
   try{
    // Zero-gap switch if the DVB firmware permits concurrent PVR capture.
    capture(next);
@@ -197,7 +202,12 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
    prefs().edit().putBoolean(old==firstId?"capture_active_a":"capture_active_b",false).apply();
    capture(next);
   }
-  prefs().edit().putBoolean(old==firstId?"capture_active_a":"capture_active_b",false).apply();
+  rotations++;
+  long elapsed=SystemClock.elapsedRealtime()-begin;
+  prefs().edit().putInt("software_ts_pvr_rotations",rotations)
+    .putLong("software_ts_last_rotation_ms",elapsed).apply();
+  Log.i("IRAQhub422","PVR_ROLLOVER count="+rotations+" time_ms="+elapsed+
+    " next_capture="+next+" source_gaps_can_be_observed");
  }
 
  /**
@@ -303,9 +313,12 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
  }
  private void stream(OutputStream destination,Socket client)throws IOException {
   int fileIndex;
-  synchronized(lock){fileIndex=Math.max(0,files.size()-2);}
+  // A reconnect after a stalled HEVC decoder should begin on the newest
+  // active TS capture, not replay a potentially corrupt 48 MiB old segment.
+  synchronized(lock){fileIndex=Math.max(0,files.size()-1);}
   cursors.put(client,fileIndex);
   long offset=0,lastData=SystemClock.elapsedRealtime();
+  long integritySampleAt=lastData,lastGaps=0,lastErrors=0;
   final byte[] buffer=new byte[TS*128];
   final TsSplice.Continuity continuity=new TsSplice.Continuity();
   final OutputStream out=new BufferedOutputStream(destination,TS*256);
@@ -341,7 +354,25 @@ final class LiveTsRelay implements AutoCloseable,Runnable {
     if(amount>0){
      input.seek(offset);
      input.readFully(buffer,0,amount);
-     continuity.rewrite(buffer,amount);
+     // Preserve the original PVR packet headers. Artificially rewriting
+     // CC masked missing/duplicated HEVC packets from the FFmpeg demuxer.
+     continuity.observe(buffer,amount);
+     long reportAt=SystemClock.elapsedRealtime();
+     if(reportAt-integritySampleAt>=5000){
+      long gaps=continuity.continuityGaps(),tei=continuity.transportErrors();
+      prefs().edit().putLong("software_ts_cc_gaps",gaps)
+        .putLong("software_ts_tei_packets",tei)
+        .putLong("software_ts_invalid_packets",continuity.invalidPackets())
+        .putLong("software_ts_payload_packets",continuity.payloadPackets())
+        .putInt("software_ts_last_gap_pid",continuity.lastGapPid())
+        .putLong("software_ts_integrity_checked_at",System.currentTimeMillis())
+        .apply();
+      if(gaps>lastGaps||tei>lastErrors)
+       Log.w("IRAQhub422","TS_SOURCE_INTEGRITY cc_gaps="+gaps+
+        " transport_errors="+tei+" last_gap_pid="+continuity.lastGapPid()+
+        " pvr_rollovers="+rotations+" file_index="+fileIndex);
+      lastGaps=gaps;lastErrors=tei;integritySampleAt=reportAt;
+     }
      out.write(Integer.toHexString(amount).getBytes(StandardCharsets.US_ASCII));
      out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
      out.write(buffer,0,amount);
