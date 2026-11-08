@@ -96,6 +96,11 @@ public final class Independent422Activity extends HubActivity {
           (relay==null||relay.running()),now-renderStartedAt,noFrameSamples)){
       // One recovery on the existing MPEG-TS relay, no DVB re-tune.
       frameRecoveryUsed=true;
+      android.util.Log.w("IRAQhub422",
+        "HEVC_NO_DECODED_FRAMES_SOFT_RETRY sw/native/videoonly"+
+        " ts_cc_gaps="+prefs().getLong("software_ts_cc_gaps",-1)+
+        " ts_tei="+prefs().getLong("software_ts_tei_packets",-1)+
+        " pvr_rollovers="+prefs().getInt("software_ts_pvr_rotations",0));
       activeDecoderMode=Mpv422FluidPolicy.SW;
       renderMode=Mpv422FluidPolicy.GPU_NATIVE;
       videoOnly=true;
@@ -111,6 +116,9 @@ public final class Independent422Activity extends HubActivity {
      if(frameRecoveryUsed&&!terminalFrameFailureShown&&
         noFrameSamples>=4&&now-renderStartedAt>=20000){
       terminalFrameFailureShown=true;
+      android.util.Log.e("IRAQhub422",
+        "HEVC_NO_FRAMES_AFTER_ONE_RETRY ts_cc_gaps="+
+        prefs().getLong("software_ts_cc_gaps",-1));
       prefs().edit().putString("independent_422_health",
         "HEVC_NO_DECODED_FRAMES_AFTER_SINGLE_RETRY").apply();
       display(tx("لم تظهر صورة؛ افحص TS CC/TEI ومسار FFmpeg في Stats",
