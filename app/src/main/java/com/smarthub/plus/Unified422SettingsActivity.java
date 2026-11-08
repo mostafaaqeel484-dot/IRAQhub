@@ -36,6 +36,22 @@ public final class Unified422SettingsActivity extends HubActivity {
   fallback.addView(text(tx("الاستقرار والاحتياط","Recovery and validation"),20,true));
   note(fallback,tx("Auto يبدأ ببرنامج LibVLC/FFmpeg؛ خيارات الدقة وGPU FAST تشغل libmpv/FFmpeg أولاً، مع رجوع محدود إلى LibVLC عند فشل الفتح. HW لا يساوي دعماً مثبتاً لـ4:2:2.",
     "Auto starts LibVLC/FFmpeg. Explicit sizes and GPU FAST start libmpv/FFmpeg, with one guarded fallback to LibVLC on load failures. HW is never reported as proven 4:2:2."));
+  LinearLayout nativeSettings=card(body);
+  nativeSettings.addView(text(tx("محرك 422 JNI مستقل · تجريبي",
+    "Direct Native422 JNI · experimental"),20,true));
+  note(nativeSettings,tx("يفك libavcodec مصدر MPEG-TS مباشرة دون MPV أو VLC، يعرض الإطارات على Surface. يحتاج مكتبات FFmpeg ARMv7 الرسمية الموقّعة؛ العمل الأولي فيديو فقط وGPU FAST يعني Surface غير مصغّر وليس فك HEVC عتادياً.",
+    "Direct libavcodec MPEG-TS, no MPV or VLC decoder. Requires verified FFmpeg ARMv7 libraries. Initial prototype is video-only; GPU FAST means unfiltered Android Surface presentation, NOT GPU HEVC decoding."));
+  android.widget.CheckBox nativeExperiment=check(nativeSettings,
+    tx("تجربة FFmpeg JNI على قناة DVB · مع رجوع MPV عند الفشل",
+       "Try direct JNI FFmpeg on DVB · MPV fallback on failure"),
+    Native422Decoder.available()&&prefs().getBoolean("native422_experiment",false));
+  nativeExperiment.setEnabled(Native422Decoder.available());
+  nativeExperiment.setOnCheckedChangeListener((v,on)->
+    prefs().edit().putBoolean("native422_experiment",
+      on&&Native422Decoder.available()).apply());
+  if(!Native422Decoder.available())
+    note(nativeSettings,tx("مكتبة JNI لم تُبنَ أو تُضمّن في هذا الإصدار",
+      "JNI library not built into this APK; option safely disabled."));
   action(fallback,tx("إعدادات التخزين المؤقت وسلاسة LibVLC",
     "LibVLC latency/quality profile"),this::chooseVlcProfile);
   action(fallback,tx("فحص معلومات المفكك على الجهاز","Review actual decoder capabilities"),
@@ -51,7 +67,9 @@ public final class Unified422SettingsActivity extends HubActivity {
   summary.setText(tx("الإخراج: ","Output: ")+Mpv422FluidPolicy.readable(mode)+
    "\n"+tx("فك الفيديو: ","Decoder: ")+decoder.toUpperCase(java.util.Locale.ROOT)+
    tx(" (HW تجريبي)", " (HW experimental)")+
-   "\nLibVLC: "+Software422Profile.current(this));
+   "\nLibVLC: "+Software422Profile.current(this)+
+   "\nDirect JNI ARMv7: "+(Native422Decoder.available()?"COMPILED":"NOT_BUNDLED")+
+   " / "+(prefs().getBoolean("native422_experiment",false)?"OPT_IN":"OFF"));
  }
  private void chooseOutput(){
   final String[] values=Mpv422FluidPolicy.publicModes();
@@ -69,7 +87,8 @@ public final class Unified422SettingsActivity extends HubActivity {
    .setSingleChoiceItems(names,selected,(dialog,which)->{
     String chosen=values[which];
     prefs().edit().putString("unified_422_output_mode",chosen)
-      .putString("independent_422_fluid_mode",chosen).apply();
+      .putString("independent_422_fluid_mode",chosen)
+      .putString("native422_output_mode",chosen).apply();
     dialog.dismiss();updateSummary();
    }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
