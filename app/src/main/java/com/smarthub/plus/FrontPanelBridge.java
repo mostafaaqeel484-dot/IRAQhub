@@ -30,12 +30,15 @@ final class FrontPanelBridge {
    " app_write="+fp.canWrite()+
    "\n/sys/class/leds="+(leds.exists()?"present":"absent")+
    "\nADB handoff="+(export==null?"UNAVAILABLE":export.getAbsolutePath())+
+   "\nPanel mode="+c.getSharedPreferences("smarthub",0).getString("front_panel_mode","channel")+
    "\nOEM panel display API: NOT YET IDENTIFIED (no unsafe writes)";
  }
  static void publish(Context context,ReceiverCatalog.Channel channel){
   if(channel==null)return;
   Context app=context.getApplicationContext();
   String name=channel.name,physical="DVB:"+channel.physical();
+  String mode=app.getSharedPreferences("smarthub",0).getString("front_panel_mode","channel");
+  if("off".equals(mode))return;
   IO.execute(()->{
    try{
     File base=app.getExternalFilesDir(null);
@@ -46,7 +49,11 @@ final class FrontPanelBridge {
     JSONObject state=new JSONObject()
        .put("channel",name).put("physical",physical)
        .put("scrambled",channel.ca>0)
-       .put("updatedAt",System.currentTimeMillis());
+       .put("mode",mode)
+       .put("clock",new java.text.SimpleDateFormat("HH:mm",java.util.Locale.ROOT)
+           .format(new java.util.Date()))
+       .put("updatedAt",System.currentTimeMillis())
+       .put("nativePanelControl",false);
     try(FileOutputStream out=new FileOutputStream(tmp)){
       out.write(state.toString().getBytes(StandardCharsets.UTF_8));out.getFD().sync();
     }
