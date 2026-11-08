@@ -1,0 +1,36 @@
+name: Build Freedom Picture 1.1 S7D
+on:
+  push:
+    branches:
+      - feature/freedom-picture-110-s7d-pq-20261108
+    paths:
+      - .source/FreedomPicture_1.1_Source.zip
+      - .github/workflows/freedom-picture-11-build.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Extract Freedom Picture independent source
+        run: |
+          unzip -q .source/FreedomPicture_1.1_Source.zip
+          mv FreedomPicture_1_1 FreedomPictureBuild
+      - name: Compile Android installable debug APK
+        working-directory: FreedomPictureBuild
+        run: gradle --no-daemon assembleDebug
+      - name: Publish compiled APK to branch (artifact quota-free)
+        run: |
+          cp FreedomPictureBuild/app/build/outputs/apk/debug/app-debug.apk FreedomPicture_1.1_Debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add FreedomPicture_1.1_Debug.apk
+          git -c commit.gpgsign=false commit -m "build: Freedom Picture 1.1 S7D diagnostic APK [skip ci]"
+          git push origin HEAD:refs/heads/feature/freedom-picture-110-s7d-pq-20261108
