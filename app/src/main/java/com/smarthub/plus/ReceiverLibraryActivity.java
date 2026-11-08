@@ -220,7 +220,7 @@ public class ReceiverLibraryActivity extends HubActivity {
  }
  private Button tool(LinearLayout row,String label,Runnable click){Button b=button(label);b.setTextSize(font(11));b.setMinHeight(0);b.setPadding(dp(4),0,dp(4),0);b.setBackground(ReceiverPanelStyle.row(this));b.setOnClickListener(v->click.run());LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(30),1);row.addView(b,p);return b;}
  private ProgressBar meter(int color){ProgressBar p=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);p.setMax(100);p.setProgressTintList(android.content.res.ColorStateList.valueOf(color));p.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x775c6270));return p;}
- @Override protected void onResume(){super.onResume();reader=ReceiverInfoRepository.get(this).acquireSignal();main.post(tick);int token=++generation;ChannelScope browse=scope();io.execute(()->{try{catalog.ensure();List<ReceiverCatalog.Sat> sats=catalog.satellites();List<ReceiverCatalog.Group> fav=catalog.groups();int count=catalog.count();Map<Long,Integer> numbers=catalog.satelliteNumbers();Set<String> collisions=catalog.ambiguousPhysicalKeys();ReceiverCatalog.Channel active=catalog.channel(prefs().getLong("own_dvb_channel",-1));ChannelScope base=catalog.validScope(browse);
+ @Override protected void onResume(){super.onResume();foreground=true;reader=ReceiverInfoRepository.get(this).acquireSignal();main.post(tick);int token=++generation;ChannelScope browse=scope();io.execute(()->{try{catalog.ensure();List<ReceiverCatalog.Sat> sats=catalog.satellites();List<ReceiverCatalog.Group> fav=catalog.groups();int count=catalog.count();Map<Long,Integer> numbers=catalog.satelliteNumbers();Set<String> collisions=catalog.ambiguousPhysicalKeys();ReceiverCatalog.Channel active=catalog.channel(prefs().getLong("own_dvb_channel",-1));ChannelScope base=catalog.validScope(browse);
  ChannelScope checked=!loaded&&base.satellite<0&&active!=null&&!getIntent().hasExtra("satellite")?
   new ChannelScope(base.query,active.satId,base.type,base.favorites,base.alphabetical,base.group):base;int activePage=0;main.post(()->{if(destroyed||token!=generation)return;satellites=sats;groups=fav;satelliteNumbers=numbers;ambiguousPhysical=collisions;total=count;satellite=checked.satellite;group=checked.group;satelliteButton.setText(tx("‹  كل الأقمار  ›","‹  All satellites  ›"));favoritesButton.setText(favoritesOnly?tx("مفضلتي في IRAQhub","My IRAQhub favourites"):tx("المفضلة","Favourites"));boolean anchor=!loaded&&active!=null&&(type<0||active.tv==type)&&SatelliteState.read(this).channelId.equals("DVB:"+active.physical());
 long restoreId=prefs().getLong("channel_list_restore_focus_id",-1);
@@ -231,7 +231,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
     .remove("channel_list_restore_focus_page").apply();
    search(false);
   }else if(anchor){offset=0;nextListFocusId=active.id;search(false);}else search(true);if(!initialPopup){initialPopup=true;if(getIntent().getBooleanExtra("satellite_popup",false))satellites();else if(getIntent().getBooleanExtra("favorites",false))groups();}});}catch(Exception unavailable){main.post(()->{if(!destroyed)status.setText(tx("تعذر الفهرس؛ استورد CHL","Import CHL to restore the catalogue"));});}});}
- @Override protected void onPause(){main.removeCallbacks(tick);if(reader!=null){ReceiverInfoRepository.get(this).releaseSignal(reader);reader=null;}super.onPause();}
+ @Override protected void onPause(){foreground=false;clearNumeric();main.removeCallbacks(tick);if(reader!=null){ReceiverInfoRepository.get(this).releaseSignal(reader);reader=null;}super.onPause();}
  private ChannelScope scope(){return new ChannelScope(query.getText().toString(),satellite,type,favoritesOnly,alphabetical,group);}
  private void pageChannels(int direction){pageChannels(direction,10);}
  private void pageChannels(int direction,int jump){
@@ -672,7 +672,5 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    search(true);
   }else super.onBackPressed();
  }
- @Override protected void onResume(){super.onResume();foreground=true;}
- @Override protected void onPause(){foreground=false;clearNumeric();super.onPause();}
  @Override protected void onDestroy(){destroyed=true;generation++;clearNumeric();main.removeCallbacksAndMessages(null);io.shutdownNow();super.onDestroy();}
 }
