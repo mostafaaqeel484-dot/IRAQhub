@@ -11,7 +11,7 @@ import java.util.*;
 /** Lightweight native-TV OSD with channel left and service-provider branding at the far right. */
 final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
- private final TextView currentTitle,nextTitle,heading,nowLine,nextLine,status,clock;
+ private final TextView currentTitle,nextTitle,heading,nowLine,nextLine,status,clock,year;
  private final TextView broadcast,remaining,technical,weather,strengthLabel,qualityLabel,signalDetail,signalSource,encryptionLine,bitrateLabel,providerName,providerCaption;
  private final LinearLayout providerPanel,resolutionStrip,details,bar,leftPosterBox,rightPosterBox;
  private final TextView[] resolutionChips=new TextView[5];
@@ -31,7 +31,7 @@ final class NowNextView extends FrameLayout {
   try{accent=Color.parseColor(prefs.getString("osd_accent",
       String.format(Locale.ROOT,"#%06X",accent&0xffffff)));}catch(Exception ignored){}
   setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-  // Tiger reference: two-row header at the top, channel/event/signal below.
+  // 4.0.1 reference: black bottom ribbon; date/year right with all icons below.
   // Programme posters are independently placed ABOVE the black ribbon.
   final boolean detailed=prefs.getBoolean("osd_rx_detailed",false);
   int barH=dp(TigerOsdMetrics.barHeightDp(detailed));
@@ -47,19 +47,16 @@ final class NowNextView extends FrameLayout {
   dark.setCornerRadius(dp(9));bar.setBackground(dark);
   bar.setElevation(dp(6));
   LayoutParams barPosition=new LayoutParams(-1,barH,Gravity.BOTTOM);
-  barPosition.setMargins(dp(8),0,dp(8),dp(8));
+  barPosition.setMargins(dp(8),0,dp(8),dp(3));
   addView(bar,barPosition);
 
-  // Match reference hierarchy: (channel/frequency) | (two icon rows) |
-  // (clock/date), all ABOVE the programme logo and S/Q meters.
+  // Reference: channel left, small year + day/date/time at right; icons BELOW date.
   LinearLayout header=new LinearLayout(context);
   header.setGravity(Gravity.CENTER_VERTICAL);
   LinearLayout headLeft=column();headLeft.setGravity(Gravity.CENTER_VERTICAL);
-  LinearLayout headCenter=column();headCenter.setGravity(Gravity.CENTER_VERTICAL);
   LinearLayout headRight=column();headRight.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
-  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.2f));
-  header.addView(headCenter,new LinearLayout.LayoutParams(0,-1,.85f));
-  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,.75f));
+  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.15f));
+  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,1.45f));
   bar.addView(header,new LinearLayout.LayoutParams(-1,dp(TigerOsdMetrics.headerHeightDp())));
 
   LinearLayout primary=new LinearLayout(context);
@@ -133,8 +130,10 @@ final class NowNextView extends FrameLayout {
 
   LinearLayout signal=column();signal.setGravity(Gravity.CENTER_VERTICAL);
   primary.addView(signal,new LinearLayout.LayoutParams(dp(212),-2));
-  clock=label("",compact?15:18,true);
-  clock.setTextDirection(View.TEXT_DIRECTION_LTR);
+  year=label("",10,false);year.setTextColor(0xffb8c0c7);
+  year.setGravity(Gravity.RIGHT);headRight.addView(year);
+  clock=label("",compact?13:16,true);
+  clock.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
   clock.setGravity(Gravity.RIGHT);headRight.addView(clock);
   strengthLabel=label("S: —",10,false);
   strengthBar=meter(0xff28cbfa);
@@ -171,8 +170,10 @@ final class NowNextView extends FrameLayout {
    TextView c=label(tags[i],9,true);c.setGravity(Gravity.CENTER);c.setPadding(dp(3),dp(1),dp(3),dp(1));
    featureChips[i]=c;featureRow.addView(c,new LinearLayout.LayoutParams(dp(TigerOsdMetrics.iconWidthDp()),dp(TigerOsdMetrics.iconHeightDp())));
   }
-  headCenter.addView(featureRow);
-  headCenter.addView(resolutionStrip);
+  featureRow.setGravity(Gravity.RIGHT);
+  resolutionStrip.setGravity(Gravity.RIGHT);
+  headRight.addView(featureRow);
+  headRight.addView(resolutionStrip);
   details.addView(signalSource);
   details.addView(signalDetail);
   details.addView(bitrateLabel);
@@ -207,7 +208,7 @@ final class NowNextView extends FrameLayout {
   expanded=value;
   // Poster images show with the FIRST INFO press, not only expanded details.
   // Empty event artwork stays invisible until its verified image is ready.
-  boolean showPosters=prefs.getBoolean("osd_posters",true);
+  boolean showPosters=prefs.getBoolean("osd_posters",false);
   leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
   // Keep poster corners just above the expanded/compact bar.
@@ -270,7 +271,14 @@ final class NowNextView extends FrameLayout {
   if(channelLogo==null)logo.setImageResource(R.drawable.channel_placeholder);else logo.setImageBitmap(channelLogo);logo.setContentDescription("Channel logo · "+s.channelName);
   long length=s.endMs-s.startMs;progress.setProgress(length>0?(int)Math.max(0,Math.min(1000,(System.currentTimeMillis()-s.startMs)*1000/length)):0);progress.setVisibility(length>0?VISIBLE:INVISIBLE);
   ProgrammeClock timer=new ProgrammeClock(s.startMs,s.endMs,System.currentTimeMillis());remaining.setText(timer.known?tx("متبقي  ","REMAINING  ")+ProgrammeClock.format(timer.remainingMs,false):"");remaining.setVisibility(timer.known?VISIBLE:GONE);
-  SimpleDateFormat day=new SimpleDateFormat("EEE dd MMM yyyy",prefs.getBoolean("arabic",true)?new Locale("ar"):Locale.ENGLISH);day.setTimeZone(TimeZone.getTimeZone("Asia/Baghdad"));clock.setText(shortTime(System.currentTimeMillis())+"\n"+day.format(new Date()));clock.setVisibility(prefs.getBoolean("osd_clock",true)?VISIBLE:GONE);
+  TimeZone deviceZone=TimeZone.getDefault();
+  long displayNow=System.currentTimeMillis();
+  year.setText(OsdDateFormatter.year(displayNow,deviceZone));
+  clock.setText(OsdDateFormatter.dateLine(displayNow,deviceZone,
+    prefs.getBoolean("arabic",true)));
+  boolean showClock=prefs.getBoolean("osd_clock",true);
+  clock.setVisibility(showClock?VISIBLE:GONE);
+  year.setVisibility(showClock?VISIBLE:GONE);
   boolean showWeather=!lite&&prefs.getBoolean("osd_weather",false);
   if(showWeather)weather.setText(WeatherRepository.label(getContext()));
   weather.setVisibility(showWeather?VISIBLE:GONE);
