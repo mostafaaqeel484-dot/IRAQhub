@@ -4,6 +4,9 @@ import android.app.AlertDialog;import android.content.*;import android.graphics.
 public class ReceiverLibraryActivity extends HubActivity {
  private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private ReceiverCatalog catalog;private List<ReceiverCatalog.Channel> shown=Collections.emptyList();private List<ReceiverCatalog.Sat> satellites=Collections.emptyList();private List<ReceiverCatalog.Group> groups=Collections.emptyList();private Set<Long> favorites=Collections.emptySet();private Set<String> ambiguousPhysical=Collections.emptySet();private Map<String,SatelliteGuideRepository.Event> programmes=Collections.emptyMap();private Map<Long,Integer> satelliteNumbers=Collections.emptyMap();private String lastLiveTitle="";
  private EditText query;private ListView list;private TextView status,liveTitle,rf,signalDetail,focusedProgramme;private ProgressBar strength,quality;private Button satelliteButton,favoritesButton,previous,next;private boolean destroyed,loaded,favoritesOnly,alphabetical,initialPopup,encryptedOnly,wideList;private String initialFilter="";private long satellite=-1,activeId=-1,group=-1;private int type=-1,offset,generation,total,nextListSelection=-1,lastProgrammeBatch=-1;private long nextListFocusId=-1;private DirectReceiverSignal reader;
+ private final ChannelNumberInput numeric=new ChannelNumberInput();
+ private boolean foreground;
+ private final Runnable numericCommit=this::commitNumberInput;
  private final Runnable filter=()->search(true);private final Runnable tick=new Runnable(){public void run(){if(!destroyed){refreshSignal();main.postDelayed(this,1000);}}};
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
@@ -243,7 +246,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   String[] labels=new String[letters.length];
   int selected=0;
   for(int i=0;i<letters.length;i++){
-   labels[i]=letters[i].isEmpty()?tx("كل القنوات","All channels"):letters[i];
+   labels[i]=letters[i].isEmpty()?tx("الكل","ALL"):letters[i];
    if(letters[i].equals(initialFilter))selected=i;
   }
   ReceiverPanelStyle.chooseLetters(this,tx("الحروف • الأصفر","Letters • Yellow"),labels,
@@ -289,6 +292,34 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
     Map<String,SatelliteGuideRepository.Event> all=new HashMap<>(programmes);
     all.putAll(found);programmes=all;list.invalidateViews();
     updateFocusedProgramme(list.getSelectedItemPosition());
+   });
+  });
+ }
+ private void appendChannelDigit(int digit){
+  numeric.add(digit);
+  status.setText(tx("رقم القناة: ","Channel number: ")+numeric.display()+
+     tx("  ·  OK للتأكيد","  ·  OK to confirm"));
+  main.removeCallbacks(numericCommit);
+  main.postDelayed(numericCommit,2300);
+ }
+ private void clearNumeric(){numeric.clear();main.removeCallbacks(numericCommit);}
+ private void commitNumberInput(){
+  int channelNumber=numeric.number();
+  clearNumeric();
+  if(channelNumber<1)return;
+  final ReceiverCatalog.Channel selected=focusedChannel();
+  io.execute(()->{
+   ReceiverCatalog.Channel anchor=selected!=null?selected:
+     catalog.channel(prefs().getLong("own_dvb_channel",-1));
+   ReceiverCatalog.Channel target=anchor==null?null:
+     catalog.channelAtNumber(anchor,channelNumber);
+   main.post(()->{
+    if(destroyed||!foreground)return;
+    if(target==null){
+     status.setText(tx("رقم القناة غير موجود: ","Channel number unavailable: ")+channelNumber);
+     return;
+    }
+    play(target);
    });
   });
  }
@@ -581,6 +612,21 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   }
  }
  @Override public boolean dispatchKeyEvent(KeyEvent e){int k=e.getKeyCode();
+  int digit=k>=KeyEvent.KEYCODE_0&&k<=KeyEvent.KEYCODE_9?
+    k-KeyEvent.KEYCODE_0:
+    k>=KeyEvent.KEYCODE_NUMPAD_0&&k<=KeyEvent.KEYCODE_NUMPAD_9?
+      k-KeyEvent.KEYCODE_NUMPAD_0:-1;
+  if(digit>=0&&!query.hasFocus()){
+   if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0)
+     appendChannelDigit(digit);
+   return true;
+  }
+  if(numeric.hasInput()&&(k==KeyEvent.KEYCODE_DPAD_CENTER||
+      k==KeyEvent.KEYCODE_ENTER)){
+   if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0)
+     commitNumberInput();
+   return true;
+  }
   if(k==KeyEvent.KEYCODE_GUIDE||k==KeyEvent.KEYCODE_SEARCH||k==KeyEvent.KEYCODE_MENU){
    if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){
     if(k==KeyEvent.KEYCODE_GUIDE)focusedGuide();
@@ -617,11 +663,16 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   }
   if(k==17||k==237||k==34||k==440||k==KeyEvent.KEYCODE_TV_RADIO_SERVICE||k==170||k==KeyEvent.KEYCODE_CHANNEL_UP||k==KeyEvent.KEYCODE_CHANNEL_DOWN){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){if(k==17||k==237)satellites();else if(k==34||k==440)groups();else if(k==KeyEvent.KEYCODE_TV_RADIO_SERVICE||k==170){type=type==1?0:1;search(true);}else pageChannels(k==KeyEvent.KEYCODE_CHANNEL_UP?1:-1,1);}return true;}if(k==KeyEvent.KEYCODE_PROG_RED||k==KeyEvent.KEYCODE_PROG_GREEN||k==KeyEvent.KEYCODE_PROG_YELLOW||k==KeyEvent.KEYCODE_PROG_BLUE||k==KeyEvent.KEYCODE_INFO){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){if(k==KeyEvent.KEYCODE_PROG_RED)groups();else if(k==KeyEvent.KEYCODE_PROG_GREEN)types();else if(k==KeyEvent.KEYCODE_PROG_YELLOW)showAlphabetIndex();else if(k==KeyEvent.KEYCODE_PROG_BLUE)startActivity(new Intent(this,SignalInformationActivity.class));else{int p=list.getSelectedItemPosition();if(p>=0&&p<shown.size())details(shown.get(p));}}return true;}return super.dispatchKeyEvent(e);}
  @Override public void onBackPressed(){
+  if(numeric.hasInput()){
+   clearNumeric();status.setText(tx("تم إلغاء الرقم","Number cancelled"));return;
+  }
   if(!initialFilter.isEmpty()){
    initialFilter="";
    prefs().edit().remove("receiver_initial_filter").apply();
    search(true);
   }else super.onBackPressed();
  }
- @Override protected void onDestroy(){destroyed=true;generation++;main.removeCallbacksAndMessages(null);io.shutdownNow();super.onDestroy();}
+ @Override protected void onResume(){super.onResume();foreground=true;}
+ @Override protected void onPause(){foreground=false;clearNumeric();super.onPause();}
+ @Override protected void onDestroy(){destroyed=true;generation++;clearNumeric();main.removeCallbacksAndMessages(null);io.shutdownNow();super.onDestroy();}
 }
