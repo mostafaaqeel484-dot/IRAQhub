@@ -42,5 +42,11 @@ final class ReceiverBackup {
    }
   }finally{snapshot.delete();}
  }
+ static String verify(Context context,Uri source)throws Exception{
+  if(source==null)throw new IOException("BACKUP_SOURCE_MISSING");
+  try(InputStream in=context.getContentResolver().openInputStream(source)){
+   return BackupZipInspector.inspect(in);
+  }
+ }
  private ReceiverBackup(){}
 }

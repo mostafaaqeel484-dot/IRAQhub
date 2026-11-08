@@ -147,7 +147,10 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("epg_art_changed_at",0);
   boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
     (!state.nextTitle.isEmpty()&&nextPoster==null);
-  if(PlaybackResourceMode.active()){
+  if(PlaybackResourceMode.active()||SafePlaybackMode.enabled(host)||
+      !prefs.getBoolean("osd_posters",false)){
+   // 4.0.1: hidden artwork must not trigger CPU/network work while rendering
+   // live TV; preserve cached files for later optional reactivation.
    // Preserve artwork on disk; free existing bitmap references and skip all
    // poster decode/lookups while software 4:2:2 needs CPU/RAM/GPU.
    imageKey=art;currentPoster=null;nextPoster=null;
@@ -197,7 +200,9 @@ final class LocalInfoBarController implements AutoCloseable {
  }
 
  private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
-  if(PlaybackResourceMode.active()||prefs.getBoolean("software_dvb_422_active",false)){
+  if(PlaybackResourceMode.active()||SafePlaybackMode.enabled(host)||
+     !prefs.getBoolean("osd_posters",false)||
+     prefs.getBoolean("software_dvb_422_active",false)){
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
      "VIDEO_PRIORITY_DECODE_DEFERRED").apply();
    return;
