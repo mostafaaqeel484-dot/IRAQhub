@@ -42,6 +42,9 @@ public final class Independent422Activity extends HubActivity {
  private int noFrameSamples;
  private int rendererEpoch;
  private Mpv422Renderer renderer;
+ private Native422Decoder directDecoder;
+ private boolean nativeFallbackUsed;
+ private long nativeLastFrames,nativeLastProgressAt;
  private LiveTsRelay relay;
  private Auto422RuntimeMonitor monitor;
  private long audioToken;
@@ -69,6 +72,25 @@ public final class Independent422Activity extends HubActivity {
   @Override public void run(){
    if(stopped||destroyed)return;
    Mpv422Renderer engine=renderer;
+   if(directDecoder!=null){
+    long frames=directDecoder.displayedFrames();
+    long now=SystemClock.elapsedRealtime();
+    if(frames>nativeLastFrames){
+     nativeLastFrames=frames;nativeLastProgressAt=now;
+     prefs().edit().putLong("native422_rendered_frames",frames)
+       .putString("decoder_422_verification","JNI_ANATIVEWINDOW_FRAMES_ADVANCING")
+       .putLong("native422_frame_at",System.currentTimeMillis()).apply();
+    }else if(!nativeFallbackUsed&&now-renderStartedAt>18000&&
+       (frames==0||now-nativeLastProgressAt>12000)){
+     nativeFallbackUsed=true;
+     prefs().edit().putString("native422_runtime","STALLED_FALLBACK_MPV")
+       .putLong("native422_last_rendered",frames).apply();
+     display(tx("توقف عرض JNI؛ الرجوع إلى MPV احتياطياً",
+       "JNI frames stalled; reverting once to MPV fallback"));
+     restartRenderer();return;
+    }
+    main.postDelayed(this,4800);return;
+   }
    if(engine!=null&&loaded){
     Mpv422Renderer.Metrics values=engine.metrics();
     if(values!=null){
@@ -170,6 +192,14 @@ public final class Independent422Activity extends HubActivity {
    selectedDecoderMode=Mpv422FluidPolicy.decoderMode(
      prefs().getString("independent_422_decoder_mode",Mpv422FluidPolicy.SW));
    activeDecoderMode=selectedDecoderMode;
+   if("jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))){
+    selectedRenderMode=Native422OutputProfile.normalize(
+      prefs().getString("native422_output_mode",Native422OutputProfile.AUTO));
+    renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
+    selectedDecoderMode=Mpv422FluidPolicy.SW;
+    activeDecoderMode=Mpv422FluidPolicy.SW;
+    videoOnly=true; // Direct FFmpeg JNI first stage is video only.
+   }
    if(Native422V2Profile.enabled(getIntent().getStringExtra("decoder_engine"))){
     selectedRenderMode=Native422V2Profile.renderMode();
     renderMode=Native422V2Profile.renderMode();
@@ -461,6 +491,44 @@ public final class Independent422Activity extends HubActivity {
    previousVoDrops=-1;previousDropSampleAt=0;poorDropSamples=0;
    noFrameSamples=0;
    renderStartedAt=SystemClock.elapsedRealtime();
+  nativeLastFrames=0;nativeLastProgressAt=renderStartedAt;
+  if("jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))&&
+      !nativeFallbackUsed){
+   if(Native422Decoder.available()&&Native422Decoder.localAuthorizedTs(url)){
+    final Native422Decoder direct=new Native422Decoder(this,videoRoot,
+      new Native422Decoder.Listener(){
+       @Override public void firstFrame(){
+        if(stopped||destroyed||callbackEpoch!=rendererEpoch)return;
+        loaded=true;
+        prefs().edit().putString("independent_422_runtime",
+          "DIRECT_FFMPEG_JNI_FIRST_FRAME")
+         .putString("decoder_422_verification","DIRECT_JNI_FIRST_FRAME_ONLY")
+         .putString("decoder_kind","NATIVE_LIBAVCODEC_SW").apply();
+        display(tx("FFmpeg JNI · عُرض أول إطار؛ نراقب الحركة",
+          "FFmpeg JNI first frame rendered; verifying progression"));
+       }
+       @Override public void failed(String reason){
+        if(stopped||destroyed||callbackEpoch!=rendererEpoch)return;
+        nativeFallbackUsed=true;
+        prefs().edit().putString("native422_runtime","JNI_FAILED_FALLBACK")
+         .putString("native422_failure",reason).apply();
+        display(tx("فشل فك FFmpeg JNI؛ الرجوع إلى MPV",
+          "Direct FFmpeg JNI failed; MPV fallback"));
+        restartRenderer();
+       }
+      },selectedRenderMode);
+    directDecoder=direct;
+    if(direct.start(url)){
+     prefs().edit().putString("independent_422_runtime","DIRECT_FFMPEG_JNI_OPENING")
+       .putString("decoder_kind","NATIVE_LIBAVCODEC_SW")
+       .putString("native422_selected_output",selectedRenderMode).apply();
+     return;
+    }
+    direct.close();directDecoder=null;
+   }
+   nativeFallbackUsed=true;
+   prefs().edit().putString("native422_runtime","NATIVE_UNAVAILABLE_FALLBACK_MPV").apply();
+  }
   prefs().edit().putString("independent_422_runtime","MPV_OPENING")
     .putString("decoder_kind","LIBMPV_INDEPENDENT_ACTIVE_REQUEST_"+activeDecoderMode)
     .putString("decoder_422_verification","MPV_FILE_NOT_YET_LOADED")
@@ -560,6 +628,9 @@ public final class Independent422Activity extends HubActivity {
   rendererEpoch++;
   Mpv422Renderer old=renderer;
   renderer=null;loaded=false;
+  Native422Decoder direct=directDecoder;
+  directDecoder=null;
+  if(direct!=null)try{direct.close();}catch(Throwable ignored){}
   if(old!=null)try{old.close();}catch(Throwable ignored){}
  }
  private void display(String value){
@@ -592,6 +663,9 @@ public final class Independent422Activity extends HubActivity {
     "\nEngine: "+(Native422V2Profile.enabled(getIntent().getStringExtra("decoder_engine"))?
       "IRAQhub Native422 V2 session (FFmpeg via libmpv)":
       "libmpv / FFmpeg (NOT LibVLC)")+
+    "\nNative JNI present: "+Native422Decoder.available()+
+    "\nDirect rendered frames: "+(directDecoder==null?"NOT_ACTIVE":directDecoder.displayedFrames())+
+    "\nNative fallback used: "+nativeFallbackUsed+
     "\nAudio decoding: "+(videoOnly?"DISABLED (aid=no)":"ENABLED")+
     "\nProfile: "+Software422Profile.effective(this)+
      "\nOutput selection: "+selectedRenderMode+
