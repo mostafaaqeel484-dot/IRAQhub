@@ -11,6 +11,7 @@ public final class DvbPlaybackActivity extends HubActivity {
  setContentView(root);localInfo=new LocalInfoBarController(this,root);remote=new ReceiverPlaybackOverlay(this,root);player=new ReceiverPlayback(this,new ReceiverPlayback.Listener(){public void accepted(ReceiverCatalog.Channel c){if(channel!=null&&channel.id!=c.id)prefs().edit().putLong("own_dvb_previous",channel.id).apply();playing=true;channel=c;
  io.execute(()->{
   int number=ReceiverCatalog.get(DvbPlaybackActivity.this).satelliteNumber(c);
+  FrontPanelBridge.publish(DvbPlaybackActivity.this,c,number);
   main.post(()->{if(!closed&&channel!=null&&channel.id==c.id)
    prefs().edit().putInt("own_dvb_sat_number",number)
     .putString("own_dvb_sat_number_channel","DVB:"+c.physical()).apply();
