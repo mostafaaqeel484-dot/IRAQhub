@@ -69,12 +69,13 @@ public final class NativeDvbCheckActivity extends Activity {
                 if(!valid) {
                     result.append("DVB FTA capture disabled: original native library is not authorized.\\n");
                 } else try {
-                    int pid=FtaDvbNative.detectActiveAudioPid();
+                    FtaDvbNative bridge = new FtaDvbNative();
+                    int pid=bridge.detectActiveAudioPid();
                     result.append("Active audio PID: ")
                         .append(pid>=0?String.format(Locale.US,"%d / 0x%X",pid,pid):"UNAVAILABLE "+pid)
                         .append("\n");
-                    result.append("Attached PID: ").append(FtaDvbNative.getAttachedPid()).append("\n");
-                    result.append("Tap generation: ").append(FtaDvbNative.getTapGeneration()).append("\n");
+                    result.append("Attached PID: ").append(bridge.getAttachedPid()).append("\n");
+                    result.append("Tap generation: ").append(bridge.getTapGeneration()).append("\n");
                 }catch(Throwable error) {
                     result.append("Native operation rejected: ")
                         .append(error.getClass().getSimpleName()).append(": ")
