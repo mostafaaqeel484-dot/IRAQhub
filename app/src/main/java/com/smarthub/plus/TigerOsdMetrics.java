@@ -7,6 +7,7 @@ package com.smarthub.plus;
 final class TigerOsdMetrics {
  private TigerOsdMetrics(){}
  static int barHeightDp(boolean detailed){return detailed?218:172;}
+ static boolean isCompact(boolean detailed){return !detailed;}
  static int headerHeightDp(){return 81;}
  static int iconWidthDp(){return 36;}
  static int iconHeightDp(){return 22;}
