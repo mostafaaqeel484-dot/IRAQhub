@@ -32,7 +32,7 @@ android {
   x5mPreview {
    initWith debug
    applicationIdSuffix '.x5m402'
-   versionNameSuffix '-x5m401-preview'
+   versionNameSuffix '-x5m402-preview'
    matchingFallbacks = ['debug']
   }
  }
