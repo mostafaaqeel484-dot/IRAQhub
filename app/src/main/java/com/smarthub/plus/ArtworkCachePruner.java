@@ -31,12 +31,16 @@ final class ArtworkCachePruner {
   File[] files=directory.listFiles(ArtworkCachePruner::imageFile);
   if(files==null||files.length==0)return;
   Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());
-  long size=0;
-  int count=0;
+  boolean protect=justSaved!=null&&imageFile(justSaved)&&
+    directory.equals(justSaved.getParentFile());
+  // Count the newly saved image BEFORE choosing LRU survivors. Otherwise
+  // an old but protected object could become the 25th retained image.
+  long size=protect?Math.max(0,justSaved.length()):0;
+  int count=protect?1:0;
   for(File file:files){
-   boolean protectedFile=justSaved!=null&&file.equals(justSaved);
+   if(protect&&file.equals(justSaved))continue;
    long length=Math.max(0,file.length());
-   if(protectedFile||count<MAX_IMAGES&&size+length<=MAX_TOTAL_BYTES){
+   if(count<MAX_IMAGES&&size+length<=MAX_TOTAL_BYTES){
     size+=length;count++;continue;
    }
    // Deletion failure is non-fatal and is retried on the next successful save.
