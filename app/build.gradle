@@ -31,7 +31,7 @@ android {
   // CI ephemeral Debug signing cannot update an app signed by an older run.
   x5mPreview {
    initWith debug
-   applicationIdSuffix '.x5m401'
+   applicationIdSuffix '.x5m402'
    versionNameSuffix '-x5m401-preview'
    matchingFallbacks = ['debug']
   }
