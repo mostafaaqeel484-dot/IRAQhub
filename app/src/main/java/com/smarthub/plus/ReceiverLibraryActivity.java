@@ -365,25 +365,10 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   choose422Engine(ch);
  }
  private void choose422Engine(ReceiverCatalog.Channel ch){
-  String[] engines={"LibVLC · FFmpeg",
-   "libmpv · inside launcher",
-   tx("IRAQhub 422 Engine · منفصل · MPV/FFmpeg",
-      "IRAQhub 422 Engine · isolated MPV/FFmpeg"),
-   tx("IRAQhub 422 V2 · تدفق محمي / FFmpeg تجريبي",
-      "IRAQhub 422 V2 · guarded TS, FFmpeg via libmpv (experimental)")};
-  String saved=prefs().getString("decoder_422_engine","isolated");
-  int selected="native_v2".equals(saved)?3:
-    "isolated".equals(saved)?2:"mpv".equals(saved)?1:0;
-  new AlertDialog.Builder(this)
-   .setTitle(tx("مشغّل 4:2:2","Choose 4:2:2 player"))
-   .setSingleChoiceItems(engines,selected,(dialog,index)->{
-     dialog.dismiss();
-     String engine=index==3?"native_v2":
-       index==2?"isolated":index==1?"mpv":"vlc";
-     prefs().edit().putString("decoder_422_engine",engine).apply();
-     launchSoftware(ch,engine);
-   })
-   .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+  // One remote-facing player. Internally recover between VLC and mpv only
+  // when needed; do not remove unverified fallback classes from the APK.
+  prefs().edit().putString("decoder_422_engine","unified").apply();
+  launchSoftware(ch,"unified");
  }
  private void launchSoftware(ReceiverCatalog.Channel ch,String engine){
   new ChannelScope("",satellite,ch.tv,favoritesOnly,alphabetical,group).save(this);
@@ -397,7 +382,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  private void details(ReceiverCatalog.Channel ch){
   String[] items=new String[]{
     tx("تشغيل القناة","Play with normal decoder"),
-    tx("تشغيل 4:2:2 · اختر VLC أو mpv","4:2:2 · choose VLC or mpv"),
+    tx("تشغيل IRAQhub 422 الموحد","Unified IRAQhub 422"),
     favorites.contains(ch.id)?tx("إزالة من المفضلة","Remove from favourites"):tx("إضافة للمفضلة","Add to favourites"),
     tx("مجموعات القناة","Channel groups"),
     tx("معلومات القناة","Channel details"),
