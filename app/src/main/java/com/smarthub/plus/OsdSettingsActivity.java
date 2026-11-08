@@ -8,6 +8,13 @@ public final class OsdSettingsActivity extends HubActivity {
    .setType("*/*").addCategory(android.content.Intent.CATEGORY_OPENABLE);
  launchDocument(intent,4301);
 });
+action(body,tx("استيراد عائلة ثمانية الأصلية (ZIP) · 7 أوزان","Import original Thmanyah font family ZIP"),()->{
+ android.content.Intent intent=new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT)
+   .setType("application/zip").addCategory(android.content.Intent.CATEGORY_OPENABLE);
+ launchDocument(intent,4302);
+});
+note(body,tx("خط ثمانية يبقى خاصاً على جهازك؛ لا نضيف ملفات OTF الخام إلى GitHub أو APK قابل لاستخراج الخط.",
+  "Thmanyah stays app-private on your device; no loose OTF font files in public downloads."));
 action(body,tx("الرجوع لخط الرسيفر","Restore default receiver font"),()->{
  UserTypeface.disable(this);toast(tx("تم تعطيل الخط المستورد","Custom font disabled"));
 });
@@ -16,6 +23,22 @@ CaptionAppearance.controls(body,ar,null);note(body,tx("قوة الإشارة و�
 
  @Override protected void onActivityResult(int request,int result,android.content.Intent data){
   super.onActivityResult(request,result,data);
+  if(request==4302&&result==RESULT_OK&&data!=null&&data.getData()!=null){
+   final android.net.Uri uri=data.getData();
+   new Thread(()->{
+    try{
+     int imported=ThmanyahPrivateFamily.importZip(this,uri);
+     runOnUiThread(()->toast(tx("تم استيراد خطوط ثمانية: ","Imported Thmanyah weights: ")+imported+
+       tx(" · افتح الواجهة مجدداً"," · reopen the UI")));
+    }catch(Exception failed){
+     runOnUiThread(()->new android.app.AlertDialog.Builder(this)
+       .setTitle(tx("تعذر استيراد ثمانية","Thmanyah import failed"))
+       .setMessage(String.valueOf(failed.getMessage()))
+       .setPositiveButton("OK",null).show());
+    }
+   },"iraqhub-thmanyah-local-import").start();
+   return;
+  }
   if(request!=4301||result!=RESULT_OK||data==null||data.getData()==null)return;
   try{
    UserTypeface.importFrom(this,data.getData());
