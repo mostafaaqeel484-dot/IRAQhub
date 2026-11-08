@@ -68,11 +68,12 @@ public final class HubSettingsActivity extends HubActivity {
   action(satellite,tx("حفظ نسخة احتياطية لقاعدة القنوات قبل التحديث","Export channel database backup before updating"),this::backupChannels);
   LinearLayout viewing=card(page);
   viewing.addView(text(tx("المشاهدة والصور","Viewing and artwork"),22,true));
-  open(viewing,tx("الشعارات — جلب شعارات القنوات","Channel logos"),LogoSourcesActivity.class);
-  open(viewing,tx("الـInfobar","Information bar"),OsdSettingsActivity.class);
-  open(viewing,tx("دليل البرامج ومصادر EPG","EPG and feed sources"),SatelliteGuideActivity.class);
-  open(viewing,tx("البوسترات ومصادر الصور","Posters and artwork providers"),ProviderSetupActivity.class);
-  open(viewing,tx("إصلاح 12 · مصادر لوغوات وبوسترات TVmaze والرياضة وWikimedia","Fix 12 · TVmaze, sports and Commons artwork sources"),ArtworkSourcesActivity.class);
+  open(viewing,tx("مركز البوسترات والشعارات وEPG والإنفوبار",
+    "Posters, logos, EPG and InfoBar · one category"),ViewingSettingsActivity.class);
+  open(viewing,tx("محرك IRAQhub 422 الموحد · دقة وGPU FAST",
+    "Unified IRAQhub 422 · output and GPU FAST"),Unified422SettingsActivity.class);
+  open(viewing,tx("تشغيل وفحص بث 4:2:2",
+    "4:2:2 media and DVB testing"),Software422CenterActivity.class);
   LinearLayout recovery=card(page);
   recovery.addView(text(tx("الاستقرار والنسخ الاحتياطي","Stability & backups"),22,true));
   android.widget.CheckBox safe=check(recovery,
@@ -95,8 +96,8 @@ public final class HubSettingsActivity extends HubActivity {
   open(help,tx("فحص الإشارة والتوافق","Signal and compatibility"),CompatibilityActivity.class);
   open(help,tx("ربط جهاز X5M · تصحيح USB ولوحة الرسيفر",
     "X5M hardware · USB ADB and front-panel bridge"),ReceiverHardwareBridgeActivity.class);
-  action(help,tx("تصحيح USB (ADB) · خيارات المطور","USB ADB debugging · Developer options"),
-    ()->UsbAdbSetup.show(this));
+  // USB ADB, authorised IP:5556 and Front Panel live in ONE X5M hardware page.
+  // Keep Developer options accessible there; do not show duplicate setup entries.
  }
  private void open(LinearLayout parent,String label,Class<?> target){
   action(parent,label,()->startActivity(new Intent(this,target)));
