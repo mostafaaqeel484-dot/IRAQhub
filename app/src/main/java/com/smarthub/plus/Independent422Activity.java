@@ -170,6 +170,22 @@ public final class Independent422Activity extends HubActivity {
    selectedDecoderMode=Mpv422FluidPolicy.decoderMode(
      prefs().getString("independent_422_decoder_mode",Mpv422FluidPolicy.SW));
    activeDecoderMode=selectedDecoderMode;
+   if(Native422V2Profile.enabled(getIntent().getStringExtra("decoder_engine"))){
+    selectedRenderMode=Native422V2Profile.renderMode();
+    renderMode=Native422V2Profile.renderMode();
+    selectedDecoderMode=Native422V2Profile.decoderMode();
+    activeDecoderMode=selectedDecoderMode;
+    videoOnly=Native422V2Profile.videoOnly();
+   }
+   if(SafePlaybackMode.enabled(this)){
+    // Direct developer entry can still diagnose, with SW/no-audio/native.
+    // Normal channel selection is forced to DVB in safe mode.
+    selectedRenderMode=Mpv422FluidPolicy.GPU_NATIVE;
+    renderMode=Mpv422FluidPolicy.GPU_NATIVE;
+    selectedDecoderMode=Mpv422FluidPolicy.SW;
+    activeDecoderMode=selectedDecoderMode;
+    videoOnly=true;
+   }
   if(channelId<0){
    String url=getIntent().getStringExtra("media_uri");
    if(!Software422Source.validNetwork(url)){
@@ -573,7 +589,9 @@ public final class Independent422Activity extends HubActivity {
   long bitrate=prefs().getLong("software_ts_bitrate",0);
   String report=tx("محرك منفصل: ","Separate process: ")+
     android.os.Process.myPid()+
-    "\nEngine: libmpv / FFmpeg (NOT LibVLC)"+
+    "\nEngine: "+(Native422V2Profile.enabled(getIntent().getStringExtra("decoder_engine"))?
+      "IRAQhub Native422 V2 session (FFmpeg via libmpv)":
+      "libmpv / FFmpeg (NOT LibVLC)")+
     "\nAudio decoding: "+(videoOnly?"DISABLED (aid=no)":"ENABLED")+
     "\nProfile: "+Software422Profile.effective(this)+
      "\nOutput selection: "+selectedRenderMode+
