@@ -16,6 +16,7 @@ final class NowNextView extends FrameLayout {
  private final LinearLayout providerPanel,resolutionStrip,details,bar,leftPosterBox,rightPosterBox;
  private final TextView[] resolutionChips=new TextView[5];
  private final TextView[] featureChips=new TextView[6];
+ private final TextView[] caChips=new TextView[CaBadgePolicy.LABELS.length];
  private final int[] resolutionDrawn=new int[5],featureDrawn=new int[6];
  private int encryptionDrawn=-1;
  private final ProgressBar progress,strengthBar,qualityBar;
@@ -178,6 +179,7 @@ final class NowNextView extends FrameLayout {
   details.addView(signalDetail);
   details.addView(bitrateLabel);
   details.addView(weather);
+  details.addView(encryptionLine);
   // Expanded-only diagnostics must not crowd the compact reference ribbon.
   details.setVisibility(detailed?VISIBLE:GONE);
   bar.addView(details,new LinearLayout.LayoutParams(-1,-2));
@@ -188,8 +190,21 @@ final class NowNextView extends FrameLayout {
   technical.setSingleLine(true);
   technical.setEllipsize(android.text.TextUtils.TruncateAt.END);
   technical.setTextColor(0xffd7dadd);
+  LinearLayout caStrip=new LinearLayout(context);
+  caStrip.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+  for(int i=0;i<caChips.length;i++){
+   TextView chip=label(CaBadgePolicy.LABELS[i],9,true);
+   chip.setGravity(Gravity.CENTER);
+   chip.setPadding(dp(3),0,dp(3),0);
+   caChips[i]=chip;
+   int w=i==3?dp(76):i==4?dp(43):dp(41);
+   LinearLayout.LayoutParams caParams=new LinearLayout.LayoutParams(w,dp(20));
+   caParams.rightMargin=dp(2);
+   caStrip.addView(chip,caParams);
+  }
+  footer.addView(caStrip,new LinearLayout.LayoutParams(-2,dp(20)));
+  technical.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
   footer.addView(technical,new LinearLayout.LayoutParams(0,-1,1));
-  footer.addView(encryptionLine,new LinearLayout.LayoutParams(-2,dp(20)));
   bar.addView(footer,new LinearLayout.LayoutParams(-1,dp(22)));
 
   if(tickerH>0){
@@ -286,6 +301,17 @@ final class NowNextView extends FrameLayout {
   String strength=ReceptionData.value(getContext(),s,"strength"),quality=ReceptionData.value(getContext(),s,"quality");strengthLabel.setText("S: "+(strength.isEmpty()?"—":strength));qualityLabel.setText("Q: "+(quality.isEmpty()?"—":quality));strengthBar.setProgress(percent(strength),true);qualityBar.setProgress(percent(quality),true);strengthBar.setVisibility(strength.isEmpty()?INVISIBLE:VISIBLE);qualityBar.setVisibility(quality.isEmpty()?INVISIBLE:VISIBLE);
   signalDetail.setText(info.signalDetail());signalSource.setText(s.source.startsWith("IPTV")?"IPTV":DirectReceiverSignal.sourceLabel(s,prefs.getBoolean("arabic",true)));signalSource.setVisibility(compact?GONE:VISIBLE);
   String ca=info.encryption;
+  boolean[] caActive=CaBadgePolicy.active(ca);
+  for(int i=0;i<caChips.length;i++){
+   TextView chip=caChips[i];
+   boolean active=caActive[i];
+   chip.setTextColor(active?0xff17100a:0xff8f969c);
+   GradientDrawable bg=new GradientDrawable();
+   bg.setColor(active?0xfff8c64a:0xff29313b);
+   bg.setCornerRadius(dp(3));
+   bg.setStroke(dp(1),active?0xfffae08d:0xff404a54);
+   chip.setBackground(bg);
+  }
   boolean encrypted=!ca.isEmpty()&&!ca.startsWith("FTA")&&!ca.contains("مفتوحة");
   encryptionLine.setText(ca.isEmpty()?tx("CA —","CA —"):encrypted?"🔒 "+ca:"🔓 "+ca);
   int caState=encrypted?1:0;
