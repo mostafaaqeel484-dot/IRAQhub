@@ -21,6 +21,9 @@ Use actual build.gradle and `.github/workflows/iraqhub-403-native422-jni-armv7.y
 - Native FFmpeg `.so` libraries are *generated third-party build outputs*, not committed to the source ZIP. Preserve upstream PGP verification and license notices; do not replace with arbitrary libraries.
 - For distributed APKs: ZIP align BEFORE final signing, verify APK Signature Scheme v2/v3 and Android API 34 against the final downloaded bytes; compare SHA-256 with the uploaded release asset. GitHub Actions build green is not evidence of installability on the receiver.
 
+## User's full acceptance brief
+Read **the Arabic section `تعليمات المستخدم المفصلة لـ Codex` in `CODEX_HANDOFF_4_0_4.md`**. It defines exact P0/P1/P2 requirements for real manual DVB TP scanning, HEVC 4:2:2 freeze/black screen, CHMAX logo identity/cache/CHL merge, EIT/XMLTV and sports posters/synopses, Tiger/Aurum InfoBar, RX professional UI/remote shortcuts, authorized BISS input, original OEM reverse engineering, USALS, channel management, ADB onboarding, and final-installable APK verification. Treat it as the user's current acceptance criteria; prioritize P0 fixes before cosmetic changes. Do not claim success without device evidence.
+
 ## Highest priorities
 1. Fix manual DVB transponder scan returning `FIRMWARE_CAPTURE_NO_TS_DATA`, `NO_COMPLETE_PSI`, `services=0`: identify supported OEM capture interface or provide explicit diagnostic rather than fabricated services.
 2. Independent 4:2:2 decoder continuous frames/no black screen, particularly HEVC 50fps; preserve audio, TS continuity/PSI/TEI diagnostics, account for X5M ARMv7 CPU load. Packet EAGAIN retry was added in 4.0.4; physical proof still absent.
