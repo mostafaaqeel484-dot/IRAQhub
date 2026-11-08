@@ -57,8 +57,8 @@ final class NowNextView extends FrameLayout {
   header.setGravity(Gravity.CENTER_VERTICAL);
   LinearLayout headLeft=column();headLeft.setGravity(Gravity.CENTER_VERTICAL);
   LinearLayout headRight=column();headRight.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
-  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.15f));
-  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,1.45f));
+  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.35f));
+  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,1f));
   bar.addView(header,new LinearLayout.LayoutParams(-1,dp(TigerOsdMetrics.headerHeightDp())));
 
   LinearLayout primary=new LinearLayout(context);
@@ -225,8 +225,10 @@ final class NowNextView extends FrameLayout {
   // Poster images show with the FIRST INFO press, not only expanded details.
   // Empty event artwork stays invisible until its verified image is ready.
   boolean showPosters=prefs.getBoolean("osd_posters",true);
-  leftPosterBox.setVisibility(showPosters?VISIBLE:GONE);
-  rightPosterBox.setVisibility(showPosters?VISIBLE:GONE);
+  // Do not leave two empty picture boxes above the TV when no verified art
+  // exists yet. INFO exposes posters immediately as soon as they are cached.
+  leftPosterBox.setVisibility(showPosters&&currentPoster.getDrawable()!=null?VISIBLE:GONE);
+  rightPosterBox.setVisibility(showPosters&&nextPoster.getDrawable()!=null?VISIBLE:GONE);
   // Keep poster corners just above the expanded/compact bar.
   int top=dp(TigerOsdMetrics.posterBottomMarginDp(value));
   FrameLayout.LayoutParams left=(FrameLayout.LayoutParams)leftPosterBox.getLayoutParams();
