@@ -349,14 +349,18 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   String[] engines={"LibVLC · FFmpeg",
    "libmpv · inside launcher",
    tx("IRAQhub 422 Engine · منفصل · MPV/FFmpeg",
-      "IRAQhub 422 Engine · isolated MPV/FFmpeg")};
+      "IRAQhub 422 Engine · isolated MPV/FFmpeg"),
+   tx("IRAQhub 422 V2 · تدفق محمي / FFmpeg تجريبي",
+      "IRAQhub 422 V2 · guarded TS, FFmpeg via libmpv (experimental)")};
   String saved=prefs().getString("decoder_422_engine","isolated");
-  int selected="isolated".equals(saved)?2:"mpv".equals(saved)?1:0;
+  int selected="native_v2".equals(saved)?3:
+    "isolated".equals(saved)?2:"mpv".equals(saved)?1:0;
   new AlertDialog.Builder(this)
    .setTitle(tx("مشغّل 4:2:2","Choose 4:2:2 player"))
    .setSingleChoiceItems(engines,selected,(dialog,index)->{
      dialog.dismiss();
-     String engine=index==2?"isolated":index==1?"mpv":"vlc";
+     String engine=index==3?"native_v2":
+       index==2?"isolated":index==1?"mpv":"vlc";
      prefs().edit().putString("decoder_422_engine",engine).apply();
      launchSoftware(ch,engine);
    })
@@ -365,7 +369,8 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  private void launchSoftware(ReceiverCatalog.Channel ch,String engine){
   new ChannelScope("",satellite,ch.tv,favoritesOnly,alphabetical,group).save(this);
   startActivity(new Intent(this,
-    "isolated".equals(engine)?Independent422Activity.class:SoftwareVideoActivity.class)
+    ("isolated".equals(engine)||Native422V2Profile.enabled(engine))?
+      Independent422Activity.class:SoftwareVideoActivity.class)
    .putExtra("dvb_channel",ch.id).putExtra("decoder_engine",engine)
    .putExtra("video_only",prefs().getBoolean("independent_422_video_only",true)));
   finish();
