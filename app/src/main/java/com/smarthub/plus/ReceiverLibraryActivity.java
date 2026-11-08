@@ -91,6 +91,25 @@ public class ReceiverLibraryActivity extends HubActivity {
   hint.setTextColor(0xffbacbd5);
   hint.setPadding(dp(8),dp(8),dp(8),dp(3));
   root.addView(hint);
+  // Compact RF strip follows the highlighted channel; S/Q values are shown
+  // only if the tuner is ACTUALLY tuned to that same physical service.
+  LinearLayout frequencyStrip=col();
+  frequencyStrip.setPadding(dp(8),dp(5),dp(8),dp(5));
+  frequencyStrip.setBackgroundColor(0xff131c26);
+  rf.setTextColor(0xffdfeaf2);rf.setSingleLine(true);
+  rf.setEllipsize(android.text.TextUtils.TruncateAt.END);
+  signalDetail.setTextColor(0xffa9c5dc);
+  frequencyStrip.addView(rf,new LinearLayout.LayoutParams(-1,dp(19)));
+  LinearLayout meters=row();meters.setGravity(Gravity.CENTER_VERTICAL);
+  strength.setLayoutParams(new LinearLayout.LayoutParams(0,dp(5),1));
+  quality.setLayoutParams(new LinearLayout.LayoutParams(0,dp(5),1));
+  LinearLayout.LayoutParams qParams=new LinearLayout.LayoutParams(0,dp(5),1);
+  qParams.leftMargin=dp(8);
+  meters.addView(strength,new LinearLayout.LayoutParams(0,dp(5),1));
+  meters.addView(quality,qParams);
+  frequencyStrip.addView(meters,new LinearLayout.LayoutParams(-1,dp(8)));
+  frequencyStrip.addView(signalDetail,new LinearLayout.LayoutParams(-1,dp(19)));
+  root.addView(frequencyStrip,new LinearLayout.LayoutParams(-1,dp(54)));
   String initial=getIntent().getStringExtra("query");
   query.setText("");
   getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
@@ -441,7 +460,28 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
     }))
     .setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
- private void refreshSignal(){SatelliteState s=SatelliteState.read(this);if(reader!=null)reader.refresh(s);ReceiverInfoRepository.Info info=ReceiverInfoRepository.get(this).info(s);liveTitle.setText(s.channelName);String liveKey=s.channelId+"|"+s.title+"|"+(System.currentTimeMillis()/30000);if(!lastLiveTitle.equals(liveKey)){lastLiveTitle=liveKey;list.invalidateViews();}rf.setText(info.broadcast);strength.setProgress(percent(info.strength),true);quality.setProgress(percent(info.quality),true);strength.setVisibility(info.strength.isEmpty()?View.INVISIBLE:View.VISIBLE);quality.setVisibility(info.quality.isEmpty()?View.INVISIBLE:View.VISIBLE);signalDetail.setText("S: "+(info.strength.isEmpty()?"—":info.strength)+"     Q: "+(info.quality.isEmpty()?"—":info.quality)+"     "+info.signalDetail());}
+ private void refreshSignal(){
+  SatelliteState s=SatelliteState.read(this);
+  if(reader!=null)reader.refresh(s);
+  ReceiverInfoRepository.Info info=ReceiverInfoRepository.get(this).info(s);
+  liveTitle.setText(s.channelName);
+  String liveKey=s.channelId+"|"+s.title+"|"+(System.currentTimeMillis()/30000);
+  if(!lastLiveTitle.equals(liveKey)){lastLiveTitle=liveKey;list.invalidateViews();}
+  ReceiverCatalog.Channel selected=focusedChannel();
+  rf.setText(selected==null?tx("اختر قناة لعرض التردد","Select a channel to see RF"):
+    selected.frequency+" "+selected.pol+" / "+selected.symbolRate+" · "+selected.satName);
+  boolean tuned=selected!=null&&s.channelId.equals("DVB:"+selected.physical());
+  strength.setVisibility(tuned&&!info.strength.isEmpty()?View.VISIBLE:View.INVISIBLE);
+  quality.setVisibility(tuned&&!info.quality.isEmpty()?View.VISIBLE:View.INVISIBLE);
+  strength.setProgress(tuned?percent(info.strength):0);
+  quality.setProgress(tuned?percent(info.quality):0);
+  signalDetail.setText(tuned?
+     "S: "+(info.strength.isEmpty()?"—":info.strength)+
+     "   Q: "+(info.quality.isEmpty()?"—":info.quality)+
+     "   "+info.signalDetail():
+     tx("S/Q — الإشارة الحالية ليست للقناة المحددة",
+       "S/Q — tuner not on selected channel"));
+ }
  private static int percent(String s){try{return (int)Float.parseFloat(s.replace("%",""));}catch(Exception no){return 0;}}
  private final class ChannelRow {
   LinearLayout container;
