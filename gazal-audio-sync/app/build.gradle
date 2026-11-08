@@ -8,11 +8,29 @@ android {
         applicationId 'com.gazal.audiosync'
         minSdk 28
         targetSdk 34
-        versionCode 2
-        versionName '0.2.0'
+        versionCode 3
+        versionName '0.3.0'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+// Full native builds must explicitly import original ARMv7 binaries first.
+// Lite builds remain possible, but must never be described as BEN10-complete.
+def requireNative = providers.gradleProperty('withNative').map { it.toBoolean() }.orElse(false)
+tasks.register('validateBen10Native') {
+    doLast {
+        if (requireNative.get()) {
+            ['libben10_fta.so', 'libben10_security.so', 'libconscrypt_jni.so'].each { name ->
+                def file = project.file('src/main/jniLibs/armeabi-v7a/' + name)
+                if (!file.exists() || file.length() == 0L) {
+                    throw new GradleException("Missing required original ARMv7 library: " + file
+                        + ". Run python3 tools/import_ben10_native.py ORIGINAL.apk")
+                }
+            }
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn tasks.named('validateBen10Native') }
