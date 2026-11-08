@@ -14,7 +14,9 @@ final class PlaylistStore {
     static final class Source {
         final String name;
         final String url;
-        Source(String name, String url) { this.name = name; this.url = url; }
+        final String tvgId;
+        Source(String name, String url) { this(name,url,""); }
+        Source(String name, String url,String tvgId) { this.name = name; this.url = url; this.tvgId=tvgId == null ? "" : tvgId; }
         public String toString() { return name + "  •  " + url; }
     }
     private static SharedPreferences prefs(Context c) {
@@ -27,7 +29,7 @@ final class PlaylistStore {
             for (int i = 0; i < array.length(); i++) {
                 JSONObject item = array.getJSONObject(i);
                 String url = item.optString("url");
-                if (valid(url)) result.add(new Source(item.optString("name", "Audio " + (i + 1)), url));
+                if (valid(url)) result.add(new Source(item.optString("name", "Audio " + (i + 1)), url,item.optString("tvgId")));
             }
         } catch (Exception ignored) {}
         return result;
@@ -36,7 +38,7 @@ final class PlaylistStore {
         JSONArray out = new JSONArray();
         for (Source s : sources) {
             JSONObject item = new JSONObject();
-            try { item.put("name", s.name); item.put("url", s.url); out.put(item); }
+            try { item.put("name", s.name); item.put("url", s.url); item.put("tvgId",s.tvgId); out.put(item); }
             catch (Exception ignored) {}
         }
         prefs(c).edit().putString("sources", out.toString()).apply();
@@ -49,16 +51,18 @@ final class PlaylistStore {
     static ArrayList<Source> parse(InputStream stream) throws Exception {
         ArrayList<Source> out = new ArrayList<>();
         BufferedReader in = new BufferedReader(new InputStreamReader(stream, "UTF-8"));
-        String line, title = "";
+        String line, title = "", tvgId = "";
         while ((line = in.readLine()) != null && out.size() < 500) {
             line = line.trim();
             if (line.startsWith("#EXTINF:")) {
                 int comma = line.lastIndexOf(',');
                 title = comma >= 0 ? line.substring(comma + 1).trim() : "";
+                java.util.regex.Matcher m=java.util.regex.Pattern.compile("tvg-id=[\\\"\u0027]([^\\\"\u0027]*)[\\\"\u0027]",java.util.regex.Pattern.CASE_INSENSITIVE).matcher(line);
+                tvgId=m.find()?m.group(1):"";
             } else if (valid(line)) {
                 if (title.isEmpty()) title = "Audio " + (out.size() + 1);
-                out.add(new Source(title, line));
-                title = "";
+                out.add(new Source(title, line,tvgId));
+                title = ""; tvgId = "";
             } else if (line.startsWith("#") || line.isEmpty()) {
                 // M3U metadata or comment.
             } else if (line.contains("=")) {
@@ -66,8 +70,8 @@ final class PlaylistStore {
                 int eq = line.indexOf('=');
                 String candidate = line.substring(eq + 1).trim().replace("\"", "");
                 if (valid(candidate)) {
-                    out.add(new Source(title.isEmpty() ? "Audio " + (out.size()+1) : title, candidate));
-                    title = "";
+                    out.add(new Source(title.isEmpty() ? "Audio " + (out.size()+1) : title, candidate,tvgId));
+                    title = ""; tvgId = "";
                 }
             }
         }
