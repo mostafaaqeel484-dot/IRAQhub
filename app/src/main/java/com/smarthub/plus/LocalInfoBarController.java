@@ -73,7 +73,9 @@ final class LocalInfoBarController implements AutoCloseable {
   bar.setVisibility(View.GONE);
   FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
      FrameLayout.LayoutParams.MATCH_PARENT,OsdGeometry.window(activity),Gravity.BOTTOM);
-  params.bottomMargin=OsdGeometry.bottom(activity);
+  // 4.0.2: anchor the OSD to the physical bottom edge (no floating gap).
+  // Keep legacy offset only when explicitly requested by the user.
+  params.bottomMargin=prefs.getBoolean("osd_dock_to_bottom",true)?0:OsdGeometry.bottom(activity);
   root.addView(bar,params);
  }
 
