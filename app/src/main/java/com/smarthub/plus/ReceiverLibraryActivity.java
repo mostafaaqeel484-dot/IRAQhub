@@ -399,13 +399,17 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  private void choose422Engine(ReceiverCatalog.Channel ch){
   // One remote-facing player. Internally recover between VLC and mpv only
   // when needed; do not remove unverified fallback classes from the APK.
-  prefs().edit().putString("decoder_422_engine","unified").apply();
-  launchSoftware(ch,"unified");
+  boolean useNative=Native422Decoder.available()&&
+    prefs().getBoolean("native422_experiment",false);
+  String engine=useNative?"jni_ffmpeg":"unified";
+  prefs().edit().putString("decoder_422_engine",engine).apply();
+  launchSoftware(ch,engine);
  }
  private void launchSoftware(ReceiverCatalog.Channel ch,String engine){
   new ChannelScope("",satellite,ch.tv,favoritesOnly,alphabetical,group).save(this);
   startActivity(new Intent(this,
-    ("isolated".equals(engine)||Native422V2Profile.enabled(engine))?
+    ("isolated".equals(engine)||"jni_ffmpeg".equals(engine)||
+        Native422V2Profile.enabled(engine))?
       Independent422Activity.class:SoftwareVideoActivity.class)
    .putExtra("dvb_channel",ch.id).putExtra("decoder_engine",engine)
    .putExtra("video_only",prefs().getBoolean("independent_422_video_only",true)));
