@@ -205,9 +205,9 @@ public final class SoftwareVideoActivity extends HubActivity {
         // One front-end: Auto starts LibVLC/FFmpeg; fixed conversions/GPU FAST
         // start mpv/FFmpeg. The other backend is internal fallback, not a
         // competing receiver-visible engine.
-        mpvSelected="mpv".equals(requestedEngine)||
-          ("unified".equals(requestedEngine)&&
-            !Mpv422FluidPolicy.AUTO.equals(chosenOutput));
+        mpvSelected=Unified422EnginePolicy.preferMpv(requestedEngine,chosenOutput);
+        prefs().edit().putString("unified_422_backend_selected",
+          Unified422EnginePolicy.backendName(requestedEngine,chosenOutput)).apply();
         videoLayout = new VLCVideoLayout(this);
         root.addView(videoLayout, new FrameLayout.LayoutParams(-1, -1));
 
