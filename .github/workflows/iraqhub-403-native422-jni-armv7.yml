@@ -1,0 +1,85 @@
+name: IRAQhub 4.0.3 Direct FFmpeg JNI ARMv7 Experimental Preflight
+on:
+  push:
+    branches: ['feature/iraqhub-403-native422-ffmpeg-jni-multires-20261109']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iraqhub-403-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ffmpeg-native-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Install exact Android SDK/NDK and CMake
+        run: |
+          sdkmanager 'platforms;android-36' 'build-tools;35.0.0' \
+            'ndk;29.0.14206865' 'cmake;3.22.1'
+      - name: Install pinned Gradle 8.11.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/gradle-8.11.1-bin.zip"
+          curl --fail --location --silent --show-error --retry 10 \
+            --retry-delay 5 --retry-all-errors --output "$ZIP" \
+            'https://downloads.gradle.org/distributions/gradle-8.11.1-bin.zip'
+          unzip -tq "$ZIP"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-8.11.1/bin" >> "$GITHUB_PATH"
+      - name: Unit-test Java 422/420 1080/720/540/360/260 and fast EPG
+        run: |
+          gradle :app:testDebugUnitTest --no-daemon --stacktrace
+          gradle :app:testDebugUnitTest \
+            --tests 'com.smarthub.plus.Native422OutputProfileTest' \
+            --tests 'com.smarthub.plus.FastEpgNowNextTest' \
+            --no-daemon --stacktrace
+      - name: Verify FFmpeg official PGP source and cross-compile LGPL ARMv7
+        run: |
+          bash scripts/build-native422-ffmpeg.sh "$GITHUB_WORKSPACE/.native422/ffmpeg-armv7"
+      - name: Build real FFmpeg-linked JNI APK (never overwrite main)
+        run: |
+          gradle :app:assembleDebug \
+            -Pnative422FfmpegRoot="$GITHUB_WORKSPACE/.native422/ffmpeg-armv7" \
+            --no-daemon --stacktrace
+      - name: Verify ARM32 JNI, FFmpeg dependencies, signing and isolated process
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -l "$APK" | grep -q 'lib/armeabi-v7a/libiraqhub_native422.so'
+          for lib in avformat avcodec swscale avutil; do
+            unzip -l "$APK" | grep -q "lib/armeabi-v7a/lib${lib}.so"
+          done
+          if unzip -Z1 "$APK" | grep -q '^lib/arm64-v8a/'; then
+            echo "Unexpected 64-bit ABI in X5M build";exit 2
+          fi
+          unzip -p "$APK" lib/armeabi-v7a/libiraqhub_native422.so > /tmp/native422.so
+          LLVM="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          "$LLVM/llvm-readelf" -h /tmp/native422.so | grep -q 'Class:.*ELF32'
+          "$LLVM/llvm-readelf" -h /tmp/native422.so | grep -q 'Machine:.*ARM'
+          "$LLVM/llvm-readelf" --dyn-syms /tmp/native422.so |
+            grep -q 'Java_com_smarthub_plus_Native422Decoder_nativeRun'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" |
+            grep -q "package: name='com.smarthub.plus'"
+          echo "Native JNI compiles and APK passes static ELF/signature tests."
+          echo "Physical X5M decoded/moving video FPS remains UNVERIFIED."
+      - name: Publish experimental APK as non-release CI artifact only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: IRAQhub_403_Experimental_Native422_ARMv7_Debug_NOT_DEVICE_VERIFIED
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
