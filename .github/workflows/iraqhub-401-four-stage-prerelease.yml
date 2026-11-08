@@ -26,9 +26,22 @@ jobs:
           java-version: '21'
       - uses: android-actions/setup-android@v4
       - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
+      # The Gradle distribution CDN has been returning repeat HTTP 504
+      # while setup-gradle tries to fetch Gradle 8.11.1. Ubuntu hosted
+      # runners ship a preinstalled Gradle binary. Use it instead and
+      # avoid downloading an additional full distribution archive.
+      - name: Use hosted Gradle and verify AGP-compatible version
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gradle
+          gradle --version
+          version="$(gradle --version | sed -nE 's/^Gradle ([0-9]+)\.([0-9]+).*/\1 \2/p' | head -n1)"
+          read -r major minor <<<"$version"
+          if [[ "$major" -ne 8 || "$minor" -lt 11 ]]; then
+            echo "Need hosted Gradle 8.11+ for this Android Gradle Plugin, got $version"
+            exit 1
+          fi
       - name: Unit tests, including Commons attribution
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
       - name: Validate HEVC packet integrity and bounded stall recovery unit tests
