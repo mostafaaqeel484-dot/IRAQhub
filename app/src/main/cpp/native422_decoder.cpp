@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <new>
 #include <vector>
 
 extern "C" {
@@ -101,8 +102,8 @@ struct Output {
     w,h,AV_PIX_FMT_RGBA,SWS_FAST_BILINEAR,nullptr,nullptr,nullptr);
   return toRgba!=nullptr;
  }
- bool present(const AVFrame* frame,bool convert420,ANativeWindow* window){
-  if(!frame||!configure(frame,width,height,convert420,window))return false;
+ bool present(const AVFrame* frame,int requestedW,int requestedH,bool convert420,ANativeWindow* window){
+  if(!frame||!configure(frame,requestedW,requestedH,convert420,window))return false;
   if(convert420){
    int rows=sws_scale(to420,frame->data,frame->linesize,0,frame->height,
                       yuvData,yuvStride);
@@ -200,7 +201,7 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
      if(received==AVERROR(EAGAIN)||received==AVERROR_EOF)break;
      if(received<0)break;
      session->decoded.fetch_add(1,std::memory_order_relaxed);
-     if(output->present(frame.get(),use420,window)){
+     if(output->present(frame.get(),outWidth,outHeight,use420,window)){
       auto shown=session->displayed.fetch_add(1,std::memory_order_relaxed)+1;
       if(shown==1||shown%60==0){
        env->CallVoidMethod(self,onFrame,static_cast<jint>(shown));
@@ -215,7 +216,8 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
   if(std::chrono::steady_clock::now()-begin>std::chrono::hours(8))break;
  }
  env->DeleteLocalRef(klass);
- return session->stopped?0:session->displayed>0?0:-20;
+ return session->stopped.load(std::memory_order_relaxed)?0:
+    session->displayed.load(std::memory_order_relaxed)>0?0:-20;
 }
 } // namespace
 
@@ -224,14 +226,14 @@ Java_com_smarthub_plus_Native422Decoder_nativeCreate(JNIEnv*,jclass){
  return reinterpret_cast<jlong>(new(std::nothrow) Session());
 }
 extern "C" JNIEXPORT jint JNICALL
-Java_com_smarthub_plus_Native422Decoder_nativeRun(JNIEnv* env,jclass,jlong id,
+Java_com_smarthub_plus_Native422Decoder_nativeRun(JNIEnv* env,jobject self,jlong id,
     jstring source,jobject surface,jint width,jint height,jboolean convert420){
  Session* session=reinterpret_cast<Session*>(id);
  if(!session||!source||!surface)return -1;
  const char* url=env->GetStringUTFChars(source,nullptr);
  if(!url)return -2;
  std::unique_ptr<ANativeWindow,WindowCleanup> window(ANativeWindow_fromSurface(env,surface));
- int result=decode(env,nullptr,session,url,window.get(),width,height,convert420);
+ int result=decode(env,self,session,url,window.get(),width,height,convert420);
  env->ReleaseStringUTFChars(source,url);
  return result;
 }
