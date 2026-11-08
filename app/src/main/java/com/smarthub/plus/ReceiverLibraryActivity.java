@@ -110,7 +110,7 @@ public class ReceiverLibraryActivity extends HubActivity {
     tx("عرض القنوات المشفرة","Encrypted channels"),
     tx("تشغيل/إيقاف توافق 4:2:2","Toggle 4:2:2 compatibility"),
     tx("التردد المحدد","Selected transponder"),
-    tx("بحث قناة","Find channel"),
+    tx("فلترة بالحروف","Filter by initial letter"),
     tx("دليل البرنامج المحدد","Selected programme EPG"),
     tx("تفاصيل القناة","Channel details"),
     tx("أدوات القنوات والاستيراد","Import and channel tools"),
@@ -127,7 +127,7 @@ public class ReceiverLibraryActivity extends HubActivity {
         toast(enabled?"4:2:2 ✓":"4:2:2 OFF");break;
        }
        case 3:focusedTransponder();break;
-       case 4:focusSearch();break;
+       case 4:showAlphabetIndex();break;
        case 5:focusedGuide();break;
        case 6:focusedDetails();break;
        case 7:startActivity(new Intent(this,ReceiverToolsActivity.class));break;
