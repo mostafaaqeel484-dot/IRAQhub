@@ -239,9 +239,9 @@ final class NowNextView extends FrameLayout {
  }
  void bind(SatelliteState s,Bitmap current,Bitmap next,Bitmap channelLogo,String message){
   boolean lite=PlaybackResourceMode.lite(getContext());
-  // Avoid holding two decoded programme posters while X5M must render 4:2:2.
-  // They remain on disk and reappear when the software decoder closes.
-  if(lite){current=null;next=null;}
+  // Verified <=512px cached artwork is safe to display during 4:2:2.
+  // Network lookups are budgeted by LocalInfoBarController; never blank
+  // already-cached programme images merely because the decoder is active.
   if(!liteApplied||lite!=lastLiteValue){
    bar.setElevation(lite?0:dp(6));
    currentPoster.setElevation(lite?0:dp(8));
