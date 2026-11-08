@@ -1,7 +1,7 @@
 name: IRAQhub 4.0.3 Direct FFmpeg JNI ARMv7 Experimental Preflight
 on:
   push:
-    branches: ['feature/iraqhub-403-native422-ffmpeg-jni-multires-20261109']
+    branches: ['feature/iraqhub-403-native422-ffmpeg-jni-multires-20261109', 'fix/iraqhub-404-epg-sports-native422-20261109']
   workflow_dispatch:
 
 permissions:
