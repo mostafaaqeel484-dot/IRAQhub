@@ -48,21 +48,27 @@ final class EpgArtwork {
   boolean current=!upcoming&&title.equals(state.title),next=upcoming&&title.equals(state.nextTitle);
   if(!current&&!next)return null;
   LinkedHashSet<String> addresses=new LinkedHashSet<>();
-  // Exact user-selected Commons File: only; keep event key and attribution.
+  // RX6: use a source linked to the verified tuner/factory event first.
+  // Do not prefer internet posters over the image published with DVB/EPG Pro.
+  String broadcast=current?state.image:state.nextImage;
+  if(broadcast!=null&&!broadcast.isEmpty()&&
+     EpgSourcePriority.rank(state.source)>=EpgSourcePriority.FACTORY)
+   addresses.add(broadcast);
+  String published=PublishedEpgArtwork.image(c,state,title,upcoming);
+  if(published!=null&&!published.isEmpty())addresses.add(published);
+  if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
+  // Explicit user choice follows official/native images, precedes generic search.
   if(c.getSharedPreferences("smarthub",0).getBoolean("art_source_commons_enabled",true)){
    org.json.JSONObject commons=CommonsArtworkSelection.event(c,state,title,upcoming);
    if(commons!=null)addresses.add(commons.optString("poster"));
   }
-  String broadcast=current?state.image:state.nextImage;
-  if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
   if(!cacheOnly)try{
    SatelliteGuideRepository guide=new SatelliteGuideRepository(c);
-   PlaylistRepository.Programme p=current?guide.currentFor(state,System.currentTimeMillis()):guide.nextFor(state,System.currentTimeMillis());
+   PlaylistRepository.Programme p=current?guide.currentFor(state,System.currentTimeMillis()):
+     guide.nextFor(state,System.currentTimeMillis());
    if(p!=null&&PlaylistRepository.normalize(p.title).equals(PlaylistRepository.normalize(title))
        &&p.image!=null&&!p.image.isEmpty())addresses.add(p.image);
   }catch(Exception unavailable){}
-  String published=PublishedEpgArtwork.image(c,state,title,upcoming);
-  if(published!=null&&!published.isEmpty())addresses.add(published);
   String verified=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
   if(!verified.isEmpty())addresses.add(verified);
   SportsMatch match=c.getSharedPreferences("smarthub",0).getBoolean("art_source_sportsdb_enabled",true)?sportsMatch(c,state,upcoming):null;
