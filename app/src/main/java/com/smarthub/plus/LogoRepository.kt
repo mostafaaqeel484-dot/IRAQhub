@@ -58,10 +58,13 @@ class LogoRepository private constructor(context:Context){
   scope.launch{
    val image=get(key){
     // This dedicated disk key is written ONLY by factory-certified providers.
-    FactoryProvider.cachedLogo(app,name,id)
-      ?:if(cachedOnly)null else if(id.startsWith("DVB:")&&addon.enabled())
-         addon.resolvePhysical(id,channels) else null
-      ?:if(cachedOnly)null else FactoryProvider.logo(app,name,id)
+    val fromEpg=FactoryProvider.cachedLogo(app,name,id)
+    if(fromEpg!=null||cachedOnly)fromEpg
+    else{
+     val fromChmax=if(id.startsWith("DVB:")&&addon.enabled())
+      addon.resolvePhysical(id,channels) else null
+     fromChmax?:FactoryProvider.logo(app,name,id)
+    }
    }
    withContext(Dispatchers.Main){if(image!=null)listener.channel(image)}
   }
