@@ -181,22 +181,27 @@ final class LocalInfoBarController implements AutoCloseable {
     });
   }
   if(System.currentTimeMillis()>=logoRetry&&!state.channelName.isEmpty()){
-   logoRetry=System.currentTimeMillis()+60000;
+   // Every five seconds while the InfoBar is visible, refresh factory link
+   // health and request ONLY verified CHMAX logos; never captured/public art.
+   logoRetry=System.currentTimeMillis()+FactoryRetryPolicy.CHECK_MS;
    final String expected=logoKey;
    final SatelliteState snap=state.copy();
-   io.execute(()->{
-    if(prefs.getBoolean("software_dvb_422_active",false))return;
-    chmax.enrich(snap);
-    if(!prefs.getBoolean("osd_chmax_logos",true)||!prefs.getBoolean("factory_enabled",true))return;
-    Bitmap logo=prefs.getBoolean("software_dvb_422_active",false)?null:FactoryProvider.logo(host,snap.channelName,snap.channelId);
-    if(logo==null)logo=CHMAXIntegration.logo(host,snap,false);
-    if(logo!=null){
-     Bitmap result=logo;
-     main.post(()->{if(!closed&&expected.equals(logoKey)){
-      channelLogo=result;paint();
-     }});
-    }
-   });
+   chmax.enrich(snap);
+   if(prefs.getBoolean("osd_chmax_logos",true)&&prefs.getBoolean("factory_enabled",true)){
+    LogoRepository.get(host).request(snap.channelName,snap.channelId,
+     new LogoRepository.Listener(){
+      @Override public void channel(Bitmap image){
+       main.post(()->{
+        if(!closed&&expected.equals(logoKey)&&image!=null){
+         channelLogo=image;paint();
+        }
+       });
+      }
+      @Override public void provider(String name,Bitmap image){
+       // Provider graphics can come from public sources: forbidden in CHMAX-only mode.
+      }
+     });
+   }
   }
   paint();
  }
