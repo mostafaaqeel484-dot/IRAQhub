@@ -82,7 +82,7 @@ jobs:
             "$RUNNER_TEMP/$APK_NAME"
           test -s "$RUNNER_TEMP/$APK_NAME"
           gh release upload "$TAG" \
-            "$RUNNER_TEMP/IRAQhub_RX5_Sports_TheSportsDB_Debug.apk" --clobber
+            "$RUNNER_TEMP/$APK_NAME" --clobber
 
       - name: Build release APK
         timeout-minutes: 12
