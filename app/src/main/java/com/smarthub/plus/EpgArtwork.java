@@ -99,6 +99,11 @@ final class EpgArtwork {
    Bitmap card=SportsProgrammeArtwork.card(c,match,cacheOnly);
    if(card!=null)return card;
   }
+  // An EPG team-vs-team card is distinct from a verified event poster.
+  if(c.getSharedPreferences("smarthub",0).getBoolean("art_source_sportsdb_enabled",true)){
+   Bitmap epgMatch=SportsProgrammeArtwork.epgCard(c,title,cacheOnly);
+   if(epgMatch!=null)return epgMatch;
+  }
   // Native-guide crops are name-scoped; never use one for a same-title NEXT event.
   if(upcoming&&state.title.equals(state.nextTitle))return null;
   return loadGuide(c,state.channelName,title,maxDimension);
