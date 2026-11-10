@@ -13,8 +13,8 @@ public class UnifiedEpgIndexPriorityTest {
     UnifiedEpgIndex.sourceRank("unclassified"));
  }
  @Test public void unknownIsNotNativeEvidence(){
-  assertEquals(100,UnifiedEpgIndex.sourceRank(""));
-  assertEquals(300,UnifiedEpgIndex.sourceRank("DVB EIT"));
+  assertEquals(0,UnifiedEpgIndex.sourceRank(""));
+  assertEquals(EpgSourcePriority.DVB,UnifiedEpgIndex.sourceRank("DVB EIT"));
  }
 
  @Test public void nativeEventKeyIsNeverUsedAsPhysicalChannel(){
