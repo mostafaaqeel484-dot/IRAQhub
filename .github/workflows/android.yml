@@ -84,6 +84,31 @@ jobs:
           gh release upload "$TAG" \
             "$RUNNER_TEMP/$APK_NAME" --clobber
 
+      - name: Build and verify RX6 X5M package (versionCode 50)
+        if: ${{ github.ref == 'refs/heads/feature/rx6-infobar-oem-epg-20261110' }}
+        run: |
+          set -euo pipefail
+          gradle :app:assembleX5mPreview --no-daemon
+          APK=$(find app/build/outputs/apk -type f -name '*x5mPreview*.apk' -print -quit)
+          test -n "$APK"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -25
+          mkdir -p "$RUNNER_TEMP/rx6"
+          cp "$APK" "$RUNNER_TEMP/rx6/IRAQhub_RX6_X5M402_OEM_EPG_InfoBar_Preview.apk"
+
+      - name: Upload RX6 X5M preview APK to draft release
+        if: ${{ github.ref == 'refs/heads/feature/rx6-infobar-oem-epg-20261110' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="iraqhub-rx6-oem-epg-ci-${GITHUB_RUN_ID}"
+          APK="$RUNNER_TEMP/rx6/IRAQhub_RX6_X5M402_OEM_EPG_InfoBar_Preview.apk"
+          test -s "$APK"
+          gh release upload "$TAG" "$APK" --clobber
+
       - name: Build release APK
         timeout-minutes: 12
         run: gradle :app:assembleRelease --no-daemon
