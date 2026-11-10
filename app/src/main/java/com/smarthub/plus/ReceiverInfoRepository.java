@@ -47,13 +47,19 @@ final class ReceiverInfoRepository {
         SatelliteState s=observed.copy();long now=System.currentTimeMillis();
         boolean needNow=!timedCurrent(s.title,s.startMs,s.endMs,now);
         boolean needNext=!timedNext(s.nextTitle,s.nextStartMs,s.nextEndMs,now);
-        // On channel change, show already verified native EIT immediately;
-        // only fall back to explicitly mapped XMLTV if the index has no event.
-        if((needNow||needNext)&&s.channelId.startsWith("DVB:"))
-            refreshQuick(s.channelId,now);
-        if(needNow){
-            SatelliteGuideRepository.Event quick=s.channelId.equals(quickChannel)?quickNow:null;
-            if(quick!=null&&timedCurrent(quick.title,quick.startMs,quick.endMs,now)){
+        // Prefer a verified native/factory event even if an older internet
+        // programme is still time-valid. A network title must not mask EIT.
+        String sourceBefore=s.source;
+        if(s.channelId.startsWith("DVB:"))refreshQuick(s.channelId,now);
+        SatelliteGuideRepository.Event indexedNow=s.channelId.equals(quickChannel)?quickNow:null;
+        SatelliteGuideRepository.Event indexedNext=s.channelId.equals(quickChannel)?quickNext:null;
+        boolean betterNow=indexedNow!=null&&timedCurrent(indexedNow.title,indexedNow.startMs,indexedNow.endMs,now)&&
+            EpgSourcePriority.prefer(indexedNow.source,sourceBefore,!needNow);
+        boolean betterNext=indexedNext!=null&&timedNext(indexedNext.title,indexedNext.startMs,indexedNext.endMs,now)&&
+            EpgSourcePriority.prefer(indexedNext.source,sourceBefore,!needNext);
+        if(needNow||betterNow){
+            SatelliteGuideRepository.Event quick=indexedNow;
+            if(betterNow){
                 s.title=quick.title;s.startMs=quick.startMs;s.endMs=quick.endMs;
                 s.image=quick.image;s.source=quick.source;
             }else{
@@ -64,9 +70,9 @@ final class ReceiverInfoRepository {
                 }
             }
         }
-        if(needNext){
-            SatelliteGuideRepository.Event quick=s.channelId.equals(quickChannel)?quickNext:null;
-            if(quick!=null&&timedNext(quick.title,quick.startMs,quick.endMs,now)){
+        if(needNext||betterNext){
+            SatelliteGuideRepository.Event quick=indexedNext;
+            if(betterNext){
                 s.nextTitle=quick.title;s.nextImage=quick.image;
                 s.nextStartMs=quick.startMs;s.nextEndMs=quick.endMs;
             }else{
