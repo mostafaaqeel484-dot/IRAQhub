@@ -35,7 +35,7 @@ final class SportsProgrammeArtwork {
 
  static Bitmap epgCard(Context context,String title,boolean cacheOnly){
   if(title==null)return null;
-  String[] teams=title.split("(?i)\\\\s+(?:vs\\\\.?|v\\\\.?|versus)\\\\s+",2);
+  String[] teams=title.split("(?i)\\s+(?:vs\\.?|v\\.?|versus)\\s+",2);
   if(teams.length!=2)return null;
   String home=TheSportsDBProvider.epgTeamName(teams[0]);
   String away=TheSportsDBProvider.epgTeamName(teams[1]);
