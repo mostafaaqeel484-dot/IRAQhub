@@ -11,11 +11,14 @@ final class FactoryProvider implements AutoCloseable {
   if(data!=null&&key.equals(cachedIdentity)){
    SatelliteState copy=data.copy();
    copy.expire(System.currentTimeMillis());
-   if(!copy.title.isEmpty()&&(state.title.isEmpty()||FactoryProtocol.sameTitle(state.title,copy.title))){
+   if(!copy.title.isEmpty()&&EpgSourcePriority.prefer("Factory CHMAX / EPG",state.source,
+      ReceiverInfoRepository.timedCurrent(state.title,state.startMs,state.endMs,System.currentTimeMillis()))){
     state.title=copy.title;state.startMs=copy.startMs;state.endMs=copy.endMs;
     state.image=copy.image;state.source="Factory CHMAX / EPG";
    }
-   if(!copy.nextTitle.isEmpty()&&(state.nextTitle.isEmpty()||FactoryProtocol.sameTitle(state.nextTitle,copy.nextTitle))){
+   if(!copy.nextTitle.isEmpty()&&(state.nextTitle.isEmpty()||
+      EpgSourcePriority.prefer("Factory CHMAX / EPG",state.source,
+      ReceiverInfoRepository.timedNext(state.nextTitle,state.nextStartMs,state.nextEndMs,System.currentTimeMillis())))){
     state.nextTitle=copy.nextTitle;state.nextStartMs=copy.nextStartMs;
     state.nextEndMs=copy.nextEndMs;state.nextImage=copy.nextImage;
    }
@@ -74,17 +77,27 @@ final class FactoryProvider implements AutoCloseable {
   }
   if(current==null&&next==null)throw new Exception("FACTORY_EPG_NOT_PUBLISHED");
   if(current!=null){
-   if(!state.title.isEmpty()&&!FactoryProtocol.sameTitle(state.title,current.title)||
-      state.startMs>0&&Math.abs(state.startMs-current.start)>120000||
-      state.endMs>0&&Math.abs(state.endMs-current.end)>120000)
-    current=null;
+   boolean valid=ReceiverInfoRepository.timedCurrent(state.title,state.startMs,state.endMs,now);
+   if(valid&&!EpgSourcePriority.prefer("Factory CHMAX / EPG",state.source,true)){
+    current=null; // native DVB EIT or higher-ranked source wins
+   }else if(valid&&EpgSourcePriority.rank(state.source)>=EpgSourcePriority.FACTORY&&
+      (!FactoryProtocol.sameTitle(state.title,current.title)||
+       Math.abs(state.startMs-current.start)>120000||
+       Math.abs(state.endMs-current.end)>120000)){
+    current=null; // do not replace a different verified factory programme
+   }
   }
   // Never override a different verified next event with CHMAX's prediction.
   if(next!=null){
-   if(!state.nextTitle.isEmpty()&&!FactoryProtocol.sameTitle(state.nextTitle,next.title)||
-      state.nextStartMs>0&&Math.abs(state.nextStartMs-next.start)>120000||
-      state.nextEndMs>0&&Math.abs(state.nextEndMs-next.end)>120000)
+   boolean validNext=ReceiverInfoRepository.timedNext(state.nextTitle,state.nextStartMs,state.nextEndMs,now);
+   if(validNext&&!EpgSourcePriority.prefer("Factory CHMAX / EPG",state.source,true)){
     next=null;
+   }else if(validNext&&EpgSourcePriority.rank(state.source)>=EpgSourcePriority.FACTORY&&
+      (!FactoryProtocol.sameTitle(state.nextTitle,next.title)||
+       Math.abs(state.nextStartMs-next.start)>120000||
+       Math.abs(state.nextEndMs-next.end)>120000)){
+    next=null;
+   }
   }
   if(current==null&&next==null)throw new Exception("FACTORY_PROGRAMME_MISMATCH");
   SatelliteState resolved=state.copy();
@@ -96,10 +109,23 @@ final class FactoryProvider implements AutoCloseable {
    resolved.nextTitle=next.title;resolved.nextStartMs=next.start;
    resolved.nextEndMs=next.end;resolved.nextImage=next.pic;
   }
-  resolved.source="Factory CHMAX / EPG";resolved.observedAt=now;
+  // An HTTP response may arrive after a newer EIT update: merge with the
+  // latest active state before writing, never overwrite a stronger source.
   if(closed)return;
   SatelliteState active=SatelliteState.read(context);
   if(!CHMAXIntegration.identity(active).equals(identity))return;
+  if(ReceiverInfoRepository.timedCurrent(active.title,active.startMs,active.endMs,now)&&
+     !EpgSourcePriority.prefer("Factory CHMAX / EPG",active.source,true)){
+   resolved.title=active.title;resolved.startMs=active.startMs;
+   resolved.endMs=active.endMs;resolved.image=active.image;
+   resolved.source=active.source;
+  }else if(current!=null){resolved.source="Factory CHMAX / EPG";}
+  if(ReceiverInfoRepository.timedNext(active.nextTitle,active.nextStartMs,active.nextEndMs,now)&&
+     !EpgSourcePriority.prefer("Factory CHMAX / EPG",active.source,true)){
+   resolved.nextTitle=active.nextTitle;resolved.nextStartMs=active.nextStartMs;
+   resolved.nextEndMs=active.nextEndMs;resolved.nextImage=active.nextImage;
+  }
+  resolved.observedAt=now;
   cached=resolved;cachedIdentity=identity;
   resolved.save(context);
   SharedPreferences.Editor edit=prefs.edit().putLong("epg_art_changed_at",now)
