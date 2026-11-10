@@ -39,7 +39,7 @@ class LogoRepository private constructor(context:Context){
   */
  private fun chmaxOnly()=app.getSharedPreferences("smarthub",0).getBoolean("chmax_exclusive_logos",true)
  private fun chmaxKey(name:String,physical:String)=
-  "chmax:verified:"+physical+":"+ChannelAliasDatabase.normalize(name)
+  "chmax:transparent:v1:"+physical+":"+ChannelAliasDatabase.normalize(name)
  private fun requestChmax(name:String,physical:String?,cachedOnly:Boolean,listener:Listener){
   // In strict mode the provider logo is also hidden: it may come from a public site.
   listener.provider("",null)
@@ -59,12 +59,14 @@ class LogoRepository private constructor(context:Context){
    val image=get(key){
     // This dedicated disk key is written ONLY by factory-certified providers.
     val fromEpg=FactoryProvider.cachedLogo(app,name,id)
-    if(fromEpg!=null||cachedOnly)fromEpg
+    val original=if(fromEpg!=null||cachedOnly)fromEpg
     else{
      val fromChmax=if(id.startsWith("DVB:")&&addon.enabled())
       addon.resolvePhysical(id,channels) else null
      fromChmax?:FactoryProvider.logo(app,name,id)
     }
+    // Only process after verification on the bounded IO worker, then cache.
+    ChannelLogoWhiteCleaner.clean(original)
    }
    withContext(Dispatchers.Main){if(image!=null)listener.channel(image)}
   }
