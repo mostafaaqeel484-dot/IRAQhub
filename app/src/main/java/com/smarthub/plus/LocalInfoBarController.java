@@ -61,8 +61,13 @@ final class LocalInfoBarController implements AutoCloseable {
     SatelliteState observed=SatelliteState.read(host);
     SatelliteState enriched=ReceiverInfoRepository.get(host).enrich(observed);
     refresh(enriched);
-    main.postDelayed(this,PlaybackResourceMode.lite(host)?4200:1450);
+   }else{
+    // Keep an authorised factory EPG session updated while the player is open
+    // even when its InfoBar has timed out; this is NOT a background service.
+    chmax.enrich(SatelliteState.read(host));
    }
+   main.postDelayed(this,visible?(PlaybackResourceMode.lite(host)?4200:1450):
+     FactoryRetryPolicy.CHECK_MS);
   }
  };
 
@@ -79,6 +84,7 @@ final class LocalInfoBarController implements AutoCloseable {
   // Keep legacy offset only when explicitly requested by the user.
   params.bottomMargin=prefs.getBoolean("osd_dock_to_bottom",true)?0:OsdGeometry.bottom(activity);
   root.addView(bar,params);
+  main.postDelayed(tick,FactoryRetryPolicy.CHECK_MS);
  }
 
  void show(){
@@ -326,7 +332,7 @@ final class LocalInfoBarController implements AutoCloseable {
   bar.clearArtwork();
  }
 
- void dismiss(){main.removeCallbacks(hide);main.removeCallbacks(tick);hide.run();}
+ void dismiss(){main.removeCallbacks(hide);hide.run();}
 
  @Override public void close(){
   if(closed)return;
