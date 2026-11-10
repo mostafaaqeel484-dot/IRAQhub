@@ -2,7 +2,7 @@ name: Build RX5 CHMAX Bulk APK from uploaded ZIP
 on:
   push:
     branches: [build/rx5-chmax-bulk-apk-20261110]
-    paths: [rx5-source.zip, '.github/workflows/rx5-chmax-bulk-from-zip.yml']
+    paths: [rx5-source.zip]
   workflow_dispatch:
 permissions:
   contents: write
