@@ -24,8 +24,7 @@ final class TheSportsDBProvider implements SportsDataProvider {
   if(array!=null)for(int i=0;i<Math.min(array.length(),1);i++){
    JSONObject team=array.optJSONObject(i);
    if(team==null||!team.optString("idTeam").matches("[0-9]+"))continue;
-   if(!PlaylistRepository.normalize(team.optString("strTeam"))
-      .equals(PlaylistRepository.normalize(query)))continue;
+   if(!teamNameMatches(query,team))continue;
    String badge=team.optString("strBadge");
    if(badge.isEmpty())badge=team.optString("strTeamBadge");
    java.net.URI uri;
@@ -42,6 +41,24 @@ final class TheSportsDBProvider implements SportsDataProvider {
      .put("source","https://www.thesportsdb.com/team/"+team.optString("idTeam"));
   }
   return match==null?new JSONObject().put("status","not_found"):match;
+ }
+ static boolean teamNameMatches(String query,JSONObject team){
+  String normalized=PlaylistRepository.normalize(query);
+  if(normalized.equals(PlaylistRepository.normalize(team.optString("strTeam"))))return true;
+  for(String alias:team.optString("strTeamAlternate",team.optString("strAlternate","")).split("[;,|]"))
+   if(!alias.trim().isEmpty()&&normalized.equals(PlaylistRepository.normalize(alias)))return true;
+  return false;
+ }
+ static String epgTeamName(String name){
+  String n=name==null?"":name.trim();
+  String k=n.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]","");
+  if(k.equals("cplas")||k.equals("cpal")||k.equals("cpalace")||k.equals("crystalpalace"))return "Crystal Palace";
+  if(k.equals("liverpoolfc"))return "Liverpool";
+  if(k.equals("manutd")||k.equals("manunited"))return "Manchester United";
+  if(k.equals("mancity"))return "Manchester City";
+  if(k.equals("spurs"))return "Tottenham Hotspur";
+  if(k.equals("psg"))return "Paris Saint-Germain";
+  return n;
  }
  /** Free V1 player search is limited to ONE result, so reject partial names. */
  JSONObject findPlayerPortrait(String supplied)throws Exception{
