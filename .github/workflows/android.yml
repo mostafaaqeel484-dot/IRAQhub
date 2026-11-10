@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ main, 'fix/x5m-422-video-health-20261106', 'fix/x5m-unified-posters-20261106', 'feature/aurum-native-search-results-20261106', 'feature/x5m-remote-menus-422-audio-20261106', 'fix/x5m-real-artwork-menu-20261106', 'fix/usb-adb-oem-installation-port-20261106', 'fix/x5m-chmax-422-lowram-20261106', 'fix/chmax-aurum-dvb-logo-link-20261107', 'feature/x5m-direct-manual-transponder-scan-20261107', 'feature/x5m-fast-sqlite-channel-db-20261107', 'feature/x5m-aurum-manual-db-sports-20261107', 'fix/x5m-psi-scan-channel-list-modes-20261107', 'fix/x5m-422-media3-resources-build-20261107', 'feature/iraqhub-373-four-stage-integration-20261107' ]
+    branches: [ 'build/rx5-chmax-bulk-apk-20261110', main, 'fix/x5m-422-video-health-20261106', 'fix/x5m-unified-posters-20261106', 'feature/aurum-native-search-results-20261106', 'feature/x5m-remote-menus-422-audio-20261106', 'fix/x5m-real-artwork-menu-20261106', 'fix/usb-adb-oem-installation-port-20261106', 'fix/x5m-chmax-422-lowram-20261106', 'fix/chmax-aurum-dvb-logo-link-20261107', 'feature/x5m-direct-manual-transponder-scan-20261107', 'feature/x5m-fast-sqlite-channel-db-20261107', 'feature/x5m-aurum-manual-db-sports-20261107', 'fix/x5m-psi-scan-channel-list-modes-20261107', 'fix/x5m-422-media3-resources-build-20261107', 'feature/iraqhub-373-four-stage-integration-20261107' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -59,19 +59,20 @@ jobs:
       # Keep CI outputs in a PRIVATE draft release instead; no old artifacts
       # are removed and the build is not published as a production release.
       - name: Save verified Debug APK to private draft release
-        if: ${{ github.ref == 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' }}
+        if: ${{ github.ref == 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' || github.ref == 'refs/heads/build/rx5-chmax-bulk-apk-20261110' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           TAG=iraqhub-373-four-stage-ci-20261107
+          if [ "$GITHUB_REF_NAME" = "build/rx5-chmax-bulk-apk-20261110" ]; then TAG="iraqhub-rx5-sports-ci-${GITHUB_RUN_ID}"; fi
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
               --title "IRAQhub 3.7.3 4-stage integration · CI debug (NOT device-tested)" \
               --notes "DRAFT CI build. Debug APK is signed by the ephemeral debug keystore. Release APK is unsigned. Playback, DVB scan, CHMAX and 4:2:2 require tests on the actual Amlogic X5M. Do not merge or distribute as a tested stable release."
           fi
           cp app/build/outputs/apk/debug/app-debug.apk \
-            "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Debug.apk"
+            "$RUNNER_TEMP/IRAQhub_RX5_Sports_TheSportsDB_Debug.apk"
           gh release upload "$TAG" \
             "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Debug.apk" --clobber
 
