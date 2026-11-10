@@ -34,12 +34,7 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
  }
  @Override public void onUpgrade(SQLiteDatabase db,int old,int newer){}
  static int sourceRank(String value){
-  String s=value==null?"":value.toLowerCase(java.util.Locale.ROOT);
-  if(s.contains("eit")||s.contains("dvb native"))return 300;
-  if(s.contains("android tv")||s.contains("published epg"))return 250;
-  if(s.contains("xmltv")||s.contains("mapped guide"))return 200;
-  if(s.contains("observed")||s.contains("receiver"))return 150;
-  return 100;
+  return EpgSourcePriority.rank(value);
  }
  private static boolean valid(String channel,long start,long end,String title,long now){
   return channel!=null&&channel.startsWith("DVB:")&&channel.length()<=250&&
