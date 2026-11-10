@@ -8,6 +8,31 @@ final class ReceiverInfoRepository {
     private static volatile ReceiverInfoRepository instance;
     private final Context context;
     private SatelliteGuideRepository guide;private BroadcastEpgProvider epg;
+    private String quickChannel="";
+    private long quickCheckedAt=-1;
+    private SatelliteGuideRepository.Event quickNow,quickNext;
+    // Reuse two indexed queries for 1.5s while INFO refreshes, rather than
+    // opening SQLite on every frame/clock tick.
+    private synchronized void refreshQuick(String channel,long now){
+        if(channel==null||!channel.startsWith("DVB:"))return;
+        if(channel.equals(quickChannel)&&quickCheckedAt>=0&&
+           now>=quickCheckedAt&&now-quickCheckedAt<1500)return;
+        quickChannel=channel;quickCheckedAt=now;quickNow=null;quickNext=null;
+        try{
+            UnifiedEpgIndex index=UnifiedEpgIndex.get(context);
+            quickNow=index.current(channel,now);
+            quickNext=index.next(channel,now);
+        }catch(Exception unavailable){
+            // An empty/migrating private SQLite index must never break
+            // normal XMLTV or the live receiver EPG.
+        }
+    }
+    static boolean timedCurrent(String title,long start,long end,long now){
+        return title!=null&&!title.trim().isEmpty()&&start>0&&start<=now&&end>now;
+    }
+    static boolean timedNext(String title,long start,long end,long now){
+        return title!=null&&!title.trim().isEmpty()&&start>now&&end>start;
+    }
     synchronized void refreshEpg(SatelliteState state){if(epg==null)epg=new BroadcastEpgProvider(context);epg.refresh(state);}
     private DirectReceiverSignal signal;private int signalClients;
     synchronized DirectReceiverSignal acquireSignal(){if(signal==null)signal=new DirectReceiverSignal(context);signalClients++;return signal;}
@@ -20,8 +45,38 @@ final class ReceiverInfoRepository {
     SatelliteState current(){return enrich(SatelliteState.read(context));}
     SatelliteState enrich(SatelliteState observed){
         SatelliteState s=observed.copy();long now=System.currentTimeMillis();
-        if(s.title.isEmpty()){PlaylistRepository.Programme p=guide().currentFor(observed,now);if(p!=null&&p.startMs<=now&&p.endMs>now){s.title=p.title;s.image=p.image;s.startMs=p.startMs;s.endMs=p.endMs;s.source="XMLTV · mapped guide";}}
-        if(s.nextTitle.isEmpty()){PlaylistRepository.Programme p=guide().nextFor(observed,now);if(p!=null){s.nextTitle=p.title;s.nextImage=p.image;s.nextStartMs=p.startMs;s.nextEndMs=p.endMs;}}
+        boolean needNow=!timedCurrent(s.title,s.startMs,s.endMs,now);
+        boolean needNext=!timedNext(s.nextTitle,s.nextStartMs,s.nextEndMs,now);
+        // On channel change, show already verified native EIT immediately;
+        // only fall back to explicitly mapped XMLTV if the index has no event.
+        if((needNow||needNext)&&s.channelId.startsWith("DVB:"))
+            refreshQuick(s.channelId,now);
+        if(needNow){
+            SatelliteGuideRepository.Event quick=s.channelId.equals(quickChannel)?quickNow:null;
+            if(quick!=null&&timedCurrent(quick.title,quick.startMs,quick.endMs,now)){
+                s.title=quick.title;s.startMs=quick.startMs;s.endMs=quick.endMs;
+                s.image=quick.image;s.source=quick.source;
+            }else{
+                PlaylistRepository.Programme p=guide().currentFor(observed,now);
+                if(p!=null&&timedCurrent(p.title,p.startMs,p.endMs,now)){
+                    s.title=p.title;s.image=p.image;s.startMs=p.startMs;
+                    s.endMs=p.endMs;s.source="XMLTV · mapped guide";
+                }
+            }
+        }
+        if(needNext){
+            SatelliteGuideRepository.Event quick=s.channelId.equals(quickChannel)?quickNext:null;
+            if(quick!=null&&timedNext(quick.title,quick.startMs,quick.endMs,now)){
+                s.nextTitle=quick.title;s.nextImage=quick.image;
+                s.nextStartMs=quick.startMs;s.nextEndMs=quick.endMs;
+            }else{
+                PlaylistRepository.Programme p=guide().nextFor(observed,now);
+                if(p!=null&&timedNext(p.title,p.startMs,p.endMs,now)){
+                    s.nextTitle=p.title;s.nextImage=p.image;
+                    s.nextStartMs=p.startMs;s.nextEndMs=p.endMs;
+                }
+            }
+        }
         return s;
     }
     Info info(SatelliteState s){

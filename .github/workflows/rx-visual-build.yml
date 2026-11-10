@@ -1,0 +1,80 @@
+name: IRAQhub 3.7.5 RX Native Layout + 4:2:2 Diagnostics Preview
+
+on:
+  push:
+    branches: [ 'feature/rx-native-layout-422-quality-20261107' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rx-skin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout visual skin branch
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Unit tests including RX wallpaper catalogue
+        run: gradle :app:testDebugUnitTest --no-daemon
+      - name: Build RX visual Debug APK
+        run: gradle :app:assembleDebug --no-daemon
+      - name: Verify Debug signature, version and alignment
+        run: |
+          set -euxo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -30
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+      - name: Publish Debug APK promptly to private Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-375-rx-native-422-preview-20261107
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/IRAQhub_3.7.5_RX_Native_Debug.apk
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub 3.7.5 RX Native · 4:2:2 Diagnostics (X5M Preview)" \
+              --notes "Draft: RX original UI hierarchy and compact InfoBar/channel menus, RX APK artwork import, extra LibVLC Vout/TS capture evidence, revised software 4:2:2 profiles. Search firmware delivered zero TP TS bytes. NOT tested on receiver; debug key ephemeral, release unsigned."
+          fi
+          gh release upload "$TAG" dist/IRAQhub_3.7.5_RX_Native_Debug.apk --clobber
+      - name: Build RX visual Release APK (unsigned)
+        timeout-minutes: 16
+        run: gradle :app:assembleRelease --no-daemon
+      - name: Save APKs in private Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-375-rx-native-422-preview-20261107
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/IRAQhub_3.7.5_RX_Native_Debug.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk dist/IRAQhub_3.7.5_RX_Native_Release_UNSIGNED.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+
+          gh release upload "$TAG" dist/*.apk dist/SHA256SUMS.txt --clobber
+          gh release view "$TAG" --json tagName,url,isDraft,assets

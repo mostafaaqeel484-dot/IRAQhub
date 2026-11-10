@@ -1,0 +1,76 @@
+name: Build RX5 CHMAX Bulk APK from uploaded ZIP
+on:
+  push:
+    branches: [build/rx5-chmax-bulk-apk-20261110]
+    paths: [rx5-source.zip]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check RX5 source ZIP uploaded
+        run: test -s rx5-source.zip
+      - name: Extract RX5 full source safely
+        shell: python
+        run: |
+          import zipfile, pathlib, shutil
+          archive=pathlib.Path("rx5-source.zip")
+          dest=pathlib.Path("rx5-build").resolve()
+          dest.mkdir(exist_ok=True)
+          with zipfile.ZipFile(archive) as z:
+            for item in z.infolist():
+              name=pathlib.PurePosixPath(item.filename)
+              if name.is_absolute() or '..' in name.parts:
+                raise ValueError("Unsafe ZIP entry")
+            z.extractall(dest)
+          roots=list(dest.glob("*/settings.gradle"))
+          if len(roots)!=1:
+            raise ValueError("Expected exactly one RX5 source root with settings.gradle")
+          source=roots[0].parent
+          for p in source.iterdir():
+            target=dest/p.name
+            if target.exists(): raise ValueError("Duplicate top-level path")
+            shutil.move(str(p),str(target))
+          source.rmdir()
+          print("RX5 source extracted",dest)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "platform-tools" "ndk;29.0.14206865" "cmake;3.22.1"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Run unit tests
+        working-directory: rx5-build
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Build signed Debug APK
+        working-directory: rx5-build
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Verify installable APK
+        run: |
+          set -euo pipefail
+          APK=rx5-build/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          sha256sum "$APK" | tee rx5-build/apk-sha256.txt
+      - name: Save APK as private draft release (artifact quota workaround)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="rx5-chmax-bulk-ci-${GITHUB_RUN_ID}"
+          cp rx5-build/app/build/outputs/apk/debug/app-debug.apk IRAQhub_RX5_4.0.4_CHMAX_Bulk_Debug.apk
+          gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+            --title "RX5 CHMAX Bulk Debug CI ${GITHUB_RUN_ID} (not device tested)" \
+            --notes "Debug APK compiled from uploaded rx5-source.zip. No physical X5M/CHMAX verification; debug signing key may differ from installed app."
+          gh release upload "$TAG" IRAQhub_RX5_4.0.4_CHMAX_Bulk_Debug.apk rx5-build/apk-sha256.txt --clobber

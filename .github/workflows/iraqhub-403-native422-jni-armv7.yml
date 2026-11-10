@@ -1,0 +1,135 @@
+name: IRAQhub 4.0.4 Direct FFmpeg JNI ARMv7 Experimental Preflight
+on:
+  push:
+    branches: ['feature/iraqhub-403-native422-ffmpeg-jni-multires-20261109', 'fix/iraqhub-404-epg-sports-native422-20261109']
+  workflow_dispatch:
+
+permissions:
+  # Only the experimental tagged Draft Release receives write access.
+  contents: write
+
+concurrency:
+  group: iraqhub-403-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ffmpeg-native-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Install exact Android SDK/NDK and CMake
+        run: |
+          sdkmanager 'platforms;android-36' 'build-tools;35.0.0' \
+            'ndk;29.0.14206865' 'cmake;3.22.1'
+      - name: Install pinned Gradle 8.11.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/gradle-8.11.1-bin.zip"
+          curl --fail --location --silent --show-error --retry 10 \
+            --retry-delay 5 --retry-all-errors --output "$ZIP" \
+            'https://downloads.gradle.org/distributions/gradle-8.11.1-bin.zip'
+          unzip -tq "$ZIP"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-8.11.1/bin" >> "$GITHUB_PATH"
+      - name: Unit-test Java 422/420 1080/720/540/360/260 and fast EPG
+        run: |
+          gradle :app:testDebugUnitTest --no-daemon --stacktrace
+          gradle :app:testDebugUnitTest \
+            --tests 'com.smarthub.plus.Native422OutputProfileTest' \
+            --tests 'com.smarthub.plus.FastEpgNowNextTest' \
+            --no-daemon --stacktrace
+      - name: Verify FFmpeg official PGP source and cross-compile LGPL ARMv7
+        run: |
+          bash scripts/build-native422-ffmpeg.sh "$GITHUB_WORKSPACE/.native422/ffmpeg-armv7"
+      - name: Build real FFmpeg-linked JNI APK (never overwrite main)
+        run: |
+          gradle :app:assembleNative422Preview \
+            -Pnative422FfmpegRoot="$GITHUB_WORKSPACE/.native422/ffmpeg-armv7" \
+            --no-daemon --stacktrace
+      - name: Re-align and FINAL-sign installable APK (v1/v2/v3, Android 14)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          INPUT=app/build/outputs/apk/native422Preview/app-native422Preview.apk
+          ALIGNED="$RUNNER_TEMP/iraqhub-404-unsigned-aligned.apk"
+          mkdir -p dist
+          FINAL="dist/IRAQhub_4.0.4_Native422_ARMv7_ReSigned_Debug.apk"
+          test -s "$INPUT"
+          unzip -tq "$INPUT"
+          # ZIP alignment must finish BEFORE signing. Never mutate the final signed APK.
+          "$BT/zipalign" -P 16 -f 4 "$INPUT" "$ALIGNED"
+          KEYSTORE="$RUNNER_TEMP/iraqhub-ci-ephemeral.p12"
+          keytool -genkeypair -noprompt -storetype PKCS12 \
+            -keystore "$KEYSTORE" -storepass changeit -keypass changeit \
+            -alias iraqhubtest -keyalg RSA -keysize 3072 -validity 14 \
+            -dname "CN=IRAQhub 4.0.4 Experimental Debug Build"
+          "$BT/apksigner" sign \
+            --ks "$KEYSTORE" --ks-type PKCS12 --ks-key-alias iraqhubtest \
+            --ks-pass pass:changeit --key-pass pass:changeit \
+            --v1-signing-enabled true --v2-signing-enabled true \
+            --v3-signing-enabled true --out "$FINAL" "$ALIGNED"
+          test -s "$FINAL"
+          # Verify the exact bytes of the FINAL signed distributable, not Gradle's intermediate.
+          "$BT/zipalign" -c -P 16 -v 4 "$FINAL"
+          "$BT/apksigner" verify --min-sdk-version 26 --verbose --print-certs "$FINAL"
+          "$BT/apksigner" verify --min-sdk-version 34 --verbose --print-certs "$FINAL"
+          unzip -tq "$FINAL"
+          "$BT/aapt" dump badging "$FINAL" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "package: name='com.smarthub.plus.x5m404jni'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "native-code: 'armeabi-v7a'" "$RUNNER_TEMP/apk-badging.txt"
+          unzip -Z1 "$FINAL" > "$RUNNER_TEMP/apk-entries.txt"
+          grep -Fx 'lib/armeabi-v7a/libiraqhub_native422.so' "$RUNNER_TEMP/apk-entries.txt"
+          for lib in avformat avcodec swscale avutil; do
+            grep -Fx "lib/armeabi-v7a/lib${lib}.so" "$RUNNER_TEMP/apk-entries.txt"
+          done
+          if grep -q '^lib/arm64-v8a/' "$RUNNER_TEMP/apk-entries.txt"; then
+            echo "ERROR: Unexpected 64-bit ABI"; exit 2
+          fi
+          unzip -p "$FINAL" lib/armeabi-v7a/libiraqhub_native422.so > "$RUNNER_TEMP/native422.so"
+          python3 - "$RUNNER_TEMP/native422.so" <<'PY'
+          import sys,struct
+          h=open(sys.argv[1],"rb").read(20)
+          assert h[:4]==b"\x7fELF" and h[4]==1 and h[5]==1
+          assert struct.unpack_from("<H",h,18)[0]==40
+          PY
+          readelf -Ws "$RUNNER_TEMP/native422.so" |
+            grep -F 'Java_com_smarthub_plus_Native422Decoder_nativeRun'
+          (cd dist && sha256sum IRAQhub_4.0.4_Native422_ARMv7_ReSigned_Debug.apk > SHA256SUMS.txt)
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+          echo "FINAL APK passed post-sign v1/v2/v3, ZIP, ARMv7, JNI, SHA-256 tests."
+          echo "Install on a physical Amlogic X5M is NOT YET VERIFIED."
+      - name: Upload and verify FINAL signed APK from GitHub Draft Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="iraqhub-404-resigned-ci-${GITHUB_RUN_ID}"
+          FINAL=IRAQhub_4.0.4_Native422_ARMv7_ReSigned_Debug.apk
+          gh release create "$TAG" \
+            "dist/$FINAL" "dist/SHA256SUMS.txt" \
+            --target "$GITHUB_SHA" \
+            --title "IRAQhub 4.0.4 Android 14 X5M ARMv7 re-signed APK (device test)" \
+            --notes "EXPERIMENTAL side-by-side com.smarthub.plus.x5m404jni. ZIP-aligned before final v1/v2/v3 signing; validated for Android 14 and checksum checked after download. Not yet tested for real 4:2:2 playback on a physical receiver." \
+            --draft --prerelease
+          mkdir -p "$RUNNER_TEMP/verify-release"
+          gh release download "$TAG" -D "$RUNNER_TEMP/verify-release" \
+            -p "$FINAL" -p SHA256SUMS.txt
+          (
+            cd "$RUNNER_TEMP/verify-release"
+            sha256sum -c SHA256SUMS.txt
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+              --min-sdk-version 34 --verbose --print-certs "$FINAL"
+            unzip -tq "$FINAL"
+          )
+          cmp "dist/$FINAL" "$RUNNER_TEMP/verify-release/$FINAL"
+          echo "PASS: Draft Release download matches byte-for-byte AND has valid Android 14 signature."
+          echo "Release tag: $TAG"

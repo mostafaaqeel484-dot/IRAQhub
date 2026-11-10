@@ -22,4 +22,13 @@ public class SportsProgrammeArtworkTest {
   m=complete();m.leagueId="";assertFalse(SportsProgrammeArtwork.verified(m));
   m=complete();m.kickoff=0;assertFalse(SportsProgrammeArtwork.verified(m));
  }
+ @Test public void verifiedOpenLigaFixtureDoesNotRequireOfficialBadgeImages(){
+  SportsMatch m=complete();
+  m.id="openliga:572921";
+  m.homeId="openliga:14";m.awayId="openliga:15";
+  m.homeLogo="";m.awayLogo="";
+  assertTrue(SportsProgrammeArtwork.verified(m));
+  m.awayId="unknown:15";
+  assertFalse(SportsProgrammeArtwork.verified(m));
+ }
 }

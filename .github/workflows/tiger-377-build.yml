@@ -1,0 +1,121 @@
+name: IRAQhub 3.7.7 Tiger Channels + CFG Audio + DVB Captions
+
+on:
+  push:
+    branches: [ 'feature/379-tiger-ui-cfg-subtitle-20261107' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rx-skin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout visual skin branch
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Install API 36 for libmpv AAR
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Unit tests including RX wallpaper catalogue
+        run: gradle :app:testDebugUnitTest --no-daemon
+      - name: Build RX visual Debug APK
+        run: gradle :app:assembleDebug --no-daemon
+      - name: Verify Debug signature, version and alignment
+        run: |
+          set -euxo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -30
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+      - name: Publish Debug APK promptly to private Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-377-mpv-fast-zap-preview-20261107
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/IRAQhub_3.7.7_Tiger_Audio_Captions_Debug.apk
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub 3.7.7 · Tiger Channel List + CFG Audio + Captions (Preview)" \
+              --notes "Draft: Tiger circular channel browser, A-Z jump index, dark native DVB info ribbon with expanded dual posters and no-signal status, encrypted Fox/Orange CFG importer, DVB audio and subtitle control panel with Arabic on-device translation/OCR settings. Receiver hardware validation is pending; manual TS scan remains unverified."
+          fi
+          gh release upload "$TAG" dist/IRAQhub_3.7.7_Tiger_Audio_Captions_Debug.apk --clobber
+      - name: Validate persistent IRAQhub release signing key
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.IRAQHUB_KEYSTORE_BASE64 }}
+          IRAQHUB_KEY_ALIAS: ${{ secrets.IRAQHUB_KEY_ALIAS }}
+          IRAQHUB_STORE_PASSWORD: ${{ secrets.IRAQHUB_STORE_PASSWORD }}
+          IRAQHUB_KEY_PASSWORD: ${{ secrets.IRAQHUB_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SIGNING_KEYSTORE_BASE64" || -z "$IRAQHUB_KEY_ALIAS" || -z "$IRAQHUB_STORE_PASSWORD" || -z "$IRAQHUB_KEY_PASSWORD" ]]; then
+            echo "::error::Missing one or more required IRAQHUB signing secrets. Refusing unsigned RC."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/signing"
+          chmod 700 "$RUNNER_TEMP/signing"
+          umask 077
+          KEYSTORE="$RUNNER_TEMP/signing/iraqhub-release.jks"
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          # Validate that the keystore, alias and store password are genuine.
+          # Never print passwords or the keystore. These are repo secrets.
+          keytool -list -keystore "$KEYSTORE" -storetype PKCS12 \
+            -alias "$IRAQHUB_KEY_ALIAS" -storepass "$IRAQHUB_STORE_PASSWORD" >/dev/null
+          {
+            echo "IRAQHUB_KEYSTORE_PATH=$KEYSTORE"
+            echo "IRAQHUB_KEY_ALIAS=$IRAQHUB_KEY_ALIAS"
+            echo "IRAQHUB_STORE_PASSWORD=$IRAQHUB_STORE_PASSWORD"
+            echo "IRAQHUB_KEY_PASSWORD=$IRAQHUB_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Validated persistent signing keystore and alias; release signing enabled."
+      - name: Build signed IRAQhub 3.7.7 Release APK
+        timeout-minutes: 16
+        run: gradle :app:assembleRelease --no-daemon
+      - name: Verify signed Release APK and publish private signing test
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-377-signed-rc1-20261107
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK" || { echo "::error::Signed APK absent: refusing unsigned artifact"; exit 1; }
+          mkdir -p dist
+          cp "$APK" dist/IRAQhub_3.7.7_Tiger_Audio_Captions_Release_SIGNED.apk
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs dist/IRAQhub_3.7.7_Tiger_Audio_Captions_Release_SIGNED.apk | tee dist/RELEASE_CERTIFICATE.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
+          (cd dist && sha256sum IRAQhub_3.7.7_Tiger_Audio_Captions_Release_SIGNED.apk > SHA256SUMS.txt)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --draft --prerelease \
+              --title "IRAQhub 3.7.7 RC1 · Tiger Audio & Captions SIGNED Preview (X5M)" \
+              --notes "Signed preview using the owner's existing persistent IRAQhub keystore. Includes Tiger UI, encrypted local CFG imports, and subtitle translation controls. Build CI and APK signature verified; receiver playback, DVB subtitle switching, and native TS capture NOT hardware-tested. IMPORTANT: new release signing certificate differs from past Debug signatures, so Android cannot install this APK as an in-place update over a differently signed installation. Back up channel data before any uninstall. Keep original keystore and its passwords safe; future APKs must use exactly the same key. Draft release is for owner's compatibility and signing tests only."
+          fi
+          gh release upload "$TAG" dist/IRAQhub_3.7.7_Tiger_Audio_Captions_Release_SIGNED.apk \
+            dist/SHA256SUMS.txt dist/RELEASE_CERTIFICATE.txt --clobber
+          gh release view "$TAG" --json tagName,url,isDraft,assets

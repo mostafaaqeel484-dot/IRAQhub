@@ -64,6 +64,12 @@ public final class ArtworkDiagnosticsActivity extends HubActivity {
    "\n"+tx("التالي: ","Next: ")+upcoming+
    "\n"+tx("تفعيل بوسترات InfoBar: ","InfoBar posters enabled: ")+p.getBoolean("osd_posters",true)+
    "\n"+tx("خدمة المصنع: ","Factory connection: ")+p.getString("factory_status","FACTORY_NOT_CONNECTED")+
+   "\n"+tx("حالة دليل المصنع: ","Factory EPG: ")+p.getString("factory_epg_status","NOT_TESTED")+
+   "\n"+tx("فحص الاتصال كل: ","Factory check every: ")+(FactoryRetryPolicy.CHECK_MS/1000)+"s (active player)"+
+   "\n"+tx("المحاولة التالية بعد: ","Next factory retry in: ")+
+     Math.max(0L,(p.getLong("factory_next_retry_at",0)-System.currentTimeMillis()+999)/1000)+"s"+
+   "\n"+tx("شعارات CHMAX حصراً: ","CHMAX-only channel logos: ")+
+     p.getBoolean("chmax_exclusive_logos",true)+
    "\nCHMAX: "+p.getString("chl_chmax_status","NOT_TESTED")+
    "\nCHMAX visible icon: "+p.getString("chmax_observe_status","NOT_OBSERVED")+
    "\nAurum accessibility: "+p.getBoolean("satellite_accessibility_connected",false)+

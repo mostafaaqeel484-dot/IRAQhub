@@ -47,6 +47,9 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
    start>0&&end>start&&end-start<=24*3600000L&&
    end>now-HISTORY_MS&&start<now+MAX_FUTURE_MS;
  }
+ static String eventChannel(SatelliteGuideRepository.Event event){
+  return event==null||event.channelId==null?"":event.channelId;
+ }
  synchronized void record(Map<String,SatelliteGuideRepository.Event> events,long now){
   if(events==null||events.isEmpty())return;
   SQLiteDatabase db=getWritableDatabase();
@@ -56,7 +59,9 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
     Long.toString(now-HISTORY_MS),Long.toString(now+MAX_FUTURE_MS)});
    for(Map.Entry<String,SatelliteGuideRepository.Event> row:events.entrySet()){
     SatelliteGuideRepository.Event e=row.getValue(),previous;
-    String id=row.getKey();
+    // Map keys distinguish multiple broadcasts (channel|start), whereas
+    // lookups must use the physical DVB channel ID in each Event.
+    String id=eventChannel(e);
     if(e==null||!valid(id,e.startMs,e.endMs,e.title,now))continue;
     int rank=sourceRank(e.source);
     try(Cursor cursor=db.rawQuery(
@@ -82,6 +87,44 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
      "ORDER BY observed_at DESC LIMIT -1 OFFSET 50000)");
    db.setTransactionSuccessful();
   }finally{db.endTransaction();}
+ }
+ /**
+  * Index only physically verified tuner events. Keep the native EIT
+  * service identity, not the display name, to prevent cross-channel EPG.
+  * Called by EIT receiver/worker off the UI thread.
+  */
+ synchronized void recordNative(String channel,java.util.List<NativeEpgEvents.Event> nativeEvents,
+     long now){
+  if(channel==null||!channel.startsWith("DVB:")||
+      nativeEvents==null||nativeEvents.isEmpty())return;
+  java.util.Map<String,SatelliteGuideRepository.Event> mapped=new java.util.HashMap<>();
+  for(NativeEpgEvents.Event event:nativeEvents){
+   if(event==null||!valid(channel,event.start,event.end,event.title,now))continue;
+   SatelliteGuideRepository.Event e=new SatelliteGuideRepository.Event();
+   e.channelId=channel;
+   e.title=event.title;
+   e.startMs=event.start;e.endMs=event.end;
+   e.image=event.image==null?"":event.image;
+   e.source="DVB EIT · native receiver";
+   e.observedAt=now;
+   mapped.put(channel+"|"+event.start,e);
+  }
+  if(!mapped.isEmpty())record(mapped,now);
+ }
+ synchronized SatelliteGuideRepository.Event next(String channel,long now){
+  if(channel==null||!channel.startsWith("DVB:"))return null;
+  try(Cursor cursor=getReadableDatabase().rawQuery(
+    "SELECT title,start_ms,end_ms,image,source FROM epg "+
+    "WHERE channel_id=? AND start_ms>? AND end_ms>start_ms "+
+    "ORDER BY start_ms ASC,source_rank DESC LIMIT 1",
+    new String[]{channel,Long.toString(now)})){
+   if(!cursor.moveToFirst())return null;
+   SatelliteGuideRepository.Event e=new SatelliteGuideRepository.Event();
+   e.channelId=channel;e.title=cursor.getString(0);
+   e.startMs=cursor.getLong(1);e.endMs=cursor.getLong(2);
+   e.image=cursor.getString(3);e.source=cursor.getString(4);
+   return e;
+  }
  }
  synchronized SatelliteGuideRepository.Event current(String channel,long now){
   if(channel==null||!channel.startsWith("DVB:"))return null;

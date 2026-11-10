@@ -22,7 +22,7 @@ final class CommonsArtworkProvider {
    throw new java.io.IOException("WIKIMEDIA_FILE_TITLE_REQUIRED");
   String canonical="File:"+title.replace(' ','_');
   String endpoint="https://commons.wikimedia.org/w/api.php?action=query&format=json"+
-    "&formatversion=2&prop=imageinfo&iiprop=url%7Cextmetadata&titles="+
+    "&formatversion=2&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=512&titles="+
     URLEncoder.encode(canonical,"UTF-8");
   JSONObject root=new JSONObject(HubHttp.get(endpoint,1024*1024));
   JSONObject query=root.optJSONObject("query");
@@ -35,6 +35,8 @@ final class CommonsArtworkProvider {
   JSONObject info=items==null?null:items.optJSONObject(0);
   if(info==null)throw new java.io.IOException("WIKIMEDIA_NO_IMAGE_INFO");
   String original=info.optString("url"),description=info.optString("descriptionurl");
+  String thumbnail=info.optString("thumburl");
+  String display=valid(thumbnail,"upload.wikimedia.org")?thumbnail:original;
   if(!valid(original,"upload.wikimedia.org")||!valid(description,"commons.wikimedia.org"))
    throw new java.io.IOException("WIKIMEDIA_INVALID_IMAGE_OR_DESCRIPTION");
   JSONObject metadata=info.optJSONObject("extmetadata");
@@ -50,7 +52,7 @@ final class CommonsArtworkProvider {
   if(!licenseUrl.isEmpty()&&(!licenseUrl.startsWith("https://")||
       licenseUrl.length()>400))licenseUrl="";
   return new JSONObject().put("status","verified")
-   .put("file",page.optString("title")).put("poster",original)
+   .put("file",page.optString("title")).put("poster",display).put("original",original)
    .put("source",description).put("license",licence)
    .put("licenseUrl",licenseUrl).put("artist",author)
    .put("credit",credit).put("provider","Wikimedia Commons")

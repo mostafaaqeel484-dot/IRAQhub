@@ -29,13 +29,31 @@ final class LocalInfoBarController implements AutoCloseable {
  private final PublishedEpgArtwork published;
  private String logoKey="",imageKey="",lastPrefetchEvent="";
  private Bitmap channelLogo,providerLogo,currentPoster,nextPoster;
- private long logoRetry,posterRetryAt;
+ private String currentSynopsis="",nextSynopsis="";
+ private String paintedCurrentSynopsis="",paintedNextSynopsis="";
+ private long logoRetry,posterRetryAt,lastPaintAt;
+ private String lastPaintState="";
+ private Bitmap paintedChannel,paintedProvider,paintedNow,paintedNext;
  private volatile boolean closed;
- private boolean visible;
+ private boolean visible,expanded;
  private int seq;
  private SatelliteState latest=new SatelliteState();
- private final Runnable hide=()->{visible=false;bar.setVisibility(View.GONE);
-   prefs.edit().putBoolean("now_next_visible",false).apply();};
+ private final Runnable hide=new Runnable(){
+  @Override public void run(){
+   SatelliteState state=SatelliteState.read(host);
+   ReceiverSignalReading signal=DirectReceiverSignal.reading(state);
+   boolean noSignal=state.channelId.startsWith("DVB:")&&signal!=null&&
+     signal.locked==0&&!prefs.getBoolean("dvb_tuning",false)&&
+     state.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""));
+   if(!closed&&noSignal){
+    visible=true;bar.setVisibility(View.VISIBLE);main.postDelayed(this,1300);
+    return;
+   }
+   visible=false;bar.setVisibility(View.GONE);
+   releaseHiddenArtwork();
+   prefs.edit().putBoolean("now_next_visible",false).apply();
+  }
+ };
  private final Runnable tick=new Runnable(){
   @Override public void run(){
    if(closed)return;
@@ -43,8 +61,13 @@ final class LocalInfoBarController implements AutoCloseable {
     SatelliteState observed=SatelliteState.read(host);
     SatelliteState enriched=ReceiverInfoRepository.get(host).enrich(observed);
     refresh(enriched);
-    main.postDelayed(this,1450);
+   }else{
+    // Keep an authorised factory EPG session updated while the player is open
+    // even when its InfoBar has timed out; this is NOT a background service.
+    chmax.enrich(SatelliteState.read(host));
    }
+   main.postDelayed(this,visible?(PlaybackResourceMode.lite(host)?4200:1450):
+     FactoryRetryPolicy.CHECK_MS);
   }
  };
 
@@ -57,13 +80,18 @@ final class LocalInfoBarController implements AutoCloseable {
   bar.setVisibility(View.GONE);
   FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
      FrameLayout.LayoutParams.MATCH_PARENT,OsdGeometry.window(activity),Gravity.BOTTOM);
-  params.bottomMargin=OsdGeometry.bottom(activity);
+  // 4.0.2: anchor the OSD to the physical bottom edge (no floating gap).
+  // Keep legacy offset only when explicitly requested by the user.
+  params.bottomMargin=prefs.getBoolean("osd_dock_to_bottom",true)?0:OsdGeometry.bottom(activity);
   root.addView(bar,params);
+  main.postDelayed(tick,FactoryRetryPolicy.CHECK_MS);
  }
 
  void show(){
   if(closed)return;
   visible=true;
+  lastPaintState="";lastPaintAt=0;
+  expanded=false;bar.setExpanded(false);
   bar.setVisibility(View.VISIBLE);
   latest=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
   refresh(latest);
@@ -75,6 +103,16 @@ final class LocalInfoBarController implements AutoCloseable {
   main.postDelayed(tick,600);
  }
 
+ /** First INFO opens Tiger ribbon; repeated INFO expands current/next posters. */
+ void showDetails(){
+  if(closed)return;
+  if(!visible){show();return;}
+  expanded=!expanded;bar.setExpanded(expanded);
+  lastPaintState="";
+  main.removeCallbacks(hide);
+  main.postDelayed(hide,Math.max(1,Math.min(10,prefs.getInt("osd_duration_seconds",8)))*1000L);
+  paint();
+ }
  private void refresh(SatelliteState state){
   if(closed||!visible&&bar.getVisibility()!=View.VISIBLE)return;
   latest=state;
@@ -84,107 +122,139 @@ final class LocalInfoBarController implements AutoCloseable {
     prefs.getLong("providers_changed_at",0)+"|"+prefs.getLong("osd_changed_at",0);
   if(!logos.equals(logoKey)){
    logoKey=logos;
-   channelLogo=CHMAXIntegration.logo(host,state,false);providerLogo=CHMAXIntegration.logo(host,state,true);
-   logoRetry=0;
+   // Never decode CHMAX/PNG/SVG synchronously on INFO or channel zap.
+   // Keep cached logos available even during software 4:2:2 focus; all
+   // disk/receiver work stays on LogoRepository's bounded IO worker.
+   channelLogo=null;providerLogo=null;logoRetry=0;
    if(!state.channelName.isEmpty()){
     final String expected=logos;
     LogoRepository repository=LogoRepository.get(host);
     LogoRepository.Listener images=new LogoRepository.Listener(){
      @Override public void channel(Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
-       if(image!=null)channelLogo=image;paint();
+       if(image!=null)channelLogo=image;
+       paint();
       }});
      }
      @Override public void provider(String name,Bitmap image){
       main.post(()->{if(!closed&&expected.equals(logoKey)){
-       if(image!=null)providerLogo=image;paint();
+       if(image!=null)providerLogo=image;
+       paint();
       }});
      }
     };
-    if(prefs.getBoolean("software_dvb_422_active",false))
+    if(PlaybackResourceMode.active()||
+       prefs.getBoolean("software_dvb_422_active",false))
       repository.requestCached(state.channelName,state.channelId,images);
     else repository.request(state.channelName,state.channelId,images);
    }
   }
   String art=id+"|"+state.title+"|"+state.startMs+"|"+state.nextTitle+"|"+
-    state.nextStartMs+"|"+state.image+"|"+state.nextImage+"|"+
-    prefs.getLong("epg_art_changed_at",0);
+   state.nextStartMs+"|"+state.image+"|"+state.nextImage+"|"+
+   prefs.getLong("epg_art_changed_at",0);
+  String broadcastKey=id+"|"+state.title+"|"+state.startMs+"|"+
+   state.nextTitle+"|"+state.nextStartMs;
+  boolean eventChanged=!broadcastKey.equals(lastPrefetchEvent);
   boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
     (!state.nextTitle.isEmpty()&&nextPoster==null);
-  if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
+  if(!prefs.getBoolean("osd_posters",true)){
+   imageKey=art;currentPoster=null;nextPoster=null;
+   currentSynopsis="";nextSynopsis="";
+  }else if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
    imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
-   currentPoster=null;nextPoster=null;
+   // A cache timestamp update does not change the NOW/NEXT event.
+   // Keep the displayed poster and synopsis until a new image arrives.
+   if(eventChanged){
+    currentPoster=null;nextPoster=null;
+    currentSynopsis="";nextSynopsis="";
+   }
    final String expected=art;
    final SatelliteState snapshot=state.copy();
-   // Two independent pipelines: a slow TMDB movie lookup must not delay NEXT.
-   // The artwork cache's update timestamp can change repeatedly; only schedule
-   // once per *broadcast event*, not once per cache invalidation or UI repaint.
-   String broadcastKey=id+"|"+snapshot.title+"|"+snapshot.startMs+"|"+
-     snapshot.nextTitle+"|"+snapshot.nextStartMs;
-   if(!broadcastKey.equals(lastPrefetchEvent)){
+   if(eventChanged){
     lastPrefetchEvent=broadcastKey;
     if(!prefs.getBoolean("software_dvb_422_active",false)&&
        !prefs.getBoolean("dvb_tuning",false)&&snapshot.startMs>0)
      IraqHubSyncScheduler.programmeChanged(host);
    }
-   io.execute(()->{
-    try{if(!prefs.getBoolean("software_dvb_422_active",false))
-      published.refresh(snapshot,System.currentTimeMillis());}
-    catch(Exception ignored){}
-    loadPoster(snapshot,false,expected);
-   });
+   // Show NOW and NEXT independently before the slower published-EPG scan.
+   // A later provider cache update is handled by the next tick.
+   io.execute(()->loadPoster(snapshot,false,expected));
    io.execute(()->loadPoster(snapshot,true,expected));
+   if(!prefs.getBoolean("software_dvb_422_active",false))
+    io.execute(()->{
+     try{published.refresh(snapshot,System.currentTimeMillis());}
+     catch(Exception ignored){}
+    });
   }
   if(System.currentTimeMillis()>=logoRetry&&!state.channelName.isEmpty()){
-   logoRetry=System.currentTimeMillis()+60000;
+   // Every five seconds while the InfoBar is visible, refresh factory link
+   // health and request ONLY verified CHMAX logos; never captured/public art.
+   logoRetry=System.currentTimeMillis()+FactoryRetryPolicy.CHECK_MS;
    final String expected=logoKey;
    final SatelliteState snap=state.copy();
-   io.execute(()->{
-    if(prefs.getBoolean("software_dvb_422_active",false))return;
-    chmax.enrich(snap);
-    if(!prefs.getBoolean("osd_chmax_logos",true)||!prefs.getBoolean("factory_enabled",true))return;
-    Bitmap logo=prefs.getBoolean("software_dvb_422_active",false)?null:FactoryProvider.logo(host,snap.channelName,snap.channelId);
-    if(logo==null)logo=CHMAXIntegration.logo(host,snap,false);
-    if(logo!=null){
-     Bitmap result=logo;
-     main.post(()->{if(!closed&&expected.equals(logoKey)){
-      channelLogo=result;paint();
-     }});
-    }
-   });
+   chmax.enrich(snap);
+   if(prefs.getBoolean("osd_chmax_logos",true)&&prefs.getBoolean("factory_enabled",true)){
+    LogoRepository.get(host).request(snap.channelName,snap.channelId,
+     new LogoRepository.Listener(){
+      @Override public void channel(Bitmap image){
+       main.post(()->{
+        if(!closed&&expected.equals(logoKey)&&image!=null){
+         channelLogo=image;paint();
+        }
+       });
+      }
+      @Override public void provider(String name,Bitmap image){
+       // Provider graphics can come from public sources: forbidden in CHMAX-only mode.
+      }
+     });
+   }
   }
   paint();
  }
 
  private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
-  if(prefs.getBoolean("software_dvb_422_active",false)){
-   // Cached images are safe during software decoding; never perform a
-   // network request, read TV provider data, or build heavy matching indexes.
+  String title=upcoming?snapshot.nextTitle:snapshot.title;
+  boolean enabled=prefs.getBoolean("osd_posters",true);
+  if(!PosterLoadPolicy.cacheAllowed(enabled,title))return;
+  String local=ProgrammeSynopsisSource.local(host,snapshot,upcoming);
+  if(!local.isEmpty())publishSynopsis(expected,upcoming,local);
+  boolean focus=PlaybackResourceMode.active();
+  boolean sw422=prefs.getBoolean("software_dvb_422_active",false);
+  boolean tuning=prefs.getBoolean("dvb_tuning",false);
+  if(focus||sw422){
+   // Real-time 4:2:2: render only images already verified and on disk.
+   // Never run TMDB/CHMAX/TVmaze HTTP or heavy full-res image allocation here.
    try{
-    String name=upcoming?snapshot.nextTitle:snapshot.title;
-    Bitmap saved=EpgArtwork.loadCached(host,snapshot,name,upcoming);
+    Bitmap cached=EpgArtwork.loadInfobarCached(host,snapshot,title,upcoming);
+    if(cached!=null)publishPoster(expected,upcoming,compactPoster(cached));
     prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
-      saved==null?"VIDEO_PRIORITY_NO_CACHED_POSTER":"VIDEO_PRIORITY_CACHED_POSTER").apply();
-    if(saved!=null)publishPoster(expected,upcoming,saved);
-   }catch(Exception unavailable){
+      cached==null?"VIDEO_FOCUS_CACHE_MISS":"VIDEO_FOCUS_CACHED_IMAGE").apply();
+   }catch(Exception problem){
     prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
-      "VIDEO_PRIORITY_CACHE_UNAVAILABLE").apply();
+      "VIDEO_FOCUS_CACHE_"+problem.getClass().getSimpleName()).apply();
    }
    return;
   }
-  String title=upcoming?snapshot.nextTitle:snapshot.title;
-  if(title==null||title.trim().isEmpty())return;
   Bitmap image=poster(snapshot,upcoming);
-  if(image!=null)publishPoster(expected,upcoming,image);
-  if(image==null&&!prefs.getBoolean("software_dvb_422_active",false)&&
-     !prefs.getBoolean("dvb_tuning",false)){
-    image=onlinePoster(snapshot,upcoming);
-    if(image!=null)publishPoster(expected,upcoming,image);
+  if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
+  if(image==null&&PosterLoadPolicy.networkAllowed(enabled,focus,sw422,tuning,title)){
+   image=onlinePoster(snapshot,upcoming,expected);
+   if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
   }
+ }
+ private void publishSynopsis(String expected,boolean upcoming,String description){
+  final String shortText=ProgrammeSynopsisText.clean(description,160);
+  if(shortText.isEmpty())return;
+  main.post(()->{
+   if(closed||!visible||!expected.equals(imageKey))return;
+   if(upcoming)nextSynopsis=shortText;else currentSynopsis=shortText;
+   paint();
+  });
  }
  private void publishPoster(String expected,boolean upcoming,Bitmap image){
   main.post(()->{
    if(closed||!expected.equals(imageKey))return;
+   if(!visible)return;
    if(upcoming)nextPoster=image;else currentPoster=image;
    paint();
   });
@@ -193,21 +263,26 @@ final class LocalInfoBarController implements AutoCloseable {
   String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().isEmpty())return null;
   try{
-   Bitmap image=EpgArtwork.load(host,state,title,upcoming);
+   Bitmap image=EpgArtwork.loadInfobar(host,state,title,upcoming);
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
      image==null?"NO_VERIFIED_EPG_ART":"EPG_POSTER_OK").apply();
-   return image;
+   return compactPoster(image);
   }catch(Exception failed){
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
      "EPG_"+failed.getClass().getSimpleName()).apply();
    return null;
   }
  }
- private Bitmap onlinePoster(SatelliteState state,boolean upcoming){
+ private Bitmap onlinePoster(SatelliteState state,boolean upcoming,String expected){
   String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().length()<3)return null;
   try{
    OnlineProgramme programme=OnlineProgramme.fetch(host,state,title,upcoming);
+   if(programme!=null&&programme.item!=null&&
+       programme.item.summary!=null&&!programme.item.summary.trim().isEmpty()){
+    // Metadata belongs to this event only; never leak a prior-channel synopsis.
+    publishSynopsis(expected,upcoming,programme.item.summary);
+   }
    Bitmap image=programme==null?null:programme.poster;
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
       image==null?"NO_VERIFIED_TMDB_BETTER_TVMAZE_MATCH":"ONLINE_POSTER_OK").apply();
@@ -219,13 +294,45 @@ final class LocalInfoBarController implements AutoCloseable {
   }
  }
 
+ private static Bitmap compactPoster(Bitmap image){
+  if(image==null||image.getWidth()<=512&&image.getHeight()<=512)return image;
+  float ratio=512f/Math.max(image.getWidth(),image.getHeight());
+  return Bitmap.createScaledBitmap(image,Math.max(1,Math.round(image.getWidth()*ratio)),
+    Math.max(1,Math.round(image.getHeight()*ratio)),true);
+ }
  private void paint(){
   if(closed||bar.getVisibility()!=View.VISIBLE)return;
+  long now=android.os.SystemClock.elapsedRealtime();
+  String state=latest.channelId+"|"+latest.channelName+"|"+latest.title+"|"+
+    latest.startMs+"|"+latest.endMs+"|"+latest.nextTitle+"|"+
+    latest.nextStartMs+"|"+latest.nextEndMs+"|"+expanded;
+  boolean changed=!state.equals(lastPaintState)||paintedChannel!=channelLogo||
+     paintedProvider!=providerLogo||paintedNow!=currentPoster||paintedNext!=nextPoster||
+     !paintedCurrentSynopsis.equals(currentSynopsis)||
+     !paintedNextSynopsis.equals(nextSynopsis);
+  // Always repaint immediately on event/artwork/INFO changes. Throttle only
+  // unchanged live status while the CPU is busy with software 4:2:2.
+  if(PlaybackResourceMode.lite(host)&&!changed&&now-lastPaintAt<4000)return;
+  lastPaintState=state;lastPaintAt=now;
+  paintedChannel=channelLogo;paintedProvider=providerLogo;
+  paintedNow=currentPoster;paintedNext=nextPoster;
+  paintedCurrentSynopsis=currentSynopsis;paintedNextSynopsis=nextSynopsis;
   bar.bind(latest,currentPoster,nextPoster,channelLogo,"");
+  bar.synopses(currentSynopsis,nextSynopsis);
   bar.provider(providerLogo);
  }
+ private void releaseHiddenArtwork(){
+  // Free references held by both controller and ImageViews on dismissal.
+  channelLogo=null;providerLogo=null;currentPoster=null;nextPoster=null;
+  currentSynopsis="";nextSynopsis="";
+  paintedCurrentSynopsis="";paintedNextSynopsis="";
+  paintedChannel=null;paintedProvider=null;paintedNow=null;paintedNext=null;
+  logoKey="";imageKey="";lastPaintState="";lastPaintAt=0;
+  posterRetryAt=0;logoRetry=0;
+  bar.clearArtwork();
+ }
 
- void dismiss(){main.removeCallbacks(hide);main.removeCallbacks(tick);hide.run();}
+ void dismiss(){main.removeCallbacks(hide);hide.run();}
 
  @Override public void close(){
   if(closed)return;
@@ -233,6 +340,7 @@ final class LocalInfoBarController implements AutoCloseable {
   main.removeCallbacks(hide);main.removeCallbacks(tick);
   chmax.close();io.shutdownNow();
   prefs.edit().putBoolean("now_next_visible",false).apply();
+  releaseHiddenArtwork();
   root.removeView(bar);
  }
 }

@@ -96,9 +96,26 @@ class ChlLogoAddon private constructor(private val context:Context){
  }
  fun enable(value:Boolean){prefs.edit().putBoolean("chl_chmax_enabled",value).apply();changed()}
  private fun changed(){prefs.edit().putLong("logo_mapping_changed_at",System.currentTimeMillis()).apply()}
+ @Volatile private var iconRetryAt=0L
  fun resolve(service:ChlChannelIndex.Service,loader:ChannelLogoResolver):Bitmap? {
+  // CHMAX icon service is independent from EPG. Keep the five-second transient
+  // reconnect without retrying rejected credentials/profile on every channel row.
+  if(System.currentTimeMillis()<iconRetryAt)return null
   val client=FactoryClient(context)
-  return try{val rows=client.channelIcons(service.query());val url=select(rows,service);val image=if(url.isEmpty())null else loader.download(url);prefs.edit().putString("chl_chmax_status",if(image!=null)"CHMAX_LOGO_OK" else "CHMAX_LOGO_NOT_FOUND").apply();image}catch(e:Exception){prefs.edit().putString("chl_chmax_status",FactoryClient.safe(e)).apply();null}
+  return try{
+   val rows=client.channelIcons(service.query())
+   val url=select(rows,service)
+   val image=if(url.isEmpty())null else loader.download(url)
+   iconRetryAt=if(image!=null)0 else System.currentTimeMillis()+60_000L
+   prefs.edit().putString("chl_chmax_status",
+     if(image!=null)"CHMAX_LOGO_OK" else "CHMAX_LOGO_NOT_FOUND").apply()
+   image
+  }catch(e:Exception){
+   val failure=FactoryClient.safe(e)
+   iconRetryAt=System.currentTimeMillis()+FactoryRetryPolicy.retryMillis(failure)
+   prefs.edit().putString("chl_chmax_status",failure).apply()
+   null
+  }
  }
  companion object{
   @Volatile private var instance:ChlLogoAddon?=null

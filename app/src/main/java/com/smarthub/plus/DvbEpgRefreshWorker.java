@@ -41,7 +41,11 @@ public final class DvbEpgRefreshWorker extends Worker {
     prefs.edit().putString("native_epg_sync_status","TUNER_NOT_LOCKED").apply();
     return Result.success();
    }
+   if(isStopped()||PlaybackResourceMode.active()||
+     prefs.getBoolean("software_dvb_422_active",false))return Result.success();
    List<NativeEpgEvents.Event> events=BroadcastEpgProvider.read(ch.programToken(),signal.tp,ch.sid);
+   if(isStopped()||PlaybackResourceMode.active()||
+     prefs.getBoolean("software_dvb_422_active",false))return Result.success();
    long now=System.currentTimeMillis();
    NativeEpgEvents.Event current=BroadcastEpgProvider.current(events,now);
    NativeEpgEvents.Event next=BroadcastEpgProvider.next(events,now);
@@ -55,6 +59,9 @@ public final class DvbEpgRefreshWorker extends Worker {
     prefs.edit().putString("native_epg_sync_status","CHANNEL_CHANGED").apply();
     return Result.success();
    }
+   // Populate the query-optimized NOW/NEXT cache as soon as the native EIT
+   // packet is verified. Do not block on periodic XMLTV or poster workers.
+   UnifiedEpgIndex.get(c).recordNative(latest.channelId,events,now);
    SatelliteState timed=latest.copy();
    timed.source="DVB EIT · native receiver";
    timed.observedAt=now;

@@ -32,6 +32,44 @@ class LogoRepository private constructor(context:Context){
  interface Listener{fun channel(bitmap:Bitmap?);fun provider(name:String,bitmap:Bitmap?)}
  init{scope.launch{db.load()};scope.launch{addon.load()}}
  private fun network(name:String,known:ChannelAliasDatabase.Entry?)=providerResolver.resolve(known)?:db.providerByName(addon.provider(name))
+
+ /** Exclusive CHMAX artwork: never use an old generic cache, public logo DB,
+  * manually captured Aurum crop, ADB bundle, provider image or name guess.
+  * CHL and the verified factory schedule are the only permitted sources.
+  */
+ private fun chmaxOnly()=app.getSharedPreferences("smarthub",0).getBoolean("chmax_exclusive_logos",true)
+ private fun chmaxKey(name:String,physical:String)=
+  "chmax:verified:"+physical+":"+ChannelAliasDatabase.normalize(name)
+ private fun requestChmax(name:String,physical:String?,cachedOnly:Boolean,listener:Listener){
+  // In strict mode the provider logo is also hidden: it may come from a public site.
+  listener.provider("",null)
+  val prefs=app.getSharedPreferences("smarthub",0)
+  if(name.isBlank()||physical.isNullOrBlank()||
+     !prefs.getBoolean("factory_enabled",true)||
+     !prefs.getBoolean("osd_chmax_logos",true)){
+   listener.channel(null)
+   return
+  }
+  val id=physical
+  val key=chmaxKey(name,id)
+  val fast=cache.peek(key)
+  listener.channel(fast)
+  if(fast!=null)return
+  scope.launch{
+   val image=get(key){
+    // This dedicated disk key is written ONLY by factory-certified providers.
+    val fromEpg=FactoryProvider.cachedLogo(app,name,id)
+    if(fromEpg!=null||cachedOnly)fromEpg
+    else{
+     val fromChmax=if(id.startsWith("DVB:")&&addon.enabled())
+      addon.resolvePhysical(id,channels) else null
+     fromChmax?:FactoryProvider.logo(app,name,id)
+    }
+   }
+   withContext(Dispatchers.Main){if(image!=null)listener.channel(image)}
+  }
+ }
+
  /**
   * Prefer a logo actually observed on the receiver's own infobar.
   * Its private /data/ChannelImgs directory is not readable by a normal APK.
@@ -40,6 +78,11 @@ class LogoRepository private constructor(context:Context){
   */
  private fun observed(name:String,physical:String?,provider:Boolean=false):Bitmap?{
   if(physical.isNullOrBlank()||name.isBlank())return null
+  if(!provider&&physical.startsWith("DVB:")&&
+    (app.getSharedPreferences("smarthub",0).contains("commons_logo_selected:"+physical)||
+     app.getSharedPreferences("smarthub",0).getBoolean("adb_logo_imported:"+physical,false))){
+   cache.read("channel:physical:"+physical)?.let{return it}
+  }
   val state=SatelliteState()
   state.channelId=physical
   state.channelName=name
@@ -61,12 +104,34 @@ class LogoRepository private constructor(context:Context){
  }
  private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)=if(physical?.startsWith("DVB:")==true)"channel:physical:$physical" else "channel:"+(e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name))
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
+ /** Show RAM hits instantly. Disk decode and verified receiver branding run
+  * on the bounded IO pool, never on D-Pad scroll or InfoBar render threads. */
  fun requestCached(name:String,physical:String?,listener:Listener){
-  val known=db.channel(name)
-  listener.channel(observed(name,physical)?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.read(channelKey(name,known,physical)))
-  val provider=network(name,known)
-  val cached=observed(name,physical,true)?:provider?.let{cache.read("provider:"+db.key(it))}
-  listener.provider(observedProviderName(name,physical,provider?.name?:""),cached)
+  if(chmaxOnly()){requestChmax(name,physical,true,listener);return}
+  // Exact DVB identity determines key without a database query on scroll.
+  val identityBound=physical?.startsWith("DVB:")==true
+  val known=if(identityBound)null else db.channel(name)
+  val key=channelKey(name,known,physical)
+  val provider=if(identityBound)null else network(name,known)
+  val cached=cache.peek(key)
+  val providerCached=provider?.let{cache.peek("provider:"+db.key(it))}
+  listener.channel(cached)
+  listener.provider(provider?.name?:"",providerCached) // No CHMAX disk/provider work on D-Pad thread.
+  if(cached!=null&&providerCached!=null)return
+  scope.launch{
+   val image=slots.withPermit{
+    observed(name,physical)?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.read(key)
+   }
+   val chosen=provider?:network(name,db.channel(name))
+   val icon=slots.withPermit{
+    observed(name,physical,true)?:chosen?.let{cache.read("provider:"+db.key(it))}
+   }
+   withContext(Dispatchers.Main){
+    if(image!=null)listener.channel(image)
+    if(icon!=null)listener.provider(
+      observedProviderName(name,physical,chosen?.name?:""),icon)
+   }
+  }
  }
  fun request(name:String,listener:Listener){request(name,null,listener)}
  /**
@@ -74,14 +139,13 @@ class LogoRepository private constructor(context:Context){
   * name-only source. Duplicate CHL names never select a random satellite.
   */
  fun request(name:String,physical:String?,listener:Listener){
+  if(chmaxOnly()){requestChmax(name,physical,videoPriority,listener);return}
   if(videoPriority){requestCached(name,physical,listener);return}
   val known=db.channel(name)
   val key=channelKey(name,known,physical)
-  val native=observed(name,physical)
-  val cached=native?:FactoryProvider.cachedLogo(app,name,physical?:"")?:cache.peek(key)
+  val cached=cache.peek(key)
   val network=network(name,known)
-  val nativeProvider=observed(name,physical,true)
-  val providerCached=nativeProvider?:network?.let{cache.peek("provider:"+db.key(it))}
+  val providerCached=network?.let{cache.peek("provider:"+db.key(it))}
   if(cached!=null)listener.channel(cached)
   if(providerCached!=null)listener.provider(observedProviderName(name,physical,network?.name?:""),providerCached)
   if(cached!=null&&(network==null||providerCached!=null)){
@@ -91,25 +155,26 @@ class LogoRepository private constructor(context:Context){
   scope.launch{
    db.load();addon.load()
    val entry=db.channel(name)
-   val image=async{native?:get(channelKey(name,entry,physical)){
+   val image=async{
+    val native=observed(name,physical)
+    native?:get(channelKey(name,entry,physical)){
     val ambiguous=(addon.snapshot()?.candidates(name)?.map{it.physicalKey}?.distinct()?.size?:0)>1
     val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled())
         addon.resolvePhysical(physical,channels) else null
-    // Prioritise a VERIFIED receiver-scoped CHMAX logo when one is available.
-    // The general name resolver may otherwise consume a fallback placeholder
-    // before the real manufacturer logo is considered.
-    val factory=if(physical!=null&&physical.isNotBlank()&&
+    // Verified CHMAX disk hits are immediate; no online request on the UI.
+    val factoryEnabled=physical!=null&&physical.isNotBlank()&&
        app.getSharedPreferences("smarthub",0).getBoolean("osd_chmax_logos",true)&&
-       app.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true))
-      FactoryProvider.logo(app,name,physical) else null
-    factory?:exact?:if(ambiguous)null else {
+       app.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true)
+    val factoryCached=if(factoryEnabled)FactoryProvider.cachedLogo(app,name,physical!!) else null
+    factoryCached?:exact?:if(ambiguous)null else {
       val local=if(entry==null&&addon.enabled())
         addon.unique(name)?.let{addon.resolve(it,channels)}?:channels.resolve(name)
       else channels.resolve(name)
       local?:try{
-        // Last resort: public service-specific artwork; never guess between
-        // duplicate names on different satellites.
-        OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")
+        // Bound the fallback ladder: try verified remote CHMAX only if no
+        // local identity-bound logo was available, then a public HTTPS source.
+        val factory=if(factoryEnabled)FactoryProvider.logo(app,name,physical!!) else null
+        factory?:OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")
       }catch(_:Exception){null}
     }
    }}
@@ -121,6 +186,7 @@ class LogoRepository private constructor(context:Context){
      provider=network(name,entry)
     }
     val selected=provider
+    val nativeProvider=observed(name,physical,true)
     val bitmap=nativeProvider?:if(selected==null)null else get("provider:"+db.key(selected)){providers.resolve(selected.id)}
     withContext(Dispatchers.Main){listener.provider(observedProviderName(name,physical,selected?.name?:""),bitmap)}
    }
@@ -129,7 +195,7 @@ class LogoRepository private constructor(context:Context){
  private suspend fun get(key:String,loader:()->Bitmap?):Bitmap?{
   cache.read(key)?.let{return it};if((failures[key]?:0)>System.currentTimeMillis())return null
   val task=synchronized(pending){pending[key]?:scope.async(start=CoroutineStart.LAZY){slots.withPermit{try{cache.read(key)?:loader()?.also{cache.save(key,it)}}catch(_:Exception){null}}}.also{pending[key]=it;it.start()}}
-  return try{task.await().also{if(it==null)failures[key]=System.currentTimeMillis()+60000}}finally{pending.remove(key,task)}
+  return try{task.await().also{if(it==null)failures[key]=System.currentTimeMillis()+(if(key.startsWith("chmax:"))FactoryRetryPolicy.CHECK_MS else 60000L)}}finally{pending.remove(key,task)}
  }
  fun providerName(name:String)=network(name,db.channel(name))?.name?:addon.provider(name).let{if(it.isEmpty())"" else "$it (CHL)"}
  fun invalidate(){failures.clear()}

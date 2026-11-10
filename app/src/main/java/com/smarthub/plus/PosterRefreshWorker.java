@@ -24,6 +24,9 @@ public final class PosterRefreshWorker extends Worker {
    try{manifestOk=provider.refreshManifest()!=null;}catch(Exception ignored){
     // Failure of BetterPosters must not block TMDB, TVmaze or cached artwork.
    }
+   if(isStopped()||PlaybackResourceMode.active()||
+      p.getBoolean("software_dvb_422_active",false))
+    return Result.success();
    // Isolate sources: a failed movie/TV lookup must not block sports.
    // A missing sports event must not erase film/series posters either.
    int verified=0,sports=0;
@@ -36,10 +39,16 @@ public final class PosterRefreshWorker extends Worker {
    }catch(Exception unavailable){
     p.edit().putString("sports_match_refresh_error",unavailable.getClass().getSimpleName()).apply();
    }
+   if(isStopped()||PlaybackResourceMode.active()||
+      p.getBoolean("software_dvb_422_active",false))
+    return Result.success();
    try{verified=UnifiedArtworkPrefetch.currentAndNext(c,provider);}
    catch(Exception unavailable){
     p.edit().putString("film_poster_prefetch_error",unavailable.getClass().getSimpleName()).apply();
    }
+   if(isStopped()||PlaybackResourceMode.active()||
+      p.getBoolean("software_dvb_422_active",false))
+    return Result.success();
    try{sports=SportsPosterPrefetch.prefetch(c);}
    catch(Exception unavailable){
     p.edit().putString("sports_poster_prefetch_error",unavailable.getClass().getSimpleName()).apply();

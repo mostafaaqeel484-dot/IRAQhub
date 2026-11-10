@@ -61,6 +61,21 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   }
   return ambiguous;
  }
+ /**
+  * Satellite-local visible channel number, TV and radio independently,
+  * unchanged by A-Z browsing or favourites. Matching the InfoBar numbering.
+  */
+ Channel channelAtNumber(Channel active,int number){
+  if(active==null||number<1||number>99999)return null;
+  String sql=JOIN+" WHERE t.sat_id=? AND c.tv=? "+
+    "ORDER BY c.order_index,c._id LIMIT 1 OFFSET ?";
+  try(Cursor cursor=getReadableDatabase().rawQuery(sql,
+       new String[]{Integer.toString(active.satId),Integer.toString(active.tv),
+        Integer.toString(number-1)})){
+   if(cursor.moveToFirst())return new Channel(cursor);
+  }catch(Exception unavailable){}
+  return null;
+ }
  int satelliteNumber(Channel active){
   if(active==null)return 0;int order=0;
   try(Cursor c=getReadableDatabase().rawQuery("SELECT order_index FROM ch WHERE _id=?",
@@ -111,6 +126,28 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   return channels(query,satellite,type,favorite,alphabetical,offset,group,false);
  }
  List<Channel> channels(String query,long satellite,int type,boolean favorite,boolean alphabetical,int offset,long group,boolean encryptedOnly){StringBuilder sql=new StringBuilder(JOIN+" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");List<String> args=new ArrayList<>();args.add(ReceiverChannelRepository.searchKey(query));if(satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(satellite));}if(type>=0){sql.append(" AND c.tv=?");args.add(Integer.toString(type));}if(encryptedOnly)sql.append(" AND c.ca>0");if(favorite)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");if(group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(group));}sql.append(alphabetical?" ORDER BY c.name COLLATE NOCASE,c._id":group>=0?" ORDER BY (SELECT m.ordinal FROM fav_member m WHERE m.channel_id=c._id AND m.group_id="+group+"),c._id":" ORDER BY c.order_index,c._id");sql.append(" LIMIT 120 OFFSET ").append(Math.max(0,offset));List<Channel> out=new ArrayList<>();try(Cursor c=getReadableDatabase().rawQuery(sql.toString(),args.toArray(new String[0]))){while(c.moveToNext())try{out.add(new Channel(c));}catch(Exception malformed){}}return out;}
+
+ /** One uninterrupted scoped satellite list; the cursor is consumed off the UI thread. */
+ List<Channel> channelsContinuous(String query,long satellite,int type,boolean favorite,
+       boolean alphabetical,long group,boolean encryptedOnly){
+  StringBuilder sql=new StringBuilder(JOIN+" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");
+  List<String> args=new ArrayList<>();
+  args.add(ReceiverChannelRepository.searchKey(query));
+  if(satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(satellite));}
+  if(type>=0){sql.append(" AND c.tv=?");args.add(Integer.toString(type));}
+  if(encryptedOnly)sql.append(" AND c.ca>0");
+  if(favorite)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");
+  if(group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(group));}
+  sql.append(alphabetical?" ORDER BY c.name COLLATE NOCASE,c._id":
+    group>=0?" ORDER BY (SELECT m.ordinal FROM fav_member m WHERE m.channel_id=c._id AND m.group_id="+group+"),c._id":
+    " ORDER BY c.order_index,c._id");
+  sql.append(" LIMIT 20000");
+  List<Channel> out=new ArrayList<>();
+  try(Cursor c=getReadableDatabase().rawQuery(sql.toString(),args.toArray(new String[0]))){
+   while(c.moveToNext())try{out.add(new Channel(c));}catch(Exception invalid){}
+  }
+  return out;
+ }
  int pageFor(Channel channel){return pageFor(channel,new ChannelScope("",channel.satId,channel.tv,false,false,-1));}
  Channel adjacent(Channel active,int direction){return adjacent(active,direction,new ChannelScope("",active.satId,active.tv,false,false,-1));}
  private String scopeWhere(ChannelScope scope,List<String> args){StringBuilder sql=new StringBuilder(" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");args.add(ReceiverChannelRepository.searchKey(scope.query));if(scope.satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(scope.satellite));}sql.append(" AND c.tv=?");args.add(Integer.toString(scope.type));if(scope.favorites)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");if(scope.group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(scope.group));}return sql.toString();}
