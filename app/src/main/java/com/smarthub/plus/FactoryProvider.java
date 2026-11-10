@@ -53,13 +53,61 @@ final class FactoryProvider implements AutoCloseable {
 
  private void fetch(SatelliteState state,String identity)throws Exception{FactoryClient client=new FactoryClient(context);ZoneId zone=ZoneId.of(prefs.getString("tv_epg_timezone","Asia/Baghdad"));long now=System.currentTimeMillis();Map<String,String> p=new LinkedHashMap<>();p.put("cid",Integer.toString(client.identity().optInt("cid",-1)));p.put("timezone",ZonedDateTime.now(zone).getOffset().getId());p.put("language","en");DateTimeFormatter f=DateTimeFormatter.ofPattern("yyyy-MM-dd");p.put("start",Instant.ofEpochMilli(now-3600000).atZone(zone).format(f));p.put("end",Instant.ofEpochMilli(now+24*3600000L).atZone(zone).format(f));p.put("pageSize","25");p.put("pageNum","1");String nativeKey=SportsCache.key(identity);String channel=prefs.getString("factory_channel:"+nativeKey,"");if(!FactoryProtocol.reference(channel)){// CHMAX channel search is about SERVICE identity, never the now-playing programme.
  p.put("searchKey",state.channelName.trim());JSONObject search=client.get("/epgapi/v1/schedule/search",p);channel=FactoryProtocol.channelKey(search,state.channelName,state.title,now,zone);if(channel.isEmpty())throw new Exception("FACTORY_CHANNEL_NOT_MATCHED");String satellite="";JSONObject searchData=search.optJSONObject("data");JSONArray rows=searchData==null?null:searchData.optJSONArray("channelList");if(rows!=null)for(int i=0;i<Math.min(50,rows.length());i++){JSONObject row=rows.optJSONObject(i);if(row!=null&&channel.equals(row.optString("id")))satellite=row.optString("satellite");}String reference=FactoryProtocol.resolveReference(search,channel,null);if(reference.isEmpty()&&!satellite.isEmpty()&&satellite.length()<100)reference=FactoryProtocol.resolveReference(search,channel,client.get("/epgapi/v1/satellite/channel/list",Collections.singletonMap("querySats",satellite)));if(!FactoryProtocol.reference(reference))throw new Exception("FACTORY_CHANNEL_REFERENCE_UNAVAILABLE");channel=reference;prefs.edit().putString("factory_channel:"+nativeKey,channel).apply();}
-  Map<String,String> query=new LinkedHashMap<>();query.put("sn",client.identity().optString("sn"));query.put("sat",channel);query.put("start",p.get("start"));query.put("end",p.get("end"));query.put("timezone",p.get("timezone"));query.put("language","en");query.put("simple","0");JSONObject reply=client.get("/epgapi/v1/schedule/list",query);JSONObject data=reply.optJSONObject("data");
-  if(data==null||!FactoryProtocol.compatibleChannelName(state.channelName,data.optString("name")))
-    throw new Exception("FACTORY_CHANNEL_MISMATCH");
-  // The logo is channel-scoped. A missing or mismatched EPG programme must
-  // not suppress a correctly identified channel logo.
+  Map<String,String> query=new LinkedHashMap<>();
+  query.put("sn",client.identity().optString("sn"));
+  query.put("sat",channel);query.put("start",p.get("start"));query.put("end",p.get("end"));
+  query.put("timezone",p.get("timezone"));query.put("language","en");query.put("simple","0");
+  JSONObject reply=client.get("/epgapi/v1/schedule/list",query);
+  JSONObject data=reply.optJSONObject("data");
+  // The satellite/TP/SID reference was verified during channel discovery.
+  // Some factory responses omit the display name; reject any present mismatch.
+  if(data==null||!data.optString("name").isEmpty()&&
+      !FactoryProtocol.compatibleChannelName(state.channelName,data.optString("name")))
+   throw new Exception("FACTORY_CHANNEL_MISMATCH");
+  // Channel logos are independent of current/next programme availability.
   rememberLogo(identity,data.optString("cimg"));
-  List<FactoryProtocol.Event> events=FactoryProtocol.schedule(reply,zone);FactoryProtocol.Event current=null,next=null;for(FactoryProtocol.Event e:events){if(e.start<=now&&e.end>now)current=e;else if(e.start>now&&next==null)next=e;}if(current==null)throw new Exception("FACTORY_EPG_NOT_PUBLISHED");if(!state.title.isEmpty()&&!FactoryProtocol.sameTitle(state.title,current.title))throw new Exception("FACTORY_PROGRAMME_MISMATCH");if(state.startMs>0&&Math.abs(state.startMs-current.start)>120000||state.endMs>0&&Math.abs(state.endMs-current.end)>120000)throw new Exception("FACTORY_PROGRAMME_MISMATCH");SatelliteState resolved=state.copy();resolved.title=current.title;resolved.startMs=current.start;resolved.endMs=current.end;resolved.image=current.pic;if(next!=null){resolved.nextTitle=next.title;resolved.nextStartMs=next.start;resolved.nextEndMs=next.end;resolved.nextImage=next.pic;}resolved.source="Factory CHMAX / EPG";resolved.observedAt=now;if(closed)return;SatelliteState active=SatelliteState.read(context);if(!CHMAXIntegration.identity(active).equals(identity))return;cached=resolved;cachedIdentity=identity;resolved.save(context);SharedPreferences.Editor edit=prefs.edit().putLong("epg_art_changed_at",now).putString("factory_current_subtitle_metadata",current.subtitle);edit.apply();}
+  List<FactoryProtocol.Event> events=FactoryProtocol.schedule(reply,zone);
+  FactoryProtocol.Event current=null,next=null;
+  for(FactoryProtocol.Event e:events){
+   if(e.start<=now&&e.end>now)current=e;
+   else if(e.start>now&&next==null)next=e;
+  }
+  if(current==null&&next==null)throw new Exception("FACTORY_EPG_NOT_PUBLISHED");
+  if(current!=null){
+   if(!state.title.isEmpty()&&!FactoryProtocol.sameTitle(state.title,current.title)||
+      state.startMs>0&&Math.abs(state.startMs-current.start)>120000||
+      state.endMs>0&&Math.abs(state.endMs-current.end)>120000)
+    current=null;
+  }
+  // Never override a different verified next event with CHMAX's prediction.
+  if(next!=null){
+   if(!state.nextTitle.isEmpty()&&!FactoryProtocol.sameTitle(state.nextTitle,next.title)||
+      state.nextStartMs>0&&Math.abs(state.nextStartMs-next.start)>120000||
+      state.nextEndMs>0&&Math.abs(state.nextEndMs-next.end)>120000)
+    next=null;
+  }
+  if(current==null&&next==null)throw new Exception("FACTORY_PROGRAMME_MISMATCH");
+  SatelliteState resolved=state.copy();
+  if(current!=null){
+   resolved.title=current.title;resolved.startMs=current.start;
+   resolved.endMs=current.end;resolved.image=current.pic;
+  }
+  if(next!=null){
+   resolved.nextTitle=next.title;resolved.nextStartMs=next.start;
+   resolved.nextEndMs=next.end;resolved.nextImage=next.pic;
+  }
+  resolved.source="Factory CHMAX / EPG";resolved.observedAt=now;
+  if(closed)return;
+  SatelliteState active=SatelliteState.read(context);
+  if(!CHMAXIntegration.identity(active).equals(identity))return;
+  cached=resolved;cachedIdentity=identity;
+  resolved.save(context);
+  SharedPreferences.Editor edit=prefs.edit().putLong("epg_art_changed_at",now)
+   .putString("factory_epg_status",current!=null?"FACTORY_EPG_NOW":
+     "FACTORY_EPG_NEXT_ONLY")
+   .putString("factory_current_subtitle_metadata",current==null?"":current.subtitle);
+  edit.apply();
+ }
  private void rememberLogo(String identity,String raw)throws Exception{
   String logo=FactoryProtocol.image(raw);
   if(!logo.startsWith("https://")){
