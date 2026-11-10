@@ -68,13 +68,14 @@ jobs:
           if [ "$GITHUB_REF_NAME" = "build/rx5-chmax-bulk-apk-20261110" ]; then TAG="iraqhub-rx5-sports-ci-${GITHUB_RUN_ID}"; fi
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
-              --title "IRAQhub 3.7.3 4-stage integration · CI debug (NOT device-tested)" \
+              --title "IRAQhub RX5 4.0.4 TheSportsDB InfoBar · Debug CI (NOT device-tested)" \
               --notes "DRAFT CI build. Debug APK is signed by the ephemeral debug keystore. Release APK is unsigned. Playback, DVB scan, CHMAX and 4:2:2 require tests on the actual Amlogic X5M. Do not merge or distribute as a tested stable release."
           fi
           cp app/build/outputs/apk/debug/app-debug.apk \
             "$RUNNER_TEMP/IRAQhub_RX5_Sports_TheSportsDB_Debug.apk"
+          test -s "$RUNNER_TEMP/IRAQhub_RX5_Sports_TheSportsDB_Debug.apk"
           gh release upload "$TAG" \
-            "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Debug.apk" --clobber
+            "$RUNNER_TEMP/IRAQhub_RX5_Sports_TheSportsDB_Debug.apk" --clobber
 
       - name: Build release APK
         timeout-minutes: 12
@@ -94,7 +95,7 @@ jobs:
             "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Release_UNSIGNED.apk" --clobber
 
       - name: Upload APK artifacts for existing branches
-        if: ${{ github.ref != 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' && github.ref != 'refs/heads/main' }}
+        if: ${{ github.ref != 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/build/rx5-chmax-bulk-apk-20261110' }}
         uses: actions/upload-artifact@v4
         with:
           name: IRAQhub-${{ github.sha }}
