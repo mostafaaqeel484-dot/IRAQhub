@@ -33,8 +33,35 @@ final class SportsProgrammeArtwork {
     &&match.away!=null&&!match.away.isEmpty();
  }
 
+ static Bitmap epgCard(Context context,String title,boolean cacheOnly){
+  if(title==null)return null;
+  String[] teams=title.split("(?i)\\\\s+(?:vs\\\\.?|v\\\\.?|versus)\\\\s+",2);
+  if(teams.length!=2)return null;
+  String home=TheSportsDBProvider.epgTeamName(teams[0]);
+  String away=TheSportsDBProvider.epgTeamName(teams[1]);
+  if(home.length()<3||away.length()<3||home.length()>70||away.length()>70)return null;
+  android.content.SharedPreferences prefs=context.getSharedPreferences("sports_epg_badges",0);
+  SportsMatch match=new SportsMatch();
+  match.home=home;match.away=away;match.league="EPG · Match not verified";
+  match.homeLogo=prefs.getString("team:"+home,"");
+  match.awayLogo=prefs.getString("team:"+away,"");
+  match.leagueLogo="";
+  if(!cacheOnly)try{
+   TheSportsDBProvider provider=new TheSportsDBProvider(context);
+   if(match.homeLogo.isEmpty())match.homeLogo=provider.findTeamBadge(home).optString("logo");
+   if(match.awayLogo.isEmpty())match.awayLogo=provider.findTeamBadge(away).optString("logo");
+   android.content.SharedPreferences.Editor edit=prefs.edit();
+   if(!match.homeLogo.isEmpty())edit.putString("team:"+home,match.homeLogo);
+   if(!match.awayLogo.isEmpty())edit.putString("team:"+away,match.awayLogo);
+   edit.apply();
+  }catch(Exception ignored){}
+  return drawCard(context,match,cacheOnly,false);
+ }
  static Bitmap card(Context context,SportsMatch match,boolean cacheOnly){
   if(!verified(match))return null;
+  return drawCard(context,match,cacheOnly,true);
+ }
+ private static Bitmap drawCard(Context context,SportsMatch match,boolean cacheOnly,boolean verifiedEvent){
   Bitmap home=badge(context,match.homeLogo,cacheOnly);
   Bitmap away=badge(context,match.awayLogo,cacheOnly);
   // Verified event: show a neutral team-name card even when badges are absent.
