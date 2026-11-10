@@ -2,9 +2,42 @@ package com.smarthub.plus;
 import android.content.*;import android.os.SystemClock;import org.json.*;import java.net.*;import java.nio.charset.StandardCharsets;import java.util.*;import java.util.concurrent.*;
 /** Shared EPG provider. Native EIT first, public guide fallback, correlated to the current channel. */
 final class BroadcastEpgProvider {
- private final Context context;private final ExecutorService io=Executors.newSingleThreadExecutor();private final OnlineEpgGuide online;private volatile boolean busy;private String key="";private long retry;private volatile int generation;private Future<?> task;
- BroadcastEpgProvider(Context c){context=c.getApplicationContext();online=new OnlineEpgGuide(context);}
- synchronized void refresh(SatelliteState observed){if(observed.channelName.isEmpty()||observed.channelId.startsWith("IPTV:")||observed.source.startsWith("IPTV"))return;SharedPreferences prefs=context.getSharedPreferences("smarthub",0);if(prefs.getBoolean("dvb_tuning",false))return;String identity=ReceiverInfoRepository.channelKey(observed);long now=SystemClock.elapsedRealtime();if(busy&&identity.equals(key)||identity.equals(key)&&now<retry)return;if(busy){generation++;if(task!=null)task.cancel(true);busy=false;}if(!observed.channelId.startsWith("DVB:")&&!observed.title.isEmpty()&&!observed.source.startsWith("DVB")&&!observed.source.startsWith("Online EPG"))return;ReceiverSignalReading signal=DirectReceiverSignal.reading(observed);boolean own=observed.channelId.startsWith("DVB:");if(own&&(signal==null||signal.locked!=1||signal.tp!=prefs.getInt("own_dvb_runtime_tp",-1)||!observed.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""))||!prefs.getString("own_dvb_physical","").startsWith(prefs.getString("own_dvb_physical_tp","invalid")+":")))return;busy=true;key=identity;retry=now+30000;int ticket=++generation;long started=now;prefs.edit().putString("broadcast_epg_status","DVB_EPG_SEARCHING").putString("broadcast_epg_channel",identity).apply();SatelliteState snapshot=observed.copy();task=io.submit(()->{try{List<NativeEpgEvents.Event> events=new ArrayList<>();String source="DVB EIT · IRAQhub";if(own){ReceiverCatalog.Channel channel=ReceiverCatalog.get(context).channel(prefs.getLong("own_dvb_channel",-1));if(channel!=null&&snapshot.channelId.equals("DVB:"+channel.physical()))events=read(channel.programToken(),signal.tp,channel.sid);}if(Thread.currentThread().isInterrupted()||ticket!=generation)return;long time=System.currentTimeMillis();if(current(events,time)==null){prefs.edit().putString("broadcast_epg_status","ONLINE_EPG_LOADING").apply();events=online.current(snapshot.channelName,snapshot.channelId,time);source="Online EPG · EPGShare01";}if(Thread.currentThread().isInterrupted()||ticket!=generation)return;NativeEpgEvents.Event current=current(events,time),next=next(events,time);SatelliteState active=SatelliteState.read(context);if(!identity.equals(ReceiverInfoRepository.channelKey(active)))return;if(own){ReceiverSignalReading latest=DirectReceiverSignal.reading(active);if(latest==null||latest.locked!=1||latest.tp!=signal.tp||prefs.getBoolean("dvb_tuning",false))return;}
+ private final Context context;private final ExecutorService io=Executors.newSingleThreadExecutor();private final OnlineEpgGuide online;private final FactoryProvider factory;private volatile boolean busy;private String key="";private long retry;private volatile int generation;private Future<?> task;
+ BroadcastEpgProvider(Context c){context=c.getApplicationContext();online=new OnlineEpgGuide(context);factory=new FactoryProvider(context);}
+ synchronized void refresh(SatelliteState observed){if(observed.channelName.isEmpty()||observed.channelId.startsWith("IPTV:")||observed.source.startsWith("IPTV"))return;SharedPreferences prefs=context.getSharedPreferences("smarthub",0);if(prefs.getBoolean("dvb_tuning",false))return;String identity=ReceiverInfoRepository.channelKey(observed);long now=SystemClock.elapsedRealtime();if(busy&&identity.equals(key)||identity.equals(key)&&now<retry)return;if(busy){generation++;if(task!=null)task.cancel(true);busy=false;}if(!observed.channelId.startsWith("DVB:")&&!observed.title.isEmpty()&&!observed.source.startsWith("DVB")&&!observed.source.startsWith("Online EPG"))return;ReceiverSignalReading signal=DirectReceiverSignal.reading(observed);boolean own=observed.channelId.startsWith("DVB:");if(own&&(signal==null||signal.locked!=1||signal.tp!=prefs.getInt("own_dvb_runtime_tp",-1)||!observed.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""))||!prefs.getString("own_dvb_physical","").startsWith(prefs.getString("own_dvb_physical_tp","invalid")+":")))return;busy=true;key=identity;retry=now+30000;int ticket=++generation;long started=now;prefs.edit().putString("broadcast_epg_status","DVB_EPG_SEARCHING").putString("broadcast_epg_channel",identity).apply();SatelliteState snapshot=observed.copy();task=io.submit(()->{try{List<NativeEpgEvents.Event> events=new ArrayList<>();String source="DVB EIT · IRAQhub";if(own){ReceiverCatalog.Channel channel=ReceiverCatalog.get(context).channel(prefs.getLong("own_dvb_channel",-1));if(channel!=null&&snapshot.channelId.equals("DVB:"+channel.physical()))events=read(channel.programToken(),signal.tp,channel.sid);}if(Thread.currentThread().isInterrupted()||ticket!=generation)return;long time=System.currentTimeMillis();if(own&&!events.isEmpty())UnifiedEpgIndex.get(context).recordNative(snapshot.channelId,events,time);
+ if(current(events,time)==null){
+  SatelliteState latest=SatelliteState.read(context);
+  // Reuse the current authorised factory EPG before any public XMLTV lookup.
+  boolean factoryPresent=latest.channelId.equals(snapshot.channelId)&&
+   EpgSourcePriority.factory(latest.source)&&
+   ReceiverInfoRepository.timedCurrent(latest.title,latest.startMs,latest.endMs,time);
+  if(factoryPresent){
+   prefs.edit().putString("broadcast_epg_status","FACTORY_EPG_PRIORITY").apply();
+   return;
+  }
+  if(prefs.getBoolean("factory_enabled",true)){
+   factory.enrich(snapshot); // asynchronous, with auth/rate-limit backoff
+   String waitKey="factory_epg_wait:"+SportsCache.key(identity);
+   long began=prefs.getLong(waitKey,0L);
+   if(began<=0||began>time){began=time;prefs.edit().putLong(waitKey,began).apply();}
+   String status=prefs.getString("factory_status","");
+   boolean rejected=status.equals("FACTORY_AUTH_REQUIRED")||
+    status.equals("FACTORY_CHMAX_PROFILE_REQUIRED")||
+    status.startsWith("FACTORY_LOGIN_REJECTED_")||
+    status.startsWith("FACTORY_SERVICE_REJECTED_")||
+    status.equals("FACTORY_HTTP_429");
+   if(!rejected&&time-began<15000L){
+    retry=SystemClock.elapsedRealtime()+5000L;
+    prefs.edit().putString("broadcast_epg_status","WAITING_NATIVE_FACTORY_EPG").apply();
+    return;
+   }
+  }
+  prefs.edit().putString("broadcast_epg_status","ONLINE_EPG_LAST_RESORT").apply();
+  events=online.current(snapshot.channelName,snapshot.channelId,time);
+  source="Online EPG · EPGShare01";
+ }if(Thread.currentThread().isInterrupted()||ticket!=generation)return;NativeEpgEvents.Event current=current(events,time),next=next(events,time);SatelliteState active=SatelliteState.read(context);if(!identity.equals(ReceiverInfoRepository.channelKey(active)))return;
+ if("Online EPG · EPGShare01".equals(source)&&EpgSourcePriority.factory(active.source)&&
+    ReceiverInfoRepository.timedCurrent(active.title,active.startMs,active.endMs,time))return;if(own){ReceiverSignalReading latest=DirectReceiverSignal.reading(active);if(latest==null||latest.locked!=1||latest.tp!=signal.tp||prefs.getBoolean("dvb_tuning",false))return;}
  if(own&&"DVB EIT · IRAQhub".equals(source)&&!events.isEmpty())
   UnifiedEpgIndex.get(context).recordNative(active.channelId,events,time);
  if(current==null){retry=SystemClock.elapsedRealtime()+12000;prefs.edit().putString("broadcast_epg_status","EPG_NOT_PUBLISHED").apply();return;}boolean artChanged=!active.title.equals(current.title)||active.startMs!=current.start||!active.image.equals(current.image)||!active.nextTitle.equals(next==null?"":next.title)||!active.nextImage.equals(next==null?"":next.image);active.title=current.title;active.startMs=current.start;active.endMs=current.end;active.image=current.image;active.nextTitle=next==null?"":next.title;active.nextStartMs=next==null?0:next.start;active.nextEndMs=next==null?0:next.end;active.nextImage=next==null?"":next.image;active.source=source;active.observedAt=time;active.save(context);new SatelliteGuideRepository(context).record(active);SharedPreferences.Editor update=prefs.edit().putString("broadcast_epg_status",source).putLong("broadcast_epg_updated_at",time).putLong("broadcast_epg_elapsed_ms",SystemClock.elapsedRealtime()-started);if(artChanged)update.putLong("epg_art_changed_at",time);update.apply();if(artChanged)IraqHubSyncScheduler.programmeChanged(context);}catch(Exception unavailable){if(Thread.currentThread().isInterrupted()||ticket!=generation)return;retry=SystemClock.elapsedRealtime()+60000;prefs.edit().putString("broadcast_epg_status","EPG_UNAVAILABLE_"+unavailable.getClass().getSimpleName()).apply();}finally{synchronized(this){if(ticket==generation)busy=false;}}});}
