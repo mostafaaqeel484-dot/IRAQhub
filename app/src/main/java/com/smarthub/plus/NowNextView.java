@@ -66,7 +66,8 @@ final class NowNextView extends FrameLayout {
   bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
   LinearLayout brand=column();brand.setGravity(Gravity.CENTER);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(68),dp(49)));
+  logo.setBackgroundColor(Color.TRANSPARENT);
+  logo.setContentDescription("CHMAX channel logo");
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -79,14 +80,19 @@ final class NowNextView extends FrameLayout {
   providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(44),dp(25)));
   providerPanel.addView(providerName);
   providerPanel.setVisibility(detailed?VISIBLE:GONE);
-  brand.addView(providerPanel);
-  primary.addView(brand,new LinearLayout.LayoutParams(dp(76),-2));
+  primary.addView(brand,new LinearLayout.LayoutParams(dp(126),-2));
 
   LinearLayout programme=column();
   programme.setPadding(dp(10),0,dp(10),0);
   primary.addView(programme,new LinearLayout.LayoutParams(0,-2,1.5f));
   heading=label("IRAQhub",compact?18:22,true);
-  heading.setTextColor(0xff3fe44d);heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);headLeft.addView(heading);
+  heading.setTextColor(0xff3fe44d);heading.setSingleLine(true);
+  heading.setEllipsize(android.text.TextUtils.TruncateAt.END);
+  heading.setGravity(Gravity.CENTER_HORIZONTAL|Gravity.CENTER_VERTICAL);
+  // RX6: vertical stack, title first and a transparent CHMAX logo below.
+  brand.addView(heading,new LinearLayout.LayoutParams(-1,dp(24)));
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(88),dp(57)));
+  brand.addView(providerPanel);
   broadcast=label("",10,false);broadcast.setTextColor(0xffe0e0e0);
   headLeft.addView(broadcast);
   nowLine=label("",compact?13:16,true);
@@ -315,7 +321,9 @@ final class NowNextView extends FrameLayout {
   String provider=info.provider;providerName.setText(provider.isEmpty()?"":provider.replace(" (CHL)",""));providerCaption.setText(tx("المزود","PROVIDER")+(provider.endsWith(" (CHL)")?" · CHL":""));providerPanel.setContentDescription(tx("مزود الخدمة: ","Service provider: ")+provider);
   nowLine.setText(tx("الآن  ","NOW  ")+(s.title.isEmpty()?tx("بيانات البرنامج غير متاحة","Programme unavailable"):s.title)+range(s.startMs,s.endMs));
   nextLine.setText(tx("التالي  ","NEXT  ")+(s.nextTitle.isEmpty()?tx("غير متاح من EPG","Unavailable from EPG"):s.nextTitle)+range(s.nextStartMs,s.nextEndMs));
-  if(channelLogo==null)logo.setImageResource(R.drawable.channel_placeholder);else logo.setImageBitmap(channelLogo);logo.setContentDescription("Channel logo · "+s.channelName);
+  if(channelLogo==null){logo.setImageDrawable(null);logo.setVisibility(GONE);}
+  else{logo.setImageBitmap(channelLogo);logo.setVisibility(VISIBLE);}
+  logo.setContentDescription("CHMAX channel logo · "+s.channelName);
   long length=s.endMs-s.startMs;progress.setProgress(length>0?(int)Math.max(0,Math.min(1000,(System.currentTimeMillis()-s.startMs)*1000/length)):0);progress.setVisibility(length>0?VISIBLE:INVISIBLE);
   ProgrammeClock timer=new ProgrammeClock(s.startMs,s.endMs,System.currentTimeMillis());remaining.setText(timer.known?tx("متبقي  ","REMAINING  ")+ProgrammeClock.format(timer.remainingMs,false):"");remaining.setVisibility(timer.known?VISIBLE:GONE);
   TimeZone deviceZone=TimeZone.getDefault();
