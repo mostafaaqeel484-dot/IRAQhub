@@ -1,0 +1,104 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ main, 'fix/x5m-422-video-health-20261106', 'fix/x5m-unified-posters-20261106', 'feature/aurum-native-search-results-20261106', 'feature/x5m-remote-menus-422-audio-20261106', 'fix/x5m-real-artwork-menu-20261106', 'fix/usb-adb-oem-installation-port-20261106', 'fix/x5m-chmax-422-lowram-20261106', 'fix/chmax-aurum-dvb-logo-link-20261107', 'feature/x5m-direct-manual-transponder-scan-20261107', 'feature/x5m-fast-sqlite-channel-db-20261107', 'feature/x5m-aurum-manual-db-sports-20261107', 'fix/x5m-psi-scan-channel-list-modes-20261107', 'fix/x5m-422-media3-resources-build-20261107', 'feature/iraqhub-373-four-stage-integration-20261107' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Only the newest commit on this branch needs a full APK build.
+concurrency:
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Run unit tests
+        run: gradle :app:testDebugUnitTest --no-daemon
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Verify APK signature and package metadata
+        run: |
+          set -euxo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -25
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+
+      # The repository's GitHub Actions artifact quota is exhausted.
+      # Keep CI outputs in a PRIVATE draft release instead; no old artifacts
+      # are removed and the build is not published as a production release.
+      - name: Save verified Debug APK to private draft release
+        if: ${{ github.ref == 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-373-four-stage-ci-20261107
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub 3.7.3 4-stage integration · CI debug (NOT device-tested)" \
+              --notes "DRAFT CI build. Debug APK is signed by the ephemeral debug keystore. Release APK is unsigned. Playback, DVB scan, CHMAX and 4:2:2 require tests on the actual Amlogic X5M. Do not merge or distribute as a tested stable release."
+          fi
+          cp app/build/outputs/apk/debug/app-debug.apk \
+            "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Debug.apk"
+          gh release upload "$TAG" \
+            "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Debug.apk" --clobber
+
+      - name: Build release APK
+        timeout-minutes: 12
+        run: gradle :app:assembleRelease --no-daemon
+
+      - name: Save unsigned Release APK to draft release
+        if: ${{ github.ref == 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-373-four-stage-ci-20261107
+          APK=app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s "$APK"
+          cp "$APK" "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Release_UNSIGNED.apk"
+          gh release upload "$TAG" \
+            "$RUNNER_TEMP/IRAQhub_3.7.3_FourStage_X5M_Release_UNSIGNED.apk" --clobber
+
+      - name: Upload APK artifacts for existing branches
+        if: ${{ github.ref != 'refs/heads/feature/iraqhub-373-four-stage-integration-20261107' && github.ref != 'refs/heads/main' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: IRAQhub-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14

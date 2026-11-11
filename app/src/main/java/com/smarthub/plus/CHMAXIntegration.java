@@ -1,0 +1,115 @@
+package com.smarthub.plus;
+import android.accessibilityservice.AccessibilityService;import android.content.*;import android.content.pm.PackageManager;import android.graphics.*;import android.os.*;import android.view.accessibility.AccessibilityNodeInfo;import java.io.*;import java.util.*;
+/** Receiver/CHMAX boundary. No root, private database access, guessed IPC or signature-permission bypass. */
+final class CHMAXIntegration {
+ /** Verified Aurum R.id entries from the owner's original receiver APK.
+  * Do not use EPG grid icons: they may belong to another channel. */
+ static final List<String> CHANNEL_LOGO_IDS=Arrays.asList(
+   "detail_info_tv_program_logo","channel_icon","iv_channel_icon");
+ static final Set<String> TEXT_IDS=new HashSet<>(Arrays.asList("detail_info_tv_channel_id","detail_info_tv_program_name","tv_provider","tv_service_provider","pt_menu_provider_name","tv_service_id","tv_network_id","tv_original_network_id","tv_transport_stream_id","tv_frequency","channel_info_frequency_tv","mtv_channel_info_tp","mtv_channel_info_satellite"));
+ private final AccessibilityService service;private boolean busy,display;private long retry;private String captured="";
+ CHMAXIntegration(AccessibilityService s){service=s;}
+ static String diagnostics(Context c){return FactoryStatus.label(c,c.getSharedPreferences("smarthub",0).getString("factory_status","FACTORY_NOT_CONNECTED"))+"\n"+ReceiverDvbBridge.label(c);}
+ static String identity(SatelliteState s){return s.channelId.startsWith("DVB:")?s.channelId:ReceiverInfoRepository.channelKey(s);}
+ /** Captured channel logos are user data: keep them in filesDir, not cacheDir,
+  * which Android can erase while the TV is offline. The former cache is read
+  * only for a one-time best-effort migration of verified files. */
+ private static File directory(Context c){File f=new File(c.getFilesDir(),"native-channel-branding");f.mkdirs();return f;}
+ private static File savedFile(Context c,String key){
+  File target=new File(directory(c),key);
+  if(target.isFile())return target;
+  File previous=new File(new File(c.getCacheDir(),"native-channel-branding"),key);
+  if(previous.isFile()&&previous.length()>150&&previous.length()<2*1024*1024){
+   try{java.nio.file.Files.copy(previous.toPath(),target.toPath());}
+   catch(Exception unavailable){return previous;}
+  }
+  return target;
+ }
+ private static void prune(Context c){
+  File[] files=directory(c).listFiles();
+  if(files==null||files.length<=2048)return;
+  Arrays.sort(files,Comparator.comparingLong(File::lastModified));
+  for(int n=0;n<files.length-2048;n++)if(files[n].isFile())files[n].delete();
+ }
+ static void saveObservedLogo(Context c,String channelId,String name,Bitmap image)throws Exception{SatelliteState state=new SatelliteState();state.channelId=channelId;state.channelName=name;android.util.AtomicFile safe=new android.util.AtomicFile(
+  new File(directory(c),SportsCache.key(identity(state))+"-channel.png"));
+ FileOutputStream out=safe.startWrite();
+ try{if(!image.compress(Bitmap.CompressFormat.PNG,100,out))throw new IOException("LOGO_WRITE_FAILED");
+  safe.finishWrite(out);}catch(Exception failed){safe.failWrite(out);throw failed;}prune(c);c.getSharedPreferences("smarthub",0).edit().putLong("native_logos_changed_at",System.currentTimeMillis()).putString("native_logo_source:"+identity(state),"receiver visible EPG / CHMAX branding").apply();}
+ /** Prefer exact physical identity, then an observed Aurum-to-DVB bridge.
+  * A stale or corrupt first candidate must not hide the next verified logo. */
+ static Bitmap logo(Context c,SatelliteState s,boolean provider){
+  if(s==null||s.channelId==null||s.channelName==null)return null;
+  try{
+   String suffix=provider?"-provider.png":"-channel.png";
+   String identity=identity(s);
+   java.util.LinkedHashSet<String> candidates=new java.util.LinkedHashSet<>();
+   candidates.add(identity);
+   if(s.channelId.startsWith("DVB:")){
+    candidates.add(ReceiverInfoRepository.channelKey(s));
+    String aurum=AurumDvbLogoBridge.sourceFor(c,s);
+    if(!aurum.isEmpty())candidates.add(aurum);
+   }
+   SharedPreferences prefs=c.getSharedPreferences("smarthub",0);
+   File dir=directory(c);
+   for(String key:candidates){
+    if(key==null||key.isEmpty())continue;
+    File file=savedFile(c,SportsCache.key(key)+suffix);
+    if(!file.isFile())continue;
+    boolean manual="MANUAL_CHANNEL_IMAGE".equals(
+      prefs.getString("native_logo_source:"+key,""));
+    if(!manual&&System.currentTimeMillis()-file.lastModified()>=7L*86400000L)continue;
+    BitmapFactory.Options opts=new BitmapFactory.Options();
+    opts.inJustDecodeBounds=true;
+    BitmapFactory.decodeFile(file.getAbsolutePath(),opts);
+    if(opts.outWidth<16||opts.outHeight<12||opts.outWidth>4096||
+       opts.outHeight>4096)continue;
+    opts.inJustDecodeBounds=false;
+    opts.inSampleSize=Math.max(1,Math.max(opts.outWidth/512,opts.outHeight/512));
+    Bitmap bitmap=BitmapFactory.decodeFile(file.getAbsolutePath(),opts);
+    if(bitmap!=null)return bitmap;
+   }
+   return null;
+  }catch(Exception unavailable){return null;}
+ }
+ static String provider(Context c,SatelliteState s){return c.getSharedPreferences("smarthub",0).getString("native_provider:"+identity(s),"");}
+ /** The native detail title may be the *current programme*, not the channel.
+  * Verify the visible CHANNEL label instead of letting an EPG title mask it.
+  */
+ static String visibleChannelName(Map<String,String> fields,SatelliteState current){
+  if(fields==null||current==null||current.channelName.isEmpty())return "";
+  for(String id:new String[]{"tv_channel_info_program_name","detail_info_tv_program_name"}){
+   String label=fields.getOrDefault(id,"");
+   if(!label.isEmpty()&&ChannelCatalogue.normalized(label)
+     .equals(ChannelCatalogue.normalized(current.channelName)))return label;
+  }
+  return "";
+ }
+ void observe(AccessibilityNodeInfo root,SatelliteState current,Map<String,String> fields){
+  if(current==null||!current.channelId.startsWith("Aurum:"))return;
+  String detail=visibleChannelName(fields,current);
+  if(detail.isEmpty())return;SharedPreferences.Editor e=service.getSharedPreferences("smarthub",0).edit();String name=fields.getOrDefault("tv_service_provider",fields.getOrDefault("tv_provider",fields.getOrDefault("pt_menu_provider_name","")));if(!name.isEmpty()&&!name.equalsIgnoreCase("null"))e.putString("native_provider:"+identity(current),name);for(String key:Arrays.asList("tv_service_id","tv_network_id","tv_original_network_id","tv_transport_stream_id","channel_info_frequency_tv")){String value=fields.getOrDefault(key,"");if(!value.isEmpty())e.putString("native_"+key+":"+identity(current),value).putLong("native_"+key+"_seen:"+identity(current),System.currentTimeMillis());}e.apply();if(Build.VERSION.SDK_INT<34||busy||SystemClock.elapsedRealtime()<retry)return;Rect channel=channelRect(root),provider=rect(root,"detail_info_tv_provider_logo");if(channel==null&&provider==null){
+  updateStatus("NO_VISIBLE_CHANNEL_LOGO_VIEW");return;
+ }String key=identity(current)+"|"+channel+"|"+provider;if(key.equals(captured))return;Rect screen=new Rect();root.getBoundsInScreen(screen);int window=root.getWindowId();busy=true;retry=SystemClock.elapsedRealtime()+2500;AccessibilityService.TakeScreenshotCallback cb=new AccessibilityService.TakeScreenshotCallback(){public void onFailure(int error){busy=false;updateStatus("SCREENSHOT_DENIED_"+error);if(error==1)display=true;}public void onSuccess(AccessibilityService.ScreenshotResult shot){Bitmap b=null;AccessibilityNodeInfo active=TvWindowRoot.find(service);try{if(active==null||!SatelliteUiParser.DEFAULT_PACKAGE.contentEquals(active.getPackageName())||
+  !identity(SatelliteState.read(service)).equals(identity(current))||
+  !(text(active,"tv_channel_info_program_name").equals(detail)||
+    text(active,"detail_info_tv_program_name").equals(detail)))return;b=Bitmap.wrapHardwareBuffer(shot.getHardwareBuffer(),shot.getColorSpace());if(b==null)return;boolean channelSaved=save(b,channel,screen,current,false);boolean providerSaved=save(b,provider,screen,current,true);boolean saved=channelSaved||providerSaved;if(channelSaved)AurumDvbLogoBridge.learn(service,current,fields);if(saved){captured=key;updateStatus("VISIBLE_LOGO_SAVED");service.getSharedPreferences("smarthub",0).edit().putLong("native_logos_changed_at",System.currentTimeMillis()).apply();}else updateStatus("VISIBLE_LOGO_CROP_REJECTED");}catch(Exception ignored){}finally{if(active!=null)active.recycle();if(b!=null)b.recycle();shot.getHardwareBuffer().close();busy=false;}}};if(display)service.takeScreenshot(android.view.Display.DEFAULT_DISPLAY,service.getMainExecutor(),cb);else service.takeScreenshotOfWindow(window,service.getMainExecutor(),cb);}
+ private void updateStatus(String status){
+  SharedPreferences p=service.getSharedPreferences("smarthub",0);
+  if(!status.equals(p.getString("chmax_observe_status","")))
+   p.edit().putString("chmax_observe_status",status).apply();
+ }
+ private boolean save(Bitmap full,Rect rect,Rect screen,SatelliteState state,boolean provider)throws Exception{if(rect==null||screen.width()<=0||screen.height()<=0)return false;int x=Math.max(0,(rect.left-screen.left)*full.getWidth()/screen.width()),y=Math.max(0,(rect.top-screen.top)*full.getHeight()/screen.height()),w=Math.min(full.getWidth()-x,rect.width()*full.getWidth()/screen.width()),h=Math.min(full.getHeight()-y,rect.height()*full.getHeight()/screen.height());if(w<12||h<12)return false;Bitmap crop=Bitmap.createBitmap(full,x,y,w,h),copy=crop.copy(Bitmap.Config.ARGB_8888,false);if(crop!=full)crop.recycle();try{int low=255,high=0;for(int a=0;a<copy.getWidth();a+=4)for(int b=0;b<copy.getHeight();b+=4){int pixel=copy.getPixel(a,b),v=(Color.red(pixel)+Color.green(pixel)+Color.blue(pixel))/3;low=Math.min(low,v);high=Math.max(high,v);}if(high-low<45)return false;String key=SportsCache.key(identity(state))+(provider?"-provider":"-channel")+".png";android.util.AtomicFile safe=new android.util.AtomicFile(new File(directory(service),key));
+ FileOutputStream out=safe.startWrite();
+ try{if(!copy.compress(Bitmap.CompressFormat.PNG,100,out))throw new IOException("LOGO_WRITE_FAILED");
+  safe.finishWrite(out);}catch(Exception failed){safe.failWrite(out);throw failed;}prune(service);return true;}finally{copy.recycle();}}
+ private Rect channelRect(AccessibilityNodeInfo root){
+  for(String id:CHANNEL_LOGO_IDS){
+   Rect found=rect(root,id);
+   if(found!=null)return found;
+  }
+  return null;
+ }
+ private Rect rect(AccessibilityNodeInfo root,String id){List<AccessibilityNodeInfo> nodes=root.findAccessibilityNodeInfosByViewId(SatelliteUiParser.DEFAULT_PACKAGE+":id/"+id);Rect out=null;for(AccessibilityNodeInfo n:nodes)try{if(n.isVisibleToUser()){Rect r=new Rect();n.getBoundsInScreen(r);if(r.width()>12&&r.height()>12)out=r;}}finally{n.recycle();}return out;}
+ private String text(AccessibilityNodeInfo root,String id){List<AccessibilityNodeInfo> nodes=root.findAccessibilityNodeInfosByViewId(SatelliteUiParser.DEFAULT_PACKAGE+":id/"+id);String out="";for(AccessibilityNodeInfo n:nodes)try{if(n.isVisibleToUser()&&n.getText()!=null)out=n.getText().toString();}finally{n.recycle();}return out;}
+}

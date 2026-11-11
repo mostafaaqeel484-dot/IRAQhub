@@ -1,0 +1,57 @@
+package com.smarthub.plus;
+import org.json.*;import java.net.URI;import java.nio.charset.StandardCharsets;import java.time.*;import java.time.format.DateTimeFormatter;import java.util.*;import javax.crypto.Cipher;import javax.crypto.spec.SecretKeySpec;
+/** Wire fields checked against the receiver's own SDK. No firmware identity is fabricated. */
+final class FactoryProtocol {
+ static String authenticator(String serial,String input)throws Exception{String key=(serial+"000000000000000000000000").substring(0,24);Cipher c=Cipher.getInstance("DESede/ECB/PKCS5Padding");c.init(Cipher.ENCRYPT_MODE,new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8),"DESede"));StringBuilder hex=new StringBuilder();for(byte b:c.doFinal(input.getBytes(StandardCharsets.UTF_8)))hex.append(String.format(Locale.ROOT,"%02x",b&255));return hex.toString();}
+ /** OEM CHMAX wire format used by Aurum's ProgramSystemRequest. The fixed
+  * protocol key is assembled at runtime so it is never confused with a user
+  * credential. Receiver identity still comes only from this device. */
+ static String chmaxQ(JSONObject id,Map<String,String> extra)throws Exception{
+  if(!FactoryIdentity.valid(id))throw new Exception("FACTORY_IDENTITY_REQUIRED");
+  LinkedHashMap<String,String> values=new LinkedHashMap<>();
+  values.put("sn",id.getString("sn"));
+  values.put("stbid","cid:"+id.getInt("cid")+";pid:"+id.getInt("pid")+";mid:"+id.getInt("mid"));
+  values.put("chipid",id.optString("chipId"));
+  if(extra!=null)values.putAll(extra);
+  StringBuilder plain=new StringBuilder();
+  for(Map.Entry<String,String> entry:values.entrySet()){
+   if(plain.length()>0)plain.append('&');
+   plain.append(entry.getKey()).append('=').append(entry.getValue()==null?"":entry.getValue());
+  }
+  char[] chars=new char[]{'1','6','6','C','3','C','3','9','9','8','3','4','D','E','D','D'};
+  String protocolKey=new String(chars);
+  Arrays.fill(chars,'\0');
+  return authenticator(protocolKey,plain.toString());
+ }
+ static String origin(String raw)throws Exception{URI u=new URI(raw);String host=u.getHost();if(!"https".equalsIgnoreCase(u.getScheme())||host==null||u.getUserInfo()!=null||u.getQuery()!=null||u.getFragment()!=null||u.getPort()!=-1&&u.getPort()!=443||!u.getPath().matches("/?"))throw new Exception("FACTORY_HTTPS_HOST_REQUIRED");if(host.equals("localhost")||host.matches("[0-9.]+")||host.contains(":")||host.endsWith(".local"))throw new Exception("FACTORY_PUBLIC_HOST_REQUIRED");return "https://"+host.toLowerCase(Locale.ROOT);}
+ static String domain(JSONObject response)throws Exception{if(response.optInt("code",-1)!=0)throw new Exception("FACTORY_DISCOVERY_REJECTED");JSONArray list=response.optJSONArray("data");if(list!=null)for(int i=0;i<Math.min(30,list.length());i++){JSONObject j=list.optJSONObject(i);if(j!=null&&(j.optBoolean("isDefault")||j.optBoolean("default")))return origin(j.optString("domain"));}throw new Exception("FACTORY_HOST_UNAVAILABLE");}
+ static JSONArray origins(JSONObject response)throws Exception{JSONArray out=new JSONArray(),rows=response.optJSONArray("data");Set<String> unique=new HashSet<>();if(rows!=null)for(int i=0;i<Math.min(30,rows.length());i++){JSONObject row=rows.optJSONObject(i);if(row!=null){String host=origin(row.optString("domain"));if(unique.add(host))out.put(host);}}return out;}
+ static boolean allowedOrigin(JSONObject saved,String value){try{String host=origin(value);if(host.equals(origin(saved.optString("host"))))return true;JSONArray origins=saved.optJSONArray("serviceOrigins");if(origins!=null)for(int i=0;i<origins.length();i++)if(host.equals(origins.optString(i)))return true;}catch(Exception ignored){}return false;}
+ static boolean reference(String value){return value!=null&&value.matches("-?[0-9]{1,4}:[0-9]{3,8}:[0-9]{1,5}");}
+ static String resolveReference(JSONObject search,String channelId,JSONObject catalogue){try{JSONObject data=search.optJSONObject("data");JSONArray channels=data==null?null:data.optJSONArray("channelList");JSONObject channel=null;if(channels!=null)for(int i=0;i<Math.min(50,channels.length());i++){JSONObject row=channels.optJSONObject(i);if(row!=null&&channelId.equals(row.optString("id")))channel=row;}if(channel==null)return "";String published=channel.optString("satellite");if(reference(published))return published;if(catalogue==null||catalogue.optInt("code",-1)!=0)return "";JSONArray satellites=catalogue.optJSONArray("data");String found="";if(satellites!=null)for(int i=0;i<Math.min(100,satellites.length());i++){JSONObject sat=satellites.optJSONObject(i);JSONArray tps=sat==null?null:sat.optJSONArray("tps");if(tps==null)continue;for(int t=0;t<Math.min(300,tps.length());t++){JSONObject tp=tps.optJSONObject(t);JSONArray sids=tp==null?null:tp.optJSONArray("sids");if(sids==null)continue;for(int n=0;n<Math.min(2000,sids.length());n++){JSONObject sid=sids.optJSONObject(n);if(sid!=null&&channelId.equals(sid.optString("id"))){String candidate=sat.optString("sat")+":"+tp.optString("tp")+":"+sid.optString("sid");if(!reference(candidate)||!found.isEmpty()&&!found.equals(candidate))return "";found=candidate;}}}}return found;}catch(Exception invalid){return "";}}
+ static long time(String value,ZoneId zone){try{if(value.matches("[0-9]{10,13}")){long n=Long.parseLong(value);return value.length()==10?n*1000:n;}return Instant.parse(value).toEpochMilli();}catch(Exception e){try{return OffsetDateTime.parse(value).toInstant().toEpochMilli();}catch(Exception ignored){for(String pattern:new String[]{"yyyy-MM-dd HH:mm:ss","yyyy-MM-dd HH:mm","yyyy/MM/dd HH:mm:ss"})try{return LocalDateTime.parse(value,DateTimeFormatter.ofPattern(pattern)).atZone(zone).toInstant().toEpochMilli();}catch(Exception unused){}return 0;}}}
+ static String image(String value){try{URI u=new URI(value);return ("https".equals(u.getScheme())||"http".equals(u.getScheme()))&&u.getHost()!=null&&u.getUserInfo()==null&&value.length()<4096?value:"";}catch(Exception e){return "";}}
+ static boolean sameTitle(String a,String b){if(a==null||b==null||a.trim().isEmpty())return false;BroadcastTitle x=BroadcastTitle.parse(a),y=BroadcastTitle.parse(b);return (x.year==0||y.year==0||x.year==y.year)&&(x.season==0||y.season==0||x.season==y.season)&&(x.episode==0||y.episode==0||x.episode==y.episode)&&PlaylistRepository.normalize(x.title).equals(PlaylistRepository.normalize(y.title));}
+ static final class Event{String title="",pic="",subtitle="",description="",startText="";long start,end;}
+ static List<Event> schedule(JSONObject response,ZoneId zone)throws Exception{if(response.optInt("code",-1)!=0)throw new Exception("FACTORY_EPG_REJECTED");JSONObject data=response.optJSONObject("data");List<Event> out=new ArrayList<>();JSONArray root=data==null?null:data.optJSONArray("root");if(root!=null)for(int n=0;n<Math.min(root.length(),14);n++){JSONObject group=root.optJSONObject(n);JSONArray list=group==null?null:group.optJSONArray("list");if(list==null)continue;for(int i=0;i<Math.min(200,list.length());i++){JSONObject e=list.optJSONObject(i);if(e==null)continue;Event event=new Event();event.title=e.optString("name");event.startText=e.optString("start");event.start=time(event.startText,zone);event.end=time(e.optString("end"),zone);String cover=e.optString("poster");if(cover.isEmpty())cover=e.optString("pic");
+ event.pic=image(cover);event.subtitle=e.optString("subtitle");event.description=e.optString("desc");if(!event.title.isEmpty()&&event.start>0&&event.end>event.start&&event.end-event.start<=24*3600000L)out.add(event);}}out.sort(Comparator.comparingLong(e->e.start));return out;}
+ static boolean compatibleChannelName(String receiver,String published){
+  if(PublishedEpgArtwork.matchesChannel(receiver,published))return true;
+  if(receiver==null||published==null||receiver.trim().isEmpty()||published.trim().isEmpty())return false;
+  // OEM channel lists frequently omit only a trailing HD/SD quality suffix.
+  // Do not remove words such as News/Sport or make arbitrary fuzzy matches.
+  String a=receiver.trim().replaceFirst("(?i)\\s+(?:SD|HD|FHD|UHD|4K)\\s*$","");
+  String b=published.trim().replaceFirst("(?i)\\s+(?:SD|HD|FHD|UHD|4K)\\s*$","");
+  return !a.isEmpty()&&!b.isEmpty()&&
+    ChannelCatalogue.normalized(a).equals(ChannelCatalogue.normalized(b));
+ }
+ static String channelKey(JSONObject search,String name,String currentTitle,long now,ZoneId zone)throws Exception{JSONObject data=search.optJSONObject("data");JSONArray rows=data==null?null:data.optJSONArray("channelList");List<JSONObject> matching=new ArrayList<>();if(rows!=null)for(int n=0;n<Math.min(50,rows.length());n++){JSONObject ch=rows.optJSONObject(n);if(ch!=null&&PublishedEpgArtwork.matchesChannel(name,ch.optString("name")))matching.add(ch);}if(matching.isEmpty()&&rows!=null){
+  // Only quality-suffix variants may be considered, never a loosely named
+  // channel. All candidates are kept so ambiguous SD/HD channels are rejected.
+  for(int n=0;n<Math.min(50,rows.length());n++){
+   JSONObject row=rows.optJSONObject(n);
+   if(row!=null&&compatibleChannelName(name,row.optString("name")))matching.add(row);
+  }
+ }
+ if(matching.size()==1)return matching.get(0).optString("id");String chosen="";for(JSONObject ch:matching){JSONArray days=ch.optJSONArray("epgList");boolean belongs=false;if(days!=null)for(int d=0;d<Math.min(14,days.length());d++){JSONObject day=days.optJSONObject(d);JSONArray events=day==null?null:day.optJSONArray("scheduleList");if(events!=null)for(int i=0;i<Math.min(100,events.length());i++){JSONObject e=events.optJSONObject(i);if(e!=null&&sameTitle(currentTitle,e.optString("title"))&&time(e.optString("startTime"),zone)<=now&&time(e.optString("endTime"),zone)>now)belongs=true;}}if(belongs){if(!chosen.isEmpty())return "";chosen=ch.optString("id");}}return chosen;}
+}

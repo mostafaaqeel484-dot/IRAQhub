@@ -1,0 +1,127 @@
+plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
+android {
+ namespace 'com.smarthub.plus'
+ compileSdk 36
+ // TS9 X5M exposes only armeabi-v7a. MPV 1.0.0 imports libc++20
+ // floating-point to_chars AND from_chars ABI entries. NDK r28 has only
+ // the former; r29 (LLVM 21) contains the libc++20 floating from_chars ABI.
+ // Do not downgrade libmpv or use an arbitrary AAR libc++_shared.so.
+ ndkVersion '29.0.14206865'
+ packaging { jniLibs { pickFirsts += ['**/libc++_shared.so'] } }
+ def releaseStore = System.getenv('IRAQHUB_KEYSTORE_PATH')
+ def releaseAlias = System.getenv('IRAQHUB_KEY_ALIAS')
+ def releaseStorePass = System.getenv('IRAQHUB_STORE_PASSWORD')
+ def releaseKeyPass = System.getenv('IRAQHUB_KEY_PASSWORD')
+ signingConfigs {
+  if(releaseStore && releaseAlias && releaseStorePass && releaseKeyPass){
+   production {
+    storeFile file(releaseStore)
+    storePassword releaseStorePass
+    keyAlias releaseAlias
+    keyPassword releaseKeyPass
+   }
+  }
+ }
+ buildTypes {
+  release {
+   if(releaseStore && releaseAlias && releaseStorePass && releaseKeyPass)
+    signingConfig signingConfigs.production
+  }
+  // Safe side-by-side X5M installer test. Never replaces com.smarthub.plus;
+  // CI ephemeral Debug signing cannot update an app signed by an older run.
+  // The 4.0.4 test has a fresh package suffix to avoid signature conflicts.
+  x5mPreview {
+   initWith debug
+   applicationIdSuffix '.x5m402'
+   versionNameSuffix '-x5m402-preview'
+   matchingFallbacks = ['debug']
+  }
+  rx6OriginalPreview {
+   initWith debug
+   applicationIdSuffix '.rx6original'
+   versionNameSuffix '-rx6-original-only'
+   matchingFallbacks = ['debug']
+  }
+  native422Preview {
+   initWith debug
+   applicationIdSuffix '.x5m404jni'
+   versionNameSuffix '-x5m404jni-resigned-test'
+   matchingFallbacks = ['debug']
+  }
+ }
+ // This Draft build targets the reported 32-bit Android TV / ARMv7-A ROM.
+ // Keep the arm64-v8a dual-ABI application on PR #39 unchanged.
+ defaultConfig { ndk { abiFilters 'armeabi-v7a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 49; versionName '4.0.4-rx6'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
+ kotlinOptions { jvmTarget = '11' }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
+ testOptions { unitTests.returnDefaultValues=true }
+ // Direct FFmpeg JNI is separate from default builds until the X5M real
+ // hardware acceptance checks pass. The path must point to a PGP-verified
+ // native Android FFmpeg build, NEVER a host or 64-bit .so.
+ if(project.hasProperty('native422FfmpegRoot')) {
+  externalNativeBuild {
+   cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' }
+  }
+  defaultConfig {
+   externalNativeBuild {
+    cmake {
+     arguments "-DNATIVE422_FFMPEG_ROOT=${project.property('native422FfmpegRoot')}",
+       "-DANDROID_STL=c++_shared"
+    }
+   }
+  }
+ }
+}
+dependencies {
+ implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+ implementation 'androidx.core:core:1.15.0'
+ implementation 'androidx.work:work-runtime:2.10.1'
+ implementation 'androidx.media3:media3-exoplayer:1.5.1'
+ implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
+ implementation 'androidx.media3:media3-exoplayer-dash:1.5.1'
+ implementation 'androidx.media3:media3-ui:1.5.1'
+ implementation 'org.videolan.android:libvlc-all:3.7.0'
+ // X5M compatibility trial: upstream libmpv Android 1.0.0 is the
+ // stable pre-MakD-Vulkan AAR. Same dev.jdtech.mpv.MPVLib API, but fewer
+ // new native/Vulkan dependencies for older TV ROMs. Do not ship both AARs.
+ implementation 'dev.jdtech.mpv:libmpv:1.0.0'
+ implementation 'com.caverock:androidsvg-aar:1.4'
+ implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+ implementation 'com.google.mlkit:translate:17.0.3'
+ implementation 'com.google.mlkit:language-id:17.0.6'
+ implementation 'cz.adaptech.tesseract4android:tesseract4android:4.9.0'
+ testImplementation 'junit:junit:4.13.2'
+ testImplementation 'org.json:json:20240303'
+}
+
+// AGP mergeNativeLibs chooses duplicate libc++_shared.so via pickFirst,
+// silently selecting an old dependency. Replace ONLY the merged libc++
+// with the pinned modern Android NDK runtime BEFORE strip/package for
+// both Debug/Release, leaving MPV/VLC and the OEM/DVB libs untouched.
+tasks.matching { it.name in ['mergeDebugNativeLibs','mergeReleaseNativeLibs','mergeX5mPreviewNativeLibs','mergeNative422PreviewNativeLibs','mergeRx6OriginalPreviewNativeLibs'] }
+ .configureEach { mergeTask ->
+  mergeTask.doLast {
+   def home=System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT') ?: android.sdkDirectory.absolutePath
+   def toolchains=new File(home,'ndk/29.0.14206865/toolchains/llvm/prebuilt')
+   def hosts=toolchains.listFiles()?.findAll { new File(it,'sysroot/usr/lib').isDirectory() }
+   if(!hosts)throw new GradleException("Pinned NDK r29 libc++ not installed: "+toolchains)
+   def sysroot=new File(hosts.first(),'sysroot/usr/lib')
+   def architectures=['armeabi-v7a':'arm-linux-androideabi']
+   architectures.each { abi,triple ->
+    def modern=new File(sysroot,triple+'/libc++_shared.so')
+    if(!modern.isFile())throw new GradleException("Pinned libc++ missing "+modern)
+    def targets=[]
+    mergeTask.outputs.files.files.findAll {it.isDirectory()}.each { out ->
+     [new File(out,'lib/'+abi+'/libc++_shared.so'),
+      new File(out,abi+'/libc++_shared.so')].each { candidate ->
+      if(candidate.isFile())targets.add(candidate)
+     }
+    }
+    if(targets.size()!=1)
+     throw new GradleException("Expected exactly one merged "+abi+" libc++; found "+targets)
+    java.nio.file.Files.copy(modern.toPath(),targets[0].toPath(),
+      java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    logger.lifecycle("IRAQhub "+abi+": replaced AAR pickFirst libc++ with pinned NDK r29 ("+modern.length()+" bytes)")
+   }
+  }
+ }

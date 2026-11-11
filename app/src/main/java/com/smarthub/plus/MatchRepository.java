@@ -1,0 +1,73 @@
+package com.smarthub.plus;
+import android.content.*;import org.json.*;import java.io.*;import java.nio.charset.StandardCharsets;import java.time.*;import java.util.*;import java.util.concurrent.*;
+/** One updater shared by Sports Center, ticker and EPG matching. Per-league failures do not erase results. */
+final class MatchRepository {
+ interface Listener{void update(List<SportsMatch> matches,String status);}
+ private static MatchRepository instance;static synchronized MatchRepository get(Context c){if(instance==null)instance=new MatchRepository(c.getApplicationContext());return instance;}
+ private final Context context;private final TheSportsDBProvider primary;private final OpenLeagueSportsProvider fallback;private final ExecutorService network=Executors.newSingleThreadExecutor();private final List<Listener> listeners=new CopyOnWriteArrayList<>();private final LinkedHashMap<String,SportsMatch> rows=new LinkedHashMap<>();private final Map<String,Long> attempts=new HashMap<>();private volatile boolean busy;private String status="No update yet";
+ private MatchRepository(Context c){context=c;primary=new TheSportsDBProvider(c);fallback=new OpenLeagueSportsProvider(c);load();}
+ void listen(Listener l){listeners.add(l);l.update(snapshot(),status);}void unlisten(Listener l){listeners.remove(l);}
+ synchronized List<SportsMatch> snapshot(){List<SportsMatch> out=new ArrayList<>(rows.values());out.sort(Comparator.comparingLong(m->m.kickoff));return out;}
+ void refresh(LocalDate day,String window,boolean manual){if(busy)return;busy=true;network.execute(()->{try{int count=0;for(LeagueRepository.League league:LeagueRepository.ALL){if(PlaybackResourceMode.active()||context.getSharedPreferences("smarthub",0).getBoolean("software_dvb_422_active",false)||context.getSharedPreferences("smarthub",0).getBoolean("dvb_tuning",false)||!context.getSharedPreferences("smarthub",0).getString("iraqhub_pvr_session","").isEmpty()){publish("DEFERRED_VIDEO_PRIORITY");break;}if(!selected(league)||league.id.isEmpty())continue;String key=league.id+"|"+day+"|"+window;long now=System.currentTimeMillis();synchronized(attempts){if(!manual&&now-attempts.getOrDefault(key,0L)<(hasLive(league.id)?120000:900000))continue;attempts.put(key,now);}publish("Updating "+league.name+" · "+(++count));List<SportsMatch> result=new ArrayList<>();String error="";try{result.addAll(primary.matches(league,day,window));}catch(Exception e){error=e.getMessage();}try{List<SportsMatch> community=fallback.matches(league,day,window);for(SportsMatch item:community){boolean duplicate=false;for(SportsMatch previous:result)if(sameEvent(previous,item)){duplicate=true;break;}if(!duplicate)result.add(item);}}catch(Exception unavailable){}synchronized(this){for(SportsMatch m:result)rows.put(m.id,m);long cutoff=now-31*86400000L;rows.values().removeIf(m->m.kickoff>0&&m.kickoff<cutoff);}context.getSharedPreferences("smarthub",0).edit().putString("sports_coverage:"+league.id,result.size()+" returned · TheSportsDB free limits; OpenLigaDB when available"+(error.isEmpty()?"":" · "+error)).apply();save();publish(league.name+" · "+result.size()+" source events · "+(error.isEmpty()?"updated":"primary unavailable"));}publish("Update finished · Baghdad time · free coverage limited; no guaranteed live feed");
+ context.getSharedPreferences("smarthub",0).edit()
+   .putLong("epg_art_changed_at",System.currentTimeMillis()).apply();
+ // The poster worker may have run before an asynchronous fixture refresh finished.
+ // Prefetch after new events arrive so the Infobar can use verified local artwork.
+ if(!context.getSharedPreferences("smarthub",0).getBoolean("software_dvb_422_active",false)
+    &&!context.getSharedPreferences("smarthub",0).getBoolean("dvb_tuning",false))
+  try{SportsPosterPrefetch.prefetch(context);}
+  catch(Exception unavailable){}
+ }finally{busy=false;}});}
+ boolean selected(LeagueRepository.League l){return context.getSharedPreferences("smarthub",0).getBoolean("sports_league:"+l.name,true);}
+ private synchronized boolean hasLive(String id){for(SportsMatch m:rows.values())if(m.leagueId.equals(id)&&m.live()&&!m.cached)return true;return false;}
+ private void publish(String message){status=message;List<SportsMatch> snapshot=snapshot();for(Listener l:listeners)l.update(snapshot,message);}
+ private static boolean sameTeam(String a,String shortA,String b,String shortB){for(String left:new String[]{a,shortA})for(String right:new String[]{b,shortB})if(!left.isEmpty()&&!right.isEmpty()&&tokens(left).equals(tokens(right)))return true;return false;}
+ private static boolean sameEvent(SportsMatch a,SportsMatch b){return sameTeam(a.home,a.homeShort,b.home,b.homeShort)&&sameTeam(a.away,a.awayShort,b.away,b.awayShort)&&Math.abs(a.kickoff-b.kickoff)<3600000;}
+ synchronized SportsMatch find(String id){return rows.get(id);}
+ synchronized SportsMatch forProgramme(SatelliteState state){
+  if(state==null)return null;
+  return selectForProgramme(rows.values(),state.title,state.startMs,state.endMs,
+    System.currentTimeMillis());
+ }
+ /** An EPG fixture may arrive twice (TheSportsDB and OpenLigaDB).
+  * Prefer the event with artwork without conflating separate fixtures. */
+ static SportsMatch selectForProgramme(Iterable<SportsMatch> available,String title,
+     long start,long end,long now){
+  if(available==null||title==null||title.trim().isEmpty()||
+     start<=0||end<=now)return null;
+  SportsMatch found=null;
+  for(SportsMatch m:available){
+   if(m==null||m.kickoff<=0||Math.abs(m.kickoff-start)>3*3600000L||
+      !(programmeMatches(title,m.home,m.away)||
+        programmeMatches(title,m.homeShort,m.awayShort)))continue;
+   if(found==null){found=m;continue;}
+   boolean duplicate=Math.abs(found.kickoff-m.kickoff)<3600000L&&
+     (sameEvent(found,m)||
+      (programmeMatches(title,found.home,found.away)&&
+       programmeMatches(title,m.home,m.away)));
+   if(!duplicate)return null;
+   if(artworkScore(m)>artworkScore(found))found=m;
+  }
+  return found;
+ }
+ private static int artworkScore(SportsMatch m){
+  return (m.image==null||m.image.isEmpty()?0:8)+
+    (m.homeLogo==null||m.homeLogo.isEmpty()?0:2)+
+    (m.awayLogo==null||m.awayLogo.isEmpty()?0:2)+
+    (m.id!=null&&m.id.startsWith("tsdb:")?1:0);
+ }
+ private static String tokens(String value){
+  String normalized=PlaylistRepository.normalize(value)
+    .replaceAll("[^\\p{L}\\p{N}]+"," ").trim();
+  // Common EPG abbreviations only; both teams must still match.
+  return normalized.replaceAll("\\bman\\b","manchester")
+    .replaceAll("\\butd\\b","united")
+    .replaceAll("\\bbarca\\b","barcelona")
+    .replaceAll("\\b(fc|afc|cf)\\b"," ")
+    .replaceAll("\\s+"," ").trim();
+ }
+ static boolean programmeMatches(String programme,String home,String away){String p=" "+tokens(programme)+" ",h=tokens(home),a=tokens(away);return h.length()>=4&&a.length()>=4&&p.contains(" "+h+" ")&&p.contains(" "+a+" ");}
+ private File file(){return new File(context.getFilesDir(),"sports_matches.json");}
+ private synchronized void load(){try(InputStream in=new FileInputStream(file())){JSONArray a=new JSONArray(PlaylistRepository.readBounded(in));for(int i=0;i<Math.min(a.length(),3000);i++){SportsMatch m=SportsMatch.from(a.getJSONObject(i));m.cached=true;rows.put(m.id,m);}status="Saved results · online update pending";}catch(Exception ignored){}}
+ private synchronized void save(){try{JSONArray a=new JSONArray();for(SportsMatch m:rows.values())a.put(m.json());android.util.AtomicFile f=new android.util.AtomicFile(file());FileOutputStream out=f.startWrite();try{out.write(a.toString().getBytes(StandardCharsets.UTF_8));f.finishWrite(out);}catch(Exception e){f.failWrite(out);}}catch(Exception ignored){}}
+}

@@ -1,0 +1,25 @@
+package com.smarthub.plus;
+import android.content.*;import android.view.accessibility.AccessibilityNodeInfo;import java.util.*;import java.util.regex.*;
+/** Published receiver INFO text only; no inference from channel name or playback success. */
+final class BroadcastBadges {
+ static String resolution(String text){Matcher m=Pattern.compile("(?i)(?<![0-9])([0-9]{3,4})\\s*[x×]\\s*([0-9]{3,4})(?![0-9])").matcher(text);if(!m.find())return "";int w=Integer.parseInt(m.group(1)),h=Integer.parseInt(m.group(2));if(w<320||w>7680||h<240||h>4320)return "";String tier=h>=2160?"4K":h>=1080?"Full HD":h>=720?"HD":"SD";Matcher fps=Pattern.compile("(?i)([0-9]{1,3}(?:\\.[0-9]+)?)\\s*FPS").matcher(text);return tier+" · "+w+"×"+h+(fps.find()?" · "+fps.group(1)+" fps":"");}
+ static String encryption(String text){String s=text.toLowerCase(Locale.ROOT);if(Pattern.compile("(?i)\\b(?:fta|free.to.air|unencrypted|not encrypted)\\b|غير مشفر|غير مشفرة|مفتوحة").matcher(s).find())return "FTA";if(Pattern.compile("(?i)\\b(?:encrypted|scrambled)\\b|قناة مشفرة|القناة مشفرة").matcher(s).find())return "ENCRYPTED";return "";}
+ static String provider(String text){Matcher m=Pattern.compile("(?im)(?:^|[|\\n])\\s*(?:service provider|provider|مزود الخدمة|مزود)\\s*[:：]\\s*([^|\\n]{1,100})").matcher(text);return m.find()?m.group(1).trim():"";}
+ static String visible(AccessibilityNodeInfo n,int depth,int[] count){if(depth>24||count[0]++>600||!n.isVisibleToUser()||n.isEditable()||n.isPassword())return "";String id=n.getViewIdResourceName();if(id!=null&&(id.endsWith(":id/mtv_info_current_epg")||id.endsWith(":id/mtv_info_next_epg")||id.toLowerCase(Locale.ROOT).contains("description")))return "";StringBuilder s=new StringBuilder();if(n.getText()!=null)s.append(n.getText()).append('\n');if(n.getContentDescription()!=null)s.append(n.getContentDescription()).append('\n');for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo child=n.getChild(i);if(child!=null)try{s.append(visible(child,depth+1,count));}finally{child.recycle();}}return s.toString();}
+ static void observe(Context c,AccessibilityNodeInfo root,SatelliteState state){if(state==null||state.channelId.isEmpty())return;String text=visible(root,0,new int[]{0});String res=resolution(text),enc="",provider=provider(text);for(String line:text.split("\n")){String v=line.trim();if(v.matches("(?iu)(?:FTA|Free[- ]to[- ]air|Unencrypted|Not encrypted|Encrypted|Scrambled|غير مشفر|غير مشفرة|مفتوحة|قناة مشفرة|القناة مشفرة|(?:Encryption|التشفير)\\s*[:：].*)")){String found=encryption(v);if(!found.isEmpty())enc=found;}}SharedPreferences.Editor e=c.getSharedPreferences("smarthub",0).edit();String key=CHMAXIntegration.identity(state);if(!res.isEmpty())e.putString("broadcast_resolution:"+key,res).putLong("broadcast_resolution_seen:"+key,System.currentTimeMillis());if(!enc.isEmpty())e.putString("broadcast_encryption:"+key,enc).putLong("broadcast_encryption_seen:"+key,System.currentTimeMillis());if(!provider.isEmpty())e.putString("native_provider:"+key,provider);
+  // Only the visible OEM CA-type field is observed, and only for this channel.
+  String publishedType="";
+  java.util.List<AccessibilityNodeInfo> types=root.findAccessibilityNodeInfosByViewId(
+       SatelliteUiParser.DEFAULT_PACKAGE+":id/tv_encryption_type");
+  for(AccessibilityNodeInfo n:types){
+   try{if(n.isVisibleToUser()){
+    String candidate=ReceiverTechnicalBadges.publishedCa(n.getText()==null?"":n.getText().toString());
+    if(!candidate.isEmpty())publishedType=candidate;
+   }}finally{n.recycle();}
+  }
+  if(!publishedType.isEmpty())
+   e.putString("native_ca_type:"+key,publishedType)
+    .putLong("native_ca_type_seen:"+key,System.currentTimeMillis());
+  e.putLong("broadcast_seen:"+key,System.currentTimeMillis()).apply();}
+ static String label(Context c,SatelliteState state){SharedPreferences p=c.getSharedPreferences("smarthub",0);boolean ar=p.getBoolean("arabic",true);String key=CHMAXIntegration.identity(state),r=p.getString("broadcast_resolution:"+key,""),e=p.getString("broadcast_encryption:"+key,"");boolean fresh=System.currentTimeMillis()-p.getLong("broadcast_seen:"+key,0)<120000;if(!fresh||System.currentTimeMillis()-p.getLong("broadcast_resolution_seen:"+key,0)>120000)r="";if(!fresh||System.currentTimeMillis()-p.getLong("broadcast_encryption_seen:"+key,0)>120000)e="";String provider=CHMAXIntegration.provider(c,state);return (provider.isEmpty()?(ar?"المزود غير متاح":"Provider unavailable"):(ar?"المزود: ":"Provider: ")+provider)+"   |   "+(r.isEmpty()?(ar?"الدقة غير متاحة":"Resolution unavailable"):r)+"   |   "+(e.equals("FTA")?(ar?"مفتوحة · FTA":"Free-to-air · FTA"):e.equals("ENCRYPTED")?(ar?"مشفّرة":"Encrypted"):(ar?"التشفير غير متاح":"Encryption unavailable"));}
+}

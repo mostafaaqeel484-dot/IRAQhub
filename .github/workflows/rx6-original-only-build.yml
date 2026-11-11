@@ -1,0 +1,54 @@
+name: RX6 Original Source Only - Android 14 X5M
+on:
+  push:
+    branches: [ 'feature/rx6-original-source-only-*' ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Install pinned source dependencies
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865'
+      - name: Confirm ORIGINAL RX assets are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/src/main/assets/rx239/walls/horizontal-dark-v230.png
+          test -s app/src/main/assets/rx239/walls/horizontal-light-v230.png
+          test -s app/src/main/assets/rx239/cards/live-tv-neutral.png
+          test -s app/src/main/assets/receiver-logos/index.json
+          test -s app/src/main/assets/logo-resolver/mapping.json
+      - name: Verify all original assets byte for byte
+        run: sha256sum -c RX6_ORIGINAL_ASSETS.sha256
+      - name: Test only uploaded ORIGINAL source
+        run: gradle :app:testDebugUnitTest --no-daemon
+      - name: Build independent package from uploaded source
+        run: gradle :app:assembleRx6OriginalPreview --no-daemon
+      - name: Check output ABI, package ID and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/rx6OriginalPreview/app-rx6OriginalPreview.apk
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          test -s "$APK"
+          "$BT/apksigner" verify --min-sdk-version 34 "$APK"
+          "$BT/zipalign" -c 4 "$APK"
+          "$BT/aapt" dump badging "$APK" | grep -F "package: name='com.smarthub.plus.rx6original'"
+          "$BT/aapt" dump badging "$APK" | grep -F "native-code: 'armeabi-v7a'"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IRAQhub_RX6_Original_Source_Only_APK
+          path: app/build/outputs/apk/rx6OriginalPreview/*.apk
+          if-no-files-found: error

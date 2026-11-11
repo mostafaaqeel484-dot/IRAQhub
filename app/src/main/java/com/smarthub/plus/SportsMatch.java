@@ -1,0 +1,13 @@
+package com.smarthub.plus;
+import org.json.*;import java.time.*;import java.time.format.DateTimeFormatter;import java.util.*;
+final class SportsMatch {
+ String homeShort="",awayShort="",timeline="",id="",leagueId="",league="",homeId="",awayId="",home="",away="",homeLogo="",awayLogo="",leagueLogo="",image="",homeScore="",awayScore="",status="UNKNOWN",minute="",venue="",source="",description="";long kickoff,updatedAt;boolean cached;
+ boolean live(){return Arrays.asList("1H","2H","HT","ET","BT","P","LIVE","IN PLAY").contains(status.toUpperCase(Locale.ROOT));}
+ boolean finished(){return Arrays.asList("FT","AET","PEN","FINISHED","MATCH FINISHED").contains(status.toUpperCase(Locale.ROOT));}
+ String score(){return (homeScore.isEmpty()?"—":homeScore)+" : "+(awayScore.isEmpty()?"—":awayScore);}
+ String time(){return kickoff>0?DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(ZoneId.of("Asia/Baghdad")).format(Instant.ofEpochMilli(kickoff)):"Time unavailable";}
+ String state(){if((cached||System.currentTimeMillis()-updatedAt>150000)&&live())return "Saved score · live status unconfirmed";String s=status.toUpperCase(Locale.ROOT);if(s.equals("NS"))return kickoff>0&&kickoff<System.currentTimeMillis()-15*60000L?"Source status not updated (NS)":"Upcoming";if(s.equals("1H"))return "First Half";if(s.equals("HT"))return "Half Time";if(s.equals("2H"))return "Second Half";if(s.equals("ET"))return "Extra Time";if(s.equals("P"))return "Penalties";if(finished())return "Finished";if(s.equals("PST")||s.equals("POSTPONED"))return "Postponed";if(s.equals("CANC")||s.equals("CANCELLED"))return "Cancelled";return s.equals("UNKNOWN")?"Status unavailable":status;}
+ JSONObject json()throws Exception{JSONObject j=new JSONObject();for(java.lang.reflect.Field f:SportsMatch.class.getDeclaredFields()){if(java.lang.reflect.Modifier.isStatic(f.getModifiers()))continue;f.setAccessible(true);j.put(f.getName(),f.get(this));}return j;}
+ static SportsMatch from(JSONObject j){SportsMatch m=new SportsMatch();for(java.lang.reflect.Field f:SportsMatch.class.getDeclaredFields())try{if(java.lang.reflect.Modifier.isStatic(f.getModifiers()))continue;f.setAccessible(true);if(f.getType()==String.class)f.set(m,j.optString(f.getName(),""));else if(f.getType()==long.class)f.setLong(m,j.optLong(f.getName()));else if(f.getType()==boolean.class)f.setBoolean(m,j.optBoolean(f.getName()));}catch(Exception ignored){}return m;}
+ static long utc(String value){try{if(value.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"))value+="Z";return Instant.parse(value).toEpochMilli();}catch(Exception e){return 0;}}
+}

@@ -1,0 +1,37 @@
+package com.smarthub.plus;
+import android.content.*;import android.os.Bundle;import android.widget.*;import java.util.*;import java.util.concurrent.*;
+
+/** Real app-owned LNB profiles. Saving does not move the dish or tune the receiver. */
+public final class TunerSettingsActivity extends HubActivity {
+ private final ExecutorService io=Executors.newSingleThreadExecutor();private List<ReceiverCatalog.Sat> satellites=Collections.emptyList();private Spinner satellite,power,tone,port10,port11;private EditText low,high;private TextView status;private boolean closed;
+ @Override public void onCreate(Bundle saved){super.onCreate(saved);LinearLayout body=page(tx("ضبط الموالف وLNB","Tuner and LNB profiles"));note(body,tx("إعدادات IRAQhub مستقلة. تُطبّق عند تشغيل قناة من القمر المحدد. يمكن ضبط USALS من مركز الموتور داخل IRAQhub. يظل Unicable غير منفذ بصورة مستقلة.","IRAQhub applies these independent settings when playing a channel on the selected satellite. USALS can be configured in the IRAQhub motor centre. Unicable still lacks an independent implementation."));action(body,tx("مركز الموتور وUSALS داخل IRAQhub","IRAQhub motor and USALS centre"),
+  ()->startActivity(new Intent(this,MotorCenterActivity.class)));action(body,tx("تطبيق Universal 9750/10600 لجميع أقمار Ku","Use Universal 9750/10600 on all Ku satellites"),this::bulkUniversal);satellite=spinner(body,tx("القمر الصناعي","Satellite"),new String[]{tx("قراءة الأقمار…","Loading satellites…")});low=field(body,tx("تردد LNB المنخفض MHz","LNB low frequency MHz"),"9750");high=field(body,tx("تردد LNB المرتفع MHz","LNB high frequency MHz"),"10600");low.setInputType(2);high.setInputType(2);power=spinner(body,tx("طاقة LNB","LNB power"),new String[]{"13V / 18V","13V","18V","14V / 19V","14V","19V",tx("إيقاف","Off")});tone=spinner(body,"22 kHz",new String[]{tx("إيقاف","Off"),tx("تشغيل","On"),tx("تلقائي","Auto")});tone.setSelection(2);port10=spinner(body,"DiSEqC 1.0",new String[]{tx("بدون تبديل","No switch command"),"LNB 1 / A","LNB 2 / B","LNB 3 / C","LNB 4 / D","ToneBurst A","ToneBurst B"});String[] ports=new String[17];ports[0]=tx("بدون تبديل","No switch command");for(int n=1;n<ports.length;n++)ports[n]="LNB "+n;port11=spinner(body,"DiSEqC 1.1",ports);status=text("",14,false);body.addView(status);action(body,tx("حفظ إعداد القمر","Save satellite profile"),()->{if(satellites.isEmpty())return;try{LnbProfile profile=new LnbProfile(Integer.parseInt(low.getText().toString()),Integer.parseInt(high.getText().toString()),power.getSelectedItemPosition(),tone.getSelectedItemPosition(),port10.getSelectedItemPosition(),port11.getSelectedItemPosition());ReceiverCatalog.Sat sat=satellites.get(satellite.getSelectedItemPosition());prefs().edit().putString(LnbProfile.key(sat.angle,sat.band),profile.json()).apply();status.setText(tx("حُفظ الضبط داخل IRAQhub؛ سيُستخدم عند تشغيل القناة.","Saved in IRAQhub; applies when you play a channel."));}catch(Exception invalid){toast(tx("تحقق من ترددات LNB والاختيارات","Check the LNB frequencies and options"));}});satellite.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,android.view.View v,int index,long id){load(index);}});io.execute(()->{ReceiverCatalog db=ReceiverCatalog.get(this);db.ensure();List<ReceiverCatalog.Sat> found=db.satellites();runOnUiThread(()->{if(closed)return;satellites=found;String[] labels=new String[found.size()];int selected=0;long requested=getIntent().getLongExtra("satellite",-1);if(requested<0){ReceiverCatalog.Channel current=db.channel(prefs().getLong("own_dvb_channel",-1));if(current!=null)requested=current.satId;}for(int n=0;n<labels.length;n++){labels[n]=found.get(n).label();if(found.get(n).id==requested)selected=n;}satellite.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,labels));satellite.setSelection(selected);load(selected);});});}
+ private Spinner spinner(LinearLayout parent,String title,String[] choices){parent.addView(text(title,16,true));Spinner spinner=new Spinner(this);spinner.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,choices));parent.addView(spinner,new LinearLayout.LayoutParams(-1,dp(48)));return spinner;}
+ private void load(int index){if(index<0||index>=satellites.size())return;ReceiverCatalog.Sat sat=satellites.get(index);String raw=prefs().getString(LnbProfile.key(sat.angle,sat.band),"");try{LnbProfile profile=raw.isEmpty()?LnbProfile.standard(sat.band):LnbProfile.parse(raw);low.setText(Integer.toString(profile.low));high.setText(Integer.toString(profile.high));power.setSelection(profile.power);tone.setSelection(profile.tone);port10.setSelection(profile.port10);port11.setSelection(profile.port11);status.setText(raw.isEmpty()?tx("لم يُحفظ إعداد لهذا القمر بعد.","No profile saved for this satellite."):tx("إعداد محفوظ في IRAQhub","Saved IRAQhub profile"));}catch(Exception invalid){status.setText(tx("الإعداد المحفوظ غير صالح؛ أدخله مجدداً.","Saved profile is invalid; enter it again."));}}
+
+ private void bulkUniversal(){
+  new android.app.AlertDialog.Builder(this)
+   .setTitle(tx("إعداد Universal لأقمار Ku","Universal Ku LNB settings"))
+   .setMessage(tx("سأضبط التردد المنخفض 9750 والمرتفع 10600 لكل أقمار Ku، وأحافظ على إعدادات DiSEqC والموتور. أقمار C تبقى على إعداداتها.",
+     "Set 9750/10600 for all Ku satellites while preserving DiSEqC and motor. C-band remains unchanged."))
+   .setPositiveButton(tx("تطبيق","Apply"),(dialog,which)->io.execute(()->{
+    int updated=0,failed=0;
+    for(ReceiverCatalog.Sat sat:satellites){
+     if(!"KU".equalsIgnoreCase(sat.band))continue;
+     try{
+      LnbProfile before=LnbProfile.forSatellite(this,sat.angle,sat.band);
+      LnbProfile universal=new LnbProfile(9750,10600,before.power,2,before.port10,before.port11);
+      prefs().edit().putString(LnbProfile.key(sat.angle,sat.band),universal.json()).apply();
+      updated++;
+     }catch(Exception ignored){failed++;}
+    }
+    int changed=updated,errors=failed;
+    runOnUiThread(()->{if(!closed){
+      load(satellite.getSelectedItemPosition());
+      status.setText(tx("تم ضبط أقمار Ku: ","Configured Ku satellites: ")+changed+
+       (errors==0?"":tx(" · أخطاء: "," · errors: ")+errors));
+    }});
+   })).setNegativeButton(tx("إلغاء","Cancel"),null).show();
+ }
+ @Override protected void onDestroy(){closed=true;io.shutdownNow();super.onDestroy();}
+}

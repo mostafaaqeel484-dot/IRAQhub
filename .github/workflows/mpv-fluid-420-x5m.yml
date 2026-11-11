@@ -1,0 +1,170 @@
+name: IRAQhub X5M 422 Fluid 420 720p & GLES Motion
+
+on:
+  push:
+    branches: [ 'feature/iraqhub-400-mpv-fluid-420-720-20261107' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mpv-fluid-420-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Upstream dev.jdtech.mpv:libmpv:1.0.0 publishes classfile major 65
+          # (Java 21); Java 17 javac rejects MPVLib before Android dexing.
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Unit tests, including Commons attribution
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Compile and assemble Debug
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Verify MPV class and native libraries in the ACTUAL APK
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          name="app/build/outputs/apk/debug/app-debug.apk"
+          with zipfile.ZipFile(name) as apk:
+              names=set(apk.namelist())
+              for abi in ("arm64-v8a","armeabi-v7a"):
+                  for lib in ("libmpv.so","libplayer.so"):
+                      path=f"lib/{abi}/{lib}"
+                      print(path, "PRESENT" if path in names else "MISSING")
+                      assert path in names, f"Missing {path}"
+              dex=[n for n in names if n.startswith("classes") and n.endswith(".dex")]
+              assert dex,"No app DEX"
+              # Search actual DEX class_defs, NOT constant pool references:
+              # a Java caller may reference MPVLib without the AAR class
+              # being packaged, causing exactly NoClassDefFoundError.
+              from struct import unpack_from
+              def has_class(data, descriptor):
+                  if data[:4]!=bytes((100,101,120,10)): return False
+                  u32=lambda off:unpack_from("<I",data,off)[0]
+                  strings_off=u32(0x3c)
+                  types_off=u32(0x44)
+                  classes_count=u32(0x60)
+                  classes_off=u32(0x64)
+                  for i in range(classes_count):
+                      class_idx=u32(classes_off+32*i)
+                      name_idx=u32(types_off+4*class_idx)
+                      pointer=u32(strings_off+4*name_idx)
+                      # Skip string_data_item UTF16 length, encoded ULEB128.
+                      for k in range(5):
+                          b=data[pointer]
+                          pointer+=1
+                          if b<128:break
+                      stop=data.index(0,pointer)
+                      if data[pointer:stop].decode("utf8","replace")==descriptor:
+                          return True
+                  return False
+              found=any(has_class(apk.read(n),
+                     "Ldev/jdtech/mpv/MPVLib;") for n in dex)
+              print("MPVLib class-definition packaged:",found,"DEX files",len(dex))
+              assert found, "MPVLib actual class_def absent from installable APK"
+          PY
+      - name: Verify actual 32/64-bit MPV dynamic C++ symbol contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ndk="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64"
+          test -x "$ndk/bin/llvm-nm"
+          python3 - <<'PY'
+          import zipfile,os,pathlib,hashlib
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          out=pathlib.Path("build/cxx-audit")
+          out.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile(apk) as package:
+            for abi in ("armeabi-v7a","arm64-v8a"):
+              for lib in ("libmpv.so","libc++_shared.so","libplayer.so"):
+                key=f"lib/{abi}/{lib}"
+                assert key in package.namelist(),f"Missing {key}"
+                data=package.read(key)
+                loc=out/abi/lib
+                loc.parent.mkdir(parents=True,exist_ok=True)
+                loc.write_bytes(data)
+                assert data[:4]==bytes((127,69,76,70)),f"Invalid ELF in {key}"
+                print(key,len(data),hashlib.sha256(data).hexdigest())
+          PY
+          python3 - <<'PY'
+          import pathlib, subprocess, os
+          bin_dir=pathlib.Path(os.environ['ANDROID_HOME']) / 'ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin'
+          nm=str(bin_dir/'llvm-nm')
+          elf=str(bin_dir/'llvm-readelf')
+          def exported(path):
+              output=subprocess.check_output([nm,'-D','--defined-only',str(path)],text=True)
+              return {line.rsplit(' ',1)[-1].split('@')[0] for line in output.splitlines() if line.strip()}
+          def undefined(path):
+              output=subprocess.check_output([nm,'-D','--undefined-only',str(path)],text=True)
+              return {line.rsplit(' ',1)[-1].split('@')[0] for line in output.splitlines() if line.strip()}
+          for abi in ('armeabi-v7a','arm64-v8a'):
+              root=pathlib.Path('build/cxx-audit')/abi
+              runtime=root/'libc++_shared.so'
+              mpv=root/'libmpv.so'
+              player=root/'libplayer.so'
+              native_exports=exported(runtime)
+              print(abi, 'runtime exports:',len(native_exports),flush=True)
+              expected_prefix='_ZNSt6__ndk127__from_chars_floating_point'
+              assert any(x.startswith(expected_prefix) for x in native_exports),(
+                  f'{abi}: packaged libc++ lacks libc++20 floating from_chars')
+              assert '_ZNSt6__ndk18to_charsEPcS0_f' in native_exports,(
+                  f'{abi}: missing original to_chars(float) export')
+              for name in (mpv,player):
+                  imported=undefined(name)
+                  std={x for x in imported if x.startswith('_ZNSt6__ndk1')}
+                  missing=sorted(std-native_exports)
+                  print(f'{abi} {name.name}: imported {len(std)} std::__ndk1 symbols; unresolved {len(missing)}',flush=True)
+                  if missing:
+                      print('UNRESOLVED C++ ABI:','\n'.join(missing[:100]),flush=True)
+                  assert not missing, f'{abi} {name.name} has {len(missing)} absent C++ ABI symbols'
+              for name in (runtime,mpv,player):
+                  result=subprocess.check_output([elf,'-h',str(name)],text=True)
+                  klass='ELF32' if abi=='armeabi-v7a' else 'ELF64'
+                  assert klass in result, f'{abi} wrong ELF class for {name}'
+              print(f'{abi}: all C++ runtime ABI contracts verified',flush=True)
+          PY
+      - name: Verify Debug signature and alignment
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep '^package:'
+      # Releases use separate storage from Actions artifacts, which is full.
+      # The preview is PRIVATE DRAFT and signed only with CI's temporary Debug key.
+      - name: Publish unverified Debug preview to private draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=iraqhub-400-mpv-fluid-420-preview-20261107
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          mkdir -p dist
+          cp "$APK" dist/IRAQhub_4.0.0_X5M_MPV_Fluid_420_720_Debug.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "IRAQhub 4.0.0 · X5M Fluid 4:2:2 decoder to YUV420 720p/540p (Debug)" \
+              --notes "PRIVATE DRAFT TEST ONLY: Built from PR #35 X5M working native MPV. Adds independent-engine-only FFmpeg conversion from decoded 4:2:2 10bit to YUV420p8 720p/540p, light Android OpenGL ES renderer, user-selectable GPU-native comparison, auto once-only 720-to-540 on sustained MPV VO drops. H264 source is still fully decoded at original size; no guaranteed FPS improvement until X5M field test. CI validates JUnit, native MPV ABI, Debug signing. Unmerged and temporary Debug certificate."
+          fi
+          gh release upload "$TAG" \
+            dist/IRAQhub_4.0.0_X5M_MPV_Fluid_420_720_Debug.apk \
+            dist/SHA256SUMS.txt --clobber
+          gh release view "$TAG" --json isDraft,assets --jq '{draft:.isDraft,assets:[.assets[].name]}'
