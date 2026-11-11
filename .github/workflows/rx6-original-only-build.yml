@@ -65,6 +65,14 @@ jobs:
           "$BT/zipalign" -c 4 "$APK"
           "$BT/aapt" dump badging "$APK" | grep -F "package: name='com.smarthub.plus.rx6providers'"
           "$BT/aapt" dump badging "$APK" | grep -F "native-code: 'armeabi-v7a'"
+          python3 - <<'PY'
+          import json, zipfile
+          apk='app/build/outputs/apk/rx6OriginalPreview/app-rx6OriginalPreview.apk'
+          with zipfile.ZipFile(apk) as package:
+              data=json.loads(package.read('assets/provider-branding/catalog-v1.json'))
+          assert len(data['p'])==234 and len(data['c'])==1376
+          print('Packaged Android provider lookup verified at runtime asset path')
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: IRAQhub_RX6_Provider_Logos_Flags_APK
