@@ -26,6 +26,7 @@
    <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/><category android:name="android.intent.category.LEANBACK_LAUNCHER"/></intent-filter>
    <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.HOME"/><category android:name="android.intent.category.DEFAULT"/></intent-filter>
   </activity>
+  <activity android:name=".ManualEpgActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".ReceiverAvPanelActivity" android:theme="@style/ReceiverPanelTheme" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".IPAudioActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".TunerSettingsActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".SignalInformationActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".SoftwareVideoActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".Independent422Activity" android:exported="false"
     android:process=":decoder422" android:screenOrientation="landscape"

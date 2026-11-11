@@ -73,6 +73,20 @@ class LogoRepository private constructor(context:Context){
   state.channelName=name
   return CHMAXIntegration.provider(app,state).takeIf{it.isNotBlank()}?:fallback
  }
+ /** Persist every newly verified receiver logo under the same exact-DVB key
+  * used by channel-list rows and InfoBar. Revision changes replace old PNG. */
+ private fun persistLogo(key:String,bitmap:Bitmap){
+  val p=app.getSharedPreferences("smarthub",0)
+  val stamp=Math.max(p.getLong("native_logos_changed_at",0),
+    p.getLong("logo_mapping_changed_at",0))
+  val marker="logo_file_revision:"+ChannelLogoCache.digest(key)
+  try{
+   if(p.getLong(marker,-1)!=stamp){
+    cache.save(key,bitmap)
+    p.edit().putLong(marker,stamp).apply()
+   }else cache.remember(key,bitmap)
+  }catch(_:Exception){cache.remember(key,bitmap)}
+ }
  private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)=if(physical?.startsWith("DVB:")==true)"channel:physical:v2:$physical" else "channel:"+(e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name))
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
  /** Show RAM hits instantly. Disk decode and verified receiver branding run
@@ -91,9 +105,9 @@ class LogoRepository private constructor(context:Context){
   if(cached!=null&&providerCached!=null)return
   scope.launch{
    val image=slots.withPermit{
-    observed(name,physical)?.also{cache.remember(key,it)}
-      ?:FactoryProvider.cachedLogo(app,name,physical?:"")
-      ?:ReceiverLogoAssets.load(app,name,physical)?.also{cache.remember(key,it)}
+    observed(name,physical)?.also{persistLogo(key,it)}
+      ?:FactoryProvider.cachedLogo(app,name,physical?:"")?.also{persistLogo(key,it)}
+      ?:ReceiverLogoAssets.load(app,name,physical)?.also{persistLogo(key,it)}
       ?:cache.read(key)
       ?:if(physical?.startsWith("DVB:")==true)null else ReceiverLogoAssets.identity(app,name,physical)
    }
@@ -131,7 +145,7 @@ class LogoRepository private constructor(context:Context){
    db.load();addon.load()
    val entry=db.channel(name)
    val image=async{
-    observed(name,physical)?.let{cache.remember(key,it);return@async it}
+    observed(name,physical)?.let{persistLogo(key,it);return@async it}
     val factoryEnabled=physical!=null&&physical.isNotBlank()&&
        app.getSharedPreferences("smarthub",0).getBoolean("osd_chmax_logos",true)&&
        app.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true)
@@ -139,7 +153,7 @@ class LogoRepository private constructor(context:Context){
     val exact=if(physical?.startsWith("DVB:")==true&&addon.enabled()&&addon.supportedSession())
       get("chmax:"+physical){addon.resolvePhysical(physical,channels)} else null
     val bound=exact?:factoryCached?:slots.withPermit{ReceiverLogoAssets.load(app,name,physical)}
-    if(bound!=null){cache.remember(key,bound);return@async bound}
+    if(bound!=null){persistLogo(key,bound);return@async bound}
     get(channelKey(name,entry,physical)){
      val published=ReceiverLogoAssets.remoteUrl(app,name,physical)
      val publishedImage=if(published.isEmpty())null else try{channels.download(published)}catch(_:Exception){null}

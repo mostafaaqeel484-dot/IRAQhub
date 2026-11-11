@@ -48,41 +48,49 @@ final class ReceiverInfoRepository {
     SatelliteState current(){return enrich(SatelliteState.read(context));}
     SatelliteState enrich(SatelliteState observed){
         SatelliteState s=observed.copy();long now=System.currentTimeMillis();
-        // Factory-first only when a verified, channel-bound EPG Pro event is
-        // still current. Never use another channel's remembered EPG.
-        if(context.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true)){
-            FactoryProvider.applyPrepared(context,s,false);
-            FactoryProvider.applyPrepared(context,s,true);
+        boolean oldExternal=s.source!=null&&(s.source.startsWith("Online EPG")||
+          s.source.startsWith("XMLTV")||s.source.startsWith("Manual EPG"));
+        if(oldExternal){
+            s.title="";s.startMs=0;s.endMs=0;s.image="";
+            s.nextTitle="";s.nextStartMs=0;s.nextEndMs=0;s.nextImage="";
+            s.source="";
+        }
+        // 1) Verified manufacturer event bound to the current DVB service.
+        boolean factoryNow=context.getSharedPreferences("smarthub",0)
+          .getBoolean("factory_enabled",true)&&FactoryProvider.applyPrepared(context,s,false);
+        boolean factoryNext=context.getSharedPreferences("smarthub",0)
+          .getBoolean("factory_enabled",true)&&FactoryProvider.applyPrepared(context,s,true);
+        // 2) Native DVB EIT from the receiver; never promote old XMLTV cache.
+        if(s.channelId.startsWith("DVB:"))refreshQuick(s.channelId,now);
+        SatelliteGuideRepository.Event eNow=s.channelId.equals(quickChannel)?quickNow:null;
+        SatelliteGuideRepository.Event eNext=s.channelId.equals(quickChannel)?quickNext:null;
+        if(!factoryNow&&eNow!=null&&timedCurrent(eNow.title,eNow.startMs,eNow.endMs,now)){
+            s.title=eNow.title;s.startMs=eNow.startMs;s.endMs=eNow.endMs;
+            s.image=eNow.image;s.source="DVB EIT · receiver";
+        }
+        if(!factoryNext&&eNext!=null&&timedNext(eNext.title,eNext.startMs,eNext.endMs,now)){
+            s.nextTitle=eNext.title;s.nextStartMs=eNext.startMs;
+            s.nextEndMs=eNext.endMs;s.nextImage=eNext.image;
         }
         boolean needNow=!timedCurrent(s.title,s.startMs,s.endMs,now);
         boolean needNext=!timedNext(s.nextTitle,s.nextStartMs,s.nextEndMs,now);
-        // On channel change, show already verified native EIT immediately;
-        // only fall back to explicitly mapped XMLTV if the index has no event.
-        if((needNow||needNext)&&s.channelId.startsWith("DVB:"))
-            refreshQuick(s.channelId,now);
-        if(needNow){
-            SatelliteGuideRepository.Event quick=s.channelId.equals(quickChannel)?quickNow:null;
-            if(quick!=null&&timedCurrent(quick.title,quick.startMs,quick.endMs,now)){
-                s.title=quick.title;s.startMs=quick.startMs;s.endMs=quick.endMs;
-                s.image=quick.image;s.source=quick.source;
-            }else if(!FactoryProvider.applyPrepared(context,s,false)){
-                PlaylistRepository.Programme p=guide().currentFor(observed,now);
-                if(p!=null&&timedCurrent(p.title,p.startMs,p.endMs,now)){
-                    s.title=p.title;s.image=p.image;s.startMs=p.startMs;
-                    s.endMs=p.endMs;s.source="XMLTV · mapped guide";
+        // 3) Only an explicitly downloaded, exact-service manual guide.
+        // No automatic external XMLTV/EPGShare requests or provider writes.
+        if((needNow||needNext)&&s.channelId.startsWith("DVB:")){
+            List<NativeEpgEvents.Event> local=ManualEpgStore.read(
+              context,s.channelId,s.channelName,now);
+            if(needNow){
+                NativeEpgEvents.Event m=ManualEpgStore.now(local,now);
+                if(m!=null){
+                    s.title=m.title;s.startMs=m.start;s.endMs=m.end;s.image=m.image;
+                    s.source="Manual EPG · "+ManualEpgStore.source(context,s.channelId);
                 }
             }
-        }
-        if(needNext){
-            SatelliteGuideRepository.Event quick=s.channelId.equals(quickChannel)?quickNext:null;
-            if(quick!=null&&timedNext(quick.title,quick.startMs,quick.endMs,now)){
-                s.nextTitle=quick.title;s.nextImage=quick.image;
-                s.nextStartMs=quick.startMs;s.nextEndMs=quick.endMs;
-            }else if(!FactoryProvider.applyPrepared(context,s,true)){
-                PlaylistRepository.Programme p=guide().nextFor(observed,now);
-                if(p!=null&&timedNext(p.title,p.startMs,p.endMs,now)){
-                    s.nextTitle=p.title;s.nextImage=p.image;
-                    s.nextStartMs=p.startMs;s.nextEndMs=p.endMs;
+            if(needNext){
+                NativeEpgEvents.Event m=ManualEpgStore.next(local,now);
+                if(m!=null){
+                    s.nextTitle=m.title;s.nextStartMs=m.start;
+                    s.nextEndMs=m.end;s.nextImage=m.image;
                 }
             }
         }
