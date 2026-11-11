@@ -93,6 +93,19 @@ final class OnlineProgramme {
     Bitmap alternative=posterBitmap(context,direct);
     if(alternative!=null){bitmap=alternative;address=direct;item.imageCredit="BetterPosters · IMDb";item.imageLicense="BetterPosters · حقوق الصور لأصحابها";}
    }catch(Exception unavailable){}
+  // Identity-bound RPDB / OpenPosterDB / licensed archive fallbacks.
+  // The free RPDB key is public; an OMDb Poster API requires a separate
+  // patron key and is intentionally NOT called with an RPDB key.
+  if(bitmap==null&&item.imdbId.matches("tt[0-9]{7,10}")&&!similarPoster){
+   String external=VerifiedPosterFallback.find(context,item.imdbId,item.title,item.release);
+   Bitmap alternative=posterBitmap(context,external);
+   if(alternative!=null){
+    bitmap=alternative;address=external;
+    item.imageCredit=external.contains("openposterdb.com")?"OpenPosterDB":
+      external.contains("ratingposterdb.com")?"RatingPosterDB":"Internet Archive";
+    item.imageLicense="External verified-source poster · rights retained by creators";
+   }
+  }
   if(bitmap==null){
    bitmap=EpgArtwork.load(context,event,raw,upcoming);
    if(bitmap!=null){item.imageKind="epg";item.imageCredit="EPG";item.imageLicense="EPG · حقوق الصور لأصحابها";}
@@ -119,7 +132,8 @@ final class OnlineProgramme {
    URI uri=new URI(address);
    if(!"https".equalsIgnoreCase(uri.getScheme())||uri.getUserInfo()!=null||
       uri.getFragment()!=null||!Arrays.asList("btttr.cc","cdn.subsource.net",
-        "image.tmdb.org","static.tvmaze.com").contains(uri.getHost()))return null;
+        "image.tmdb.org","static.tvmaze.com","openposterdb.com",
+        "api.ratingposterdb.com","archive.org").contains(uri.getHost()))return null;
    byte[] data=ArtworkCache.fetch(context,uri.toURL(),6*1024*1024);
    BitmapFactory.Options bounds=new BitmapFactory.Options();
    bounds.inJustDecodeBounds=true;

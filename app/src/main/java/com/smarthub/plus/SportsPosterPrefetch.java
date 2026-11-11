@@ -23,13 +23,29 @@ final class SportsPosterPrefetch {
   long now=System.currentTimeMillis();
   boolean watching=prefs.getBoolean("dvb_player_visible",false);
   int eventBudget=watching?1:4,networkBudget=watching?2:10;
-  int verified=0,attempts=0,events=0;
+  int verified=0,attempts=0,events=0,badgeQueries=0;
+  TheSportsDBProvider official=new TheSportsDBProvider(context);
+  boolean badgeUpdated=false;
   Set<String> unique=new HashSet<>();
   for(SportsMatch m:matches){
    if(Thread.currentThread().isInterrupted()||events>=eventBudget||attempts>=networkBudget||prefs.getBoolean("software_dvb_422_active",false)||prefs.getBoolean("dvb_tuning",false))break;
    if(!SportsProgrammeArtwork.verified(m)
       ||m.kickoff<now-86400000L||m.kickoff>now+7L*86400000L)continue;
    events++;
+   // A verified event may omit badge URLs in the free event payload.
+   // Fetch by actual numeric team ID, with a small per-run budget.
+   if(m.id.startsWith("tsdb:")&&badgeQueries<4){
+    if((m.homeLogo==null||m.homeLogo.isEmpty())&&badgeQueries<4)try{
+     badgeQueries++;
+     String badge=official.badgeById(m.homeId,m.home);
+     if(!badge.isEmpty()){m.homeLogo=badge;badgeUpdated=true;}
+    }catch(Exception ignored){}
+    if((m.awayLogo==null||m.awayLogo.isEmpty())&&badgeQueries<4)try{
+     badgeQueries++;
+     String badge=official.badgeById(m.awayId,m.away);
+     if(!badge.isEmpty()){m.awayLogo=badge;badgeUpdated=true;}
+    }catch(Exception ignored){}
+   }
    // Prefer the real match poster, but prefetch club badges for an event card
    // if the poster is absent. All URLs must be supplied by this exact event.
    for(String address:new String[]{m.image,m.homeLogo,m.awayLogo,m.leagueLogo}){
@@ -45,6 +61,7 @@ final class SportsPosterPrefetch {
     }
    }
   }
+  if(badgeUpdated)MatchRepository.get(context).persist();
   prefs.edit().putInt("sports_poster_prefetch_verified",verified)
     .putInt("sports_poster_prefetch_attempted",attempts)
     .putInt("sports_poster_prefetch_events",events)

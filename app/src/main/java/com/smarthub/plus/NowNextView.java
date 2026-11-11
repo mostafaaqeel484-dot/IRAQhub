@@ -127,7 +127,7 @@ final class NowNextView extends FrameLayout {
   LinearLayout brand=column();brand.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
   logo.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(120),dp(72)));
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(120),dp(48)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -154,7 +154,13 @@ final class NowNextView extends FrameLayout {
   heading=label("IRAQhub",compact?13:14,true);
   heading.setGravity(Gravity.CENTER);
   heading.setIncludeFontPadding(false);
-  heading.setTextColor(0xff3fe44d);heading.setSingleLine(true);heading.setEllipsize(TextUtils.TruncateAt.END);
+  heading.setTextColor(0xff3fe44d);
+  // Keep the original RX Skin and 81dp header. The image no longer overlaps
+  // the title: show two lines instead of clipping long DVB names.
+  heading.setSingleLine(false);heading.setMaxLines(2);
+  heading.setEllipsize(null);
+  heading.setAutoSizeTextTypeUniformWithConfiguration(10,14,1,
+    android.util.TypedValue.COMPLEX_UNIT_SP);
   brand.addView(heading,new LinearLayout.LayoutParams(-1,-2));
   broadcast=label("",10,false);broadcast.setTextColor(0xffe0e0e0);
   headLeft.addView(broadcast);

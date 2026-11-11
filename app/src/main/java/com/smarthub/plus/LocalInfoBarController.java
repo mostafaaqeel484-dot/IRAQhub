@@ -58,13 +58,13 @@ final class LocalInfoBarController implements AutoCloseable {
     // Every second inspect only local OEM/CHMAX revision. Avoid heavy
     // EPG/SQLite requests at 1 Hz while software 4:2:2 needs the CPU.
     boolean lite=PlaybackResourceMode.lite(host);
-    if(changed||!lite||now-lastFullTick>=4200){
+    if(changed||now-lastFullTick>=(lite?4200:1500)){
      SatelliteState observed=SatelliteState.read(host);
      SatelliteState enriched=ReceiverInfoRepository.get(host).enrich(observed);
      refresh(enriched);
      lastFullTick=now;
     }
-    main.postDelayed(this,1000);
+    main.postDelayed(this,500);
    }
   }
  };
@@ -166,6 +166,8 @@ final class LocalInfoBarController implements AutoCloseable {
    if(!id.equals(logoService)){
     channelLogo=null;providerLogo=null;
     logoService=id;
+    // Queue factory CHMAX independently of the manual logo screen.
+    FactoryProvider.requestAutomaticLogo(host,state);
    }
    logoRetry=0;
    if(!state.channelName.isEmpty()){

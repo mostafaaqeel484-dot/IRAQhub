@@ -23,6 +23,7 @@ final class MatchRepository {
  private void publish(String message){status=message;List<SportsMatch> snapshot=snapshot();for(Listener l:listeners)l.update(snapshot,message);}
  private static boolean sameTeam(String a,String shortA,String b,String shortB){for(String left:new String[]{a,shortA})for(String right:new String[]{b,shortB})if(!left.isEmpty()&&!right.isEmpty()&&tokens(left).equals(tokens(right)))return true;return false;}
  private static boolean sameEvent(SportsMatch a,SportsMatch b){return sameTeam(a.home,a.homeShort,b.home,b.homeShort)&&sameTeam(a.away,a.awayShort,b.away,b.awayShort)&&Math.abs(a.kickoff-b.kickoff)<3600000;}
+ synchronized void persist(){save();}
  synchronized SportsMatch find(String id){return rows.get(id);}
  synchronized SportsMatch forProgramme(SatelliteState state){
   if(state==null)return null;
