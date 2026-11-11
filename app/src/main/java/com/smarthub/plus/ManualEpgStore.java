@@ -26,7 +26,15 @@ final class ManualEpgStore {
   return id!=null&&id.startsWith("DVB:")&&id.length()<=160&&
    name!=null&&!StreamingXmlTv.channelKey(name).isEmpty();
  }
- static String key(String id){return SportsCache.key("manual-epg-v1|"+id);}
+ static String key(String id){
+  try{
+   byte[] sha=java.security.MessageDigest.getInstance("SHA-256").digest(
+     ("manual-epg-v1|"+id).getBytes(StandardCharsets.UTF_8));
+   StringBuilder out=new StringBuilder(64);
+   for(byte v:sha)out.append(String.format(Locale.ROOT,"%02x",v&255));
+   return out.toString();
+  }catch(Exception failure){throw new IllegalStateException("SHA256_UNAVAILABLE",failure);}
+ }
  private static File file(Context c,String id){
   File folder=new File(c.getFilesDir(),"manual-epg");if(!folder.exists())folder.mkdirs();
   return new File(folder,key(id)+".json");
