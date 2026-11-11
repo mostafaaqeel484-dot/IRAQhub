@@ -2,6 +2,8 @@ name: RX6 Original Source Only - Android 14 X5M
 on:
   push:
     branches: [ 'feature/rx6-original-source-only-*' ]
+  pull_request:
+    branches: [ 'feature/rx6-original-source-only-20261111' ]
   workflow_dispatch:
 permissions:
   contents: read
