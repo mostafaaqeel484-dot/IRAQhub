@@ -16,7 +16,8 @@ final class PosterSourceSwitches {
  static final String SPORTS="art_source_sportsdb_enabled";
  static final String COMMONS="art_source_commons_enabled";
  static final String ARCHIVE="art_source_archive_enabled";
- private static final List<String> KEYS=Arrays.asList(TMDB,OPDB,RPDB,BETTER,TVMAZE,SPORTS,COMMONS,ARCHIVE);
+ static final String OMDB="art_source_omdb_enabled";
+ private static final List<String> KEYS=Arrays.asList(TMDB,OPDB,RPDB,BETTER,TVMAZE,SPORTS,COMMONS,ARCHIVE,OMDB);
  private PosterSourceSwitches(){}
  static boolean known(String key){return KEYS.contains(key);}
  static boolean enabled(Context c,String key){

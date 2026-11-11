@@ -93,6 +93,9 @@ final class ProviderCountryCatalog {
   return flag.toString();
  }
  Provider owner(String label,String channel){
+  String normalized=key(label);
+  if(normalized.contains("AIRTEL")&&normalized.length()<45)
+   return new Provider("Airtel Digital TV","IN",true);
   List<Provider> exact=byProvider.get(key(label));
   Provider found=unique(exact);
   if(found!=null)return found;
@@ -113,6 +116,8 @@ final class ProviderCountryCatalog {
   return found;
  }
  String country(String channel,String identity,String providerLabel){
+  if(identity!=null&&(identity.startsWith("DVB:1082:")||
+       identity.startsWith("DVB:10820:"))&&key(providerLabel).contains("AIRTEL"))return "IN";
   List<ChannelRow> choices=byChannel.get(key(channel));
   if(choices==null||choices.isEmpty())return "";
   // Exact recorded service key overrides a shared channel name when possible.

@@ -2,27 +2,23 @@ package com.smarthub.plus;
 
 import android.content.Context;
 import android.graphics.*;
-import android.util.LruCache;
-import java.util.Locale;
 
-/**
- * Visual identity bridge: official receiver/factory artwork always wins.
- * If a 2026 register entry has no verified logo asset, render an explicitly
- * typographic provider label, not a fabricated or mismatched trademark.
- * Original black/colored pixels are never recolored. A thin white OUTSIDE
- * stroke is added only when a real logo is hard to see on RX6's black skin.
+/** Authentic provider mark or nothing: a fabricated text badge is NOT a logo.
+ * Real OSN/Arena/Airtel and verified channel marks stay independent from EPG.
  */
 final class ProviderBrandArt {
  private static volatile ProviderBrandArt instance;
  private final ProviderCountryCatalog data;
- private final LruCache<String,Bitmap> badges=new LruCache<>(80);
- private ProviderBrandArt(Context c){data=ProviderCountryCatalog.get(c);}
+ private final ProviderLogoAssetIndex assets;
+ private ProviderBrandArt(Context c){
+  data=ProviderCountryCatalog.get(c);assets=ProviderLogoAssetIndex.get(c);
+ }
  static ProviderBrandArt get(Context c){
-  ProviderBrandArt art=instance;
-  if(art==null)synchronized(ProviderBrandArt.class){
-   art=instance;if(art==null)instance=art=new ProviderBrandArt(c.getApplicationContext());
+  ProviderBrandArt index=instance;
+  if(index==null)synchronized(ProviderBrandArt.class){
+   index=instance;if(index==null)instance=index=new ProviderBrandArt(c.getApplicationContext());
   }
-  return art;
+  return index;
  }
  String country(String channel,String identity,String receiverProvider){
   return data.country(channel,identity,receiverProvider);
@@ -31,43 +27,23 @@ final class ProviderBrandArt {
   ProviderCountryCatalog.Provider p=data.owner(receiverProvider,channel);
   return p==null?"":p.name;
  }
+ /** Legacy method name retained for existing list/InfoBar call sites.
+  * Returns a genuine bundled image; if there is no verified brand logo,
+  * leave that logo slot empty instead of painting the provider name. */
  Bitmap badge(String receiverProvider,String channel){
   ProviderCountryCatalog.Provider row=data.owner(receiverProvider,channel);
-  if(row==null)return null;
-  String key=row.name+"|"+row.country;
-  Bitmap cached=badges.get(key);if(cached!=null&&!cached.isRecycled())return cached;
-  int width=300,height=126;
-  Bitmap bitmap=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);
-  Canvas canvas=new Canvas(bitmap);
-  Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
-  p.setColor(0xff111823);p.setStyle(Paint.Style.FILL);
-  canvas.drawRoundRect(4,5,width-4,height-5,14,14,p);
-  p.setColor(0xffa8b5c8);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2.4f);
-  canvas.drawRoundRect(4,5,width-4,height-5,14,14,p);
-  p.setStyle(Paint.Style.FILL);p.setTypeface(Typeface.create("sans-serif-medium",Typeface.BOLD));
-  String text=row.name.replace(" / "," · ");
-  if(text.length()>47)text=text.substring(0,44)+"…";
-  float size=text.length()>35?18:text.length()>24?22:Math.min(35,37-text.length()/3f);
-  p.setTextSize(size);p.setColor(Color.WHITE);
-  p.setTextAlign(Paint.Align.CENTER);
-  String[] parts=lines(text,text.length()>31?27:24);
-  if(parts.length==1){
-   canvas.drawText(parts[0],width/2f,height/2f+size*.33f,p);
-  }else{
-   canvas.drawText(parts[0],width/2f,height/2f-size*.12f,p);
-   canvas.drawText(parts[1],width/2f,height/2f+size*1.05f,p);
-  }
-  badges.put(key,bitmap);return bitmap;
+  return row==null?null:outlineDark(assets.provider(row.name,row.country));
  }
- private static String[] lines(String title,int limit){
-  if(title.length()<=limit)return new String[]{title};
-  int split=title.lastIndexOf(' ',limit);
-  if(split<10)split=limit;
-  return new String[]{title.substring(0,split).trim(),title.substring(split).trim()};
+ Bitmap channelLogo(String channel,String physical,String receiverProvider){
+  String country=data.country(channel,physical,receiverProvider);
+  return country.isEmpty()?null:assets.channel(channel,country);
  }
+ /** Thin white stroke OUTSIDE a mostly black transparent logo.
+  * Never convert the trademark's black interior pixels to white.
+  */
  static Bitmap outlineDark(Bitmap raw){
   if(raw==null||raw.isRecycled()||raw.getConfig()==Bitmap.Config.HARDWARE||
-      raw.getWidth()<3||raw.getHeight()<3||raw.getWidth()>1200||raw.getHeight()>1200)return raw;
+     raw.getWidth()<3||raw.getHeight()<3||raw.getWidth()>1200||raw.getHeight()>1200)return raw;
   int w=raw.getWidth(),h=raw.getHeight(),count=0,dim=0;
   int sx=Math.max(1,w/40),sy=Math.max(1,h/25);
   for(int y=0;y<h;y+=sy)for(int x=0;x<w;x+=sx){

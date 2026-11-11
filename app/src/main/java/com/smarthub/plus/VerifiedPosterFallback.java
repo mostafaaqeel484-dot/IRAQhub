@@ -21,12 +21,21 @@ final class VerifiedPosterFallback {
   boolean useOpdb=PosterSourceSwitches.enabled(context,PosterSourceSwitches.OPDB);
   boolean useRpdb=PosterSourceSwitches.enabled(context,PosterSourceSwitches.RPDB);
   boolean useArchive=PosterSourceSwitches.enabled(context,PosterSourceSwitches.ARCHIVE);
-  if(!useOpdb&&!useRpdb&&!useArchive)return "";
+  boolean useOmdb=PosterSourceSwitches.enabled(context,PosterSourceSwitches.OMDB);
+  if(!useOpdb&&!useRpdb&&!useArchive&&!useOmdb)return "";
   // Re-enabling a source must bypass a failure cooldown for a different source set.
-  String retryKey=imdb+"|"+useOpdb+"|"+useRpdb+"|"+useArchive;
+  String retryKey=imdb+"|"+useOpdb+"|"+useRpdb+"|"+useArchive+"|"+useOmdb+"|"+p.getLong("poster_sources_changed_at",0);
   Long next=retry.get(retryKey);if(next!=null&&now<next)return "";
   // The documented public demo keys have shared limits: failures back off.
-  String opdb=p.getString("openposterdb_api_key","t0-free-rpdb").trim();
+  for(String id:new String[]{"opdb","rpdb","omdb"}){
+   if(("opdb".equals(id)&&!useOpdb)||("rpdb".equals(id)&&!useRpdb)||("omdb".equals(id)&&!useOmdb))continue;
+   String secret=PosterApiSecrets.get(context,id);
+   if(!secret.isEmpty()){
+    String local=PrivatePosterCache.fetch(context,id,imdb,secret);
+    if(!local.isEmpty())return local;
+   }
+  }
+  String opdb=PosterApiSecrets.configured(context,"opdb")?"":"t0-free-rpdb";
   if(!opdb.matches("[A-Za-z0-9_-]{3,64}"))opdb="";
   String[] urls={
    (!useOpdb||opdb.isEmpty())?"":"https://openposterdb.com/"+opdb+"/imdb/poster-default/"+imdb+".jpg",
