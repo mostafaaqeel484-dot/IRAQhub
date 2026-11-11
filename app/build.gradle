@@ -38,8 +38,8 @@ android {
   }
   rx6OriginalPreview {
    initWith debug
-   applicationIdSuffix '.rx6posterctl'
-   versionNameSuffix '-rx6-poster-controls'
+   applicationIdSuffix '.rx6chmaxepgfix'
+   versionNameSuffix '-rx6-chmax-osn-epg-repair'
    matchingFallbacks = ['debug']
   }
   native422Preview {

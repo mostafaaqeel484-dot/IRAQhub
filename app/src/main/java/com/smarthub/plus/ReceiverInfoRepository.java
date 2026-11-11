@@ -34,6 +34,9 @@ final class ReceiverInfoRepository {
         return title!=null&&!title.trim().isEmpty()&&start>now&&end>start;
     }
     synchronized void refreshEpg(SatelliteState state){if(epg==null)epg=new BroadcastEpgProvider(context);epg.refresh(state);}
+    synchronized void epgFeedArrived(String feed){
+        if(epg!=null)epg.feedArrived(feed,SatelliteState.read(context));
+    }
     private DirectReceiverSignal signal;private int signalClients;
     synchronized DirectReceiverSignal acquireSignal(){if(signal==null)signal=new DirectReceiverSignal(context);signalClients++;return signal;}
     synchronized void releaseSignal(DirectReceiverSignal client){if(signal!=client)return;if(--signalClients<=0){signal.close();signal=null;signalClients=0;}}

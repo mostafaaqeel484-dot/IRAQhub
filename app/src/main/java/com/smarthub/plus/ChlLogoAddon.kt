@@ -52,13 +52,18 @@ class ChlLogoAddon private constructor(private val context:Context){
  fun resolve(name:String,loader:ChannelLogoResolver):Bitmap?{load();rememberProvider(name);for(service in index?.choices(name,selectionSeed)?.take(3)?:emptyList())resolve(service,loader)?.let{return it};return null}
  fun unique(name:String)=index?.unique(name)
  /** Bind CHMAX logos to the exact DVB transport/service identity, not the name. */
- @Synchronized fun resolvePhysical(physical:String,loader:ChannelLogoResolver):Bitmap?{
+ private val inflightPhysical=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+ fun resolvePhysical(physical:String,loader:ChannelLogoResolver):Bitmap?{
   load()
   val actual=physical.removePrefix("DVB:")
   if(!physical.startsWith("DVB:")||actual.length>100||!enabled())return null
   val single=index?.byPhysical(actual)?:return null
   if(!supportedSession())return null
-  return resolve(single,loader)
+  // Never hold ChlLogoAddon's monitor across a network request. Previous
+  // @Synchronized blocked unrelated channel lookups for many seconds.
+  if(!inflightPhysical.add(actual))return null
+  return try{resolve(single,loader)}
+   finally{inflightPhysical.remove(actual)}
  }
 
  @Volatile private var sessionCheckedUntil=0L

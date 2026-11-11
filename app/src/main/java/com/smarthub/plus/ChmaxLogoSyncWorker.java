@@ -37,51 +37,123 @@ public final class ChmaxLogoSyncWorker extends Worker {
  public ChmaxLogoSyncWorker(@NonNull Context context,@NonNull WorkerParameters parameters){super(context,parameters);}
 
  @NonNull @Override public Result doWork(){
-  Context context=getApplicationContext();SharedPreferences p=context.getSharedPreferences("smarthub",0);
-  if(PlaybackResourceMode.active()||p.getBoolean("software_dvb_422_active",false)||p.getBoolean("dvb_tuning",false))return Result.retry();
+  Context context=getApplicationContext();
+  SharedPreferences p=context.getSharedPreferences("smarthub",0);
+  if(PlaybackResourceMode.active()||p.getBoolean("software_dvb_422_active",false)||
+     p.getBoolean("dvb_tuning",false))return Result.retry();
   p.edit().putString("chmax_package_status","REQUESTING").apply();
+  int packageCount=0,matched=0,entries=0,failed=0;
+  long downloaded=0;
+  String lastFailure="";
   try{
    ChlChannelIndex index=ChlLogoAddon.get(context).snapshot();
-   if(index==null||index.getServices().isEmpty())throw new IOException("CHMAX_CHANNEL_INDEX_REQUIRED");
+   if(index==null||index.getServices().isEmpty())
+    throw new IOException("CHMAX_CHANNEL_INDEX_REQUIRED");
    TreeSet<Integer> angles=new TreeSet<>();
    Map<String,List<ChlChannelIndex.Service>> services=new HashMap<>();
+   Map<Integer,List<String>> fingerprints=new HashMap<>();
    for(ChlChannelIndex.Service service:index.getServices()){
     angles.add(service.getSat());
-    services.computeIfAbsent(service.getSat()+"_"+service.getFrequency()+"_"+service.getSid(),k->new ArrayList<>()).add(service);
+    services.computeIfAbsent(service.getSat()+"_"+service.getFrequency()+"_"+service.getSid(),
+      k->new ArrayList<>()).add(service);
+    fingerprints.computeIfAbsent(service.getSat(),k->new ArrayList<>())
+      .add(service.getPhysicalKey());
    }
-   JSONArray sats=new JSONArray();for(int angle:angles)sats.put(new JSONObject().put("sat",Integer.toString(angle)));
-   JSONArray packages=new FactoryClient(context).iconPackages(sats);
-   int packageCount=0,matched=0,entries=0;long downloaded=0;
-   Set<Integer> returned=new HashSet<>();
-   for(int i=0;i<Math.min(packages.length(),128);i++){
+   Map<Integer,String> identities=new HashMap<>();
+   for(Map.Entry<Integer,List<String>> group:fingerprints.entrySet()){
+    Collections.sort(group.getValue());
+    identities.put(group.getKey(),digest(String.join("|",group.getValue())));
+   }
+   ArrayList<Integer> sats=new ArrayList<>(angles);
+   Set<Integer> visited=new HashSet<>();
+   boolean stopForServer=false;
+   // Small official satellite batches reduce timeout risk; partial results
+   // are committed per-satellite and survive WorkManager retries/reboots.
+   for(int offset=0;offset<sats.size()&&!stopForServer;offset+=12){
     if(isStopped())throw new InterruptedIOException("FACTORY_CANCELLED");
-    JSONObject row=packages.optJSONObject(i);if(row==null)continue;
-    int sat=parse(row.opt("sat"));String reference=row.optString("iconPackageUrl","").trim();
-    if(sat<0||!angles.contains(sat)||reference.isEmpty()||!returned.add(sat))continue;
-    String marker=digest(reference);String old=p.getString("chmax_package_hash:"+sat,"");
-    if(marker.equals(old)&&p.getInt("chmax_package_matches:"+sat,0)>0){
-     matched+=p.getInt("chmax_package_matches:"+sat,0);packageCount++;continue;
+    JSONArray requested=new JSONArray();
+    for(int j=offset;j<Math.min(sats.size(),offset+12);j++)
+     requested.put(new JSONObject().put("sat",Integer.toString(sats.get(j))));
+    JSONArray batch;
+    try{
+     batch=new FactoryClient(context).iconPackages(requested);
+    }catch(Exception problem){
+     failed++;
+     lastFailure=FactoryClient.safe(problem);
+     if(lastFailure.equals("FACTORY_TIMEOUT")||
+        ChmaxSyncPolicy.serverBackoff(lastFailure))stopForServer=true;
+     continue;
     }
-    byte[] zip=download(reference);
-    downloaded+=zip.length;if(downloaded>MAX_TOTAL)throw new IOException("CHMAX_TOTAL_TOO_LARGE");
-    int[] result=extract(context,zip,sat,services,MAX_ENTRIES-entries);
-    entries+=result[0];matched+=result[1];packageCount++;
-    p.edit().putString("chmax_package_hash:"+sat,marker)
-     .putInt("chmax_package_matches:"+sat,result[1]).apply();
-    if(entries>=MAX_ENTRIES)throw new IOException("CHMAX_TOO_MANY_ENTRIES");
+    for(int rowIndex=0;rowIndex<Math.min(batch.length(),128);rowIndex++){
+     if(isStopped())throw new InterruptedIOException("FACTORY_CANCELLED");
+     JSONObject row=batch.optJSONObject(rowIndex);if(row==null)continue;
+     int sat=parse(row.opt("sat"));
+     String reference=row.optString("iconPackageUrl","").trim();
+     if(!angles.contains(sat)||!visited.add(sat)||reference.isEmpty())continue;
+     String marker=digest(reference);
+     String prefix="chmax_package_";
+     String old=p.getString(prefix+"hash:"+sat,"");
+     int previous=p.getInt(prefix+"matches:"+sat,0);
+     long checked=p.getLong(prefix+"checked_at:"+sat,0);
+     String previousFingerprint=p.getString(prefix+"services:"+sat,"");
+     String fingerprint=identities.get(sat);
+     if(ChmaxSyncPolicy.skip(previous,old,marker,previousFingerprint,
+         fingerprint,checked,System.currentTimeMillis())){
+      matched+=previous;packageCount++;
+      continue;
+     }
+     try{
+      byte[] zip=download(reference);
+      downloaded+=zip.length;
+      if(downloaded>MAX_TOTAL)throw new IOException("CHMAX_TOTAL_TOO_LARGE");
+      int[] result=extract(context,zip,sat,services,MAX_ENTRIES-entries);
+      entries+=result[0];matched+=result[1];packageCount++;
+      p.edit().putString(prefix+"hash:"+sat,marker)
+       .putString(prefix+"services:"+sat,fingerprint)
+       .putLong(prefix+"checked_at:"+sat,System.currentTimeMillis())
+       .putInt(prefix+"matches:"+sat,result[1])
+       .putInt("chmax_last_completed_sat",sat).apply();
+      if(entries>=MAX_ENTRIES)throw new IOException("CHMAX_TOO_MANY_ENTRIES");
+     }catch(Exception problem){
+      failed++;
+      lastFailure=FactoryClient.safe(problem);
+      String exact=problem.getMessage();
+      if(exact!=null&&exact.matches("CHMAX_[A-Z0-9_]{1,60}"))lastFailure=exact;
+      p.edit().putString("chmax_last_package_error",lastFailure)
+       .putInt("chmax_last_failed_sat",sat).apply();
+      if(ChmaxSyncPolicy.serverBackoff(lastFailure)){
+       stopForServer=true;
+       break;
+      }
+      if(failed>=3){stopForServer=true;break;}
+     }
+    }
    }
-   String status=packageCount==0?"CHMAX_NO_PACKAGES":matched==0?"CHMAX_PACKAGES_WITHOUT_MATCHES":"CHMAX_PACKAGES_READY";
-   p.edit().putString("chmax_package_status",status).putInt("chmax_package_count",packageCount)
-    .putInt("chmax_official_logo_count",matched).putLong("chmax_package_bytes",downloaded)
-    .putLong("chmax_package_synced_at",System.currentTimeMillis())
-    .putLong("logo_mapping_changed_at",System.currentTimeMillis()).apply();
+   String status=failed>0?"CHMAX_PARTIAL_RETRY":
+     packageCount==0?"CHMAX_NO_PACKAGES":
+     matched==0?"CHMAX_PACKAGES_WITHOUT_MATCHES":"CHMAX_PACKAGES_READY";
+   long now=System.currentTimeMillis();
+   p.edit().putString("chmax_package_status",status)
+    .putString("chmax_package_last_error",lastFailure)
+    .putInt("chmax_package_failed_count",failed)
+    .putInt("chmax_package_count",packageCount)
+    .putInt("chmax_official_logo_count",matched)
+    .putLong("chmax_package_bytes",downloaded)
+    .putLong("chmax_package_synced_at",now)
+    .putLong("logo_mapping_changed_at",now).apply();
    LogoRepository.get(context).invalidate();
-   return matched>0?Result.success():Result.retry();
-  }catch(Exception failure){
-   String message=failure.getMessage()==null?"":failure.getMessage();
-   String safe=message.matches("CHMAX_[A-Z0-9_]{1,60}")?message:FactoryClient.safe(failure);
-   p.edit().putString("chmax_package_status",safe).apply();
-   return getRunAttemptCount()<3?Result.retry():Result.failure();
+   // WorkManager exponential backoff starts at 15min for CHMAX, so errors
+   // do not hammer the server. Good packages remain on disk.
+   if(failed>0&&getRunAttemptCount()<6)return Result.retry();
+   if(failed>0)p.edit().putString("chmax_package_status",
+      "CHMAX_PARTIAL_DEFERRED").apply();
+   return Result.success();
+  }catch(Exception problem){
+   lastFailure=FactoryClient.safe(problem);
+   p.edit().putString("chmax_package_status",lastFailure)
+    .putString("chmax_package_last_error",lastFailure)
+    .putInt("chmax_package_failed_count",failed+1).apply();
+   return getRunAttemptCount()<6?Result.retry():Result.success();
   }
  }
  private static int parse(Object value){try{return Integer.parseInt(String.valueOf(value));}catch(Exception e){return -1;}}
