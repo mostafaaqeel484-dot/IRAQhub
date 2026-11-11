@@ -68,7 +68,9 @@ final class ProviderLogoAssetIndex {
     }
     String xml=data.toString("UTF-8");
     if(xml.contains("<!DOCTYPE")||xml.contains("<!ENTITY")||
-       xml.contains("http:")||xml.contains("https:"))throw new IOException("SVG_EXTERNAL_REFERENCE");
+       xml.contains("href=\"http:")||xml.contains("href=\"https:")||
+       xml.contains("href='http:")||xml.contains("href='https:"))
+       throw new IOException("SVG_EXTERNAL_REFERENCE");
     com.caverock.androidsvg.SVG svg=com.caverock.androidsvg.SVG.getFromString(xml);
     float ratio=svg.getDocumentAspectRatio();
     if(!Float.isFinite(ratio)||ratio<=0)ratio=1;
