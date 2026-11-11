@@ -127,7 +127,9 @@ final class NowNextView extends FrameLayout {
   LinearLayout brand=column();brand.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
   logo.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(120),dp(48)));
+  // The receiver logo fills most of the top-left column. FIT_CENTER preserves
+  // the exact aspect ratio and keeps long DVB channel names readable below.
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(142),dp(54)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -139,12 +141,12 @@ final class NowNextView extends FrameLayout {
   providerName.setSingleLine(true);providerName.setEllipsize(TextUtils.TruncateAt.END);
   providerName.setTextColor(muted);
   providerPanel.addView(providerCaption);
-  providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(72),dp(38)));
+  providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(80),dp(40)));
   providerPanel.addView(providerName);
   providerPanel.setVisibility(GONE);
   // Channel identity belongs in the top header, not at the bottom of the
   // programme row. This keeps the CHMAX logo aligned with the channel name.
-  LinearLayout.LayoutParams brandPosition=new LinearLayout.LayoutParams(dp(156),-1);
+  LinearLayout.LayoutParams brandPosition=new LinearLayout.LayoutParams(dp(172),-1);
   brandPosition.rightMargin=dp(8);
   header.addView(brand,0,brandPosition);
 
@@ -159,7 +161,7 @@ final class NowNextView extends FrameLayout {
   // the title: show two lines instead of clipping long DVB names.
   heading.setSingleLine(false);heading.setMaxLines(2);
   heading.setEllipsize(null);
-  heading.setAutoSizeTextTypeUniformWithConfiguration(10,14,1,
+  heading.setAutoSizeTextTypeUniformWithConfiguration(10,13,1,
     android.util.TypedValue.COMPLEX_UNIT_SP);
   brand.addView(heading,new LinearLayout.LayoutParams(-1,-2));
   broadcast=label("",10,false);broadcast.setTextColor(0xffe0e0e0);

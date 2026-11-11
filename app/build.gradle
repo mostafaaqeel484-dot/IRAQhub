@@ -38,8 +38,8 @@ android {
   }
   rx6OriginalPreview {
    initWith debug
-   applicationIdSuffix '.rx6chmaxepgfix'
-   versionNameSuffix '-rx6-chmax-osn-epg-repair'
+   applicationIdSuffix '.rx6nativeepg'
+   versionNameSuffix '-rx6-native-epg-manual-only'
    matchingFallbacks = ['debug']
   }
   native422Preview {

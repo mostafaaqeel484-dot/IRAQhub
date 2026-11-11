@@ -9,11 +9,9 @@ final class OnlineEpgGuide {
  List<NativeEpgEvents.Event> current(String channel,long now)throws Exception{return current(channel,"",now);}
  List<NativeEpgEvents.Event> current(String channel,String physicalId,long now)throws Exception{android.content.SharedPreferences prefs=context.getSharedPreferences("smarthub",0);String mapped=physicalId==null?"":prefs.getString("online_epg_channel_feed_id:"+physicalId,"");if(mapped.isEmpty())mapped=prefs.getString("online_epg_channel_feed:"+StreamingXmlTv.channelKey(channel),"");String feed=mapped.matches("[A-Z0-9_]{1,32}")?mapped:feed(channel);if(feed.isEmpty())return Collections.emptyList();File file=feedFile(context,feed);
  if(!file.isFile()||file.length()<20){
-  EpgFeedPrefetchWorker.request(context,feed);
   return Collections.emptyList();
  }
- if(System.currentTimeMillis()-file.lastModified()>4L*3600000)
-  EpgFeedPrefetchWorker.request(context,feed);
+ // Offline lookup only: file updates require the explicit manual import UI.
  String explicit=physicalId==null?"":context.getSharedPreferences("smarthub",0)
    .getString("satellite_xmltv_id:"+physicalId,"");
  String key=EpgQuickCache.key(feed,channel,physicalId==null?"":physicalId,explicit);
@@ -37,7 +35,6 @@ final class OnlineEpgGuide {
   context.getSharedPreferences("smarthub",0).edit()
    .putString("online_epg_parse_status",malformed.getClass().getSimpleName())
    .putString("online_epg_last_feed",feed).apply();
-  EpgFeedPrefetchWorker.request(context,feed);
   return Collections.emptyList();
  }}
  /** Refresh known feeds without parsing the entire guide into memory. Per-channel SAX parsing remains lazy. */

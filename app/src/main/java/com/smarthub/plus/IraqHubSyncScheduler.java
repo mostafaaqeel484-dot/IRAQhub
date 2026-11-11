@@ -69,8 +69,7 @@ final class IraqHubSyncScheduler {
   if(videoPriority(context))return;
   WorkManager manager=WorkManager.getInstance(context.getApplicationContext());
   Constraints internet=online();
-  manager.enqueueUniqueWork(XMLTV+"-manual",ExistingWorkPolicy.REPLACE,
-    new OneTimeWorkRequest.Builder(IraqHubSyncWorker.class).setConstraints(internet).build());
+  // XMLTV is manual-only and is never queued by the background scheduler.
   manager.enqueueUniqueWork(POSTERS+"-manual",ExistingWorkPolicy.REPLACE,
     new OneTimeWorkRequest.Builder(PosterRefreshWorker.class).setConstraints(internet).build());
   manager.enqueueUniqueWork(DVB+"-manual",ExistingWorkPolicy.REPLACE,
@@ -93,16 +92,17 @@ final class IraqHubSyncScheduler {
   if(videoPriority(context))return;
   WorkManager manager=WorkManager.getInstance(context.getApplicationContext());
   Constraints internet=online();
-  manager.enqueueUniquePeriodicWork(XMLTV,ExistingPeriodicWorkPolicy.KEEP,
-    everyFourHours(IraqHubSyncWorker.class,internet));
+  // Cancel legacy EPGShare periodic/initial/manual jobs on existing installs.
+  manager.cancelUniqueWork(XMLTV);
+  manager.cancelUniqueWork(XMLTV+"-initial");
+  manager.cancelUniqueWork(XMLTV+"-manual");
   manager.enqueueUniquePeriodicWork(POSTERS,ExistingPeriodicWorkPolicy.KEEP,
     everyFourHours(PosterRefreshWorker.class,internet));
   manager.enqueueUniquePeriodicWork(DVB,ExistingPeriodicWorkPolicy.KEEP,
     everyFourHours(DvbEpgRefreshWorker.class,null));
   manager.enqueueUniquePeriodicWork(CHMAX,ExistingPeriodicWorkPolicy.KEEP,
     everyFourHours(ChmaxLogoSyncWorker.class,internet));
-  manager.enqueueUniqueWork(XMLTV+"-initial",ExistingWorkPolicy.KEEP,
-    new OneTimeWorkRequest.Builder(IraqHubSyncWorker.class).setConstraints(internet).build());
+  // No auto XMLTV download.
   manager.enqueueUniqueWork(POSTERS+"-initial",ExistingWorkPolicy.KEEP,
     new OneTimeWorkRequest.Builder(PosterRefreshWorker.class).setConstraints(internet).build());
   manager.enqueueUniqueWork(DVB+"-initial",ExistingWorkPolicy.KEEP,

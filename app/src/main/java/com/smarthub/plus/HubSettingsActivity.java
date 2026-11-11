@@ -263,19 +263,23 @@ public final class HubSettingsActivity extends HubActivity {
   link(tx("مركز الإنفوبار والبوسترات والشعارات","InfoBar, posters and logos"),
     tx("عرض NOW / NEXT ومصادر الصور والدليل","NOW / NEXT display, artwork sources and programme guide"),
     ViewingSettingsActivity.class);
+  link(tx("جلب EPG خارجي يدوياً للقناة الحالية","Manual external EPG for current channel"),
+    tx("EPG Pro وDVB أولاً. EPGShare أو XMLTV عند اختيارك فقط.",
+      "Factory and DVB first. EPGShare/XMLTV only on your request."),
+    ManualEpgActivity.class);
   link(tx("الخلفيات والثيمات · RX","RX wallpapers and themes"),"",RxAppearanceActivity.class);
   link(tx("الترجمة ومزامنتها","Subtitles and synchronization"),"",SatelliteActivity.class);
   link(tx("DVB / TXT والترجمة الفورية","DVB / TXT live translation"),"",LiveTranslationActivity.class);
   long lastSync=prefs().getLong("online_epg_sync_at",0);
   String last=lastSync>0?DateFormat.getDateTimeInstance().format(new Date(lastSync)):
     tx("لم يحدث بعد","Not yet");
-  option(tx("تحديث الدليل والبوسترات الآن","Sync guide and posters now"),
+  option(tx("تحديث DVB والبوسترات وCHMAX فقط","Sync DVB, posters and CHMAX only"),
     tx("آخر تحديث: ","Last sync: ")+last,()->{
      IraqHubSyncScheduler.runNow(this);
      toast(tx("تمت إضافة المزامنة إلى الخلفية","Sync queued in the background"));
     });
-  note(options,tx("مصادر EPG الناجحة: ","Successful EPG feeds: ")+
-    prefs().getInt("online_epg_sync_success_count",0)+" / 3\n"+
+  note(options,tx("EPG الخارجي: يدوي فقط. المصنع وDVB هما المصدران التلقائيان.\n",
+      "External EPG: manual only. Factory and DVB are the automatic sources.\n")+
     tx("حالة BetterPosters: ","BetterPosters status: ")+
     getSharedPreferences("poster_sources",0).getString("betterposters_manifest_status",
       tx("لم يفحص","Not checked")));
