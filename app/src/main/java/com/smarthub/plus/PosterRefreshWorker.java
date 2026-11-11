@@ -21,7 +21,8 @@ public final class PosterRefreshWorker extends Worker {
   try{
    BetterPostersProvider provider=new BetterPostersProvider(c);
    boolean manifestOk=false;
-   try{manifestOk=provider.refreshManifest()!=null;}catch(Exception ignored){
+   try{if(PosterSourceSwitches.enabled(c,PosterSourceSwitches.BETTER))
+    manifestOk=provider.refreshManifest()!=null;}catch(Exception ignored){
     // Failure of BetterPosters must not block TMDB, TVmaze or cached artwork.
    }
    if(isStopped()||PlaybackResourceMode.active()||

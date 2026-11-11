@@ -15,6 +15,8 @@ final class BetterPostersProvider {
  static String titleTokens(String value){String s=Normalizer.normalize(value==null?"":value,Normalizer.Form.NFKD).replaceAll("\\p{M}+","").toLowerCase(Locale.ROOT).replaceAll("['’]s\\b","").replaceAll("[^\\p{L}\\p{N}]+"," ");List<String> words=new ArrayList<>();Set<String> skip=new HashSet<>(Arrays.asList("the","a","an","of","and"));for(String w:s.trim().split("\\s+")){if(w.isEmpty()||skip.contains(w))continue;words.add(w.length()>4&&w.endsWith("s")?w.substring(0,w.length()-1):w);}Collections.sort(words);return String.join(" ",words);}
  private static String enc(String s)throws Exception{return URLEncoder.encode(s,"UTF-8").replace("+","%20");} 
  private JSONObject manifest(boolean force)throws Exception{
+  if(!PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))
+   throw new IOException("BETTERPOSTERS_DISABLED");
   if(!force&&loadedManifest!=null)return loadedManifest;
   android.content.SharedPreferences prefs=context.getSharedPreferences("poster_sources",0);
   String cached=prefs.getString("betterposters_manifest","");

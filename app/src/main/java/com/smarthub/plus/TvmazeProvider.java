@@ -17,6 +17,8 @@ final class TvmazeProvider {
  private static String clean(String s){return s==null?"":s.replaceAll("(?i)<br\\s*/?>","\\n").replaceAll("<[^>]+>"," ").replace("&amp;","&").replace("&quot;","\\\"").replace("&#39;","'").replaceAll("\\s+"," ").trim();}
  private static String enc(String s)throws Exception{return URLEncoder.encode(s,"UTF-8").replace("+","%20");}
  private JSONArray get(String title)throws Exception{
+  if(!PosterSourceSwitches.enabled(context,PosterSourceSwitches.TVMAZE))
+   throw new IOException("TVMAZE_DISABLED");
   String key=Integer.toHexString(title.toLowerCase(Locale.ROOT).hashCode());java.io.File dir=new java.io.File(context.getCacheDir(),"tvmaze");if(!dir.exists())dir.mkdirs();java.io.File cache=new java.io.File(dir,key+".json");
   // Fix 12: cache first. Do not issue a new show search for every InfoBar
   // open, and never fetch on the software 4:2:2 decode path.
@@ -36,6 +38,8 @@ final class TvmazeProvider {
   catch(Exception e){if(cache.isFile()&&System.currentTimeMillis()-cache.lastModified()<7L*24*3600000L)try(java.io.FileInputStream in=new java.io.FileInputStream(cache)){return new JSONObject(PlaylistRepository.readBounded(in)).getJSONArray("data");}catch(Exception ignored){}throw e;}
  }
  private String episodePoster(int showId,int season,int episode)throws Exception{
+  if(!PosterSourceSwitches.enabled(context,PosterSourceSwitches.TVMAZE))
+   throw new IOException("TVMAZE_DISABLED");
   if(showId<=0||season<=0||episode<=0||season>99||episode>999)return "";
   java.io.File dir=new java.io.File(context.getCacheDir(),"tvmaze-episode");
   dir.mkdirs();

@@ -15,6 +15,8 @@ import java.util.Locale;
 final class CommonsArtworkProvider {
  private CommonsArtworkProvider(){}
  static JSONObject exactFile(Context c,String supplied)throws Exception{
+  if(!PosterSourceSwitches.enabled(c,PosterSourceSwitches.COMMONS))
+   throw new java.io.IOException("COMMONS_DISABLED");
   String title=supplied==null?"":supplied.trim();
   if(title.startsWith("File:"))title=title.substring(5);
   if(title.isEmpty()||title.length()>200||title.indexOf('\n')>=0||

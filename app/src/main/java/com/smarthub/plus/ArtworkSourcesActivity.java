@@ -30,7 +30,23 @@ public final class ArtworkSourcesActivity extends HubActivity {
     tx("صور موثقة للقنوات والبرامج والمباريات. لا جلب ثقيل أثناء 4:2:2.",
       "Verified channel, programme and sport artwork; no heavy network calls during 4:2:2."));
   LinearLayout switches=card(page);
-  switches.addView(text(tx("تشغيل المصادر","Artwork sources"),20,true));
+  switches.addView(text(tx("تشغيل وإيقاف مصادر البوسترات","Enable / disable poster providers"),20,true));
+  note(switches,tx("الإيقاف يمنع الطلبات الجديدة ولا يحذف الصور المحفوظة. التغيير يُحفظ تلقائياً.",
+    "Off stops new lookups without deleting saved images. Changes save automatically."));
+  switches.addView(text(tx("الأفلام والمسلسلات","Films and series"),16,true));
+  sourceSwitch(switches,PosterSourceSwitches.TMDB,
+    tx("TMDB · الأفلام والمسلسلات","TMDB · movies and series"));
+  sourceSwitch(switches,PosterSourceSwitches.OPDB,
+    tx("OpenPosterDB (OPDB) · بوسترات IMDb","OpenPosterDB (OPDB) · IMDb posters"));
+  sourceSwitch(switches,PosterSourceSwitches.RPDB,
+    tx("RatingPosterDB (RPDB) · بوسترات بالتقييم","RatingPosterDB (RPDB) · rated posters"));
+  sourceSwitch(switches,PosterSourceSwitches.BETTER,
+    tx("BetterPosters · بوسترات إضافية","BetterPosters · extra artwork"));
+  sourceSwitch(switches,PosterSourceSwitches.ARCHIVE,
+    tx("Archive.org · بوسترات أرشيفية بترخيص","Archive.org · licensed archive posters"));
+  note(switches,tx("OPDB وRPDB يحتاجان IMDb ID مؤكداً. OMDb يحتاج مفتاح Poster API منفصلاً؛ مفاتيح RPDB لا تعمل معه.",
+    "OPDB/RPDB require an exact IMDb ID. OMDb Poster API needs its own patron key, not RPDB's key."));
+  switches.addView(text(tx("المسلسلات والرياضة والصور الحرة","TV, sports and licensed images"),16,true));
   CheckBox tv=check(switches,tx("TVmaze · صور المسلسلات والحلقات SxxExx",
     "TVmaze · shows and exact SxxExx episode posters"),
     prefs().getBoolean("art_source_tvmaze_enabled",true));
@@ -40,13 +56,12 @@ public final class ArtworkSourcesActivity extends HubActivity {
   CheckBox commons=check(switches,tx("Wikimedia Commons · صور برخصة ونسبة محفوظة",
     "Wikimedia Commons · credited and licensed images"),
     prefs().getBoolean("art_source_commons_enabled",true));
-  tv.setOnCheckedChangeListener((v,on)->prefs().edit()
-    .putBoolean("art_source_tvmaze_enabled",on).apply());
-  sports.setOnCheckedChangeListener((v,on)->prefs().edit()
-    .putBoolean("art_source_sportsdb_enabled",on).apply());
-  commons.setOnCheckedChangeListener((v,on)->prefs().edit()
-    .putBoolean("art_source_commons_enabled",on)
-    .putLong("epg_art_changed_at",System.currentTimeMillis()).apply());
+  tv.setOnCheckedChangeListener((v,on)->PosterSourceSwitches.set(
+    this,PosterSourceSwitches.TVMAZE,on));
+  sports.setOnCheckedChangeListener((v,on)->PosterSourceSwitches.set(
+    this,PosterSourceSwitches.SPORTS,on));
+  commons.setOnCheckedChangeListener((v,on)->PosterSourceSwitches.set(
+    this,PosterSourceSwitches.COMMONS,on));
 
   LinearLayout tvBox=card(page);
   tvBox.addView(text("1. TVmaze · https://www.tvmaze.com/api",18,true));
@@ -114,6 +129,15 @@ public final class ArtworkSourcesActivity extends HubActivity {
       new Intent(this,ProviderSetupActivity.class)));
  }
 
+ private CheckBox sourceSwitch(LinearLayout group,String key,String title){
+  CheckBox item=check(group,title,PosterSourceSwitches.enabled(this,key));
+  item.setOnCheckedChangeListener((v,on)->{
+   PosterSourceSwitches.set(this,key,on);
+   if(output!=null)output.setText(tx("تم حفظ التفضيلات. طلبات الصور الجديدة تحترم الاختيارات.",
+     "Preferences saved. New image requests follow your choices."));
+  });
+  return item;
+ }
  private interface Lookup {JSONObject fetch()throws Exception;}
 
  private void runCheck(Lookup job,String name,String imageKey){
