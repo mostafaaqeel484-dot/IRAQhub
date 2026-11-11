@@ -1,7 +1,7 @@
 name: RX6 Original Source Only - Android 14 X5M
 on:
   push:
-    branches: [ 'feature/rx6-original-source-only-*' ]
+    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111' ]
   pull_request:
     branches: [ 'feature/rx6-original-source-only-20261111' ]
   workflow_dispatch:
@@ -49,10 +49,10 @@ jobs:
           test -s "$APK"
           "$BT/apksigner" verify --min-sdk-version 34 "$APK"
           "$BT/zipalign" -c 4 "$APK"
-          "$BT/aapt" dump badging "$APK" | grep -F "package: name='com.smarthub.plus.rx6epgchmax'"
+          "$BT/aapt" dump badging "$APK" | grep -F "package: name='com.smarthub.plus.rx6posterctl'"
           "$BT/aapt" dump badging "$APK" | grep -F "native-code: 'armeabi-v7a'"
       - uses: actions/upload-artifact@v4
         with:
-          name: IRAQhub_RX6_EPG_CHMAX_Posters_APK
+          name: IRAQhub_RX6_Poster_Source_Controls_APK
           path: app/build/outputs/apk/rx6OriginalPreview/*.apk
           if-no-files-found: error

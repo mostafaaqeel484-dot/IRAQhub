@@ -18,25 +18,31 @@ final class VerifiedPosterFallback {
       context.getSharedPreferences("smarthub",0).getBoolean("software_dvb_422_active",false))return "";
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
   long now=System.currentTimeMillis();
-  Long next=retry.get(imdb);if(next!=null&&now<next)return "";
+  boolean useOpdb=PosterSourceSwitches.enabled(context,PosterSourceSwitches.OPDB);
+  boolean useRpdb=PosterSourceSwitches.enabled(context,PosterSourceSwitches.RPDB);
+  boolean useArchive=PosterSourceSwitches.enabled(context,PosterSourceSwitches.ARCHIVE);
+  if(!useOpdb&&!useRpdb&&!useArchive)return "";
+  // Re-enabling a source must bypass a failure cooldown for a different source set.
+  String retryKey=imdb+"|"+useOpdb+"|"+useRpdb+"|"+useArchive;
+  Long next=retry.get(retryKey);if(next!=null&&now<next)return "";
   // The documented public demo keys have shared limits: failures back off.
   String opdb=p.getString("openposterdb_api_key","t0-free-rpdb").trim();
   if(!opdb.matches("[A-Za-z0-9_-]{3,64}"))opdb="";
   String[] urls={
-   opdb.isEmpty()?"":"https://openposterdb.com/"+opdb+"/imdb/poster-default/"+imdb+".jpg",
-   "https://api.ratingposterdb.com/t0-free-rpdb/imdb/poster-default/"+imdb+".jpg?fallback=true",
-   "https://api.ratingposterdb.com/t0-free-rpdb-boxes/imdb/poster-default/"+imdb+".jpg?fallback=true"
+   (!useOpdb||opdb.isEmpty())?"":"https://openposterdb.com/"+opdb+"/imdb/poster-default/"+imdb+".jpg",
+   useRpdb?"https://api.ratingposterdb.com/t0-free-rpdb/imdb/poster-default/"+imdb+".jpg?fallback=true":"",
+   useRpdb?"https://api.ratingposterdb.com/t0-free-rpdb-boxes/imdb/poster-default/"+imdb+".jpg?fallback=true":""
   };
   for(String url:urls)if(!url.isEmpty())try{
    if(valid(ArtworkCache.fetch(context,new URL(url),4*1024*1024)))return url;
   }catch(Exception ignored){}
   // Archive is licensed-image-only, exact-title and optionally exact-year.
   // Archive is not a movie-poster database: incorrect matches are rejected.
-  if(p.getBoolean("art_source_archive_enabled",true)){
+  if(useArchive){
    String archive=archive(context,exactTitle,releaseYear);
    if(!archive.isEmpty())return archive;
   }
-  retry.put(imdb,now+60L*60L*1000L);
+  retry.put(retryKey,now+60L*60L*1000L);
   return "";
  }
  static boolean valid(byte[] data){

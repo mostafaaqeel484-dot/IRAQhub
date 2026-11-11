@@ -14,7 +14,8 @@ import java.util.Locale;
 final class BetterPostersDirect {
  private BetterPostersDirect(){}
  static String poster(Context context,String verifiedImdb)throws Exception{
-  if(verifiedImdb==null||!verifiedImdb.matches("tt[0-9]{7,10}"))
+  if(!PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER)||
+      verifiedImdb==null||!verifiedImdb.matches("tt[0-9]{7,10}"))
    return "";
   String address="https://btttr.cc/poster/imdb/poster-default/"+
     verifiedImdb+".jpg";

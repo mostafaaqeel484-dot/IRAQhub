@@ -38,12 +38,14 @@ final class OnlineProgramme {
   JSONObject approximateCandidates=null;
   boolean similarPoster=false;
   // A failed TMDB call is not a reason to disable BetterPosters and TVmaze.
-  if(!tmdbKey.isEmpty()&&(id.isEmpty()||id.startsWith("tmdb:")))try{
+  if(PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB)&&
+      !tmdbKey.isEmpty()&&(id.isEmpty()||id.startsWith("tmdb:")))try{
    j=new TmdbProvider(context,tmdbKey).resolve(raw,id,type,imdb,duration);
    if("ambiguous".equals(j.optString("status"))&&!j.isNull("candidates"))
     approximateCandidates=j;
   }catch(Exception unavailable){/* Try independent providers. */}
-  if(!"matched".equals(j.optString("status")))try{
+  if(!"matched".equals(j.optString("status"))&&
+      PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
    JSONObject other=new BetterPostersProvider(context).resolve(raw,
       id,type,imdb,duration);
    if("matched".equals(other.optString("status")))j=other;
@@ -55,6 +57,7 @@ final class OnlineProgramme {
   }catch(Exception unavailable){/* Preserve verified EPG artwork. */}
   if(!"matched".equals(j.optString("status"))&&approximateCandidates!=null
       &&id.isEmpty()&&imdb.isEmpty()&&!tmdbKey.isEmpty()
+      &&PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB)
       &&context.getSharedPreferences("smarthub",0)
         .getBoolean("osd_similar_posters",true)){
    JSONObject guess=SimilarPosterChoice.choose(
@@ -68,7 +71,28 @@ final class OnlineProgramme {
     }
    }catch(Exception unavailable){/* Preserve the normal EPG fallback. */}
   }
-  if(!"matched".equals(j.optString("status")))return epg(context,event,raw,upcoming);
+  if(!"matched".equals(j.optString("status"))){
+   // RPDB/OPDB can still work if TMDB is disabled, provided an exact IMDb
+   // identity was explicitly supplied or verified in a saved selection.
+   String verified=imdb;
+   if(verified==null||!verified.matches("tt[0-9]{7,10}"))try{
+    verified=PosterSelection.read(context,event,raw,upcoming).optString("imdbId","");
+   }catch(Exception ignored){verified="";}
+   if(verified!=null&&verified.matches("tt[0-9]{7,10}"))try{
+    String link=VerifiedPosterFallback.find(context,verified,raw,"");
+    Bitmap picture=posterBitmap(context,link);
+    if(picture!=null){
+     MediaRepository.Item standalone=new MediaRepository.Item();
+     standalone.id="imdb:"+verified;standalone.imdbId=verified;
+     standalone.title=raw;standalone.image=link;standalone.imageKind="poster";
+     standalone.imagePage=link;standalone.imageCredit=posterSourceCredit(link);
+     standalone.imageLicense="Poster rights remain with the respective copyright owners";
+     standalone.fetchedAt=System.currentTimeMillis();
+     return new OnlineProgramme(standalone,picture);
+    }
+   }catch(Exception ignored){}
+   return epg(context,event,raw,upcoming);
+  }
   if(!similarPoster)PosterSelection.save(context,event,raw,upcoming,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));item.id=tmdb?j.optString("id"):(better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · حقوق الصور لأصحابها";item.imageCredit=tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
   String address=j.optString("poster");Bitmap bitmap=posterBitmap(context,address);
   if(bitmap==null&&tmdb)try{
@@ -144,6 +168,13 @@ final class OnlineProgramme {
    while(bounds.outWidth/opts.inSampleSize>limit||bounds.outHeight/opts.inSampleSize>limit)opts.inSampleSize*=2;
    return BitmapFactory.decodeByteArray(data,0,data.length,opts);
   }catch(Exception unavailable){return null;}
+ }
+ private static String posterSourceCredit(String link){
+  if(link==null)return "Verified IMDb artwork";
+  if(link.contains("openposterdb.com"))return "OpenPosterDB";
+  if(link.contains("ratingposterdb.com"))return "RatingPosterDB";
+  if(link.contains("archive.org"))return "Internet Archive";
+  return "Verified IMDb artwork";
  }
  private static String join(JSONArray array){if(array==null)return "";List<String> values=new ArrayList<>();for(int n=0;n<Math.min(12,array.length());n++)values.add(array.optString(n));return String.join("، ",values);}
 }
