@@ -23,7 +23,8 @@ final class FactoryProvider implements AutoCloseable {
   rememberLogo(identity,data.optString("cimg"));
   List<FactoryProtocol.Event> events=FactoryProtocol.schedule(reply,zone);FactoryProtocol.Event current=null,next=null;for(FactoryProtocol.Event e:events){if(e.start<=now&&e.end>now)current=e;else if(e.start>now&&next==null)next=e;}if(current==null)throw new Exception("FACTORY_EPG_NOT_PUBLISHED");// The service identity and compatible channel name were already verified.
   // A differing native EIT title is not grounds to suppress the requested
-  // factory-first EPG; its own NOW/NEXT time window is independently checked.SatelliteState resolved=state.copy();resolved.title=current.title;resolved.startMs=current.start;resolved.endMs=current.end;resolved.image=current.pic;if(next!=null){resolved.nextTitle=next.title;resolved.nextStartMs=next.start;resolved.nextEndMs=next.end;resolved.nextImage=next.pic;}resolved.source="Factory CHMAX / EPG";resolved.observedAt=now;if(closed)return;
+  // factory-first EPG; its own NOW/NEXT time window is independently checked.
+  SatelliteState resolved=state.copy();resolved.title=current.title;resolved.startMs=current.start;resolved.endMs=current.end;resolved.image=current.pic;if(next!=null){resolved.nextTitle=next.title;resolved.nextStartMs=next.start;resolved.nextEndMs=next.end;resolved.nextImage=next.pic;}resolved.source="Factory CHMAX / EPG";resolved.observedAt=now;if(closed)return;
   { // Persist verified factory EPG for both live refresh and pre-zap.
    // Don't change the now-playing SatelliteState before the tuner switches.
    JSONObject ready=new JSONObject().put("identity",identity)
