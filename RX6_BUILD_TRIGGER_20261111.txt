@@ -1,0 +1,1 @@
+Build the RX6 original-only branch for Android 14 X5M ARMv7. Validate original skin SHA manifests first. Side-by-side package: com.smarthub.plus.rx6epgchmax.
