@@ -8,6 +8,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.zip.GZIPInputStream;
 
 /** Manually imported guide: exact DVB identity only, never overwrites manufacturer EPG.
  * This class performs NO scheduled network requests. Only the explicit UI preview
