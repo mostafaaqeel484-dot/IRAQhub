@@ -31,7 +31,9 @@ jobs:
           test -s app/src/main/assets/receiver-logos/index.json
           test -s app/src/main/assets/logo-resolver/mapping.json
       - name: Verify all original assets byte for byte
-        run: sha256sum -c RX6_ORIGINAL_ASSETS.sha256
+        run: |
+          sha256sum -c RX6_ORIGINAL_ASSETS.sha256
+          sha256sum -c RX6_ORIGINAL_UI.sha256
       - name: Test only uploaded ORIGINAL source
         run: gradle :app:testDebugUnitTest --no-daemon
       - name: Build independent package from uploaded source
