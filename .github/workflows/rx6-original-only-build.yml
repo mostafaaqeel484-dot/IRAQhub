@@ -56,7 +56,7 @@ jobs:
           python3 - <<'PY'
           import json
           result=json.load(open("app/src/main/assets/provider-branding/logo-build-report.json"))
-          assert result["downloaded"]>=300,result
+          assert result["downloaded"]==result["total"] and not result["missing"],result
           assert result["providers"]>=40,result
           assert result["channels"]>=390,result
           print("RX6 real logo assets bundled",result["downloaded"])

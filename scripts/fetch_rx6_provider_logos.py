@@ -44,7 +44,8 @@ def fetch_one(row):
         expected=row["sha"]
     else:
         url=row.get("url","")
-        if not url.startswith("https://commons.wikimedia.org/wiki/Special:Redirect/file/"):
+        if not (url.startswith("https://commons.wikimedia.org/wiki/Special:Redirect/file/") or
+                url.startswith("https://upload.wikimedia.org/wikipedia/commons/")):
             raise ValueError("unapproved Commons origin")
         expected=None
     for attempt in range(3):
@@ -89,6 +90,6 @@ print("RX6 real-logo bundler:",summary["downloaded"],"/",summary["total"],
       "total MB:",round(summary["bytes"]/1048576,1))
 if missing:print("Missing sample:",missing[:15])
 # Never silently ship a pseudo-logo-only build if downloads are blocked.
-if len(ok)<300:
-    print("ERROR: fewer than 300 authentic logo images bundled",file=sys.stderr)
+if len(ok)<300 or missing:
+    print("ERROR: not all verified logo assets were bundled",file=sys.stderr)
     sys.exit(1)
