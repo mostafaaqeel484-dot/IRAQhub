@@ -5,7 +5,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.InputStream;
 import java.util.*;
-import java.util.zip.GZIPInputStream;
 
 /**
  * Country/owner register derived from the user-supplied 2026 workbook.
@@ -34,8 +33,9 @@ final class ProviderCountryCatalog {
  }
  private ProviderCountryCatalog(Context context){
   int pc=0,cc=0;
-  try(InputStream file=context.getAssets().open("provider-branding/catalog-v1.json.gz");
-      GZIPInputStream gzip=new GZIPInputStream(file)){
+  // aapt2 transparently expands *.gz assets, stripping ".gz" in the APK.
+  // Read the actual unpacked assets/provider-branding/catalog-v1.json.
+  try(InputStream gzip=context.getAssets().open("provider-branding/catalog-v1.json")){
    java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();
    byte[] buffer=new byte[8192];int n;
    while((n=gzip.read(buffer))!=-1){
