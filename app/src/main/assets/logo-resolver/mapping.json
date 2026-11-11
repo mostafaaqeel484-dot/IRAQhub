@@ -23,6 +23,18 @@
       "id": "dubai",
       "name": "Dubai Media",
       "url": "https://upload.wikimedia.org/wikipedia/commons/d/df/Dubai_Media_logo_in_SVG.svg"
+    },
+    {
+      "id": "sky-italia",
+      "name": "Sky Italia",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Sky_logo_2025.svg",
+      "asset": ""
+    },
+    {
+      "id": "rai",
+      "name": "RAI",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Logo_of_RAI_%282016%29.svg",
+      "asset": ""
     }
   ],
   "channels": [

@@ -56,7 +56,7 @@ final class ReceiverInfoRepository {
             if(quick!=null&&timedCurrent(quick.title,quick.startMs,quick.endMs,now)){
                 s.title=quick.title;s.startMs=quick.startMs;s.endMs=quick.endMs;
                 s.image=quick.image;s.source=quick.source;
-            }else{
+            }else if(!FactoryProvider.applyPrewarm(context,s,false)){
                 PlaylistRepository.Programme p=guide().currentFor(observed,now);
                 if(p!=null&&timedCurrent(p.title,p.startMs,p.endMs,now)){
                     s.title=p.title;s.image=p.image;s.startMs=p.startMs;
@@ -69,7 +69,7 @@ final class ReceiverInfoRepository {
             if(quick!=null&&timedNext(quick.title,quick.startMs,quick.endMs,now)){
                 s.nextTitle=quick.title;s.nextImage=quick.image;
                 s.nextStartMs=quick.startMs;s.nextEndMs=quick.endMs;
-            }else{
+            }else if(!FactoryProvider.applyPrewarm(context,s,true)){
                 PlaylistRepository.Programme p=guide().nextFor(observed,now);
                 if(p!=null&&timedNext(p.title,p.startMs,p.endMs,now)){
                     s.nextTitle=p.title;s.nextImage=p.image;
@@ -102,7 +102,12 @@ final class ReceiverInfoRepository {
           long bps=p.getLong("software_ts_bitrate",0);
           if(bps>0)bitrate=String.format(java.util.Locale.ROOT,"TS %.2f Mbps",bps/1000000d);
         }
-        return new Info(LogoRepository.get(context).providerName(s.channelName),ResolutionBadge.label(context,s),String.join(" · ",broadcast),encryption,bitrate,
+        String providerName=LogoRepository.get(context).providerName(s.channelName);
+        if(providerName.isEmpty()&&s.channelId.startsWith("DVB:")){
+          ReceiverCatalog.Channel verified=ReceiverCatalog.get(context).channel(p.getLong("own_dvb_channel",-1));
+          if(verified!=null&&s.channelId.equals("DVB:"+verified.physical()))providerName=verified.provider;
+        }
+        return new Info(providerName,ResolutionBadge.label(context,s),String.join(" · ",broadcast),encryption,bitrate,
                 ReceptionData.value(context,s,"strength"),ReceptionData.value(context,s,"quality"),ReceptionData.value(context,s,"snr"),ReceptionData.value(context,s,"ber"));
     }
     private static String published(SharedPreferences p,String channel,String field){long age=System.currentTimeMillis()-p.getLong("native_"+field+"_seen:"+channel,0);if(age<0||age>=120000)return "";String v=p.getString("native_"+field+":"+channel,"").trim();return v.length()<=100&&!v.chars().anyMatch(n->n<32)?v:"";}

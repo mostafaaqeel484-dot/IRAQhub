@@ -61,7 +61,7 @@ final class LocalInfoBarController implements AutoCloseable {
     SatelliteState observed=SatelliteState.read(host);
     SatelliteState enriched=ReceiverInfoRepository.get(host).enrich(observed);
     refresh(enriched);
-    main.postDelayed(this,PlaybackResourceMode.lite(host)?4200:1450);
+    main.postDelayed(this,1000);
    }
   }
  };

@@ -31,7 +31,21 @@ class LogoRepository private constructor(context:Context){
  fun trimRamCache(){cache.clearRam()}
  interface Listener{fun channel(bitmap:Bitmap?);fun provider(name:String,bitmap:Bitmap?)}
  init{scope.launch{db.load()};scope.launch{addon.load()}}
- private fun network(name:String,known:ChannelAliasDatabase.Entry?)=providerResolver.resolve(known)?:db.providerByName(addon.provider(name))
+ private fun network(name:String,known:ChannelAliasDatabase.Entry?):ChannelAliasDatabase.Entry? {
+  providerResolver.resolve(known)?.let{return it}
+  db.providerByName(addon.provider(name))?.let{return it}
+  val active=SatelliteState.read(app)
+  if(ChannelAliasDatabase.normalize(active.channelName)==ChannelAliasDatabase.normalize(name)) {
+   db.providerByName(CHMAXIntegration.provider(app,active))?.let{return it}
+   if(active.channelId.startsWith("DVB:")) {
+    val prefs=app.getSharedPreferences("smarthub",0)
+    val selected=ReceiverCatalog.get(app).channel(prefs.getLong("own_dvb_channel",-1))
+    if(selected!=null&&active.channelId=="DVB:"+selected.physical())
+     db.providerByName(selected.provider)?.let{return it}
+   }
+  }
+  return null
+ }
  /**
   * Prefer a logo actually observed on the receiver's own infobar.
   * Its private /data/ChannelImgs directory is not readable by a normal APK.
@@ -157,7 +171,14 @@ class LogoRepository private constructor(context:Context){
   val task=synchronized(pending){pending[key]?:scope.async(start=CoroutineStart.LAZY){slots.withPermit{try{cache.read(key)?:loader()?.also{cache.save(key,it)}}catch(_:Exception){null}}}.also{pending[key]=it;it.start()}}
   return try{task.await().also{if(it==null)failures[key]=System.currentTimeMillis()+60000}}finally{pending.remove(key,task)}
  }
- fun providerName(name:String)=network(name,db.channel(name))?.name?:addon.provider(name).let{if(it.isEmpty())"" else "$it (CHL)"}
+ fun providerName(name:String):String {
+  val native=SatelliteState.read(app)
+  if(ChannelAliasDatabase.normalize(native.channelName)==ChannelAliasDatabase.normalize(name)) {
+   val observed=CHMAXIntegration.provider(app,native)
+   if(observed.isNotBlank())return observed
+  }
+  return network(name,db.channel(name))?.name?:addon.provider(name).let{if(it.isEmpty())"" else "$it (CHL)"}
+ }
  fun invalidate(){failures.clear()}
  suspend fun replaceMapping(json:String,context:Context){withContext(Dispatchers.IO){val root=org.json.JSONObject(json);ChannelAliasDatabase.validate(root);val atomic=android.util.AtomicFile(java.io.File(context.filesDir,"logo-mapping.json"));val out=atomic.startWrite();try{out.write(json.toByteArray());atomic.finishWrite(out)}catch(e:Exception){atomic.failWrite(out);throw e};db.reload();failures.clear();context.getSharedPreferences("smarthub",0).edit().putLong("logo_mapping_changed_at",System.currentTimeMillis()).apply()}}
  companion object{@Volatile private var instance:LogoRepository?=null;@JvmStatic fun get(context:Context):LogoRepository=instance?:synchronized(this){instance?:LogoRepository(context.applicationContext).also{instance=it}}}

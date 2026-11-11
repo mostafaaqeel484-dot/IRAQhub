@@ -11,6 +11,7 @@ import java.util.*;
 /** Lightweight native-TV OSD with channel left and service-provider branding at the far right. */
 final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
+ private Bitmap displayedChannelLogo;
  private final TextView currentTitle,nextTitle,currentWorkName,nextWorkName,currentSynopsis,nextSynopsis,heading,nowLine,nextLine,status,clock,year;
  private final TextView broadcast,remaining,technical,weather,strengthLabel,qualityLabel,signalDetail,signalSource,encryptionLine,bitrateLabel,providerName,providerCaption;
  private final LinearLayout providerPanel,resolutionStrip,details,bar,leftPosterBox,rightPosterBox;
@@ -66,7 +67,7 @@ final class NowNextView extends FrameLayout {
   bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
   LinearLayout brand=column();brand.setGravity(Gravity.CENTER);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(68),dp(49)));
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(120),dp(72)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -76,7 +77,7 @@ final class NowNextView extends FrameLayout {
   providerName=label("",10,false);providerName.setGravity(Gravity.CENTER);
   providerName.setTextColor(muted);
   providerPanel.addView(providerCaption);
-  providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(44),dp(25)));
+  providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(72),dp(38)));
   providerPanel.addView(providerName);
   providerPanel.setVisibility(detailed?VISIBLE:GONE);
   brand.addView(providerPanel);
@@ -315,7 +316,7 @@ final class NowNextView extends FrameLayout {
   String provider=info.provider;providerName.setText(provider.isEmpty()?"":provider.replace(" (CHL)",""));providerCaption.setText(tx("المزود","PROVIDER")+(provider.endsWith(" (CHL)")?" · CHL":""));providerPanel.setContentDescription(tx("مزود الخدمة: ","Service provider: ")+provider);
   nowLine.setText(tx("الآن  ","NOW  ")+(s.title.isEmpty()?tx("بيانات البرنامج غير متاحة","Programme unavailable"):s.title)+range(s.startMs,s.endMs));
   nextLine.setText(tx("التالي  ","NEXT  ")+(s.nextTitle.isEmpty()?tx("غير متاح من EPG","Unavailable from EPG"):s.nextTitle)+range(s.nextStartMs,s.nextEndMs));
-  if(channelLogo==null)logo.setImageResource(R.drawable.channel_placeholder);else logo.setImageBitmap(channelLogo);logo.setContentDescription("Channel logo · "+s.channelName);
+  if(channelLogo==null){logo.setImageResource(R.drawable.channel_placeholder);displayedChannelLogo=null;}else if(channelLogo!=displayedChannelLogo){logo.setImageBitmap(LogoBackgroundCleaner.clean(channelLogo));displayedChannelLogo=channelLogo;}logo.setContentDescription("Channel logo · "+s.channelName);
   long length=s.endMs-s.startMs;progress.setProgress(length>0?(int)Math.max(0,Math.min(1000,(System.currentTimeMillis()-s.startMs)*1000/length)):0);progress.setVisibility(length>0?VISIBLE:INVISIBLE);
   ProgrammeClock timer=new ProgrammeClock(s.startMs,s.endMs,System.currentTimeMillis());remaining.setText(timer.known?tx("متبقي  ","REMAINING  ")+ProgrammeClock.format(timer.remainingMs,false):"");remaining.setVisibility(timer.known?VISIBLE:GONE);
   TimeZone deviceZone=TimeZone.getDefault();
