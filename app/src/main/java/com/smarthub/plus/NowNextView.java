@@ -11,6 +11,8 @@ import java.util.*;
 /** Lightweight native-TV OSD with channel left and service-provider branding at the far right. */
 final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
+ private final TextView countryFlag;
+ private String selectedProviderBrand="";
  private Bitmap displayedChannelLogo;
 
  private static Bitmap withoutWhiteBorder(Bitmap source){
@@ -130,6 +132,13 @@ final class NowNextView extends FrameLayout {
   // The receiver logo fills most of the top-left column. FIT_CENTER preserves
   // the exact aspect ratio and keeps long DVB channel names readable below.
   brand.addView(logo,new LinearLayout.LayoutParams(dp(142),dp(54)));
+  countryFlag=label("",11,false);
+  countryFlag.setSingleLine(true);
+  countryFlag.setIncludeFontPadding(false);
+  countryFlag.setTextColor(0xfff5f6fb);
+  countryFlag.setGravity(Gravity.CENTER);
+  countryFlag.setVisibility(GONE);
+  brand.addView(countryFlag,new LinearLayout.LayoutParams(-1,dp(13)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -141,7 +150,7 @@ final class NowNextView extends FrameLayout {
   providerName.setSingleLine(true);providerName.setEllipsize(TextUtils.TruncateAt.END);
   providerName.setTextColor(muted);
   providerPanel.addView(providerCaption);
-  providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(80),dp(40)));
+  providerPanel.addView(providerLogo,new LinearLayout.LayoutParams(dp(96),dp(42)));
   providerPanel.addView(providerName);
   providerPanel.setVisibility(GONE);
   // Channel identity belongs in the top header, not at the bottom of the
@@ -236,7 +245,7 @@ final class NowNextView extends FrameLayout {
   LinearLayout providerAndDate=new LinearLayout(context);
   providerAndDate.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
   LinearLayout dateBlock=column();dateBlock.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
-  LinearLayout.LayoutParams providerAtDate=new LinearLayout.LayoutParams(dp(72),-2);
+  LinearLayout.LayoutParams providerAtDate=new LinearLayout.LayoutParams(dp(98),-2);
   providerAtDate.rightMargin=dp(9);
   providerAndDate.addView(providerPanel,providerAtDate);
   year=label("",10,false);year.setTextColor(0xffb8c0c7);
@@ -384,7 +393,23 @@ final class NowNextView extends FrameLayout {
   }
   if(!number.matches("[0-9]+"))number="";
   heading.setText((number.isEmpty()?"":number+"  ")+(s.channelName.isEmpty()?"IRAQhub":s.channelName));
-  String provider=info.provider;providerName.setText(provider.isEmpty()?"":provider.replace(" (CHL)",""));providerCaption.setText(tx("المزود","PROVIDER")+(provider.endsWith(" (CHL)")?" · CHL":""));providerPanel.setContentDescription(tx("مزود الخدمة: ","Service provider: ")+provider);updateProviderVisibility();
+  String provider=info.provider;
+   ProviderBrandArt branding=ProviderBrandArt.get(getContext());
+   String official=branding.provider(provider,s.channelName);
+   String shownProvider=official.isEmpty()?provider.replace(" (CHL)",""):official;
+   providerName.setText(shownProvider);
+   providerCaption.setText(tx("المزود","PROVIDER")+(provider.endsWith(" (CHL)")?" · CHL":""));
+   providerPanel.setContentDescription(tx("مزود الخدمة: ","Service provider: ")+shownProvider);
+   // Preserve real manufacturer artwork across the frequent OSD clock ticks.
+   if(!shownProvider.equals(selectedProviderBrand)){
+    selectedProviderBrand=shownProvider;
+    providerLogo.setImageBitmap(branding.badge(provider,s.channelName));
+   }
+   String country=branding.country(s.channelName,s.channelId,provider);
+   countryFlag.setText(country.isEmpty()?"":ProviderCountryCatalog.flag(country)+"  "+country);
+   countryFlag.setVisibility(country.isEmpty()?GONE:VISIBLE);
+   countryFlag.setContentDescription(country.isEmpty()?"":tx("بلد القناة: ","Channel market: ")+country);
+   updateProviderVisibility();
   nowLine.setText(tx("الآن  ","NOW  ")+(s.title.isEmpty()?tx("بيانات البرنامج غير متاحة","Programme unavailable"):s.title)+range(s.startMs,s.endMs));
   nextLine.setText(tx("التالي  ","NEXT  ")+(s.nextTitle.isEmpty()?tx("غير متاح من EPG","Unavailable from EPG"):s.nextTitle)+range(s.nextStartMs,s.nextEndMs));
   if(channelLogo==null)logo.setImageResource(R.drawable.channel_placeholder);
@@ -526,7 +551,14 @@ final class NowNextView extends FrameLayout {
   displayedChannelLogo=null;
   logo.setImageDrawable(null);providerLogo.setImageDrawable(null);
  }
- void provider(Bitmap image){providerLogo.setImageBitmap(image);providerLogo.setVisibility(image==null?GONE:VISIBLE);providerName.setVisibility(image==null&&!providerName.getText().toString().trim().isEmpty()?VISIBLE:GONE);updateProviderVisibility();}
+ void provider(Bitmap image){
+  if(image==null)image=ProviderBrandArt.get(getContext()).badge(
+    selectedProviderBrand,SatelliteState.read(getContext()).channelName);
+  providerLogo.setImageBitmap(image==null?null:ProviderBrandArt.outlineDark(image));
+  providerLogo.setVisibility(image==null?GONE:VISIBLE);
+  providerName.setVisibility(image==null&&!providerName.getText().toString().trim().isEmpty()?VISIBLE:GONE);
+  updateProviderVisibility();
+ }
  private void updateProviderVisibility(){boolean hasLogo=providerLogo.getDrawable()!=null;boolean hasName=!providerName.getText().toString().trim().isEmpty();providerName.setVisibility(!hasLogo&&hasName?VISIBLE:GONE);providerPanel.setVisibility(hasLogo||hasName?VISIBLE:GONE);}
  void setStatus(String value){
   String text=value==null?"":value.replace('\n',' ');

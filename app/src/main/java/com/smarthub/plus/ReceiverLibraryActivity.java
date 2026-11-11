@@ -546,7 +546,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
     logoStack.addView(h.logo,new LinearLayout.LayoutParams(dp(48),dp(31)));
     h.provider=new ImageView(ReceiverLibraryActivity.this);
     h.provider.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    logoStack.addView(h.provider,new LinearLayout.LayoutParams(dp(23),dp(10)));
+    logoStack.addView(h.provider,new LinearLayout.LayoutParams(dp(42),dp(14)));
     row.addView(logoStack,new LinearLayout.LayoutParams(dp(52),-2));
     LinearLayout info=col();
     info.setPadding(dp(10),0,dp(6),0);
@@ -570,6 +570,13 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
    h.logo.setImageResource(R.drawable.channel_placeholder);
    h.provider.setImageDrawable(null);
    h.provider.setVisibility(View.GONE);
+   // Local register badges are always available offline. An actual CHMAX or
+   // verified broadcaster logo takes precedence once resolved.
+   Bitmap badgeBrand=ProviderBrandArt.get(ReceiverLibraryActivity.this).badge(ch.provider,ch.name);
+   if(badgeBrand!=null){
+    h.provider.setImageBitmap(badgeBrand);
+    h.provider.setVisibility(View.VISIBLE);
+   }
    h.number.setText(Integer.toString(satelliteNumbers.getOrDefault(ch.id,position+offset+1)));
    h.name.setText((favorites.contains(ch.id)?"★ ":"")+ch.name);
    boolean encrypted=ch.ca>0; // CA=0 FTA, CA<0 unknown: do not guess.
@@ -602,9 +609,12 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
      }
      @Override public void provider(String name,Bitmap image){
       if(!destroyed&&expected.equals(logo.getTag())){
-       provider.setImageBitmap(image);
+       Bitmap visible=image==null?
+         ProviderBrandArt.get(ReceiverLibraryActivity.this).badge(ch.provider,ch.name):
+         ProviderBrandArt.outlineDark(image);
+       provider.setImageBitmap(visible);
        provider.setContentDescription(name);
-       provider.setVisibility(image==null?View.GONE:View.VISIBLE);
+       provider.setVisibility(visible==null?View.GONE:View.VISIBLE);
       }
      }
     };
