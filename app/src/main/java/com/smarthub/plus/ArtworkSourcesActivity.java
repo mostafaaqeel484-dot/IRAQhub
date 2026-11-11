@@ -40,6 +40,7 @@ public final class ArtworkSourcesActivity extends HubActivity {
     tx("OpenPosterDB (OPDB) · بوسترات IMDb","OpenPosterDB (OPDB) · IMDb posters"));
   sourceSwitch(switches,PosterSourceSwitches.RPDB,
     tx("RatingPosterDB (RPDB) · بوسترات بالتقييم","RatingPosterDB (RPDB) · rated posters"));
+  sourceSwitch(switches,PosterSourceSwitches.OMDB,tx("OMDb · بوسترات IMDb بمفتاح Patron","OMDb · IMDb posters with patron API"));
   sourceSwitch(switches,PosterSourceSwitches.BETTER,
     tx("BetterPosters · بوسترات إضافية","BetterPosters · extra artwork"));
   sourceSwitch(switches,PosterSourceSwitches.ARCHIVE,
@@ -63,6 +64,9 @@ public final class ArtworkSourcesActivity extends HubActivity {
   commons.setOnCheckedChangeListener((v,on)->PosterSourceSwitches.set(
     this,PosterSourceSwitches.COMMONS,on));
 
+  LinearLayout keyBox=card(page);
+  action(keyBox,tx("مفاتيح API: RPDB / OPDB / OMDb / TheSportsDB","API keys: RPDB / OPDB / OMDb / TheSportsDB"),()->startActivity(new Intent(this,PosterApiSettingsActivity.class)));
+  note(keyBox,tx("TMDB في إعدادات مزودي الصور؛ TVmaze وCommons وArchive.org لا تحتاج مفتاحاً خاصاً.","TMDB is configured separately; TVmaze, Commons and Archive need no private key."));
   LinearLayout tvBox=card(page);
   tvBox.addView(text("1. TVmaze · https://www.tvmaze.com/api",18,true));
   note(tvBox,tx("الاسم يُطابق حرفياً بعد التطبيع؛ صيغة S01E02 تجلب صورة الحلقة إذا توفرت. النتائج لا تخلط مسلسلاً آخر.",

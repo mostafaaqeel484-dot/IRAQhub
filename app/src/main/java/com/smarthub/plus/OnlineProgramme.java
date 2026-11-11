@@ -125,8 +125,7 @@ final class OnlineProgramme {
    Bitmap alternative=posterBitmap(context,external);
    if(alternative!=null){
     bitmap=alternative;address=external;
-    item.imageCredit=external.contains("openposterdb.com")?"OpenPosterDB":
-      external.contains("ratingposterdb.com")?"RatingPosterDB":"Internet Archive";
+    item.imageCredit=posterSourceCredit(external);
     item.imageLicense="External verified-source poster · rights retained by creators";
    }
   }
@@ -153,6 +152,7 @@ final class OnlineProgramme {
  private static Bitmap posterBitmap(Context context,String address){
   if(address==null||address.isEmpty())return null;
   try{
+   if(PrivatePosterCache.token(address))return PrivatePosterCache.read(context,address);
    URI uri=new URI(address);
    if(!"https".equalsIgnoreCase(uri.getScheme())||uri.getUserInfo()!=null||
       uri.getFragment()!=null||!Arrays.asList("btttr.cc","cdn.subsource.net",
@@ -171,6 +171,9 @@ final class OnlineProgramme {
  }
  private static String posterSourceCredit(String link){
   if(link==null)return "Verified IMDb artwork";
+  if(link.startsWith("privateposter:opdb:"))return "OpenPosterDB (local)";
+  if(link.startsWith("privateposter:rpdb:"))return "RatingPosterDB (local)";
+  if(link.startsWith("privateposter:omdb:"))return "OMDb Poster API (local)";
   if(link.contains("openposterdb.com"))return "OpenPosterDB";
   if(link.contains("ratingposterdb.com"))return "RatingPosterDB";
   if(link.contains("archive.org"))return "Internet Archive";
