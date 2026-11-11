@@ -51,7 +51,7 @@ final class FactoryProvider implements AutoCloseable {
      p.getBoolean("software_dvb_422_active",false))return;
   SatelliteState wanted=new SatelliteState();wanted.channelId="DVB:"+channel.physical();wanted.channelName=channel.name;
   String id=CHMAXIntegration.identity(wanted);long now=System.currentTimeMillis();
-  String cache=p.getString("factory_prewarm:"+SportsCache.key(id),"");
+  String cache;try{cache=p.getString("factory_prewarm:"+SportsCache.key(id),"");}catch(Exception ignored){cache="";}
   if(!cache.isEmpty())try{
    JSONObject stored=new JSONObject(cache);
    if(now-stored.optLong("observed",0)<90000&&
