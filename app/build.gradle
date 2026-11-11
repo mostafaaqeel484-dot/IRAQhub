@@ -38,8 +38,8 @@ android {
   }
   rx6OriginalPreview {
    initWith debug
-   applicationIdSuffix '.rx6providers'
-   versionNameSuffix '-rx6-provider-country-flags'
+   applicationIdSuffix '.rx6realbrands'
+   versionNameSuffix '-rx6-real-provider-logos-api'
    matchingFallbacks = ['debug']
   }
   native422Preview {
