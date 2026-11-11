@@ -403,7 +403,9 @@ final class NowNextView extends FrameLayout {
    // Preserve real manufacturer artwork across the frequent OSD clock ticks.
    if(!shownProvider.equals(selectedProviderBrand)){
     selectedProviderBrand=shownProvider;
-    providerLogo.setImageBitmap(branding.badge(provider,s.channelName));
+    Bitmap fallbackBrand=branding.badge(provider,s.channelName);
+    providerLogo.setImageBitmap(fallbackBrand);
+    providerLogo.setVisibility(fallbackBrand==null?GONE:VISIBLE);
    }
    String country=branding.country(s.channelName,s.channelId,provider);
    countryFlag.setText(country.isEmpty()?"":ProviderCountryCatalog.flag(country)+"  "+country);
