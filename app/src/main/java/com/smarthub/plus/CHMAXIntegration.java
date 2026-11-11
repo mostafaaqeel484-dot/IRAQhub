@@ -58,7 +58,8 @@ final class CHMAXIntegration {
     if(!file.isFile())continue;
     boolean manual="MANUAL_CHANNEL_IMAGE".equals(
       prefs.getString("native_logo_source:"+key,""));
-    if(!manual&&System.currentTimeMillis()-file.lastModified()>=7L*86400000L)continue;
+    // CHMAX logos are user-retained verified files, not short-lived cache.
+    // Do not expire them automatically after seven days.
     BitmapFactory.Options opts=new BitmapFactory.Options();
     opts.inJustDecodeBounds=true;
     BitmapFactory.decodeFile(file.getAbsolutePath(),opts);

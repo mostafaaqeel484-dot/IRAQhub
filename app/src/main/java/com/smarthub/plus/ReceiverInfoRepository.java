@@ -45,6 +45,12 @@ final class ReceiverInfoRepository {
     SatelliteState current(){return enrich(SatelliteState.read(context));}
     SatelliteState enrich(SatelliteState observed){
         SatelliteState s=observed.copy();long now=System.currentTimeMillis();
+        // Factory-first only when a verified, channel-bound EPG Pro event is
+        // still current. Never use another channel's remembered EPG.
+        if(context.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true)){
+            FactoryProvider.applyPrepared(context,s,false);
+            FactoryProvider.applyPrepared(context,s,true);
+        }
         boolean needNow=!timedCurrent(s.title,s.startMs,s.endMs,now);
         boolean needNext=!timedNext(s.nextTitle,s.nextStartMs,s.nextEndMs,now);
         // On channel change, show already verified native EIT immediately;

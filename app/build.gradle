@@ -38,8 +38,8 @@ android {
   }
   rx6OriginalPreview {
    initWith debug
-   applicationIdSuffix '.rx6original'
-   versionNameSuffix '-rx6-original-only'
+   applicationIdSuffix '.rx6epgchmax'
+   versionNameSuffix '-rx6-factory-epg-chmax-posters'
    matchingFallbacks = ['debug']
   }
   native422Preview {
