@@ -1,7 +1,7 @@
 name: RX6 Original Source Only - Android 14 X5M
 on:
   push:
-    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111' ]
+    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111' ]
   pull_request:
     branches: [ 'feature/rx6-original-source-only-20261111' ]
   workflow_dispatch:
@@ -36,6 +36,20 @@ jobs:
         run: |
           sha256sum -c RX6_ORIGINAL_ASSETS.sha256
           sha256sum -c RX6_ORIGINAL_UI.sha256
+      - name: Verify workbook-derived provider and channel register
+        run: |
+          python3 - <<'PY'
+          import gzip, json
+          path='app/src/main/assets/provider-branding/catalog-v1.json.gz'
+          with gzip.open(path,'rt',encoding='utf-8') as source:
+              data=json.load(source)
+          assert len(data['p'])==234, 'Provider count changed'
+          assert len(data['c'])==1376, 'Channel associations changed'
+          assert len(data['a'])==7, 'Verified arena service variants changed'
+          assert all(len(p)>=3 and len(p[1])==2 for p in data['p'])
+          assert not any(p[0].startswith('TVP0') for p in data['p'])
+          print('Provider register OK: 234 providers, 1376 channel relationships')
+          PY
       - name: Test only uploaded ORIGINAL source
         run: gradle :app:testDebugUnitTest --no-daemon
       - name: Build independent package from uploaded source
@@ -49,10 +63,18 @@ jobs:
           test -s "$APK"
           "$BT/apksigner" verify --min-sdk-version 34 "$APK"
           "$BT/zipalign" -c 4 "$APK"
-          "$BT/aapt" dump badging "$APK" | grep -F "package: name='com.smarthub.plus.rx6nativeepg'"
+          "$BT/aapt" dump badging "$APK" | grep -F "package: name='com.smarthub.plus.rx6providers'"
           "$BT/aapt" dump badging "$APK" | grep -F "native-code: 'armeabi-v7a'"
+          python3 - <<'PY'
+          import json, zipfile
+          apk='app/build/outputs/apk/rx6OriginalPreview/app-rx6OriginalPreview.apk'
+          with zipfile.ZipFile(apk) as package:
+              data=json.loads(package.read('assets/provider-branding/catalog-v1.json'))
+          assert len(data['p'])==234 and len(data['c'])==1376
+          print('Packaged Android provider lookup verified at runtime asset path')
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: IRAQhub_RX6_Native_Manual_EPG_APK
+          name: IRAQhub_RX6_Provider_Logos_Flags_APK
           path: app/build/outputs/apk/rx6OriginalPreview/*.apk
           if-no-files-found: error
