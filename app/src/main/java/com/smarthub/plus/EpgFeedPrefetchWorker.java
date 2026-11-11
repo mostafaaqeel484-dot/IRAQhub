@@ -35,7 +35,11 @@ public final class EpgFeedPrefetchWorker extends Worker {
    File saved=new OnlineEpgGuide(context).download(feed,true);
    if(!saved.isFile()||saved.length()<20)return Result.retry();
    context.getSharedPreferences("smarthub",0).edit()
-     .putLong("online_epg_feed_ready:"+feed,System.currentTimeMillis()).apply();
+     .putLong("online_epg_feed_ready:"+feed,System.currentTimeMillis())
+     .putLong("online_epg_revision",System.currentTimeMillis()).apply();
+   // A receiver tune may have happened while this feed was downloaded:
+   // restart NOW/NEXT lookup immediately, no need to zap the channel.
+   ReceiverInfoRepository.get(context).epgFeedArrived(feed);
    return Result.success();
   }catch(Exception unavailable){
    context.getSharedPreferences("smarthub",0).edit().putString("online_epg_feed_error:"+feed,

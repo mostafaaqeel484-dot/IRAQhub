@@ -3,6 +3,8 @@ import android.content.Context;import okhttp3.*;import org.json.*;import java.io
 /** Direct factory authentication; independent credentials, strict TLS and no credential redirects. */
 final class FactoryClient {
  private static final OkHttpClient HTTP=new OkHttpClient.Builder().connectTimeout(6,TimeUnit.SECONDS).readTimeout(12,TimeUnit.SECONDS).callTimeout(18,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build();
+ private static final OkHttpClient CHMAX_HTTP=HTTP.newBuilder()
+  .readTimeout(35,TimeUnit.SECONDS).callTimeout(50,TimeUnit.SECONDS).build();
  private static final String[] DISCOVERY={"https://bl.zzdss.com/balance/serverInfo/list","https://vvbbl.com/balance/serverInfo/list","https://zccxx.com/balance/serverInfo/list"};
  private static final Object AUTH=new Object();private final Context context;private JSONObject saved,identity;
  FactoryClient(Context c){context=c.getApplicationContext();}
@@ -22,7 +24,7 @@ final class FactoryClient {
   Request request=new Request.Builder().url(url)
    .header("Authorization","Bearer "+session.getString("accessToken"))
    .header("User-Agent","IRAQhub/4.0 CHMAX package client").post(form).build();
-  try(Response response=HTTP.newCall(request).execute()){
+  try(Response response=CHMAX_HTTP.newCall(request).execute()){
    if(response.code()==401||response.code()==403)throw new IOException("FACTORY_AUTH_REQUIRED");
    if(!response.isSuccessful())throw new IOException("FACTORY_HTTP_"+response.code());
    try(InputStream in=response.body().byteStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){

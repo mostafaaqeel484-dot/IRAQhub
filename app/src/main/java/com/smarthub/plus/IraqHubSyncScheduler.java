@@ -76,7 +76,8 @@ final class IraqHubSyncScheduler {
   manager.enqueueUniqueWork(DVB+"-manual",ExistingWorkPolicy.REPLACE,
     new OneTimeWorkRequest.Builder(DvbEpgRefreshWorker.class).build());
   manager.enqueueUniqueWork(CHMAX+"-manual",ExistingWorkPolicy.REPLACE,
-    new OneTimeWorkRequest.Builder(ChmaxLogoSyncWorker.class).setConstraints(internet).build());
+    new OneTimeWorkRequest.Builder(ChmaxLogoSyncWorker.class).setConstraints(internet)
+      .setBackoffCriteria(BackoffPolicy.EXPONENTIAL,15,TimeUnit.MINUTES).build());
  }
  static void programmeChanged(Context context){
   if(videoPriority(context))return;
@@ -107,7 +108,8 @@ final class IraqHubSyncScheduler {
   manager.enqueueUniqueWork(DVB+"-initial",ExistingWorkPolicy.KEEP,
     new OneTimeWorkRequest.Builder(DvbEpgRefreshWorker.class).build());
   manager.enqueueUniqueWork(CHMAX+"-initial",ExistingWorkPolicy.KEEP,
-    new OneTimeWorkRequest.Builder(ChmaxLogoSyncWorker.class).setConstraints(internet).build());
+    new OneTimeWorkRequest.Builder(ChmaxLogoSyncWorker.class).setConstraints(internet)
+      .setBackoffCriteria(BackoffPolicy.EXPONENTIAL,15,TimeUnit.MINUTES).build());
  }
  private static Constraints online(){
   return new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();

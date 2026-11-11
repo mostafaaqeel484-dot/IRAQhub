@@ -2,7 +2,10 @@ package com.smarthub.plus;
 import org.xml.sax.*;import org.xml.sax.helpers.DefaultHandler;import javax.xml.parsers.*;import java.io.*;import java.text.Normalizer;import java.util.*;
 /** Streaming per-channel guide: no DOM, no external entities, no stored world encyclopedia. */
 final class StreamingXmlTv {
- static String channelKey(String name){String s=Normalizer.normalize(name==null?"":name,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("(?i)(?:\\s|[-_])*(?:full\\s*hd|fhd|uhd|hd|sd|4k)\\s*$","").replaceAll("[^\\p{L}\\p{N}]","");if(s.equals("mbctwo"))s="mbc2";if(s.startsWith("osntv"))s="osn"+s.substring(5);return s;}
+ static String channelKey(String name){String s=Normalizer.normalize(name==null?"":name,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("(?i)(?:\\s|[-_])*(?:full\\s*hd|fhd|uhd|hd|sd|4k)\\s*$","").replaceAll("[^\\p{L}\\p{N}]","");if(s.equals("mbctwo"))s="mbc2";if(s.startsWith("osntv"))s="osn"+s.substring(5);
+  if(s.startsWith("osnmovie")&&!s.startsWith("osnmovies"))
+   s="osnmovies"+s.substring("osnmovie".length());
+  return s;}
  static List<NativeEpgEvents.Event> read(InputStream source,String channel,long now)throws Exception{return read(source,channel,"",now);}
  static List<NativeEpgEvents.Event> read(InputStream source,String channel,String explicitId,long now)throws Exception{
   String exact=explicitId==null?"":explicitId.trim();

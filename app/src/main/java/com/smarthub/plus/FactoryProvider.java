@@ -11,7 +11,8 @@ final class FactoryProvider implements AutoCloseable {
  void enrich(SatelliteState state){if(!prefs.getBoolean("factory_enabled",true)||state.channelName.isEmpty()||closed)return;String key=CHMAXIntegration.identity(state);SatelliteState data=cached;if(data!=null&&key.equals(cachedIdentity)){SatelliteState copy=data.copy();copy.expire(System.currentTimeMillis());if(!copy.title.isEmpty()&&copy.startMs<=System.currentTimeMillis()&&copy.endMs>System.currentTimeMillis()){state.title=copy.title;state.startMs=copy.startMs;state.endMs=copy.endMs;state.image=copy.image;state.source="Factory CHMAX / EPG";}if(!copy.nextTitle.isEmpty()&&copy.nextStartMs>System.currentTimeMillis()){state.nextTitle=copy.nextTitle;state.nextStartMs=copy.nextStartMs;state.nextEndMs=copy.nextEndMs;state.nextImage=copy.nextImage;}}// Keep previously verified CHMAX EPG visible, but never start a fresh
  // manufacturer EPG/network request during high-priority 4:2:2 decoding.
  if(PlaybackResourceMode.active()||prefs.getBoolean("software_dvb_422_active",false))return;
- long now=System.currentTimeMillis();String contextKey=key+"|"+state.startMs+"|"+state.title;if(busy||now<blockedUntil||contextKey.equals(requestKey)&&now<retry)return;busy=true;requestKey=contextKey;retry=now+60000;SatelliteState snapshot=state.copy();io.execute(()->{try{fetch(snapshot,key);prefs.edit().putString("factory_status","FACTORY_EPG_CONNECTED").putLong("factory_last_success",System.currentTimeMillis()).apply();}catch(Exception e){retry=System.currentTimeMillis()+60000;String failure=FactoryClient.safe(e);if(!failure.contains("CHANNEL")&&!failure.contains("PROGRAMME")&&!failure.contains("NOT_PUBLISHED"))blockedUntil=System.currentTimeMillis()+300000;prefs.edit().putString("factory_status",failure).apply();}finally{busy=false;}});}
+ long now=System.currentTimeMillis();String contextKey=key+"|"+state.startMs+"|"+state.title;if(busy||now<blockedUntil||!FactoryEpgGuard.canRequest(prefs,now)||
+    contextKey.equals(requestKey)&&now<retry)return;busy=true;requestKey=contextKey;retry=now+60000;SatelliteState snapshot=state.copy();io.execute(()->{try{fetch(snapshot,key);FactoryEpgGuard.success(prefs);prefs.edit().putString("factory_status","FACTORY_EPG_CONNECTED").putLong("factory_last_success",System.currentTimeMillis()).apply();}catch(Exception e){retry=System.currentTimeMillis()+60000;String failure=FactoryClient.safe(e);FactoryEpgGuard.failure(prefs,failure,System.currentTimeMillis());if(!failure.contains("CHANNEL")&&!failure.contains("PROGRAMME")&&!failure.contains("NOT_PUBLISHED"))blockedUntil=System.currentTimeMillis()+300000;prefs.edit().putString("factory_status",failure).apply();}finally{busy=false;}});}
  private void fetch(SatelliteState state,String identity)throws Exception{fetch(state,identity,false);}
  private void fetch(SatelliteState state,String identity,boolean preZapping)throws Exception{FactoryClient client=new FactoryClient(context);ZoneId zone=ZoneId.of(prefs.getString("tv_epg_timezone","Asia/Baghdad"));long now=System.currentTimeMillis();Map<String,String> p=new LinkedHashMap<>();p.put("cid",Integer.toString(client.identity().optInt("cid",-1)));p.put("timezone",ZonedDateTime.now(zone).getOffset().getId());p.put("language","en");DateTimeFormatter f=DateTimeFormatter.ofPattern("yyyy-MM-dd");p.put("start",Instant.ofEpochMilli(now-3600000).atZone(zone).format(f));p.put("end",Instant.ofEpochMilli(now+24*3600000L).atZone(zone).format(f));p.put("pageSize","25");p.put("pageNum","1");String nativeKey=SportsCache.key(identity);String channel=prefs.getString("factory_channel:"+nativeKey,"");if(!FactoryProtocol.reference(channel)){// CHMAX channel search is about SERVICE identity, never the now-playing programme.
  p.put("searchKey",state.channelName.trim());JSONObject search=client.get("/epgapi/v1/schedule/search",p);channel=FactoryProtocol.channelKey(search,state.channelName,state.title,now,zone);if(channel.isEmpty())throw new Exception("FACTORY_CHANNEL_NOT_MATCHED");String satellite="";JSONArray rows=search.optJSONObject("data").optJSONArray("channelList");if(rows!=null)for(int i=0;i<Math.min(50,rows.length());i++){JSONObject row=rows.optJSONObject(i);if(row!=null&&channel.equals(row.optString("id")))satellite=row.optString("satellite");}String reference=FactoryProtocol.resolveReference(search,channel,null);if(reference.isEmpty()&&!satellite.isEmpty()&&satellite.length()<100)reference=FactoryProtocol.resolveReference(search,channel,client.get("/epgapi/v1/satellite/channel/list",Collections.singletonMap("querySats",satellite)));if(!FactoryProtocol.reference(reference))throw new Exception("FACTORY_CHANNEL_REFERENCE_UNAVAILABLE");channel=reference;prefs.edit().putString("factory_channel:"+nativeKey,channel).apply();}
@@ -59,6 +60,7 @@ final class FactoryProvider implements AutoCloseable {
   if(!prefs.getBoolean("factory_enabled",true)||PlaybackResourceMode.active()||
     prefs.getBoolean("software_dvb_422_active",false))return;
   requestAutomaticLogo(c,targetFrom(channel));
+  if(!FactoryEpgGuard.canRequest(prefs,System.currentTimeMillis()))return;
   SatelliteState target=new SatelliteState();
   target.channelName=channel.name;target.channelId="DVB:"+channel.physical();
   String identity=CHMAXIntegration.identity(target);
@@ -68,9 +70,10 @@ final class FactoryProvider implements AutoCloseable {
   BEFORE_ZAP_RETRY.put(identity,now);
   BEFORE_ZAP_IO.execute(()->{
    FactoryProvider provider=new FactoryProvider(app);
-   try{provider.fetch(target,identity,true);}
-   catch(Exception unavailable){prefs.edit().putString(
-     "factory_before_zap_status",FactoryClient.safe(unavailable)).apply();}
+   try{provider.fetch(target,identity,true);FactoryEpgGuard.success(prefs);}
+   catch(Exception unavailable){String status=FactoryClient.safe(unavailable);
+    FactoryEpgGuard.failure(prefs,status,System.currentTimeMillis());
+    prefs.edit().putString("factory_before_zap_status",status).apply();}
    finally{provider.close();}
   });
  }
@@ -100,12 +103,17 @@ final class FactoryProvider implements AutoCloseable {
   AUTO_LOGO_IO.execute(()->{
    try{
     if(CHMAXIntegration.logo(app,wanted,false)!=null)return;
-    Bitmap logo=FactoryProvider.logo(app,wanted.channelName,wanted.channelId);
+    // This MUST use the manufacturer's separate CHMAX channel-icon API.
+    // Factory EPG Pro can reject code 50000 without blocking channel logos.
+    Bitmap logo=FactoryProvider.cachedLogo(app,wanted.channelName,wanted.channelId);
     if(logo==null){
-     FactoryProvider provider=new FactoryProvider(app);
-     try{provider.fetch(wanted,identity,true);}catch(Exception ignored){}
-     finally{provider.close();}
-     logo=FactoryProvider.logo(app,wanted.channelName,wanted.channelId);
+     ChlLogoAddon addon=ChlLogoAddon.get(app);
+     if(addon.enabled()&&addon.supportedSession()){
+      logo=addon.resolvePhysical(wanted.channelId,
+        new ChannelLogoResolver(app,new ChannelAliasDatabase(app)));
+      if(logo!=null)CHMAXIntegration.saveObservedLogo(
+         app,wanted.channelId,wanted.channelName,logo);
+     }
     }
     prefs.edit().putString("chmax_auto_logo_status",
        logo==null?"CHMAX_AUTO_PENDING":"CHMAX_AUTO_SAVED").apply();
