@@ -58,7 +58,7 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
     boolean official=brands.verified(p.name,p.country);
     row.image.setImageBitmap(brands.badge(p.name,""));
     row.label.setText(p.name+" · "+p.country+"\n"+
-      (official?"Verified provider artwork":"Color placeholder (not an official logo)"));
+      (official?"Verified provider artwork":"Provider name only — image not verified"));
     row.root.setContentDescription(row.label.getText());
     return row.root;
    }
