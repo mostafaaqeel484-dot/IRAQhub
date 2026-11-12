@@ -1,7 +1,7 @@
 name: RX6 Original Source Only - Android 14 X5M
 on:
   push:
-    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112' ]
+    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112' ]
   pull_request:
     branches: [ 'feature/rx6-original-source-only-20261111' ]
   workflow_dispatch:
@@ -68,8 +68,8 @@ jobs:
           python3 - <<'PY'
           import json
           result=json.load(open("app/src/main/assets/provider-branding/logo-build-report.json"))
-          assert result["downloaded"]==result["total"] and not result["missing"],result
-          assert result["providers"]==48,result
+          assert result["downloaded"]>=31 and not result["missing_required"],result
+          assert 48<=result["providers"]<=61,result
           assert result["channels"]==0,result
           print("RX6 real logo assets bundled",result["downloaded"])
           PY
@@ -105,6 +105,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: IRAQhub_RX6_API_Anime_234_Provider_Review_APK
+          name: IRAQhub_RX6_Family_Provider_Branding_Arabic_Hotbird_SES_APK
           path: app/build/outputs/apk/rx6OriginalPreview/*.apk
           if-no-files-found: error

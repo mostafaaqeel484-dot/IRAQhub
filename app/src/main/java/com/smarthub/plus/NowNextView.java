@@ -395,7 +395,7 @@ final class NowNextView extends FrameLayout {
   heading.setText((number.isEmpty()?"":number+"  ")+(s.channelName.isEmpty()?"IRAQhub":s.channelName));
   String provider=info.provider;
    ProviderBrandArt branding=ProviderBrandArt.get(getContext());
-   String official=branding.provider(provider,s.channelName);
+   String official=branding.provider(provider,s.channelName,s.channelId);
    String shownProvider=official.isEmpty()?provider.replace(" (CHL)",""):official;
    providerName.setText(shownProvider);
    providerCaption.setText(tx("المزود","PROVIDER")+(provider.endsWith(" (CHL)")?" · CHL":""));
@@ -404,7 +404,7 @@ final class NowNextView extends FrameLayout {
    String brandIdentity=shownProvider+"|"+s.channelId;
    if(!brandIdentity.equals(selectedProviderBrand)){
     selectedProviderBrand=brandIdentity;
-    Bitmap fallbackBrand=branding.badge(provider,s.channelName);
+    Bitmap fallbackBrand=branding.badge(provider,s.channelName,s.channelId);
     providerLogo.setImageBitmap(fallbackBrand);
     providerLogo.setVisibility(fallbackBrand==null?GONE:VISIBLE);
    }
@@ -555,10 +555,16 @@ final class NowNextView extends FrameLayout {
   logo.setImageDrawable(null);providerLogo.setImageDrawable(null);
  }
  void provider(Bitmap image){
-  Bitmap registered=ProviderBrandArt.get(getContext()).badge(
-    providerName.getText().toString(),SatelliteState.read(getContext()).channelName);
-  // A verified provider mark is deliberately separate from channel artwork.
-  if(registered!=null)image=registered;
+  SatelliteState live=SatelliteState.read(getContext());
+  String displayName=providerName.getText().toString();
+  ProviderBrandArt art=ProviderBrandArt.get(getContext());
+  Bitmap registered=art.badge(displayName,live.channelName,live.channelId);
+  ProviderFamilyRules.Brand family=ProviderFamilyRules.select(
+    displayName,live.channelName,live.channelId);
+  // Only real, verified family artwork may override a genuine CHMAX provider image.
+  // A colored placeholder is never allowed to replace manufacturer artwork.
+  if(registered!=null&&(image==null||(family!=null&&
+      art.verified(family.assetOwner,family.country))))image=registered;
   providerLogo.setImageBitmap(image==null?null:ProviderBrandArt.outlineDark(image));
   providerLogo.setVisibility(image==null?GONE:VISIBLE);
   providerName.setVisibility(image==null&&!providerName.getText().toString().trim().isEmpty()?VISIBLE:GONE);

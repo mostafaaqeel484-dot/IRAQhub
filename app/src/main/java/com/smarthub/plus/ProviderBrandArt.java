@@ -23,49 +23,39 @@ final class ProviderBrandArt {
   return result;
  }
  String country(String channel,String identity,String receiverProvider){
+  ProviderFamilyRules.Brand special=ProviderFamilyRules.select(receiverProvider,channel,identity);
+  // Only use a platform flag when its market is proven by the explicit rule;
+  // Arena/Sky regional flags still use existing exact service/country matching.
+  if(special!=null&&special.knownMarket)return special.country;
   return data.country(channel,identity,receiverProvider);
  }
  String provider(String receiverProvider,String channel){
-  ProviderCountryCatalog.Provider p=data.owner(receiverProvider,channel);
-  if(p!=null)return p.name;
-  String name=ProviderCountryCatalog.key(channel);
-  if(name.startsWith("OSN ")||name.equals("OSN"))return "OSNtv";
-  if(name.startsWith("ARENA SPORT"))return "Arena Sport";
-  if(name.startsWith("TRING SPORT"))return "Tring Digital";
-  if(isAlbanianSuperSport(name))return "DigitAlb";
-  return "";
+  return provider(receiverProvider,channel,"");
  }
- /** An exact corporate mark first, then safe family-name aliases.
-  * TVP IDs from the user workbook are NOT broadcast provider IDs. */
+ String provider(String receiverProvider,String channel,String physical){
+  ProviderFamilyRules.Brand family=ProviderFamilyRules.select(receiverProvider,channel,physical);
+  if(family!=null)return family.display;
+  ProviderCountryCatalog.Provider owner=data.owner(receiverProvider,channel);
+  return owner==null?"":owner.name;
+ }
+ /** Provider artwork is independent from CHMAX's CHANNEL artwork.
+  * Physical orbital identity prevents Canal+ France/Polska and Airtel mixups. */
  Bitmap badge(String receiverProvider,String channel){
+  return badge(receiverProvider,channel,"");
+ }
+ Bitmap badge(String receiverProvider,String channel,String physical){
+  ProviderFamilyRules.Brand family=ProviderFamilyRules.select(receiverProvider,channel,physical);
+  if(family!=null){
+   Bitmap image=assets.provider(family.assetOwner,family.country);
+   if("OSN".equals(family.display)&&image!=null)
+    return allWhite(outlineDark(image));
+   if(image!=null)return outlineDark(image);
+   return colored(family.display,family.country);
+  }
   ProviderCountryCatalog.Provider p=data.owner(receiverProvider,channel);
-  Bitmap real=p==null?null:assets.provider(p.name,p.country);
-  String normalized=ProviderCountryCatalog.key(channel);
-  String label=ProviderCountryCatalog.key(receiverProvider);
-  boolean osn=normalized.equals("OSN")||normalized.startsWith("OSN ")||
-    label.startsWith("OSN")||normalized.startsWith("OSNTV");
-  if(osn)real=assets.provider("OSNtv","AE");
-  else if(normalized.startsWith("ARENA SPORT")||label.startsWith("ARENA SPORT"))
-    real=assets.provider("Arena Channels Group","RS");
-  else if(normalized.startsWith("TRING SPORT")||label.startsWith("TRING "))
-    real=assets.provider("Tring Digital","AL");
-  else if(isAlbanianSuperSport(normalized)||label.contains("DIGITALB"))
-    real=assets.provider("DigitAlb","AL");
-  else if(label.equals("D SMART")||label.equals("DSMART"))
-    real=assets.provider("D-Smart","TR");
-  if(osn)return real!=null?allWhite(outlineDark(real)):colored("OSN","AE");
-  if(real!=null)return outlineDark(real);
-  if(normalized.startsWith("ARENA SPORT")||label.startsWith("ARENA SPORT"))
-   return colored("Arena Sport",p==null?"RS":p.country);
-  if(normalized.startsWith("TRING SPORT")||label.startsWith("TRING "))
-   return colored("Tring","AL");
-  if(isAlbanianSuperSport(normalized)||label.contains("DIGITALB"))
-   return colored("DigitAlb","AL");
-  if(label.equals("D SMART")||label.equals("DSMART"))
-   return colored("D-Smart","TR");
-  // Every workbook provider has an honest non-official colored fallback;
-  // it is not masquerading as original branded artwork.
-  return p==null?null:colored(p.name,p.country);
+  if(p==null)return null;
+  Bitmap logo=assets.provider(p.name,p.country);
+  return logo==null?colored(p.name,p.country):outlineDark(logo);
  }
  boolean verified(String provider,String country){return assets.provider(provider,country)!=null;}
  private static Bitmap colored(String label,String country){
