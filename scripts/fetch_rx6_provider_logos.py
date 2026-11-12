@@ -28,7 +28,9 @@ versions={
   "simple-icons/simple-icons":meta["sources"]["simpleCommit"]
 }
 assets=meta["assets"]
-assert 350<=len(assets)<=2000, "Unexpected real logo manifest size"
+assert 10<=len(assets)<=250, "Unexpected provider-only logo count"
+assert not meta["channels"], "Channel artwork must not be bundled in RX6 provider-only builds"
+assert all(p["asset"] in {a["asset"] for a in assets} for p in meta["providers"])
 def fetch_one(row):
     name=row["asset"]
     assert name and "/" not in name and "\\" not in name and name.endswith((".png",".svg"))
@@ -45,7 +47,8 @@ def fetch_one(row):
     else:
         url=row.get("url","")
         if not (url.startswith("https://commons.wikimedia.org/wiki/Special:Redirect/file/") or
-                url.startswith("https://upload.wikimedia.org/wikipedia/commons/")):
+                url.startswith("https://upload.wikimedia.org/wikipedia/commons/") or
+                url.startswith("https://thumb.wikimedia.org/wikipedia/commons/thumb/")):
             raise ValueError("unapproved Commons origin")
         expected=None
     for attempt in range(3):
@@ -56,7 +59,8 @@ def fetch_one(row):
             with urllib.request.urlopen(req,timeout=25) as response:
                 final=response.geturl()
                 if not (final.startswith("https://raw.githubusercontent.com/") or
-                        final.startswith("https://upload.wikimedia.org/")):
+                        final.startswith("https://upload.wikimedia.org/") or
+                        final.startswith("https://thumb.wikimedia.org/")):
                     raise ValueError("redirect outside trusted image hosts")
                 raw=response.read(2*1024*1024+1)
             if len(raw)<60 or len(raw)>2*1024*1024:raise ValueError("bad image byte count")
@@ -90,6 +94,6 @@ print("RX6 real-logo bundler:",summary["downloaded"],"/",summary["total"],
       "total MB:",round(summary["bytes"]/1048576,1))
 if missing:print("Missing sample:",missing[:15])
 # Never silently ship a pseudo-logo-only build if downloads are blocked.
-if len(ok)<300 or missing:
+if len(ok)!=len(assets) or missing:
     print("ERROR: not all verified logo assets were bundled",file=sys.stderr)
     sys.exit(1)

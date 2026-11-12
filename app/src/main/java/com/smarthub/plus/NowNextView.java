@@ -554,8 +554,10 @@ final class NowNextView extends FrameLayout {
   logo.setImageDrawable(null);providerLogo.setImageDrawable(null);
  }
  void provider(Bitmap image){
-  if(image==null)image=ProviderBrandArt.get(getContext()).badge(
+  Bitmap registered=ProviderBrandArt.get(getContext()).badge(
     selectedProviderBrand,SatelliteState.read(getContext()).channelName);
+  // A verified provider mark is deliberately separate from channel artwork.
+  if(registered!=null)image=registered;
   providerLogo.setImageBitmap(image==null?null:ProviderBrandArt.outlineDark(image));
   providerLogo.setVisibility(image==null?GONE:VISIBLE);
   providerName.setVisibility(image==null&&!providerName.getText().toString().trim().isEmpty()?VISIBLE:GONE);

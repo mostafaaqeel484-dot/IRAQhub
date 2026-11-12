@@ -108,8 +108,6 @@ class LogoRepository private constructor(context:Context){
     observed(name,physical)?.also{persistLogo(key,it)}
       ?:FactoryProvider.cachedLogo(app,name,physical?:"")?.also{persistLogo(key,it)}
       ?:ReceiverLogoAssets.load(app,name,physical)?.also{persistLogo(key,it)}
-      ?:ProviderBrandArt.get(app).channelLogo(name,physical?:"",addon.provider(name))
-          ?.also{persistLogo(key,it)}
       ?:cache.read(key)
       ?:if(physical?.startsWith("DVB:")==true)null else ReceiverLogoAssets.identity(app,name,physical)
    }
@@ -156,9 +154,6 @@ class LogoRepository private constructor(context:Context){
       get("chmax:"+physical){addon.resolvePhysical(physical,channels)} else null
     val bound=exact?:factoryCached?:slots.withPermit{ReceiverLogoAssets.load(app,name,physical)}
     if(bound!=null){persistLogo(key,bound);return@async bound}
-    val shipped=slots.withPermit{ProviderBrandArt.get(app).channelLogo(
-      name,physical?:"",addon.provider(name))}
-    if(shipped!=null){persistLogo(key,shipped);return@async shipped}
     get(channelKey(name,entry,physical)){
      val published=ReceiverLogoAssets.remoteUrl(app,name,physical)
      val publishedImage=if(published.isEmpty())null else try{channels.download(published)}catch(_:Exception){null}
