@@ -47,7 +47,8 @@ def fetch_one(row):
     else:
         url=row.get("url","")
         if not (url.startswith("https://commons.wikimedia.org/wiki/Special:Redirect/file/") or
-                url.startswith("https://upload.wikimedia.org/wikipedia/commons/")):
+                url.startswith("https://upload.wikimedia.org/wikipedia/commons/") or
+                url.startswith("https://thumb.wikimedia.org/wikipedia/commons/thumb/")):
             raise ValueError("unapproved Commons origin")
         expected=None
     for attempt in range(3):
@@ -58,7 +59,8 @@ def fetch_one(row):
             with urllib.request.urlopen(req,timeout=25) as response:
                 final=response.geturl()
                 if not (final.startswith("https://raw.githubusercontent.com/") or
-                        final.startswith("https://upload.wikimedia.org/")):
+                        final.startswith("https://upload.wikimedia.org/") or
+                        final.startswith("https://thumb.wikimedia.org/")):
                     raise ValueError("redirect outside trusted image hosts")
                 raw=response.read(2*1024*1024+1)
             if len(raw)<60 or len(raw)>2*1024*1024:raise ValueError("bad image byte count")

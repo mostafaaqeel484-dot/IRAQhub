@@ -42,13 +42,13 @@ final class ProviderBrandArt {
   String normalized=ProviderCountryCatalog.key(channel);
   String label=ProviderCountryCatalog.key(receiverProvider);
   boolean osn=normalized.equals("OSN")||normalized.startsWith("OSN ")||
-    label.equals("OSN")||label.startsWith("OSN ");
+    label.startsWith("OSN")||normalized.startsWith("OSNTV");
   if(osn)real=assets.provider("OSNtv","AE");
   else if(normalized.startsWith("ARENA SPORT")||label.startsWith("ARENA SPORT"))
     real=assets.provider("Arena Channels Group","RS");
   else if(normalized.startsWith("TRING SPORT")||label.startsWith("TRING "))
     real=assets.provider("Tring Digital","AL");
-  else if(isAlbanianSuperSport(normalized)||label.equals("DIGITALB")||label.equals("DIGITALB"))
+  else if(isAlbanianSuperSport(normalized)||label.contains("DIGITALB"))
     real=assets.provider("DigitAlb","AL");
   else if(label.equals("D SMART")||label.equals("DSMART"))
     real=assets.provider("D-Smart","TR");

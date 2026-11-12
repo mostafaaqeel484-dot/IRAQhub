@@ -12,3 +12,5 @@
 - Android 14 ARMv7 test package: com.smarthub.plus.rx6providersonly; not a substitute for hardware acceptance.
 - 197 prior gallery approvals are *decisions*, not 197 verified artwork files. The remaining provider entries get no fake marks; upload additional verified artwork for broader coverage.
 - Sources: Wikimedia Commons Files: D-Smart logo.svg, OSN TV Logo (2023).svg, Digitalb logo.png, Tring logo.svg, Sky logo 2025.svg; artwork carries respective trademark conditions.
+
+CI download correction: replaced failing Wiki Special:Redirect/Digitalb, Tring and Sky URLs with verified direct Wikimedia original or PNG preview links. Art is transparent for Sky and Tring.
