@@ -572,8 +572,9 @@ final class NowNextView extends FrameLayout {
  }
  private void updateProviderVisibility(){
   boolean hasLogo=providerLogo.getDrawable()!=null;
-  providerName.setVisibility(GONE);
-  providerPanel.setVisibility(hasLogo?VISIBLE:GONE);
+  boolean hasName=!providerName.getText().toString().trim().isEmpty();
+  providerName.setVisibility(!hasLogo&&hasName?VISIBLE:GONE);
+  providerPanel.setVisibility(hasLogo||hasName?VISIBLE:GONE);
  }
  void setStatus(String value){
   String text=value==null?"":value.replace('\n',' ');
