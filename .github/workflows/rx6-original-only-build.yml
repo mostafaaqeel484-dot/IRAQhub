@@ -1,7 +1,7 @@
 name: RX6 Original Source Only - Android 14 X5M
 on:
   push:
-    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112', 'feature/rx6-separated-channel-provider-logos-api-133-20261112', 'fix/rx6-poster-chmax-bulk-422-health-perf-20261112', 'feature/rx6-zero-overlay-brand-editor-infobar-build-20261112', 'feature/rx6-408-infobar-channel-custom-osn-20261112' ]
+    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112', 'feature/rx6-separated-channel-provider-logos-api-133-20261112', 'fix/rx6-poster-chmax-bulk-422-health-perf-20261112', 'feature/rx6-zero-overlay-brand-editor-infobar-build-20261112', 'feature/rx6-408-infobar-channel-custom-osn-20261112', 'fix/rx6-408-compact-infobar-real-flags-18pct-20261113' ]
   pull_request:
     branches: [ 'feature/rx6-original-source-only-20261111' ]
   workflow_dispatch:
@@ -91,6 +91,17 @@ jobs:
           assert result["channels"]==0,result
           print("RX6 real logo assets bundled",result["downloaded"])
           PY
+      - name: Bundle true offline national flag PNGs (never emoji)
+        run: |
+          python3 scripts/bundle_rx6_country_flags.py
+          python3 - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('app/src/main/assets/provider-branding/country-flags')
+          state=json.loads((root/'index.json').read_text())
+          assert {'AE','AL','RS','HR','PL','IQ','QA','TR'}.issubset(set(state['countries']))
+          assert all((root/(code.lower()+'.png')).read_bytes().startswith(b'\\x89PNG\\r\\n\\x1a\\n') for code in state['countries'])
+          print('Verified real flag PNGs',len(state['countries']))
+          PY
       - name: Test only uploaded ORIGINAL source
         run: gradle :app:testDebugUnitTest --no-daemon
       - name: Build independent package from uploaded source
@@ -119,7 +130,13 @@ jobs:
               names=set(package.namelist())
               for p in media['providers']:
                   assert 'assets/provider-branding/images/'+p['asset'] in names,p
-          print('RX6 provider-only register, artwork and channel exclusion verified')
+              flags=json.loads(package.read('assets/provider-branding/country-flags/index.json'))
+              assert len(flags['countries'])>=20
+              for code in flags['countries']:
+                  picture=package.read('assets/provider-branding/country-flags/'+code.lower()+'.png')
+                  assert picture[:8]==b'\\x89PNG\\r\\n\\x1a\\n'
+              assert 'AE' in flags['countries']
+          print('RX6 provider-only register, compact UI country flags and channel exclusion verified')
           PY
       - name: Publish verified X5M RX6 Debug APK to private draft Release (artifact quota-safe)
         if: ${{ github.ref == 'refs/heads/fix/rx6-poster-chmax-bulk-422-health-perf-20261112' }}
@@ -145,6 +162,6 @@ jobs:
         if: ${{ github.ref != 'refs/heads/fix/rx6-poster-chmax-bulk-422-health-perf-20261112' }}
         uses: actions/upload-artifact@v4
         with:
-          name: IRAQhub_RX6_408_Channel_Custom_OSN_Guide_APK
+          name: IRAQhub_RX6_409_Compact_Infobar_Real_Flags_APK
           path: app/build/outputs/apk/rx6OriginalPreview/*.apk
           if-no-files-found: error
