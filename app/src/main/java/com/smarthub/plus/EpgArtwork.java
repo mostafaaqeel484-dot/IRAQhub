@@ -42,7 +42,15 @@ final class EpgArtwork {
  private static Bitmap load(Context c,SatelliteState state,String raw,boolean upcoming,boolean cacheOnly)throws Exception{
   return load(c,state,raw,upcoming,cacheOnly,1920);
  }
+ /** On-screen priority: original guide images first; network metadata
+  * sources will be attempted after, not obscured by a stale prefetch. */
+ static Bitmap loadInfobarBroadcast(Context c,SatelliteState state,String raw,boolean upcoming)throws Exception{
+  return load(c,state,raw,upcoming,false,512,false);
+ }
  private static Bitmap load(Context c,SatelliteState state,String raw,boolean upcoming,boolean cacheOnly,int maxDimension)throws Exception{
+  return load(c,state,raw,upcoming,cacheOnly,maxDimension,true);
+ }
+ private static Bitmap load(Context c,SatelliteState state,String raw,boolean upcoming,boolean cacheOnly,int maxDimension,boolean includePrefetch)throws Exception{
   if(state==null||raw==null||raw.trim().isEmpty())return null;
   String title=raw.trim();
   boolean current=!upcoming&&title.equals(state.title),next=upcoming&&title.equals(state.nextTitle);
@@ -63,8 +71,10 @@ final class EpgArtwork {
   }catch(Exception unavailable){}
   String published=PublishedEpgArtwork.image(c,state,title,upcoming);
   if(published!=null&&!published.isEmpty())addresses.add(published);
-  String verified=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
-  if(!verified.isEmpty())addresses.add(verified);
+  if(includePrefetch){
+   String verified=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
+   if(!verified.isEmpty())addresses.add(verified);
+  }
   SportsMatch match=c.getSharedPreferences("smarthub",0).getBoolean("art_source_sportsdb_enabled",true)?sportsMatch(c,state,upcoming):null;
   if(match!=null&&SportsProgrammeArtwork.verified(match))try{
    if(match.image!=null&&!match.image.isEmpty()){

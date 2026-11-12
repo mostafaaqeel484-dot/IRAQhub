@@ -33,6 +33,10 @@ class LogoSourcesActivity:HubActivity(){
   panel.addView(state)
   action(panel,tx("جلب شعار القناة من CHMAX أو مصدر مستقل","Find current channel logo"),Runnable{testCurrent()})
   action(panel,tx("اختبار تنزيل CHMAX الأصلي المصرّح","Test authorised CHMAX icon download"),Runnable{testChmax()})
+  action(panel,tx("تنزيل كل شعارات القمر الحالي من CHMAX دفعة واحدة",
+     "Download all logos for current CHMAX satellite"),Runnable{downloadChmaxSatellite()})
+  action(panel,tx("تنزيل حزم شعارات جميع الأقمار من CHMAX",
+     "Download indexed satellite logo packages from CHMAX"),Runnable{enqueueChmaxBulk(null)})
   action(panel,tx("ربط شعار PNG/JPEG من USB بالقناة الحالية","Assign PNG/JPEG from USB"),Runnable{open(4)})
   action(panel,tx("ربط هوية الرسيفر بخدمة CHMAX الأصلية","Connect authorised CHMAX account"),Runnable{
    startActivity(Intent(this,FactorySettingsActivity::class.java))
@@ -148,8 +152,51 @@ class LogoSourcesActivity:HubActivity(){
        index.services.count{it.provider.isNotBlank()}
     }
    }
-   state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()
+   val info=getSharedPreferences("smarthub",0)
+    state.text=summary+"\n"+ChlLogoAddon.get(this@LogoSourcesActivity).statusLabel()+
+      "\nCHMAX bulk: "+info.getString("chmax_package_status","NOT_SYNCED")+
+      " · logos="+info.getInt("chmax_official_logo_count",0)+
+      " · last sat="+info.getInt("chmax_last_completed_sat",-1)
   }
+ }
+ /** One authorised official ZIP package per satellite, not per-channel.
+  * Requires the imported CHL/SQLite physical service index. */
+ private fun downloadChmaxSatellite(){
+  val channel=SatelliteState.read(this)
+  val orbit=channel.channelId.takeIf{it.startsWith("DVB:")}
+    ?.split(':')?.getOrNull(1)?.toIntOrNull()
+  if(orbit==null){
+   message(tx("اختر قناة DVB على القمر المطلوب","Select a DVB channel on the satellite first"))
+   return
+  }
+  enqueueChmaxBulk(orbit)
+ }
+ private fun enqueueChmaxBulk(orbit:Int?){
+  val addon=ChlLogoAddon.get(this)
+  if(!ChannelLogoSourcePrefs.chmax(this)||!addon.enabled()){
+   message(tx("فعّل CHMAX للقنوات أولاً","Enable CHMAX channel logos first"));return
+  }
+  val known=addon.snapshot()?.services
+  if(known.isNullOrEmpty()||(orbit!=null&&known.none{it.sat==orbit})){
+   message(tx("استورد فهرس القمر من CHL/DB أولاً","Import this satellite's CHL/DB service index first"));return
+  }
+  if(!addon.supportedSession()){
+   state.text=tx("خدمة CHMAX تتطلب ملف مصادقة المصنع؛ لا يمكن تجاوز صلاحياته.",
+    "CHMAX requires the authorised factory profile; cannot bypass OEM permissions.")
+   return
+  }
+  val builder=androidx.work.OneTimeWorkRequest.Builder(ChmaxLogoSyncWorker::class.java)
+   .setConstraints(androidx.work.Constraints.Builder()
+     .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
+   .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL,15,
+     java.util.concurrent.TimeUnit.MINUTES)
+  if(orbit!=null)builder.setInputData(androidx.work.Data.Builder()
+    .putInt(ChmaxLogoSyncWorker.ONLY_SATELLITE,orbit).build())
+  val label=orbit?.toString()?:"all"
+  androidx.work.WorkManager.getInstance(this).enqueueUniqueWork(
+   "rx6-chmax-satellite-"+label,androidx.work.ExistingWorkPolicy.KEEP,
+   builder.build())
+  state.text=tx("تمت جدولة حزمة شعارات CHMAX للقمر ","CHMAX satellite package queued: ")+label
  }
  private fun testChmax(){
   val selected=SatelliteState.read(this)

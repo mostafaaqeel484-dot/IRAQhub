@@ -40,6 +40,9 @@ public final class Independent422Activity extends HubActivity {
  private long previousDropSampleAt,renderStartedAt;
  private boolean nativeRecoveryUsed,frameRecoveryUsed,terminalFrameFailureShown;
  private int noFrameSamples;
+ private long previousSurfaceSignature=Long.MIN_VALUE,lastSurfaceSampleAt;
+ private int sameSurfaceSamples;
+ private boolean surfaceProbePending;
  private int rendererEpoch;
  private Mpv422Renderer renderer;
  private Native422Decoder directDecoder;
@@ -98,6 +101,51 @@ public final class Independent422Activity extends HubActivity {
      boolean progressed=Independent422Policy.clockProgressed(
        previousPosition,values.position);
      if(progressed){previousPositionAt=now;previousPosition=values.position;}
+     // mpv time-pos can advance while the displayed first frame is frozen.
+     // Copy only 96x54 Surface pixels every ~5s; never capture the full UI.
+     if(now-renderStartedAt>=7000&&
+        now-lastSurfaceSampleAt>=VideoSurfaceStallPolicy.SAMPLE_INTERVAL_MS&&
+        (!surfaceProbePending||
+          now-lastSurfaceSampleAt>VideoSurfaceStallPolicy.SAMPLE_INTERVAL_MS*2)){
+      surfaceProbePending=true;lastSurfaceSampleAt=now;
+      final int sampleEpoch=rendererEpoch;
+      engine.samplePresentedFrame((available,pixelHash)->{
+       if(sampleEpoch!=rendererEpoch||renderer!=engine||stopped||destroyed)return;
+       surfaceProbePending=false;
+       if(!available)return;
+       boolean previous=previousSurfaceSignature!=Long.MIN_VALUE;
+       sameSurfaceSamples=previous?
+         VideoSurfaceStallPolicy.identicalSamples(sameSurfaceSamples,
+           previousSurfaceSignature,pixelHash,true):0;
+       previousSurfaceSignature=pixelHash;
+       prefs().edit().putInt("independent_422_static_pixel_samples",sameSurfaceSamples)
+         .putLong("independent_422_pixel_probe_at",System.currentTimeMillis())
+         .putString("decoder_422_verification",sameSurfaceSamples==0?
+           "MPV_SURFACE_PIXELS_CHANGED":"MPV_SURFACE_PIXELS_STILL_"+sameSurfaceSamples)
+         .apply();
+       long since=SystemClock.elapsedRealtime()-previousPositionAt;
+       long bitrate=prefs().getLong("software_ts_bitrate",0);
+       boolean tsFresh=relay==null||(relay.running()&&bitrate>0&&
+         System.currentTimeMillis()-prefs().getLong("software_ts_bitrate_at",0)<12000);
+       if(VideoSurfaceStallPolicy.probableStall(sameSurfaceSamples,
+         SystemClock.elapsedRealtime()-renderStartedAt,since,tsFresh,frameRecoveryUsed)){
+        frameRecoveryUsed=true;
+        android.util.Log.w("IRAQhub422",
+          "MOVING_CLOCK_STATIC_SURFACE_ONE_SHOT_SW_GPU bitrate="+bitrate+
+          " cc_gaps="+prefs().getLong("software_ts_cc_gaps",-1));
+        activeDecoderMode=Mpv422FluidPolicy.SW;
+        renderMode=Mpv422FluidPolicy.GPU_NATIVE;
+        videoOnly=true;
+        prefs().edit().putString("independent_422_auto_action",
+          "MOVING_CLOCK_STATIC_SURFACE_SW_GPU_VIDEO_ONLY_ONCE")
+          .putBoolean("independent_422_video_only",true).apply();
+        updateDecoderButton();updateRenderButton();updateAudioButton();
+        display(tx("الصورة ثابتة رغم وصول TS؛ محاولة واحدة بفك SW وإخراج GPU",
+          "Surface static with moving TS; one SW/GPU retry"));
+        restartRenderer();
+       }
+      });
+     }
      String state="MPV_POSITION_UNAVAILABLE";
      if(values.position>=0){
       state=Independent422Policy.clockStalled(previousPositionAt,now,
@@ -503,6 +551,8 @@ public final class Independent422Activity extends HubActivity {
   closeRenderer();
   final int callbackEpoch=rendererEpoch;
   loaded=false;previousPosition=-1;previousPositionAt=0;
+  previousSurfaceSignature=Long.MIN_VALUE;sameSurfaceSamples=0;
+  surfaceProbePending=false;lastSurfaceSampleAt=0;
    previousVoDrops=-1;previousDropSampleAt=0;poorDropSamples=0;
    noFrameSamples=0;
    renderStartedAt=SystemClock.elapsedRealtime();

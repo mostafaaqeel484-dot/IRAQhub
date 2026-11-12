@@ -34,8 +34,9 @@ final class UnifiedArtworkPrefetch {
     if(existing!=null&&!existing.isEmpty())continue;
     JSONObject chosen=PosterSelection.read(context,event,title,upcoming);
     String id=chosen.optString("id"),type=chosen.optString("type");
+    if(!PosterArtworkPriority.pinnedTmdbId(id)){id="";type="";}
     JSONObject auto=null;
-    if(id.isEmpty()&&title.trim().length()>=5){
+    if(id.isEmpty()&&title.trim().length()>=5&&PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB)){
      // Strict TMDB provider rejects ambiguous or weak titles; do not guess.
      try{
       ProviderSecrets secrets=ProviderSecrets.read(context);
@@ -81,7 +82,11 @@ final class UnifiedArtworkPrefetch {
     String key=PosterSelection.key(event,title,upcoming);
     if(key.isEmpty())continue;
     long before=prefs.getLong("verified_poster_until:"+key,0);
-    if(before>System.currentTimeMillis()&&!prefs.getString("verified_poster_url:"+key,"").isEmpty())continue;
+    long sourceRevision=Math.max(prefs.getLong("poster_sources_changed_at",0),
+       prefs.getLong("providers_changed_at",0));
+    if(before>System.currentTimeMillis()&&
+       prefs.getLong("verified_poster_at:"+key,0)>=sourceRevision&&
+       !prefs.getString("verified_poster_url:"+key,"").isEmpty())continue;
     String address="",posterSource="",imdb="";
     // Verify chosen TMDB identity first. Different providers fail independently.
     try{
@@ -98,7 +103,16 @@ final class UnifiedArtworkPrefetch {
      }
     }catch(Exception unavailable){/* Preserve other providers. */}
     if(validUrl(address)&&!imageAvailable(context,address))address="";
-    if(!validUrl(address))try{
+    if(!validUrl(address)&&"series".equals(type)&&imdb.matches("tt[0-9]{7,10}"))
+     try{
+      JSONObject maze=new TvmazeProvider(context).resolve(title,imdb);
+      if("matched".equals(maze.optString("status"))&&imdb.equals(maze.optString("imdbId"))
+        &&validUrl(maze.optString("poster",""))){
+       address=maze.optString("poster","");
+       posterSource="TVmaze";
+      }
+     }catch(Exception unavailable){/* Keep verified images only. */}
+    if(!validUrl(address)&&PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
      JSONObject better=provider.resolve(title,id,type,imdb,0);
      if("matched".equals(better.optString("status"))&&id.equals(better.optString("id"))
        &&type.equals(better.optString("type"))&&validUrl(better.optString("poster",""))){
@@ -116,15 +130,6 @@ final class UnifiedArtworkPrefetch {
      }catch(Exception unavailable){/* Fall back. */}
     }
     if(validUrl(address)&&!imageAvailable(context,address))address="";
-    if(!validUrl(address)&&"series".equals(type)&&imdb.matches("tt[0-9]{7,10}"))
-     try{
-      JSONObject maze=new TvmazeProvider(context).resolve(title,imdb);
-      if("matched".equals(maze.optString("status"))&&imdb.equals(maze.optString("imdbId"))
-        &&validUrl(maze.optString("poster",""))){
-       address=maze.optString("poster","");
-       posterSource="TVmaze";
-      }
-     }catch(Exception unavailable){/* Keep verified images only. */}
     if(!validUrl(address))continue;
     byte[] bytes=ArtworkCache.fetch(context,new URL(address),5*1024*1024);
     if(bytes==null||bytes.length<200)continue;
@@ -155,6 +160,10 @@ final class UnifiedArtworkPrefetch {
   if(key.isEmpty())return "";
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
   if(p.getLong("verified_poster_until:"+key,0)<=System.currentTimeMillis())return "";
+  String label=p.getString("verified_poster_source:"+key,"");
+  if(label.startsWith("BetterPosters")&&!PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))return "";
+  if("TMDB".equals(label)&&!PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB))return "";
+  if("TVmaze".equals(label)&&!PosterSourceSwitches.enabled(context,PosterSourceSwitches.TVMAZE))return "";
   String source=p.getString("verified_poster_url:"+key,"");
   return validUrl(source)?source:"";
  }
