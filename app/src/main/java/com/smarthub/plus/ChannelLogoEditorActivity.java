@@ -1,11 +1,18 @@
 package com.smarthub.plus;
 
 import android.os.Bundle;
+import android.content.Intent;
+import android.net.Uri;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import android.view.View;
 import android.widget.*;
 
 /** Non-destructive RX6 channel-logo appearance editor. Factory and CHMAX images are read-only. */
 public final class ChannelLogoEditorActivity extends HubActivity {
+ private static final int PICK_IMAGE=9168;
+ private final ExecutorService io=Executors.newSingleThreadExecutor();
+ private volatile boolean closed;
  private TextView status;
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
@@ -57,6 +64,33 @@ public final class ChannelLogoEditorActivity extends HubActivity {
     "white".equals(original.background)?light.getId():transparent.getId());
   panel.addView(backgrounds);
 
+  if(canScope){
+   final EditText url=field(panel,tx("رابط HTTPS مباشر لشعار القناة",
+     "Direct HTTPS URL for this channel's logo"),"");
+   action(panel,tx("استيراد شعار قناة من رابط","Import channel logo via HTTPS"),()->{
+    final String address=url.getText().toString().trim();
+    status.setText(tx("جارٍ جلب الصورة…","Importing image…"));
+    io.execute(()->{
+     try{
+      ChannelImageUrlImport.add(getApplicationContext(),physical,address);
+      notice(tx("تم حفظ شعار القناة","Channel artwork saved"));
+     }catch(Exception failure){notice(tx("فشل استيراد الشعار: ",
+       "Channel artwork rejected: ")+failure.getClass().getSimpleName());}
+    });
+   });
+   action(panel,tx("استيراد صورة من USB أو الجهاز","Choose channel logo from USB/storage"),()->{
+    Intent picker=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    picker.addCategory(Intent.CATEGORY_OPENABLE);picker.setType("image/*");
+    launchDocument(picker,PICK_IMAGE);
+   });
+   action(panel,tx("حذف الصورة اليدوية والعودة لشعار CHMAX","Remove custom image; return to CHMAX"),()->{
+    io.execute(()->{
+     ChannelArtworkOverrides.remove(getApplicationContext(),physical);
+     notice(tx("تم استرجاع مصدر شعارات القنوات","Original channel logo source restored"));
+    });
+   });
+  }
+
   status=text(tx("النتيجة تُعرض عند فتح InfoBar مجدداً.",
    "Changes appear on the next InfoBar refresh."),14,false);
   action(panel,tx("حفظ تخصيص الشعار","Save channel logo appearance"),()->{
@@ -75,4 +109,18 @@ public final class ChannelLogoEditorActivity extends HubActivity {
   });
   panel.addView(status);
  }
+ private void notice(String message){runOnUiThread(()->{if(!closed&&status!=null)status.setText(message);});}
+ @Override protected void onActivityResult(int request,int result,Intent data){
+  super.onActivityResult(request,result,data);
+  if(request!=PICK_IMAGE||result!=RESULT_OK||data==null||data.getData()==null)return;
+  final String physical=SatelliteState.read(this).channelId;
+  final Uri image=data.getData();
+  if(!ChannelLogoAppearance.physical(physical)){notice(tx("حدد قناة DVB أولاً","Select a DVB channel"));return;}
+  io.execute(()->{
+   try{ChannelArtworkOverrides.add(getApplicationContext(),physical,image);
+    notice(tx("تم حفظ صورة القناة","Channel image saved"));}
+   catch(Exception failed){notice(tx("تعذر استيراد الصورة: ","Invalid image: ")+failed.getClass().getSimpleName());}
+  });
+ }
+ @Override protected void onDestroy(){closed=true;io.shutdownNow();super.onDestroy();}
 }
