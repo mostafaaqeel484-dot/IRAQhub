@@ -32,7 +32,14 @@ final class OnlineProgramme {
   try{tmdbKey=ProviderSecrets.read(context).tmdb;}catch(Exception unavailable){/* Another poster source remains usable. */}
   if(id.isEmpty()&&imdb.isEmpty()&&!tmdbKey.isEmpty()){
    JSONObject remembered=PosterSelection.read(context,event,raw,upcoming);
-   id=remembered.optString("id");type=remembered.optString("type");
+   // Old BetterPosters/TVmaze IDs must NEVER lock out TMDB after its key
+   // is configured. Only reuse a pinned TMDB identity; use IMDb separately.
+   String oldId=remembered.optString("id");
+   if(oldId.startsWith("tmdb:")){
+    id=oldId;type=remembered.optString("type");
+   }else if(remembered.optString("imdbId").matches("tt[0-9]{7,10}")){
+    imdb=remembered.optString("imdbId");
+   }
   }
   JSONObject j=new JSONObject().put("status","not_found");
   JSONObject approximateCandidates=null;
@@ -98,7 +105,22 @@ final class OnlineProgramme {
    return epg(context,event,raw,upcoming);
   }
   if(!similarPoster)PosterSelection.save(context,event,raw,upcoming,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));boolean anime="AniList".equals(j.optString("provider"))||"Kitsu".equals(j.optString("provider"));item.id=anime?j.optString("id"):tmdb?j.optString("id"):(better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(anime?j.optString("provider"):tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · artwork rights retained by the owners";item.imageCredit=anime?j.optString("provider"):tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
-  String address=j.optString("poster");Bitmap bitmap=posterBitmap(context,address);
+  String address=j.optString("poster");
+  Bitmap bitmap=null;
+  // BetterPosters is a last-resort IMAGE source even when its metadata
+  // supplied an exact IMDb ID. RPDB/OMDb/OPDB get a chance first.
+  if(better&&item.imdbId.matches("tt[0-9]{7,10}")&&!similarPoster){
+   try{
+    String verified=VerifiedPosterFallback.find(context,item.imdbId,item.title,item.release);
+    Bitmap alternate=posterBitmap(context,verified);
+    if(alternate!=null){
+     bitmap=alternate;address=verified;
+     item.imageCredit=posterSourceCredit(verified);
+     item.imageLicense="External exact-IMDb poster · rights remain with owners";
+    }
+   }catch(Exception ignored){}
+  }
+  if(bitmap==null)bitmap=posterBitmap(context,address);
   // TMDB success stays untouched; exact IMDb alternatives outrank BetterPosters.
   // Identity-bound RPDB / OpenPosterDB / licensed archive fallbacks.
   // The free RPDB key is public; an OMDb Poster API requires a separate
@@ -170,7 +192,8 @@ final class OnlineProgramme {
    BitmapFactory.decodeByteArray(data,0,data.length,bounds);
    if(bounds.outWidth<90||bounds.outHeight<90||bounds.outWidth>10000||bounds.outHeight>10000)return null;
    BitmapFactory.Options opts=new BitmapFactory.Options();
-   int limit=1280;opts.inSampleSize=1;
+   // Limit decoding for the 4 GB X5M launcher; InfoBar downsamples to 512.
+   int limit=768;opts.inSampleSize=1;
    while(bounds.outWidth/opts.inSampleSize>limit||bounds.outHeight/opts.inSampleSize>limit)opts.inSampleSize*=2;
    return BitmapFactory.decodeByteArray(data,0,data.length,opts);
   }catch(Exception unavailable){return null;}
