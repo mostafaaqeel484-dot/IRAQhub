@@ -122,14 +122,20 @@ class LogoRepository private constructor(context:Context){
   if(chosen!=null)return chosen
   return try{OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")}catch(_:Exception){null}
  }
- private fun providerRecord(name:String,physical:String?,entry:ChannelAliasDatabase.Entry?):Pair<String,Bitmap?>{
+ private fun providerRecord(name:String,physical:String?,entry:ChannelAliasDatabase.Entry?,
+                            online:Boolean=false):Pair<String,Bitmap?>{
   if(!ChannelLogoSourcePrefs.providers(app))return Pair("",null)
   val label=network(name,entry)?.name?:addon.provider(name)
   val branding=ProviderBrandArt.get(app)
   val official=branding.provider(label,name,physical?:"")
   val display=official.ifBlank{label}
   val audited=branding.badge(label,name,physical?:"")
-  return Pair(display,audited)
+  // User-approved remote provider art is a third, independent image store.
+  // A failed URL never influences CHMAX or the channel-logo resolver.
+  val selected=if(audited!=null||display.isBlank())null else
+    if(online)ProviderApprovedArtwork.resolve(app,display)
+    else ProviderApprovedArtwork.cached(app,display)
+  return Pair(display,audited?:selected)
  }
  /** Fast-path does not issue channel or provider network requests. */
  fun requestCached(name:String,physical:String?,listener:Listener){
@@ -166,7 +172,7 @@ class LogoRepository private constructor(context:Context){
    val image=if(!enabled)null else if(ram!=null)ram else get(key){
     loadChannel(name,physical,updatedEntry)
    }
-   val result=providerRecord(name,physical,updatedEntry)
+   val result=providerRecord(name,physical,updatedEntry,true)
    withContext(Dispatchers.Main){
     listener.channel(image)
     listener.provider(result.first,result.second)
