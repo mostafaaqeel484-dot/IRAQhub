@@ -25,6 +25,21 @@ public final class ManualEpgActivity extends HubActivity {
   LinearLayout content=page(tx("جلب EPG خارجي يدوياً","Manual external EPG"),
    tx("EPG Pro وDVB EIT أولاً. لا تحميل خارجي تلقائي ولا استبدال لبيانات المصنع.",
       "Factory EPG Pro and DVB EIT always take priority. No automatic external downloads."));
+  if(selected.channelName.toUpperCase(java.util.Locale.ROOT).contains("OSN")){
+   action(content,tx("فتح دليل برامج OSN الرسمي للمقارنة",
+     "Open official OSN TV Guide for reference"),()->{
+    try{
+     android.content.Intent browser=new android.content.Intent(
+       android.content.Intent.ACTION_VIEW,
+       android.net.Uri.parse("https://www.osn.com/en-iq/osntv/"));
+     startActivity(browser);
+    }catch(android.content.ActivityNotFoundException missing){
+     toast(tx("لا يوجد متصفح لفتح موقع OSN","No browser available to open OSN"));
+    }
+   });
+   note(content,tx("صفحة OSN للمراجعة فقط. لا تتوفر هنا API عامة موثقة؛ لا تحل محل EPG المصنع.",
+    "OSN website is for reference only. No confirmed public guide API; factory EPG stays primary."));
+  }
   LinearLayout identity=card(content);
   identity.addView(text(tx("القناة المحددة: ","Selected channel: ")+
     selected.channelName+"  ·  "+selected.channelId,17,true));
