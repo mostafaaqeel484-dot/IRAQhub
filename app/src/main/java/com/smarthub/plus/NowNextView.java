@@ -401,7 +401,9 @@ final class NowNextView extends FrameLayout {
    providerCaption.setText(tx("المزود","PROVIDER")+(provider.endsWith(" (CHL)")?" · CHL":""));
    providerPanel.setContentDescription(tx("مزود الخدمة: ","Service provider: ")+shownProvider);
    // Preserve real manufacturer artwork across the frequent OSD clock ticks.
-   String brandIdentity=shownProvider+"|"+s.channelId;
+   String brandIdentity=shownProvider+"|"+s.channelId+"|"+
+     prefs.getLong(ProviderLogoOverrides.REVISION,0)+"|"+
+     ChannelLogoSourcePrefs.providers(getContext());
    if(!brandIdentity.equals(selectedProviderBrand)){
     selectedProviderBrand=brandIdentity;
     Bitmap fallbackBrand=branding.badge(provider,s.channelName,s.channelId);
@@ -555,22 +557,29 @@ final class NowNextView extends FrameLayout {
   logo.setImageDrawable(null);providerLogo.setImageDrawable(null);
  }
  void provider(Bitmap image){
+  if(!ChannelLogoSourcePrefs.providers(getContext())){
+   providerLogo.setImageDrawable(null);
+   providerName.setVisibility(GONE);
+   providerPanel.setVisibility(GONE);
+   return;
+  }
   SatelliteState live=SatelliteState.read(getContext());
   String displayName=providerName.getText().toString();
   ProviderBrandArt art=ProviderBrandArt.get(getContext());
   Bitmap registered=art.badge(displayName,live.channelName,live.channelId);
   ProviderFamilyRules.Brand family=ProviderFamilyRules.select(
     displayName,live.channelName,live.channelId);
-  // Only real, verified family artwork may override a genuine CHMAX provider image.
-  // A colored placeholder is never allowed to replace manufacturer artwork.
-  if(registered!=null&&(image==null||(family!=null&&
-      art.verified(family.assetOwner,family.country))))image=registered;
+  // Provider-only/manual or independently matched image; never the channel badge.
+  if(registered!=null)image=registered;
   providerLogo.setImageBitmap(image==null?null:ProviderBrandArt.outlineDark(image));
   providerLogo.setVisibility(image==null?GONE:VISIBLE);
   providerName.setVisibility(image==null&&!providerName.getText().toString().trim().isEmpty()?VISIBLE:GONE);
   updateProviderVisibility();
  }
  private void updateProviderVisibility(){
+  if(!ChannelLogoSourcePrefs.providers(getContext())){
+   providerName.setVisibility(GONE);providerPanel.setVisibility(GONE);return;
+  }
   boolean hasLogo=providerLogo.getDrawable()!=null;
   boolean hasName=!providerName.getText().toString().trim().isEmpty();
   providerName.setVisibility(!hasLogo&&hasName?VISIBLE:GONE);
