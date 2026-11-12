@@ -21,6 +21,8 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
     "Verified provider mark or provider name text only; never channel artwork."),13,false);
   page.addView(subtitle);
   setContentView(page);
+  action(page,tx("إضافة أو تعديل شعار مزوّد","Add / edit provider logo"),
+    ()->startActivity(new android.content.Intent(this,ProviderLogoEditorActivity.class)));
   List<ProviderCountryCatalog.Provider> providers=
     new ArrayList<>(ProviderCountryCatalog.get(this).all());
   Collections.sort(providers,(a,b)->a.name.compareToIgnoreCase(b.name));
