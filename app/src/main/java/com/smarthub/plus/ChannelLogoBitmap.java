@@ -52,6 +52,19 @@ final class ChannelLogoBitmap {
     for(int i=0;i<tail;i++)pixels[queue[i]]=0;
    }
   }
+  if(matte==1&&changed){
+   // Once an edge-connected white rectangle is removed, black text would
+   // disappear against the native RX6 black ribbon. Turn only neutral/dark
+   // surviving ink white; saturated logos (red OSN, Sky, Arena) stay coloured.
+   for(int i=0;i<pixels.length;i++){
+    int p=pixels[i],alpha=p>>>24;
+    if(alpha<=8)continue;
+    int red=(p>>>16)&255,green=(p>>>8)&255,blue=p&255;
+    int high=Math.max(red,Math.max(green,blue));
+    int low=Math.min(red,Math.min(green,blue));
+    if(high<=105&&high-low<=28)pixels[i]=(alpha<<24)|0x00ffffff;
+   }
+  }
   if(!crop){return changed?Bitmap.createBitmap(pixels,w,h,Bitmap.Config.ARGB_8888):source;}
   int minX=w,minY=h,maxX=-1,maxY=-1;
   for(int y=0;y<h;y++)for(int x=0;x<w;x++){
