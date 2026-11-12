@@ -67,6 +67,10 @@ class LogoSourcesActivity:HubActivity(){
   options.addView(text(tx("يمكن تشغيل CHMAX والخارجي سويةً؛ CHMAX أولاً، وعند غياب الشعار يُستخدم الخارجي. إيقاف أحدهما يمنع إعادة استعمال كاشه القديم.",
     "Enable both: CHMAX first, then independent sources for missing logos. Disabled sources cannot reuse old artwork."),13,false))
   options.addView(text(tx("حجم شعار القناة والعلم","Channel logo size and flag"),16,true))
+  action(options,tx("محرر شعار القناة الحالية — حجم وخلفية وعلم",
+    "Edit current channel logo — scale, matte, background and flag"),Runnable{
+    startActivity(Intent(this,ChannelLogoEditorActivity::class.java))
+  })
   val sizeLabel=text("",14,false)
   val sizeBar=android.widget.SeekBar(this)
   sizeBar.max=12

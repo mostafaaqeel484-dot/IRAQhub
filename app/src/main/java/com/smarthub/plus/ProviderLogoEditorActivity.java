@@ -46,6 +46,18 @@ public final class ProviderLogoEditorActivity extends HubActivity {
     ()->chooseChannels());
   action(body,tx("حفظ انتماء القنوات المحددة للمزوّد","Save chosen channel assignments"),
     ()->saveChannels());
+  action(body,tx("إلغاء ربط القنوات المحددة والعودة للتلقائي",
+     "Unassign selected channels and restore automatic provider"),()->{
+   final ArrayList<String> selected=new ArrayList<>(selectedDvb);
+   if(selected.isEmpty()){result(tx("حدد قنوات أولاً","Select DVB services first"));return;}
+   io.execute(()->{
+    try{
+     int undone=ProviderLogoOverrides.clearChannels(this,selected);
+     selectedDvb.removeAll(selected);
+     result(tx("أُلغي ربط قنوات: ","Unassigned channels: ")+undone);
+    }catch(Exception e){result(tx("تعذر إلغاء الربط","Cannot remove assignments"));}
+   });
+  });
   action(body,tx("حذف التخصيص اليدوي المحدد","Remove this manual provider override"),()->{
    String provider=name.getText().toString().trim();
    String iso=country.getText().toString().trim().toUpperCase(Locale.ROOT);

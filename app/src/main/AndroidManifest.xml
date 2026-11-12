@@ -48,7 +48,8 @@
   <activity android:name=".ChannelIdentityActivity" android:exported="false" /><activity android:name=".PosterApiSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".ReceiverDbImportActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".ProviderLogoCatalogActivity" android:exported="false" android:screenOrientation="landscape" />
-  <activity android:name=".ProviderLogoEditorActivity" android:exported="false" android:screenOrientation="landscape" /><activity android:name=".ProviderSetupActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ProviderLogoEditorActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ChannelLogoEditorActivity" android:exported="false" android:screenOrientation="landscape" /><activity android:name=".ProviderSetupActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".SatelliteActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".SatelliteGuideActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".ToolsActivity" android:exported="false" android:screenOrientation="landscape" />

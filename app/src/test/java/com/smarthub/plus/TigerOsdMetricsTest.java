@@ -6,9 +6,9 @@ public final class TigerOsdMetricsTest {
  @Test public void iconsAreSameSizeAcrossBothRows(){
   assertEquals(36,TigerOsdMetrics.iconWidthDp());
   assertEquals(22,TigerOsdMetrics.iconHeightDp());
-  assertEquals(120,TigerOsdMetrics.headerHeightDp());
+  assertEquals(177,TigerOsdMetrics.headerHeightDp());
   // 2026 RX6 enlarged-logo reference: full flag and channel brand in the header.
-  assertTrue(TigerOsdMetrics.headerHeightDp()>=2*TigerOsdMetrics.iconHeightDp()+24);
+  assertTrue(TigerOsdMetrics.headerHeightDp()>=112+31+30);
  }
  @Test public void compactModeIsNotBasedOnImpossibleHeightThreshold(){
   assertTrue(TigerOsdMetrics.isCompact(false));

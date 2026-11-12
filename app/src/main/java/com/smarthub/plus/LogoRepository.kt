@@ -101,6 +101,7 @@ class LogoRepository private constructor(context:Context){
   val chmax=ChannelLogoSourcePrefs.chmax(app)
   val external=ChannelLogoSourcePrefs.external(app)
   if(!chmax&&!external)return null
+  if(external)ChannelArtworkOverrides.load(app,physical?:"")?.let{return it}
   if(chmax)bulkChmax(physical)?.let{return it}
   observed(name,physical)?.let{return it}
   if(chmax){
@@ -149,13 +150,16 @@ class LogoRepository private constructor(context:Context){
   val enabled=ChannelLogoSourcePrefs.chmax(app)||ChannelLogoSourcePrefs.external(app)
   val known=if(physical?.startsWith("DVB:")==true)null else db.channel(name)
   val key=channelKey(name,known,physical)
-  listener.channel(if(enabled)packageKey(physical)?.let{cache.peek(it)}?:cache.peek(key) else null)
+  listener.channel(if(enabled)
+    (if(ChannelLogoSourcePrefs.external(app))ChannelArtworkOverrides.peek(physical?:"") else null)
+      ?:packageKey(physical)?.let{cache.peek(it)}?:cache.peek(key) else null)
   // Only source name on D-pad thread; provider bitmap decode stays on IO.
   listener.provider(if(ChannelLogoSourcePrefs.providers(app))providerName(name) else "",null)
   if(!enabled&&!ChannelLogoSourcePrefs.providers(app))return
   scope.launch{
    val image=if(enabled)slots.withPermit{
-    bulkChmax(physical)?:cache.read(key)?:observed(name,physical)?.also{persistLogo(key,it)}
+    (if(ChannelLogoSourcePrefs.external(app))ChannelArtworkOverrides.load(app,physical?:"") else null)
+     ?:bulkChmax(physical)?:cache.read(key)?:observed(name,physical)?.also{persistLogo(key,it)}
      ?:if(ChannelLogoSourcePrefs.external(app))
        ReceiverLogoAssets.load(app,name,physical)?.also{persistLogo(key,it)}
        else null
@@ -176,13 +180,17 @@ class LogoRepository private constructor(context:Context){
   val enabled=ChannelLogoSourcePrefs.chmax(app)||ChannelLogoSourcePrefs.external(app)
   val entry=db.channel(name)
   val key=channelKey(name,entry,physical)
-  val ram=if(enabled)packageKey(physical)?.let{cache.peek(it)}?:cache.peek(key) else null
+  val ram=if(enabled)
+    (if(ChannelLogoSourcePrefs.external(app))ChannelArtworkOverrides.peek(physical?:"") else null)
+      ?:packageKey(physical)?.let{cache.peek(it)}?:cache.peek(key) else null
   listener.channel(ram)
   listener.provider(if(ChannelLogoSourcePrefs.providers(app))providerName(name) else "",null)
   scope.launch{
    db.load();addon.load()
    val updatedEntry=db.channel(name)
-   val image=if(!enabled)null else bulkChmax(physical)?:if(ram!=null)ram else get(key){
+   val custom=if(ChannelLogoSourcePrefs.external(app))
+     ChannelArtworkOverrides.load(app,physical?:"") else null
+   val image=if(!enabled)null else custom?:bulkChmax(physical)?:if(ram!=null)ram else get(key){
     loadChannel(name,physical,updatedEntry)
    }
    val result=providerRecord(name,physical,updatedEntry,true)

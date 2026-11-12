@@ -106,8 +106,24 @@ final class ProviderLogoOverrides {
   }catch(Exception failed){target.failWrite(output);throw failed;}
   finally{original.recycle();}
   JSONObject entries=read(c);
+  JSONObject oldProvider=channelId.isEmpty()?entries.optJSONObject(logical):null;
+  String prior=oldProvider==null?"":oldProvider.optString("filename","");
   entries.put(logical,new JSONObject().put("name",name)
     .put("country",country).put("filename",filename));
+  // Replace a provider image across all its exact DVB assignments; preserve
+  // intentionally different artwork selected for an individual channel.
+  if(channelId.isEmpty()){
+   java.util.Iterator<String> ids=entries.keys();
+   while(ids.hasNext()){
+    String assignment=ids.next();
+    if(!assignment.startsWith("channel:"))continue;
+    JSONObject row=entries.optJSONObject(assignment);
+    if(row==null||!name.equals(row.optString("name"))||
+        !country.equals(row.optString("country")))continue;
+    String attached=row.optString("filename","");
+    if(attached.isEmpty()||attached.equals(prior))row.put("filename",filename);
+   }
+  }
   byte[] raw=entries.toString().getBytes(StandardCharsets.UTF_8);
   if(raw.length>100000)throw new IOException("TOO_MANY_PROVIDER_OVERRIDES");
   AtomicFile saved=new AtomicFile(metadata(c));
@@ -149,6 +165,29 @@ final class ProviderLogoOverrides {
    .putLong(REVISION,System.currentTimeMillis())
    .putLong("osd_changed_at",System.currentTimeMillis()).apply();
   return added;
+ }
+ /** Undo selected manual assignments together; never remove any receiver channels. */
+ static synchronized int clearChannels(Context c,Collection<String> physicalIds)throws Exception {
+  if(physicalIds==null||physicalIds.isEmpty()||physicalIds.size()>500)
+   throw new IOException("INVALID_SELECTION");
+  JSONObject entries=read(c);
+  int count=0;
+  for(String physical:new LinkedHashSet<>(physicalIds)){
+   if(physical==null||!physical.startsWith("DVB:")||physical.length()>180)
+    throw new IOException("INVALID_PHYSICAL_SERVICE");
+   String key="channel:"+physical;
+   if(entries.has(key)){entries.remove(key);count++;}
+  }
+  if(count==0)return 0;
+  File dir=root(c);if(!dir.isDirectory()&&!dir.mkdirs())
+   throw new IOException("PRIVATE_STORAGE_UNAVAILABLE");
+  AtomicFile saved=new AtomicFile(metadata(c));
+  FileOutputStream output=saved.startWrite();
+  try{output.write(entries.toString().getBytes(StandardCharsets.UTF_8));saved.finishWrite(output);}
+  catch(Exception failure){saved.failWrite(output);throw failure;}
+  c.getSharedPreferences("smarthub",0).edit().putLong(REVISION,System.currentTimeMillis())
+   .putLong("osd_changed_at",System.currentTimeMillis()).apply();
+  return count;
  }
  static int count(Context c){return read(c).length();}
  static void remove(Context c,String name,String country,String channelId)throws Exception{
