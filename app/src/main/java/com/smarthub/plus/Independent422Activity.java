@@ -30,6 +30,9 @@ public final class Independent422Activity extends HubActivity {
  private final AtomicBoolean captureStarted=new AtomicBoolean(false);
  private FrameLayout videoRoot;
  private TextView status;
+ // Video has no permanent OSD. Key 0 toggles control strip and diagnostics.
+ private LinearLayout controlsOverlay;
+ private boolean controlsVisible;
  private Button audioButton,renderButton,decoderButton;
  private String selectedRenderMode=Mpv422FluidPolicy.AUTO;
  private String renderMode=Mpv422FluidPolicy.P720;
@@ -332,6 +335,10 @@ public final class Independent422Activity extends HubActivity {
    controls.addView(button,new LinearLayout.LayoutParams(0,dp(52),1));
   FrameLayout.LayoutParams bottom=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);
   videoRoot.addView(controls,bottom);
+  controlsOverlay=controls;
+  controlsVisible=false;
+  controlsOverlay.setVisibility(View.GONE);
+  status.setVisibility(View.GONE);
   setContentView(videoRoot);
   boolean jni="jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"));
   if(jni){audioButton.setEnabled(false);decoderButton.setEnabled(false);
@@ -700,8 +707,19 @@ public final class Independent422Activity extends HubActivity {
  }
  private void display(String value){
   main.post(()->{if(!destroyed&&status!=null){
-   status.setVisibility(View.VISIBLE);status.setText(value);
+   status.setText(value);
+   status.setVisibility(controlsVisible?View.VISIBLE:View.GONE);
   }});
+ }
+ private void toggleControls(){
+  controlsVisible=!controlsVisible;
+  if(controlsOverlay!=null){
+   controlsOverlay.setVisibility(controlsVisible?View.VISIBLE:View.GONE);
+   if(controlsVisible&&controlsOverlay.getChildCount()>0)
+    controlsOverlay.getChildAt(0).requestFocus();
+  }
+  if(status!=null)status.setVisibility(controlsVisible?View.VISIBLE:View.GONE);
+  prefs().edit().putBoolean("independent_422_controls_visible",controlsVisible).apply();
  }
  private void subtitlePicker(){
   Mpv422Renderer engine=renderer;
@@ -776,6 +794,12 @@ public final class Independent422Activity extends HubActivity {
    .setMessage(report).setPositiveButton("OK",null).show();
  }
  @Override public boolean dispatchKeyEvent(KeyEvent event){
+  if(event.getKeyCode()==KeyEvent.KEYCODE_0||
+     event.getKeyCode()==KeyEvent.KEYCODE_NUMPAD_0){
+   if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)
+    toggleControls();
+   return true;
+  }
   if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
    if(event.getKeyCode()==KeyEvent.KEYCODE_BACK){
     finish();return true;
@@ -787,6 +811,9 @@ public final class Independent422Activity extends HubActivity {
   return super.dispatchKeyEvent(event);
  }
  @Override protected void onStop(){
+  controlsVisible=false;
+  if(controlsOverlay!=null)controlsOverlay.setVisibility(View.GONE);
+  if(status!=null)status.setVisibility(View.GONE);
   stopped=true;generation++;main.removeCallbacks(health);
   closeRenderer();
   LiveTsRelay active=relay;relay=null;
