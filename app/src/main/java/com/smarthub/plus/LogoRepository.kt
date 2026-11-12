@@ -150,17 +150,21 @@ class LogoRepository private constructor(context:Context){
   val known=if(physical?.startsWith("DVB:")==true)null else db.channel(name)
   val key=channelKey(name,known,physical)
   listener.channel(if(enabled)packageKey(physical)?.let{cache.peek(it)}?:cache.peek(key) else null)
-  val cachedName=providerRecord(name,physical,known)
-  listener.provider(cachedName.first,cachedName.second)
-  if(!enabled)return
+  // Only source name on D-pad thread; provider bitmap decode stays on IO.
+  listener.provider(if(ChannelLogoSourcePrefs.providers(app))providerName(name) else "",null)
+  if(!enabled&&!ChannelLogoSourcePrefs.providers(app))return
   scope.launch{
-   val image=slots.withPermit{
+   val image=if(enabled)slots.withPermit{
     bulkChmax(physical)?:cache.read(key)?:observed(name,physical)?.also{persistLogo(key,it)}
      ?:if(ChannelLogoSourcePrefs.external(app))
        ReceiverLogoAssets.load(app,name,physical)?.also{persistLogo(key,it)}
        else null
+   } else null
+   val provider=providerRecord(name,physical,known,false)
+   withContext(Dispatchers.Main){
+    listener.channel(image)
+    listener.provider(provider.first,provider.second)
    }
-   withContext(Dispatchers.Main){listener.channel(image)}
   }
  }
  fun request(name:String,listener:Listener){request(name,null,listener)}
@@ -174,8 +178,7 @@ class LogoRepository private constructor(context:Context){
   val key=channelKey(name,entry,physical)
   val ram=if(enabled)packageKey(physical)?.let{cache.peek(it)}?:cache.peek(key) else null
   listener.channel(ram)
-  val nowProvider=providerRecord(name,physical,entry)
-  listener.provider(nowProvider.first,nowProvider.second)
+  listener.provider(if(ChannelLogoSourcePrefs.providers(app))providerName(name) else "",null)
   scope.launch{
    db.load();addon.load()
    val updatedEntry=db.channel(name)
