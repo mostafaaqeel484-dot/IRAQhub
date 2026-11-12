@@ -35,6 +35,15 @@ def fetch_one(row):
     name=row["asset"]
     assert name and "/" not in name and "\\" not in name and name.endswith((".png",".svg"))
     output=destination/name
+    if row.get("local",False):
+        if not output.is_file():return name,0,"MISSING_USER_ASSET"
+        raw=output.read_bytes()
+        if not 60<=len(raw)<=500000:return name,0,"INVALID_LOCAL_ASSET_SIZE"
+        if hashlib.sha256(raw).hexdigest()!=row.get("sha256",""):
+            return name,0,"LOCAL_ART_SHA256_MISMATCH"
+        if name.endswith(".svg") and b"<svg" not in raw[:150]:
+            return name,0,"LOCAL_ART_NOT_SVG"
+        return name,len(raw),"user_supplied_sha256_verified"
     if output.exists():
         return name,output.stat().st_size,"already"
     if "repo" in row:
