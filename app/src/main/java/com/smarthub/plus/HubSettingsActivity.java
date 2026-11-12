@@ -260,6 +260,10 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showInfoBar(){
+  link(tx("مفاتيح API وتفعيل مصادر البوسترات","API Keys & Services"), 
+    tx("TMDB وRPDB وOPDB وOMDb وTheSportsDB · مفاتيح مشفّرة",
+       "Encrypted TMDB, RPDB, OPDB, OMDb and TheSportsDB keys"),
+    PosterApiSettingsActivity.class);
   link(tx("مركز الإنفوبار والبوسترات والشعارات","InfoBar, posters and logos"),
     tx("عرض NOW / NEXT ومصادر الصور والدليل","NOW / NEXT display, artwork sources and programme guide"),
     ViewingSettingsActivity.class);

@@ -6,14 +6,14 @@ import org.json.*;
 import java.io.*;
 import java.util.*;
 
-/** Exact-country provider/channel logo images from a pinned audited manifest.
+/** Exact-country provider logo images from a pinned audited manifest.
  * No synthetic wordmark and no name-only choice for ambiguous regional services.
  * Branded images are bundled under assets/provider-branding/images in the APK.
  */
 final class ProviderLogoAssetIndex {
  private static volatile ProviderLogoAssetIndex instance;
  private final Context context;
- private final Map<String,String> provider=new HashMap<>(),channel=new HashMap<>();
+ private final Map<String,String> provider=new HashMap<>();
  private final LruCache<String,Bitmap> bitmaps=new LruCache<>(48);
  private ProviderLogoAssetIndex(Context app){
   context=app;
@@ -29,11 +29,6 @@ final class ProviderLogoAssetIndex {
    for(int i=0;i<providers.length();i++){
     JSONObject p=providers.getJSONObject(i);
     if(valid(p))provider.put(key(p),p.getString("asset"));
-   }
-   JSONArray channels=root.getJSONArray("channels");
-   for(int i=0;i<channels.length();i++){
-    JSONObject c=channels.getJSONObject(i);
-    if(valid(c))channel.put(key(c),c.getString("asset"));
    }
   }catch(Exception ignored){}
  }
@@ -52,7 +47,7 @@ final class ProviderLogoAssetIndex {
  private static String key(JSONObject row){return key(row.optString("name"),row.optString("country"));}
  private static String key(String n,String country){return ProviderCountryCatalog.key(n)+"|"+country;}
  Bitmap provider(String name,String country){return load(provider.get(key(name,country)));}
- Bitmap channel(String name,String country){return load(channel.get(key(name,country)));}
+ // Deliberately no channel-logo index: only CHMAX/OEM resolves channel art.
  private Bitmap load(String asset){
   if(asset==null||asset.isEmpty())return null;
   Bitmap cached=bitmaps.get(asset);

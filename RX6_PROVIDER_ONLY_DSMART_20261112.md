@@ -1,0 +1,14 @@
+# RX6 provider-only build checkpoint
+- Based on original RX6 4.0.4 source from PR #54, not main.
+- 234 workbook providers / 1,376 associations remain for identity and country flags.
+- Original packed channel artwork from the real-logo manifest removed; CHMAX/OEM channel logos stay primary.
+- No synthetic provider logos. Verified provider marks expanded: D-Smart, OSNtv, DigitAlb, SuperSport Albania (uses DigitAlb), Tring, Sky gradient.
+- D-Smart mark: Wikimedia Commons File:D-Smart logo.svg (derived from company original).
+- Black/near-black neutral logo lettering becomes white; original chromatic marks preserved.
+- OSN provider mark forced white. Sky remains gradient. DigitAlb remains red.
+- Arena Sport all country versions use shared Arena artwork; country flag continues exact service/country mapping.
+- Settings > InfoBar & Artwork > API Keys & Services exposes existing encrypted private poster API keys including TMDB via setup.
+- Manual EPGShare/XMLTV and factory/DVB EPG behavior untouched.
+- Android 14 ARMv7 test package: com.smarthub.plus.rx6providersonly; not a substitute for hardware acceptance.
+- 197 prior gallery approvals are *decisions*, not 197 verified artwork files. The remaining provider entries get no fake marks; upload additional verified artwork for broader coverage.
+- Sources: Wikimedia Commons Files: D-Smart logo.svg, OSN TV Logo (2023).svg, Digitalb logo.png, Tring logo.svg, Sky logo 2025.svg; artwork carries respective trademark conditions.
