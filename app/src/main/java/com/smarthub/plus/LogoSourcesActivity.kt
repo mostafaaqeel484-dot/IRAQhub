@@ -42,17 +42,43 @@ class LogoSourcesActivity:HubActivity(){
     startActivity(Intent(this,ArtworkSourcesActivity::class.java))
   })
   val options=card(body)
-  options.addView(text(tx("خدمات CHMAX","CHMAX service"),20,true))
+  options.addView(text(tx("مصادر شعارات القنوات — مفاتيح مستقلة","Channel logo sources — independent switches"),20,true))
   chmax=CheckBox(this)
-  chmax.text=tx("السماح بطلب شعار CHMAX إذا توفر ملف توافق مصادق","Use CHMAX when a licensed icon profile exists")
-  chmax.setTextColor(-1);chmax.isChecked=ChlLogoAddon.get(this).enabled()
+  chmax.text=tx("شعارات القنوات من CHMAX / المصنع","Channel logos from CHMAX / receiver")
+  chmax.setTextColor(-1);chmax.isChecked=ChannelLogoSourcePrefs.chmax(this)
   options.addView(chmax)
-  chmax.setOnCheckedChangeListener{_,checked->
-   ChlLogoAddon.get(this).enable(checked)
-   LogoRepository.get(this).invalidate();refresh()
+  chmax.setOnCheckedChangeListener{_,enabled->
+   ChannelLogoSourcePrefs.set(this,ChannelLogoSourcePrefs.CHMAX,enabled)
+   if(enabled&&!ChlLogoAddon.get(this).enabled())ChlLogoAddon.get(this).enable(true)
+   refresh()
   }
-  options.addView(text(tx("المصدر المستقل يعمل حتى لو رفض CHMAX المصادقة. ملف CHL لا يحتوي صوراً، لذا لا بد من مصدر شعار فعلي.",
-   "Independent logos work without CHMAX authorisation. CHL contains channel identities, not image bytes."),14,false))
+  val external=CheckBox(this)
+  external.text=tx("شعارات القنوات من الإنترنت والملفات المحلية","External / local channel logos")
+  external.setTextColor(-1);external.isChecked=ChannelLogoSourcePrefs.external(this)
+  options.addView(external)
+  external.setOnCheckedChangeListener{_,enabled->
+   ChannelLogoSourcePrefs.set(this,ChannelLogoSourcePrefs.EXTERNAL,enabled)
+   refresh()
+  }
+  options.addView(text(tx("يمكن تشغيل CHMAX والخارجي سويةً؛ CHMAX أولاً، وعند غياب الشعار يُستخدم الخارجي. إيقاف أحدهما يمنع إعادة استعمال كاشه القديم.",
+    "Enable both: CHMAX first, then independent sources for missing logos. Disabled sources cannot reuse old artwork."),13,false))
+  val providerSwitch=CheckBox(this)
+  providerSwitch.text=tx("إظهار شعارات المزوّدين (مستقل عن المصدرين أعلاه)",
+    "Provider logos (independent of both channel sources)")
+  providerSwitch.setTextColor(-1)
+  providerSwitch.isChecked=ChannelLogoSourcePrefs.providers(this)
+  options.addView(providerSwitch)
+  providerSwitch.setOnCheckedChangeListener{_,enabled->
+   ChannelLogoSourcePrefs.set(this,ChannelLogoSourcePrefs.PROVIDERS,enabled)
+  }
+  action(options,tx("إضافة مزوّد وشعاره يدوياً","Add a provider and its logo"),Runnable{
+   startActivity(Intent(this,ProviderLogoEditorActivity::class.java))
+  })
+  action(options,tx("عرض شعارات المزوّدين الـ234","Browse the 234 provider brands"),Runnable{
+   startActivity(Intent(this,ProviderLogoCatalogActivity::class.java))
+  })
+  options.addView(text(tx("إضافة شعار مزوّد لا تلمس CHMAX أو الكاش الخارجي الخاص بالقنوات.",
+   "Provider logos are stored separately from CHMAX and external channel images."),13,false))
   val imports=card(body)
   imports.addView(text(tx("ملفات القنوات · SQLite DB وCHL","Channel lists · SQLite DB & CHL"),20,true))
   action(imports,tx("استيراد قاعدة قنوات SQLite .db (سريع)","Fast SQLite .db channel import"),Runnable{open(5)})
@@ -132,8 +158,8 @@ class LogoSourcesActivity:HubActivity(){
    return
   }
   val addon=ChlLogoAddon.get(this)
-  if(!addon.enabled()){
-   message(tx("فعّل CHMAX من المفتاح الاختياري أولاً","Enable optional CHMAX source first"))
+  if(!ChannelLogoSourcePrefs.chmax(this)||!addon.enabled()){
+   message(tx("فعّل مصدر CHMAX أولاً","Enable CHMAX channel-logo source first"))
    return
   }
   if(!addon.supportedSession()){

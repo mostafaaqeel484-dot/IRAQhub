@@ -9,10 +9,11 @@ final class ProviderBrandArt {
  private static volatile ProviderBrandArt instance;
  private final ProviderCountryCatalog data;
  private final ProviderLogoAssetIndex assets;
+ private final Context app;
  private static final Map<Bitmap,Bitmap> FILTERED =
    Collections.synchronizedMap(new WeakHashMap<Bitmap,Bitmap>());
  private ProviderBrandArt(Context c){
-  data=ProviderCountryCatalog.get(c);assets=ProviderLogoAssetIndex.get(c);
+  app=c.getApplicationContext();data=ProviderCountryCatalog.get(c);assets=ProviderLogoAssetIndex.get(c);
  }
  static ProviderBrandArt get(Context c){
   ProviderBrandArt result=instance;
@@ -22,6 +23,8 @@ final class ProviderBrandArt {
   return result;
  }
  String country(String channel,String identity,String receiverProvider){
+  String manual=ProviderLogoOverrides.country(app,identity);
+  if(!manual.isEmpty())return manual;
   ProviderFamilyRules.Brand special=ProviderFamilyRules.select(receiverProvider,channel,identity);
   // Only use a platform flag when its market is proven by the explicit rule;
   // Arena/Sky regional flags still use existing exact service/country matching.
@@ -32,6 +35,8 @@ final class ProviderBrandArt {
   return provider(receiverProvider,channel,"");
  }
  String provider(String receiverProvider,String channel,String physical){
+  String manual=ProviderLogoOverrides.providerName(app,physical);
+  if(!manual.isEmpty())return manual;
   ProviderFamilyRules.Brand family=ProviderFamilyRules.select(receiverProvider,channel,physical);
   if(family!=null)return family.display;
   ProviderCountryCatalog.Provider owner=data.owner(receiverProvider,channel);
@@ -43,6 +48,22 @@ final class ProviderBrandArt {
   return badge(receiverProvider,channel,"");
  }
  Bitmap badge(String receiverProvider,String channel,String physical){
+  if(!ChannelLogoSourcePrefs.providers(app))return null;
+  ProviderCountryCatalog.Provider owner=data.owner(receiverProvider,channel);
+  String iso=owner==null?"":owner.country;
+  ProviderFamilyRules.Brand specified=ProviderFamilyRules.select(receiverProvider,channel,physical);
+  if(specified!=null)iso=specified.country;
+  Bitmap custom=ProviderLogoOverrides.logo(app,physical,receiverProvider,iso);
+  if(custom!=null)return custom;
+  if(specified!=null){
+   custom=ProviderLogoOverrides.logo(app,physical,specified.display,specified.country);
+   if(custom==null)custom=ProviderLogoOverrides.logo(app,physical,specified.assetOwner,specified.country);
+   if(custom!=null)return custom;
+  }
+  if(owner!=null){
+   custom=ProviderLogoOverrides.logo(app,physical,owner.name,owner.country);
+   if(custom!=null)return custom;
+  }
   ProviderFamilyRules.Brand family=ProviderFamilyRules.select(receiverProvider,channel,physical);
   if(family!=null){
    Bitmap image=assets.provider(family.assetOwner,family.country);
@@ -56,7 +77,7 @@ final class ProviderBrandArt {
   Bitmap logo=assets.provider(p.name,p.country);
   return logo==null?null:outlineDark(logo);
  }
- boolean verified(String provider,String country){return assets.provider(provider,country)!=null;}
+ boolean verified(String provider,String country){return assets.provider(provider,country)!=null||ProviderLogoOverrides.forProvider(app,provider,country)!=null;}
  private static boolean isAlbanianSuperSport(String n){
   return n.matches("(?:SS|SUPERSPORT)(?: ALBANIA)?[ -]?(?:[1-7])(?: HD)?")&&!n.matches(".*5(?: HD)?");
  }

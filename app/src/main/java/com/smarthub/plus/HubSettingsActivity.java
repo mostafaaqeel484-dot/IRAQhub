@@ -263,8 +263,14 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showInfoBar(){
+  link(tx("مصادر شعارات القنوات: CHMAX والخارجي","Channel logos · CHMAX and external"),
+    tx("شغّل المصدرين معاً أو كل واحد منفرداً","Enable both sources or either independently"),
+    LogoSourcesActivity.class);
+  link(tx("إضافة مزوّد وشعاره يدوياً","Add a provider and logo"),
+    tx("مستقل تماماً عن شعارات القنوات","Independent of all channel logo sources"),
+    ProviderLogoEditorActivity.class);
   link(tx("شعارات 234 مزوداً","All 234 provider artwork"),
-    tx("الشعارات المؤكدة وبدائل ملونة مميزة","Verified marks and clearly labelled colored placeholders"),
+    tx("شعارات المزوّدين المؤكدة وأسماؤهم عند غياب الصورة","Verified marks and name-only when unavailable"),
     ProviderLogoCatalogActivity.class);
   link(tx("مفاتيح API · TMDB / RPDB / OMDb / OpenSubtitles / Anime","API Keys & Services · TMDB / RPDB / OMDb / OpenSubtitles / Anime"), 
     tx("TMDB وRPDB وOPDB وOMDb وTheSportsDB · مفاتيح مشفّرة",

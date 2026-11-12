@@ -5,11 +5,15 @@ import android.os.Bundle;
 import android.view.*;
 import android.widget.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 /** Virtualized 234-row catalogue: display verified provider images only;
  * otherwise show the provider name without inventing a corporate logo.
  * CHMAX/OEM channel logos and EPG are unaffected. */
 public final class ProviderLogoCatalogActivity extends HubActivity {
+ private final ExecutorService io=Executors.newSingleThreadExecutor();
+ private volatile boolean closed;
+ @Override protected void onDestroy(){closed=true;io.shutdownNow();super.onDestroy();}
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
   LinearLayout page=col();
@@ -21,6 +25,8 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
     "Verified provider mark or provider name text only; never channel artwork."),13,false);
   page.addView(subtitle);
   setContentView(page);
+  action(page,tx("إضافة أو تعديل شعار مزوّد","Add / edit provider logo"),
+    ()->startActivity(new android.content.Intent(this,ProviderLogoEditorActivity.class)));
   List<ProviderCountryCatalog.Provider> providers=
     new ArrayList<>(ProviderCountryCatalog.get(this).all());
   Collections.sort(providers,(a,b)->a.name.compareToIgnoreCase(b.name));
@@ -28,12 +34,15 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
   ProviderBrandArt brands=ProviderBrandArt.get(this);
   for(ProviderCountryCatalog.Provider p:providers)
    if(brands.verified(p.name,p.country))verified++;
-  TextView count=text(providers.size()+" providers · "+verified+" verified marks · "+
-      (providers.size()-verified)+" names without verified art",14,false);
+  int approved=0;
+  for(ProviderCountryCatalog.Provider p:providers)
+    if(ProviderApprovedArtwork.selected(this,p.name))approved++;
+  TextView count=text(providers.size()+" providers · "+verified+" bundled/manual images · "+
+      approved+" approved remote sources · remaining names without image",14,false);
   page.addView(count);
   ListView list=new ListView(this);
   list.setDividerHeight(dp(2));
-  list.setAdapter(new BaseAdapter(){
+  BaseAdapter adapter=new BaseAdapter(){
    @Override public int getCount(){return providers.size();}
    @Override public Object getItem(int position){return providers.get(position);}
    @Override public long getItemId(int position){return position;}
@@ -56,13 +65,36 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
     }
     ProviderCountryCatalog.Provider p=providers.get(position);
     boolean official=brands.verified(p.name,p.country);
-    row.image.setImageBitmap(official?brands.badge(p.name,""):null);
-    row.image.setVisibility(official?View.VISIBLE:View.GONE);
+    boolean approved=ProviderApprovedArtwork.selected(ProviderLogoCatalogActivity.this,p.name);
+    Bitmap selected=official?brands.badge(p.name,""):
+      (approved?ProviderApprovedArtwork.cached(ProviderLogoCatalogActivity.this,p.name):null);
+    row.image.setImageBitmap(selected);
+    row.image.setVisibility(selected!=null?View.VISIBLE:View.GONE);
     row.label.setText(p.name+" · "+p.country+"\n"+
-      (official?"Verified provider artwork":"Provider name only — image not verified"));
+      (official?"Bundled or manually added provider image":
+       !approved?"Name only — no selected image":
+       selected!=null?"User-approved image downloaded":"User-approved source · tap to test download"));
     row.root.setContentDescription(row.label.getText());
     return row.root;
    }
+  };
+  list.setAdapter(adapter);
+  list.setOnItemClickListener((parent,view,index,itemId)->{
+   ProviderCountryCatalog.Provider p=providers.get(index);
+   if(!ProviderApprovedArtwork.selected(this,p.name)){
+    toast(tx("لا يوجد رابط صورة معتمد لهذا المزوّد","No approved image source for this provider"));
+    return;
+   }
+   count.setText(tx("جارٍ فحص صورة المزوّد: ","Checking provider image: ")+p.name);
+   io.execute(()->{
+    Bitmap loaded=ProviderApprovedArtwork.resolve(this,p.name);
+    runOnUiThread(()->{if(!closed){
+     count.setText(p.name+" · "+(loaded==null?
+       tx("المصدر غير متاح أو الصورة غير صالحة","Source unavailable or invalid image"):
+       tx("تم تنزيل وحفظ الصورة","Image downloaded and cached")));
+     adapter.notifyDataSetChanged();
+    }});
+   });
   });
   page.addView(list,new LinearLayout.LayoutParams(-1,0,1));
  }

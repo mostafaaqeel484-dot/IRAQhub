@@ -1,0 +1,1071 @@
+{
+  "schema": 1,
+  "approval": "User explicitly approved all 133 candidates on 2026-11-12. Approval is not evidence the URL returns valid bytes or represents the provider's official corporate mark.",
+  "fetch_policy": "Lazy per-provider HTTPS retrieval; no preloading 133 images and no channel-logo substitution.",
+  "entries": [
+    {
+      "id": "TVP0001",
+      "name": "Acun Medya",
+      "country_label": "Turkey",
+      "url": "https://www.mersus.com/wp-content/uploads/2025/03/logo-02-scaled.webp",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0002",
+      "name": "D-Smart",
+      "country_label": "Turkey",
+      "url": "https://argemip.org/storage/media/1907/conversions/960x640-bg-crop.jpg",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0004",
+      "name": "Digitürk / beIN Turkey",
+      "country_label": "Turkey",
+      "url": "https://www.sirketlerligi.com/pic_lib/sirketler/digiturk-logov2-01__4852579.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0006",
+      "name": "Kanal 7 Media Group",
+      "country_label": "Turkey",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Logo%20pattern.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0007",
+      "name": "NOW Türkiye",
+      "country_label": "Turkey",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/NOW%20TV%20(Turkey)%20wordmark-red.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0008",
+      "name": "Show TV",
+      "country_label": "Turkey",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Show%20TV%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0009",
+      "name": "Tivibu",
+      "country_label": "Turkey",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Tivibu%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0013",
+      "name": "Türksat Kablo / KabloTV",
+      "country_label": "Turkey",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Turksat%20Kablotv%20Yeni.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0015",
+      "name": "CineStar TV Channels",
+      "country_label": "Serbia",
+      "url": "https://mtel.ba/Picture/4488/png/CinestarTV.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0017",
+      "name": "Pink International",
+      "country_label": "Serbia",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Pink%20TV%20logo.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0019",
+      "name": "Prva Television / B92",
+      "country_label": "Serbia",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/44/Prva_Logo.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0020",
+      "name": "RTS - Radio Television of Serbia",
+      "country_label": "Serbia",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/RTS_%28Serbia%29_blue_logo.svg/500px-RTS_%28Serbia%29_blue_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0021",
+      "name": "RTV Vojvodina",
+      "country_label": "Serbia",
+      "url": "https://thumb.wikimedia.org/wikipedia/en/thumb/9/9c/%D0%A0%D0%B0%D0%B4%D0%B8%D0%BE_%D0%A2%D0%B5%D0%BB%D0%B5%D0%B2%D0%B8%D0%B7%D0%B8%D1%98%D0%B0_%D0%92%D0%BE%D1%98%D0%B2%D0%BE%D0%B4%D0%B8%D0%BD%D0%B5.svg/1280px-%D0%A0%D0%B0%D0%B4%D0%B8%D0%BE_%D0%A2%D0%B5%D0%BB%D0%B5%D0%B2%D0%B8%D0%B7%D0%B8%D1%98%D0%B0_%D0%92%D0%BE%D1%98%D0%B2%D0%BE%D0%B4%D0%B8%D0%BD%D0%B5.svg.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0030",
+      "name": "Klan TV Group",
+      "country_label": "Albania",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/12/The_first_logo_of_TV_Klan_%281997-2013%29.svg/500px-The_first_logo_of_TV_Klan_%281997-2013%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0031",
+      "name": "RTSH - Albanian Radio Television",
+      "country_label": "Albania",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/RTSH_%E2%80%93_Radio_Televizioni_Shqiptar_%282020_Logo%29.svg/500px-RTSH_%E2%80%93_Radio_Televizioni_Shqiptar_%282020_Logo%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0033",
+      "name": "Top Media Albania",
+      "country_label": "Albania",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Top_channel_Logo.png/500px-Top_channel_Logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0036",
+      "name": "A1 Hrvatska TV",
+      "country_label": "Croatia",
+      "url": "https://www.amcham.hr/storage/upload/gen_Company/logo_a1_500x400_154358.jpg",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0039",
+      "name": "HRT - Croatian Radiotelevision",
+      "country_label": "Croatia",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Hrvatska_Radiotelevizija_logo.svg/1280px-Hrvatska_Radiotelevizija_logo.svg.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0040",
+      "name": "Hrvatski Telekom MAXtv",
+      "country_label": "Croatia",
+      "url": "https://tv-hr-prod.yo-digital.com/prod/images/1422/800/img215353-tv100502.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0042",
+      "name": "Nova TV Croatia",
+      "country_label": "Croatia",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Nova_TV_Croatia_logo.png/500px-Nova_TV_Croatia_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0043",
+      "name": "RTL Hrvatska",
+      "country_label": "Croatia",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/RTL%20Hrvatska.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0045",
+      "name": "United Media Croatia",
+      "country_label": "Croatia",
+      "url": "https://united.group/wp-content/themes/united-group-wp/img/bg/um-logo.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0047",
+      "name": "Crnogorski Telekom MagentaTV",
+      "country_label": "Montenegro",
+      "url": "https://download.logo.wine/logo/Crnogorski_Telekom/Crnogorski_Telekom-Logo.wine.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0050",
+      "name": "RTCG - Radio and Television of Montenegro",
+      "country_label": "Montenegro",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/RTCG_Logo_2024.svg/500px-RTCG_Logo_2024.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0052",
+      "name": "Artmotion",
+      "country_label": "Kosovo",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/Logo-artmotion.png/500px-Logo-artmotion.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0053",
+      "name": "IPKO TV",
+      "country_label": "Kosovo",
+      "url": "https://upload.wikimedia.org/wikipedia/en/6/64/IPKO_logo.svg",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0054",
+      "name": "Klan Kosova",
+      "country_label": "Kosovo",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Klan%20Kosova%20logo%202017.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0055",
+      "name": "Kohavision / KTV",
+      "country_label": "Kosovo",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Kohavision%20logo%20(2015).svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0057",
+      "name": "RTK - Radio Television of Kosovo",
+      "country_label": "Kosovo",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a2/RTK_logo.svg/500px-RTK_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0060",
+      "name": "Kujtesa",
+      "country_label": "Kosovo",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Kujtesa-logo-NEW.jpg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0062",
+      "name": "BH Telecom Moja TV",
+      "country_label": "Bosnia and Herzegovina",
+      "url": "https://thumb.wikimedia.org/wikipedia/en/thumb/5/5c/BHTelecom_Logo.svg/1280px-BHTelecom_Logo.svg.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0063",
+      "name": "BHRT - Bosnia and Herzegovina Radio Television",
+      "country_label": "Bosnia and Herzegovina",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/9/9c/Logo_of_BHRT_%281998-%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0065",
+      "name": "Federal Television FTV",
+      "country_label": "Bosnia and Herzegovina",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/76/FederalnaTV_2014-present.jpg",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0067",
+      "name": "RTRS",
+      "country_label": "Bosnia and Herzegovina",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/RTRS_Logo.svg/500px-RTRS_Logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0074",
+      "name": "MRT - Macedonian Radio Television",
+      "country_label": "North Macedonia",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/Logo_of_the_Macedonian_Radio-television_%281991-2012%29.svg/500px-Logo_of_the_Macedonian_Radio-television_%281991-2012%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0081",
+      "name": "Planet TV Slovenia",
+      "country_label": "Slovenia",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/76/Planet_TV_%28Slovenia%29_Logo_%282021%29.png/500px-Planet_TV_%28Slovenia%29_Logo_%282021%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0084",
+      "name": "ERT - Hellenic Broadcasting Corporation",
+      "country_label": "Greece",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1c/ERT_logo_2020.svg/500px-ERT_logo_2020.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0086",
+      "name": "Magenta TV Greece (formerly Cosmote TV)",
+      "country_label": "Greece",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/e/e4/Magenta_TV_Logo_2024.svg",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0087",
+      "name": "Cosmote TV",
+      "country_label": "Greece",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Magenta%20TV%20Logo%202024.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0088",
+      "name": "Nova Greece",
+      "country_label": "Greece",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/NOVA%20Greece%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0089",
+      "name": "SKAI Greece",
+      "country_label": "Greece",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/25/Skai_Tv_logo.svg/500px-Skai_Tv_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0090",
+      "name": "BNT - Bulgarian National Television",
+      "country_label": "Bulgaria",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d7/Logo_of_BNT_4_%282018-%29.svg/500px-Logo_of_BNT_4_%282018-%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0091",
+      "name": "bTV Media Group Bulgaria",
+      "country_label": "Bulgaria",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ae/BTV_Bulgaria_logo.svg/500px-BTV_Bulgaria_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0092",
+      "name": "Nova Broadcasting Group Bulgaria",
+      "country_label": "Bulgaria",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/fc/Nova_News_Bulgaria_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0094",
+      "name": "A1 Bulgaria",
+      "country_label": "Bulgaria",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/A1%20red%20logo.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0097",
+      "name": "Bulsatcom",
+      "country_label": "Bulgaria",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Bulsatcom.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0099",
+      "name": "Vivacom",
+      "country_label": "Bulgaria",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Vivacom%20logo%202021.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0100",
+      "name": "Antena Group Romania",
+      "country_label": "Romania",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Antena_Srars_Logo_%282022-present%29.png/500px-Antena_Srars_Logo_%282022-present%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0101",
+      "name": "Clever Media / Prima",
+      "country_label": "Romania",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/CleverGroup.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0102",
+      "name": "Digi Romania / RCS & RDS",
+      "country_label": "Romania",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1d/Digi_Logo.png/500px-Digi_Logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0103",
+      "name": "PRO TV Romania",
+      "country_label": "Romania",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8e/Logo_Pro_TV_%282017%29.svg/500px-Logo_Pro_TV_%282017%29.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0104",
+      "name": "TVR - Romanian Television",
+      "country_label": "Romania",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/13/TVR_logo_2022.svg/500px-TVR_logo_2022.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0105",
+      "name": "Akta",
+      "country_label": "Romania",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d1/AKTA_logo.png/500px-AKTA_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0106",
+      "name": "Digi TV",
+      "country_label": "Romania",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Digi%202024%20Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0107",
+      "name": "Focus Sat",
+      "country_label": "Romania",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Focus%20Sat%20Logo%202019.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0108",
+      "name": "Orange Romania",
+      "country_label": "Romania",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Orange%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0111",
+      "name": "MTVA / Duna Media",
+      "country_label": "Hungary",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/MTVA_logos.png/500px-MTVA_logos.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0112",
+      "name": "RTL Hungary",
+      "country_label": "Hungary",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/RTL%20(Hungary)%20(2022).svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0114",
+      "name": "TV2 Group Hungary",
+      "country_label": "Hungary",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e9/Super_TV2_logo.png/500px-Super_TV2_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0115",
+      "name": "Direct One",
+      "country_label": "Hungary",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Upc%20direct%20uj%20logo.jpg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0117",
+      "name": "One Hungary TV",
+      "country_label": "Hungary",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/OneTV_Hungary_Logo.png/500px-OneTV_Hungary_Logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0119",
+      "name": "NPO / Nederlandse Publieke Omroep",
+      "country_label": "Netherlands",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/NPO%201%20logo%202014.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0120",
+      "name": "RTL Nederland / DPG Media",
+      "country_label": "Netherlands",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/RTL%20Nederland%202023.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0121",
+      "name": "Talpa Network",
+      "country_label": "Netherlands",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Talpa%20Network%20logo.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0123",
+      "name": "Canal Digitaal",
+      "country_label": "Netherlands",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/CanalDigitaal%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0126",
+      "name": "Ziggo Sport",
+      "country_label": "Netherlands",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Ziggo%20Sport%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0127",
+      "name": "Mediaset / MFE Italy",
+      "country_label": "Italy",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Mediaset%20Logo.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0128",
+      "name": "RAI - Radiotelevisione Italiana",
+      "country_label": "Italy",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/da/Rai_-_logo_%28Italy%2C_2010-2016%29.svg/3840px-Rai_-_logo_%28Italy%2C_2010-2016%29.svg.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0131",
+      "name": "La7 / Cairo Communication",
+      "country_label": "Italy",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/LA7%20-%20Logo%202011.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0132",
+      "name": "Mediaset",
+      "country_label": "Italy",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Mediaset%20Logo.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0133",
+      "name": "RAI",
+      "country_label": "Italy",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Logo%20of%20RAI%20(2016).svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0134",
+      "name": "Rai 3 TGR regional feed services",
+      "country_label": "Italy",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/da/Rai_-_logo_%28Italy%2C_2010-2016%29.svg/3840px-Rai_-_logo_%28Italy%2C_2010-2016%29.svg.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0137",
+      "name": "ARTE",
+      "country_label": "France",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Arte%20Logo%202017.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0138",
+      "name": "Canal+ Group France",
+      "country_label": "France",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a1/Canal_plus_france_logo.svg/500px-Canal_plus_france_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0139",
+      "name": "France Médias Monde",
+      "country_label": "France",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Logo%20France%20M%C3%A9dias%20Monde.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0140",
+      "name": "France Télévisions",
+      "country_label": "France",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/France.tv%20-%20logo%202022.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0142",
+      "name": "M6 Group",
+      "country_label": "France",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/M6Groupe2023.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0144",
+      "name": "TF1 Group",
+      "country_label": "France",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Logo%20TF1%202013.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0146",
+      "name": "Canal+ France",
+      "country_label": "France",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Canal%2B%20France%202011%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0147",
+      "name": "Fransat",
+      "country_label": "France",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fc/Logo-fransat.png/500px-Logo-fransat.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0150",
+      "name": "Atresmedia TV",
+      "country_label": "Spain",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Atresmedia.svg/500px-Atresmedia.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0151",
+      "name": "Mediaset España",
+      "country_label": "Spain",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Mediaset%20Espa%C3%B1a.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0152",
+      "name": "Movistar Plus+ Spain",
+      "country_label": "Spain",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1d/Movistar_Plus%2B_2022_logo.svg/500px-Movistar_Plus%2B_2022_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0155",
+      "name": "DAZN Spain",
+      "country_label": "Spain",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a2/DAZN_1_Logo.svg/500px-DAZN_1_Logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0157",
+      "name": "Movistar+",
+      "country_label": "Spain",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Movistar%20Plus%2B%202022%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0159",
+      "name": "RTP Portugal",
+      "country_label": "Portugal",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/e/eb/Logo_RTP_Internacional.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0161",
+      "name": "TVI / Media Capital",
+      "country_label": "Portugal",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Tvi%20ua%202018.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0163",
+      "name": "NOS TV",
+      "country_label": "Portugal",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Logo%20nos%20tv.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0164",
+      "name": "Sport TV Portugal",
+      "country_label": "Portugal",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/03/Logo_Sport_TV_%28Portugal%29.png/500px-Logo_Sport_TV_%28Portugal%29.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0165",
+      "name": "MEO",
+      "country_label": "Portugal",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/04/Meo_Logo_2007.png/500px-Meo_Logo_2007.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0166",
+      "name": "NOS",
+      "country_label": "Portugal",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/NOS%20Portugal%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0173",
+      "name": "CytaVision",
+      "country_label": "Cyprus",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/5/54/Cytavision.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0174",
+      "name": "2M",
+      "country_label": "Morocco",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/29/2M_TV_logo.svg/500px-2M_TV_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0175",
+      "name": "Abu Dhabi Media Network",
+      "country_label": "United Arab Emirates",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Abu%20Dhabi%20Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0176",
+      "name": "Al Araby Network",
+      "country_label": "Qatar / MENA",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/9/96/ALARABY_ARABIC.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0177",
+      "name": "Al Jazeera Media Network",
+      "country_label": "Qatar",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Aljazeera%20eng.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0179",
+      "name": "Al Rabiaa",
+      "country_label": "Iraq",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/56/%D8%B4%D8%B9%D8%A7%D8%B1_%D9%82%D9%86%D8%A7%D8%A9_%D8%A7%D9%84%D8%B1%D8%A7%D8%A8%D8%B9%D8%A9.svg/1280px-%D8%B4%D8%B9%D8%A7%D8%B1_%D9%82%D9%86%D8%A7%D8%A9_%D8%A7%D9%84%D8%B1%D8%A7%D8%A8%D8%B9%D8%A9.svg.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0180",
+      "name": "Al Sharqiya Network",
+      "country_label": "Iraq",
+      "url": "https://img.roya.tv/imagechanger/Size01Q40R927/storage/app/public/images/channels/5pYvSrJU7QcAmTv.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0181",
+      "name": "Alkass Sports",
+      "country_label": "Qatar",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/%D8%B4%D8%B9%D8%A7%D8%B1%20%D9%82%D9%86%D9%88%D8%A7%D8%AA%20%D8%A7%D9%84%D9%83%D8%A7%D8%B3%20%D8%A7%D9%84%D8%B1%D9%8A%D8%A7%D8%B6%D9%8A%D8%A9.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0182",
+      "name": "Asharq Network",
+      "country_label": "Saudi Arabia",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/0/0d/AsharqNewsLogo.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0183",
+      "name": "Bahrain Ministry of Information",
+      "country_label": "Bahrain",
+      "url": "https://www.bahrainlogos.com/logos/ministry-of-information/ministry-of-information-logo-variation-5.svg?v=ministry-of-information-svg-3",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0184",
+      "name": "beIN MENA",
+      "country_label": "Qatar / MENA",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/c/cc/BeIN_SPORTS_MENA_logo_2017.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0185",
+      "name": "Dubai Media",
+      "country_label": "United Arab Emirates",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Dubai%20Media%20Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0186",
+      "name": "EPTV / ENTV",
+      "country_label": "Algeria",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/e/e9/EPTV_Web_Logo_2020.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0193",
+      "name": "Iraqi Media Network (IMN)",
+      "country_label": "Iraq",
+      "url": "https://imn.iq/assets/images/upload_162751.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0196",
+      "name": "MBC Group",
+      "country_label": "Saudi Arabia / MENA",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/MBC%20Group%20Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0197",
+      "name": "Medi1 TV",
+      "country_label": "Morocco",
+      "url": "https://upload.wikimedia.org/wikipedia/ar/e/e0/Logo-medi1tv.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0198",
+      "name": "Nile TV / National Media Authority",
+      "country_label": "Egypt",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Nile%20TV.jpg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0199",
+      "name": "Oman TV",
+      "country_label": "Oman",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Sultanate%20of%20Oman%20Television%20logo.jpg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0200",
+      "name": "OSNtv",
+      "country_label": "United Arab Emirates / MENA",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/47/OSN_2020_logo.svg/1280px-OSN_2020_logo.svg.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0202",
+      "name": "Qatar TV",
+      "country_label": "Qatar",
+      "url": "https://upload.wikimedia.org/wikipedia/en/8/88/Qatar_TV_logo.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0203",
+      "name": "Rotana",
+      "country_label": "Saudi Arabia / MENA",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Rotana%20Group%20Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0204",
+      "name": "Saudi Broadcasting Authority",
+      "country_label": "Saudi Arabia",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/SBA%20logo.png?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0205",
+      "name": "Sharjah Broadcasting Authority",
+      "country_label": "United Arab Emirates",
+      "url": "https://i0.wp.com/ksalogo.com/wp-content/uploads/2025/04/Sharjah-Broadcasting-Authority.png?fit=1000%2C1000&ssl=1",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0206",
+      "name": "SNRT",
+      "country_label": "Morocco",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/SNRT.jpg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0207",
+      "name": "United Media Services (UMS)",
+      "country_label": "Egypt",
+      "url": "https://ums.com.eg/wp-content/uploads/2023/02/about-logo-new-large-768x806.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0208",
+      "name": "Établissement de la Télévision Tunisienne",
+      "country_label": "Tunisia",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/T%C3%A9l%C3%A9visiontunisiennelogo.jpg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0209",
+      "name": "Allente",
+      "country_label": "Sweden / Norway",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Allente.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0211",
+      "name": "ARD Digital",
+      "country_label": "Germany",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/ARD-Digital-Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0212",
+      "name": "BBC",
+      "country_label": "United Kingdom",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/BBC%20One%20logo%202021.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0213",
+      "name": "BFBS",
+      "country_label": "United Kingdom",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/70/BFBS_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0214",
+      "name": "Canal+ Czechia & Slovakia",
+      "country_label": "Czech Republic / Slovakia",
+      "url": "https://www.canalplusgroup.com/_next/image?q=75&url=%2Fuploads%2FCANAL_logo_25cd1ffd9f.png%3Fs%3D720x400%26f%3Dwebp&w=2560",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0217",
+      "name": "HD+",
+      "country_label": "Germany",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/HD-Plus.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0221",
+      "name": "Orange Polska",
+      "country_label": "Poland",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Orange%20logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0223",
+      "name": "ORF Digital",
+      "country_label": "Austria",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/ORF%20Digital%20Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0225",
+      "name": "Polsat Box",
+      "country_label": "Poland",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/PolsatBox.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0226",
+      "name": "Sky Deutschland",
+      "country_label": "Germany",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/SKY%20Basic%20Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0228",
+      "name": "SSR/SRG",
+      "country_label": "Switzerland",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/SRG-SSR-logo.svg/500px-SRG-SSR-logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0229",
+      "name": "Total TV",
+      "country_label": "Serbia / Balkans",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a7/TotalTV_logo.svg/1280px-TotalTV_logo.svg.png",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": true
+    },
+    {
+      "id": "TVP0230",
+      "name": "TV Vlaanderen",
+      "country_label": "Belgium",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/TV%20Vlaanderen%20Logo%202017.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0231",
+      "name": "TéléSat",
+      "country_label": "Belgium",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/T%C3%A9l%C3%A9sat%20Logo%202017.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0232",
+      "name": "Viasat",
+      "country_label": "Sweden",
+      "url": "https://commons.wikimedia.org/wiki/Special:Redirect/file/ViaSat-Logo.svg?width=500",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    },
+    {
+      "id": "TVP0233",
+      "name": "Viasat Ukraine",
+      "country_label": "Ukraine",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/da/Viasat_logo.svg/500px-Viasat_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+      "review": "user_approved_pending_binary_validation",
+      "white_if_black": false
+    }
+  ]
+}

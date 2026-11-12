@@ -45,6 +45,8 @@ public final class PosterApiSettingsActivity extends HubActivity {
    });
   }
   status=text("",14,false);body.addView(status);refresh();
+  note(body,tx("زر الحفظ مستقل عن الاختبار: حفظ المفتاح لا يعني نجاح الاتصال. مفاتيح TMDB وOpenSubtitles في الصفحة المتخصصة مع زر الاختبار.",
+  "Save and Test are independent. A stored credential is not proof of a valid connection. TMDB and OpenSubtitles have a separate test page."));
   LinearLayout anime=card(body);
   anime.addView(text(tx("الأنمي: AniList / Kitsu / AniDB","Anime: AniList / Kitsu / AniDB"),18,true));
   note(anime,tx("AniList وKitsu للمعلومات والصور العامة بدون مفتاح خاص. AniDB هنا معرّف من Kitsu؛ الاتصال المباشر بـAniDB يتطلب تسجيل عميل رسمي.",
@@ -96,6 +98,21 @@ public final class PosterApiSettingsActivity extends HubActivity {
   input.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
   input.setTextDirection(View.TEXT_DIRECTION_LTR);
   controls.put(id,input);
+  action(box,tx("اختبار اتصال ","Test connection ")+id.toUpperCase(Locale.ROOT),
+    ()->testSource(id));
+ }
+ private void testSource(String id){
+  EditText field=controls.get(id);
+  String typed=field==null?"":field.getText().toString().trim();
+  String secret=typed.isEmpty()?PosterApiSecrets.get(this,id):typed;
+  status.setText(id.toUpperCase(Locale.ROOT)+" · "+
+     tx("جارٍ اختبار الاتصال…","Testing connection…"));
+  io.execute(()->{
+   String result=PosterApiProbe.test(id,secret);
+   runOnUiThread(()->{if(!closed)status.setText(
+     id.toUpperCase(Locale.ROOT)+" · "+result+
+     tx("\nيمكن حفظ المفتاح منفصلاً عن الاختبار.","\nSave key separately from connection test."));});
+  });
  }
  private void refresh(){
   StringBuilder statusText=new StringBuilder();
