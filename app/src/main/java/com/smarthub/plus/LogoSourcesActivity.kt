@@ -67,50 +67,12 @@ class LogoSourcesActivity:HubActivity(){
   options.addView(text(tx("يمكن تشغيل CHMAX والخارجي سويةً؛ CHMAX أولاً، وعند غياب الشعار يُستخدم الخارجي. إيقاف أحدهما يمنع إعادة استعمال كاشه القديم.",
     "Enable both: CHMAX first, then independent sources for missing logos. Disabled sources cannot reuse old artwork."),13,false))
   options.addView(text(tx("حجم شعار القناة والعلم","Channel logo size and flag"),16,true))
-  action(options,tx("محرر شعار القناة الحالية — حجم وخلفية وعلم",
+  action(options,tx("محرر شعار القناة الحالية والعلم تحت اسمها",
     "Edit current channel logo — scale, matte, background and flag"),Runnable{
     startActivity(Intent(this,ChannelLogoEditorActivity::class.java))
   })
-  val sizeLabel=text("",14,false)
-  val sizeBar=android.widget.SeekBar(this)
-  sizeBar.max=12
-  val scale=getSharedPreferences("smarthub",0)
-   .getInt("osd_channel_logo_scale_percent",100).coerceIn(65,125)
-  sizeBar.progress=(scale-65)/5
-  sizeLabel.text=tx("حجم الشعار: ","Logo size: ")+scale+"%"
-  sizeBar.setOnSeekBarChangeListener(object:android.widget.SeekBar.OnSeekBarChangeListener{
-   override fun onProgressChanged(bar:android.widget.SeekBar?,progress:Int,fromUser:Boolean){
-    sizeLabel.text=tx("حجم الشعار: ","Logo size: ")+(65+progress*5)+"%"
-   }
-   override fun onStartTrackingTouch(bar:android.widget.SeekBar?){}
-   override fun onStopTrackingTouch(bar:android.widget.SeekBar?){
-    getSharedPreferences("smarthub",0).edit()
-     .putInt("osd_channel_logo_scale_percent",65+(bar?.progress?:7)*5)
-     .putLong("osd_changed_at",System.currentTimeMillis()).apply()
-   }
-  })
-  options.addView(sizeLabel);options.addView(sizeBar)
-  val white=CheckBox(this)
-  white.text=tx("إزالة الإطار الأبيض الخارجي للشعار",
-    "Remove outer white matte from channel logo")
-  white.setTextColor(-1);white.isChecked=getSharedPreferences("smarthub",0)
-   .getBoolean("osd_channel_logo_remove_white",true)
-  white.setOnCheckedChangeListener{_,checked->
-   getSharedPreferences("smarthub",0).edit()
-    .putBoolean("osd_channel_logo_remove_white",checked)
-    .putLong("osd_changed_at",System.currentTimeMillis()).apply()
-  }
-  options.addView(white)
-  val flag=CheckBox(this)
-  flag.text=tx("إظهار علم الدولة تحت الشعار","Country flag under channel logo")
-  flag.setTextColor(-1);flag.isChecked=getSharedPreferences("smarthub",0)
-   .getBoolean("osd_show_channel_flag",true)
-  flag.setOnCheckedChangeListener{_,checked->
-   getSharedPreferences("smarthub",0).edit()
-    .putBoolean("osd_show_channel_flag",checked)
-    .putLong("osd_changed_at",System.currentTimeMillis()).apply()
-  }
-  options.addView(flag)
+  options.addView(text(tx("الحجم الافتراضي +18% داخل الإنفوبار القديم.\nالعلم الحقيقي بنصف عرض الشعار تحت اسم القناة، والخلفية سوداء.",
+    "Default logo +18% inside the unchanged InfoBar.\nReal flag at half logo width below channel name; black matte."),13,false))
   val providerSwitch=CheckBox(this)
   providerSwitch.text=tx("إظهار شعارات المزوّدين (مستقل عن المصدرين أعلاه)",
     "Provider logos (independent of both channel sources)")
