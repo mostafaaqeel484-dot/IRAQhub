@@ -7,7 +7,7 @@ package com.smarthub.plus;
 final class TigerOsdMetrics {
  private TigerOsdMetrics(){}
  // Exact pre-4.0.8 Tiger bar geometry; enlargement is INSIDE the old bar.
- static int barHeightDp(boolean detailed){return detailed?257:211;}
+ static int barHeightDp(boolean detailed){return detailed?226:185;}
  static boolean isCompact(boolean detailed){return !detailed;}
  static int headerHeightDp(){return 120;}
  // +18% inside the original 194dp brand column. The flag is half its width.
