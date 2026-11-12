@@ -99,7 +99,7 @@ jobs:
           root=pathlib.Path('app/src/main/assets/provider-branding/country-flags')
           state=json.loads((root/'index.json').read_text())
           assert {'AE','AL','RS','HR','PL','IQ','QA','TR'}.issubset(set(state['countries']))
-          assert all((root/(code.lower()+'.png')).read_bytes().startswith(b'\\x89PNG\\r\\n\\x1a\\n') for code in state['countries'])
+          assert all((root/(code.lower()+'.png')).read_bytes().startswith(bytes([137,80,78,71,13,10,26,10])) for code in state['countries'])
           print('Verified real flag PNGs',len(state['countries']))
           PY
       - name: Test only uploaded ORIGINAL source
@@ -134,7 +134,7 @@ jobs:
               assert len(flags['countries'])>=20
               for code in flags['countries']:
                   picture=package.read('assets/provider-branding/country-flags/'+code.lower()+'.png')
-                  assert picture[:8]==b'\\x89PNG\\r\\n\\x1a\\n'
+                  assert picture[:8]==bytes([137,80,78,71,13,10,26,10])
               assert 'AE' in flags['countries']
           print('RX6 provider-only register, compact UI country flags and channel exclusion verified')
           PY
