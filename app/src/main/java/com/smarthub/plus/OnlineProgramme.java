@@ -44,12 +44,6 @@ final class OnlineProgramme {
    if("ambiguous".equals(j.optString("status"))&&!j.isNull("candidates"))
     approximateCandidates=j;
   }catch(Exception unavailable){/* Try independent providers. */}
-  if(!"matched".equals(j.optString("status"))&&
-      PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
-   JSONObject other=new BetterPostersProvider(context).resolve(raw,
-      id,type,imdb,duration);
-   if("matched".equals(other.optString("status")))j=other;
-  }catch(Exception unavailable){/* Keep any existing verified candidate. */}
   if(!"matched".equals(j.optString("status"))&&context.getSharedPreferences("smarthub",0)
     .getBoolean("art_source_tvmaze_enabled",true))try{
    JSONObject other=new TvmazeProvider(context).resolve(raw,imdb);
@@ -59,6 +53,12 @@ final class OnlineProgramme {
    JSONObject anime=AnimeMetadataProvider.resolve(context,raw);
    if(anime!=null&&"matched".equals(anime.optString("status")))j=anime;
   }catch(Exception unavailable){/* Preserve genuine EPG artwork. */}
+  if(!"matched".equals(j.optString("status"))&&
+      PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
+   JSONObject other=new BetterPostersProvider(context).resolve(raw,
+      id,type,imdb,duration);
+   if("matched".equals(other.optString("status")))j=other;
+  }catch(Exception unavailable){/* Keep any existing verified candidate. */}
   if(!"matched".equals(j.optString("status"))&&approximateCandidates!=null
       &&id.isEmpty()&&imdb.isEmpty()&&!tmdbKey.isEmpty()
       &&PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB)
@@ -99,6 +99,19 @@ final class OnlineProgramme {
   }
   if(!similarPoster)PosterSelection.save(context,event,raw,upcoming,j);MediaRepository.Item item=new MediaRepository.Item();item.imdbId=j.optString("imdbId");if(!item.imdbId.isEmpty()&&!item.imdbId.matches("tt[0-9]{7,10}"))return null;boolean tmdb="TMDB".equals(j.optString("provider"));boolean better="BetterPosters".equals(j.optString("provider"));boolean tvmaze="TVmaze".equals(j.optString("provider"));boolean anime="AniList".equals(j.optString("provider"))||"Kitsu".equals(j.optString("provider"));item.id=anime?j.optString("id"):tmdb?j.optString("id"):(better?"betterposters:":tvmaze?"tvmaze:":"subsource:")+(item.imdbId.isEmpty()?j.optString("id"):item.imdbId);item.title=j.optString("title");item.release=j.optString("year");item.kind=("series".equals(j.optString("type"))||"tvseries".equals(j.optString("type")))?"series":"film";item.imageKind="poster";item.imagePage=j.optString("source");item.imageLicense=(anime?j.optString("provider"):tmdb?"TMDB":better?"BetterPosters":tvmaze?"TVmaze":"Subsource")+" · artwork rights retained by the owners";item.imageCredit=anime?j.optString("provider"):tmdb?"TMDB":better?"BetterPosters / TMDB":tvmaze?"TVmaze":"Subsource";item.background=j.optString("background");item.people=j.optJSONArray("people")==null?new JSONArray():j.optJSONArray("people");item.summary=j.optString("description");item.runtime=j.optString("runtime");item.cast=join(j.optJSONArray("cast"));item.directors=join(j.optJSONArray("directors"));item.genres=join(j.optJSONArray("genres"));item.ratings=j.optString("rating");item.cached=j.optBoolean("cached");item.fetchedAt=j.optLong("fetchedAt",System.currentTimeMillis());
   String address=j.optString("poster");Bitmap bitmap=posterBitmap(context,address);
+  // TMDB success stays untouched; exact IMDb alternatives outrank BetterPosters.
+  // Identity-bound RPDB / OpenPosterDB / licensed archive fallbacks.
+  // The free RPDB key is public; an OMDb Poster API requires a separate
+  // patron key and is intentionally NOT called with an RPDB key.
+  if(bitmap==null&&item.imdbId.matches("tt[0-9]{7,10}")&&!similarPoster){
+   String external=VerifiedPosterFallback.find(context,item.imdbId,item.title,item.release);
+   Bitmap alternative=posterBitmap(context,external);
+   if(alternative!=null){
+    bitmap=alternative;address=external;
+    item.imageCredit=posterSourceCredit(external);
+    item.imageLicense="External verified-source poster · rights retained by creators";
+   }
+  }
   if(bitmap==null&&tmdb)try{
    // Reuse verified TMDB/IMDb identity; never pick a different named movie.
    String verified=item.imdbId;
@@ -121,18 +134,6 @@ final class OnlineProgramme {
     Bitmap alternative=posterBitmap(context,direct);
     if(alternative!=null){bitmap=alternative;address=direct;item.imageCredit="BetterPosters · IMDb";item.imageLicense="BetterPosters · حقوق الصور لأصحابها";}
    }catch(Exception unavailable){}
-  // Identity-bound RPDB / OpenPosterDB / licensed archive fallbacks.
-  // The free RPDB key is public; an OMDb Poster API requires a separate
-  // patron key and is intentionally NOT called with an RPDB key.
-  if(bitmap==null&&item.imdbId.matches("tt[0-9]{7,10}")&&!similarPoster){
-   String external=VerifiedPosterFallback.find(context,item.imdbId,item.title,item.release);
-   Bitmap alternative=posterBitmap(context,external);
-   if(alternative!=null){
-    bitmap=alternative;address=external;
-    item.imageCredit=posterSourceCredit(external);
-    item.imageLicense="External verified-source poster · rights retained by creators";
-   }
-  }
   if(bitmap==null){
    bitmap=EpgArtwork.load(context,event,raw,upcoming);
    if(bitmap!=null){item.imageKind="epg";item.imageCredit="EPG";item.imageLicense="EPG · حقوق الصور لأصحابها";}
