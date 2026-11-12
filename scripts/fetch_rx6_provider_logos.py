@@ -35,6 +35,19 @@ def fetch_one(row):
     name=row["asset"]
     assert name and "/" not in name and "\\" not in name and name.endswith((".png",".svg"))
     output=destination/name
+    if row.get("local",False):
+        # Owner-approved family marks are checked into Git; never hotlink them,
+        # and never accept a stale/modified copy under the same asset name.
+        if not output.is_file():return name,0,"LOCAL_ASSET_MISSING"
+        raw=output.read_bytes()
+        sha=row.get("sha256","")
+        if len(raw)<60 or len(raw)>200000 or hashlib.sha256(raw).hexdigest()!=sha:
+            return name,0,"LOCAL_SHA256_MISMATCH"
+        if name.endswith(".svg") and (b"<svg" not in raw[:500] or b"<!DOCTYPE" in raw or b"<!ENTITY" in raw):
+            return name,0,"INVALID_LOCAL_SVG"
+        if name.endswith(".png") and not raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+            return name,0,"INVALID_LOCAL_PNG"
+        return name,len(raw),"owner_verified_local"
     if output.exists():
         return name,output.stat().st_size,"already"
     if "repo" in row:
@@ -80,6 +93,7 @@ def fetch_one(row):
             return name,0,type(error).__name__
     return name,0,"unavailable"
 
+# Local user-approved image files have no network dependency.
 # Wikimedia enforces per-IP request limits on large bursts: never issue
 # concurrent Commons logo downloads. GitHub-pinned images can be concurrent.
 repo_assets=[entry for entry in assets if "repo" in entry]
