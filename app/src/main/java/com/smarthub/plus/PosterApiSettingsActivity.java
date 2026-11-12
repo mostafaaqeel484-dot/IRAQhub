@@ -4,11 +4,15 @@ import android.text.InputType;
 import android.view.View;
 import android.widget.*;
 import java.util.*;
+import java.util.concurrent.*;
+import org.json.JSONObject;
 
 /** Independent API key fields for real poster services. No API keys logged. */
 public final class PosterApiSettingsActivity extends HubActivity {
  private final LinkedHashMap<String,EditText> controls=new LinkedHashMap<>();
  private TextView status;
+ private final ExecutorService io=Executors.newSingleThreadExecutor();
+ private volatile boolean closed;
  private static final String[] KEYS={"rpdb","opdb","omdb","sportsdb"};
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
@@ -41,15 +45,52 @@ public final class PosterApiSettingsActivity extends HubActivity {
    });
   }
   status=text("",14,false);body.addView(status);refresh();
+  LinearLayout anime=card(body);
+  anime.addView(text(tx("الأنمي: AniList / Kitsu / AniDB","Anime: AniList / Kitsu / AniDB"),18,true));
+  note(anime,tx("AniList وKitsu للمعلومات والصور العامة بدون مفتاح خاص. AniDB هنا معرّف من Kitsu؛ الاتصال المباشر بـAniDB يتطلب تسجيل عميل رسمي.",
+    "AniList and anime Kitsu support public metadata searches without user keys. AniDB identity comes from Kitsu mappings; direct AniDB integration needs a registered client."));
+  animeSwitch(anime,PosterSourceSwitches.ANILIST,"AniList · public anime metadata");
+  animeSwitch(anime,PosterSourceSwitches.KITSU,"Kitsu · public anime metadata");
+  animeSwitch(anime,PosterSourceSwitches.ANIDB,"AniDB identifiers · via Kitsu only");
+  EditText animeName=field(anime,tx("الاسم الدقيق للأنمي","Exact anime title"),"One Piece");
+  action(anime,tx("اختبار بحث الأنمي","Test anime source"),()->{
+    String name=animeName.getText().toString().trim();
+    status.setText(tx("جارٍ البحث…","Searching anime services…"));
+    io.execute(()->{
+      JSONObject found=AnimeMetadataProvider.resolve(getApplicationContext(),name);
+      runOnUiThread(()->{if(!closed)status.setText(found==null?
+        tx("لم توجد مطابقة دقيقة؛ جرّب اسماً رسمياً","No exact title match or source unavailable"):
+        found.optString("provider")+" · "+found.optString("title")+" · "+found.optString("id"));});
+    });
+  });
+  action(anime,tx("اختبار ربط معرّف AniDB","Test AniDB ID mapping"),()->{
+    String name=animeName.getText().toString().trim();
+    status.setText("Checking Kitsu / AniDB mapping…");
+    io.execute(()->{
+      String message;
+      try{
+        JSONObject match=AnimeMetadataProvider.kitsu(name,true);
+        message=match==null?"NO_EXACT_KITSU_MATCH":
+          match.optString("anidbId","NO_VERIFIED_ANIDB_ID");
+      }catch(Exception e){message="KITSU_UNAVAILABLE";}
+      String answer=message;
+      runOnUiThread(()->{if(!closed)status.setText("AniDB: "+answer);});
+    });
+  });
   LinearLayout others=card(body);
   others.addView(text(tx("مصادر أخرى","Other sources"),17,true));
-  action(others,tx("TMDB · إدخال مفتاح وتحقق من الاتصال","TMDB · enter and validate key"),
+  action(others,tx("TMDB + OpenSubtitles · إعداد المفاتيح","TMDB + OpenSubtitles · configure and test keys"),
    ()->startActivity(new android.content.Intent(this,ProviderSetupActivity.class)));
   note(others,tx("TVmaze وWikimedia Commons وArchive.org تعمل بواجهات عامة بدون مفتاح خاص في هذا المسار. BetterPosters: لا أضيف خانة وهمية دون API موثقة.",
    "TVmaze, Commons and Archive use public endpoints here. BetterPosters has no verified private-key interface in this integration."));
   action(others,tx("تشغيل وإيقاف المصادر","Enable / disable sources"),
    ()->startActivity(new android.content.Intent(this,ArtworkSourcesActivity.class)));
  }
+ private void animeSwitch(LinearLayout box,String key,String label){
+  CheckBox enabled=check(box,label,PosterSourceSwitches.enabled(this,key));
+  enabled.setOnCheckedChangeListener((view,on)->PosterSourceSwitches.set(this,key,on));
+ }
+ @Override protected void onDestroy(){closed=true;io.shutdownNow();super.onDestroy();}
  private void add(LinearLayout box,String id,String label){
   EditText input=field(box,label,"");
   input.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -63,6 +104,16 @@ public final class PosterApiSettingsActivity extends HubActivity {
    statusText.append(key.toUpperCase(Locale.ROOT)).append(": ")
      .append(PosterApiSecrets.configured(this,key)?"✓":"—");
   }
+  try{
+   ProviderSecrets keys=ProviderSecrets.read(this);
+   statusText.append("  ·  TMDB: ").append(keys.tmdb.isEmpty()?"—":"✓");
+   statusText.append("  ·  OpenSubtitles: ").append(keys.opensubtitles.isEmpty()?"—":"✓");
+  }catch(Exception ignored){
+   statusText.append("  ·  TMDB/OpenSubtitles: unavailable");
+  }
+  statusText.append("  ·  AniList: ").append(PosterSourceSwitches.enabled(this,PosterSourceSwitches.ANILIST)?"ON":"OFF");
+  statusText.append("  ·  Kitsu: ").append(PosterSourceSwitches.enabled(this,PosterSourceSwitches.KITSU)?"ON":"OFF");
+  statusText.append("  ·  AniDB mapping: ").append(PosterSourceSwitches.enabled(this,PosterSourceSwitches.ANIDB)?"ON":"OFF");
   status.setText(statusText.toString());
  }
 }

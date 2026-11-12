@@ -64,8 +64,14 @@ public final class ArtworkSourcesActivity extends HubActivity {
   commons.setOnCheckedChangeListener((v,on)->PosterSourceSwitches.set(
     this,PosterSourceSwitches.COMMONS,on));
 
+  LinearLayout animeBox=card(page);
+  animeBox.addView(text(tx("الأنمي · مصادر مستقلة","Anime · independent poster sources"),17,true));
+  sourceSwitch(animeBox,PosterSourceSwitches.ANILIST,"AniList · exact-title anime artwork");
+  sourceSwitch(animeBox,PosterSourceSwitches.KITSU,"Kitsu Anime · exact-title anime artwork");
+  sourceSwitch(animeBox,PosterSourceSwitches.ANIDB,"AniDB identifier via Kitsu mappings (not direct AniDB API)");
+  note(animeBox,tx("مصادر الأنمي لا تستبدل EPG المصنع أو DVB.","Anime artwork does not replace factory/DVB EPG."));
   LinearLayout keyBox=card(page);
-  action(keyBox,tx("مفاتيح API: RPDB / OPDB / OMDb / TheSportsDB","API keys: RPDB / OPDB / OMDb / TheSportsDB"),()->startActivity(new Intent(this,PosterApiSettingsActivity.class)));
+  action(keyBox,tx("API: TMDB / RPDB / OMDb / OpenSubtitles / Kitsu / AniList / AniDB","API Keys: TMDB / RPDB / OMDb / OpenSubtitles / anime"),()->startActivity(new Intent(this,PosterApiSettingsActivity.class)));
   note(keyBox,tx("TMDB في إعدادات مزودي الصور؛ TVmaze وCommons وArchive.org لا تحتاج مفتاحاً خاصاً.","TMDB is configured separately; TVmaze, Commons and Archive need no private key."));
   LinearLayout tvBox=card(page);
   tvBox.addView(text("1. TVmaze · https://www.tvmaze.com/api",18,true));

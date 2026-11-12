@@ -45,7 +45,9 @@
   <activity android:name=".ReceiverViewingMenuActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".CompatibilityActivity" android:exported="false" android:screenOrientation="landscape"/>
   <activity android:name=".SportsCenterActivity" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".MatchDetailsView" android:exported="false" android:screenOrientation="landscape"/><activity android:name=".MediaActivity" android:exported="false" android:screenOrientation="landscape" />
-  <activity android:name=".ChannelIdentityActivity" android:exported="false" /><activity android:name=".PosterApiSettingsActivity" android:exported="false" android:screenOrientation="landscape" /><activity android:name=".ProviderSetupActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ChannelIdentityActivity" android:exported="false" /><activity android:name=".PosterApiSettingsActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ReceiverDbImportActivity" android:exported="false" android:screenOrientation="landscape" />
+  <activity android:name=".ProviderLogoCatalogActivity" android:exported="false" android:screenOrientation="landscape" /><activity android:name=".ProviderSetupActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".SatelliteActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".SatelliteGuideActivity" android:exported="false" android:screenOrientation="landscape" />
   <activity android:name=".ToolsActivity" android:exported="false" android:screenOrientation="landscape" />

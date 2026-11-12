@@ -246,6 +246,9 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showChannels(){
+  link(tx("استيراد قاعدة قنوات الرسيفر (قراءة فقط)","Import receiver channel DB (read-only)"),
+    tx("القمر والتردد والـService ID؛ بدون تعديل بيانات المصنع","Satellite/frequency/SID identity check; no OEM DB edits"),
+    ReceiverDbImportActivity.class);
   link(tx("قائمة القنوات","Channel list"),tx("الأقمار والقنوات والمفضلة","Satellites, channels and favourites"),
     ReceiverChannelsActivity.class);
   link(tx("ترتيب وإدارة القنوات","Sort and manage channels"),"",ChannelManageActivity.class);
@@ -260,7 +263,10 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showInfoBar(){
-  link(tx("مفاتيح API وتفعيل مصادر البوسترات","API Keys & Services"), 
+  link(tx("شعارات 234 مزوداً","All 234 provider artwork"),
+    tx("الشعارات المؤكدة وبدائل ملونة مميزة","Verified marks and clearly labelled colored placeholders"),
+    ProviderLogoCatalogActivity.class);
+  link(tx("مفاتيح API · TMDB / RPDB / OMDb / OpenSubtitles / Anime","API Keys & Services · TMDB / RPDB / OMDb / OpenSubtitles / Anime"), 
     tx("TMDB وRPDB وOPDB وOMDb وTheSportsDB · مفاتيح مشفّرة",
        "Encrypted TMDB, RPDB, OPDB, OMDb and TheSportsDB keys"),
     PosterApiSettingsActivity.class);
