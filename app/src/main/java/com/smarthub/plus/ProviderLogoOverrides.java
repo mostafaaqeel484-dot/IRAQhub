@@ -69,7 +69,7 @@ final class ProviderLogoOverrides {
  static void add(Context c,String name,String country,String channelId,Uri image)throws Exception{
   name=name==null?"":name.trim();
   country=country==null?"":country.trim().toUpperCase(Locale.ROOT);
-  if(name.length()<2||name.length()>96||name.chars().anyMatch(c->c<32)||
+  if(name.length()<2||name.length()>96||name.chars().anyMatch(codePoint->codePoint<32)||
      !ProviderCountryCatalog.iso(country))throw new IOException("PROVIDER_NAME_OR_COUNTRY_INVALID");
   if(channelId==null)channelId="";
   if(!channelId.isEmpty()&&!channelId.startsWith("DVB:"))
