@@ -20,6 +20,7 @@ final class ProviderCountryCatalog {
  }
  private static volatile ProviderCountryCatalog INSTANCE;
  private final Map<String,List<Provider>> byProvider=new HashMap<>();
+ private final List<Provider> allProviders=new ArrayList<>();
  private final Map<String,List<ChannelRow>> byChannel=new HashMap<>();
  private final List<ArenaRow> arena=new ArrayList<>();
  private final int providerCount,channelRows;
@@ -49,6 +50,7 @@ final class ProviderCountryCatalog {
     String country=row.optString(1,"");
     if(name.trim().isEmpty()||!iso(country))continue;
     Provider p=new Provider(name,country,row.optInt(2,0)!=0);
+    allProviders.add(p);
     byProvider.computeIfAbsent(key(name),k->new ArrayList<>()).add(p);
     for(String alias:name.split("\\s+/\\s+")){
      if(alias.trim().length()>=4)byProvider.computeIfAbsent(key(alias),k->new ArrayList<>()).add(p);
@@ -161,6 +163,7 @@ final class ProviderCountryCatalog {
    return country;
   }catch(Exception invalid){return "";}
  }
+ List<Provider> all(){return Collections.unmodifiableList(allProviders);}
  int providers(){return providerCount;}
  int channels(){return channelRows;}
 }
