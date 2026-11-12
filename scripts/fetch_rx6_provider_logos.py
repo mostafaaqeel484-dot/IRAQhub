@@ -45,7 +45,7 @@ def fetch_one(row):
             return name,0,"LOCAL_SHA256_MISMATCH"
         if name.endswith(".svg") and (b"<svg" not in raw[:500] or b"<!DOCTYPE" in raw or b"<!ENTITY" in raw):
             return name,0,"INVALID_LOCAL_SVG"
-        if name.endswith(".png") and not raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        if name.endswith(".png") and not raw.startswith(b"\x89PNG\r\n\x1a\n"):
             return name,0,"INVALID_LOCAL_PNG"
         return name,len(raw),"owner_verified_local"
     if output.exists():
