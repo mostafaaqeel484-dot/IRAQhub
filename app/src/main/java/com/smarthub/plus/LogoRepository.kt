@@ -84,6 +84,12 @@ class LogoRepository private constructor(context:Context){
    }else cache.remember(key,bitmap)
   }catch(_:Exception){cache.remember(key,bitmap)}
  }
+ /** CHMAX ZIP logos live in a separate physical DVB namespace.
+  * An external-only source cannot see these stored official package images. */
+ private fun packageKey(physical:String?):String?=
+  if(ChannelLogoSourcePrefs.chmax(app)&&physical?.startsWith("DVB:")==true)
+    "chmax:package:channel:physical:v2:$physical" else null
+ private fun bulkChmax(physical:String?):Bitmap?=packageKey(physical)?.let{cache.read(it)}
  private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)="rx6:channel:source-v4:"+ChannelLogoSourcePrefs.sourceId(app)+":"+(if(physical?.startsWith("DVB:")==true)"physical:$physical" else (e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name)))
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
  /** Show RAM hits instantly. Disk decode and verified receiver branding run
@@ -95,7 +101,8 @@ class LogoRepository private constructor(context:Context){
   val chmax=ChannelLogoSourcePrefs.chmax(app)
   val external=ChannelLogoSourcePrefs.external(app)
   if(!chmax&&!external)return null
-  if(chmax||external)observed(name,physical)?.let{return it}
+  if(chmax)bulkChmax(physical)?.let{return it}
+  observed(name,physical)?.let{return it}
   if(chmax){
    val factory=app.getSharedPreferences("smarthub",0).getBoolean("factory_enabled",true)
    if(factory&&physical!=null&&physical.isNotBlank()){
@@ -116,9 +123,8 @@ class LogoRepository private constructor(context:Context){
   if(published.isNotEmpty())try{channels.download(published)?.let{return it}}catch(_:Exception){}
   val ambiguous=(addon.snapshot()?.candidates(name)?.map{it.physicalKey}?.distinct()?.size?:0)>1
   if(ambiguous)return null
-  val chosen=if(entry==null&&addon.enabled())
-    addon.unique(name)?.let{addon.resolve(it,channels)}?:channels.resolve(name)
-    else channels.resolve(name)
+  // External-only lookups must never request CHMAX per-channel icons.
+  val chosen=channels.resolve(name)
   if(chosen!=null)return chosen
   return try{OnlineChannelLogo.fetch(app,name,entry?.id?:"",physical?:"")}catch(_:Exception){null}
  }
@@ -143,13 +149,13 @@ class LogoRepository private constructor(context:Context){
   val enabled=ChannelLogoSourcePrefs.chmax(app)||ChannelLogoSourcePrefs.external(app)
   val known=if(physical?.startsWith("DVB:")==true)null else db.channel(name)
   val key=channelKey(name,known,physical)
-  listener.channel(if(enabled)cache.peek(key) else null)
+  listener.channel(if(enabled)packageKey(physical)?.let{cache.peek(it)}?:cache.peek(key) else null)
   val cachedName=providerRecord(name,physical,known)
   listener.provider(cachedName.first,cachedName.second)
   if(!enabled)return
   scope.launch{
    val image=slots.withPermit{
-    cache.read(key)?:observed(name,physical)?.also{persistLogo(key,it)}
+    bulkChmax(physical)?:cache.read(key)?:observed(name,physical)?.also{persistLogo(key,it)}
      ?:if(ChannelLogoSourcePrefs.external(app))
        ReceiverLogoAssets.load(app,name,physical)?.also{persistLogo(key,it)}
        else null
@@ -166,14 +172,14 @@ class LogoRepository private constructor(context:Context){
   val enabled=ChannelLogoSourcePrefs.chmax(app)||ChannelLogoSourcePrefs.external(app)
   val entry=db.channel(name)
   val key=channelKey(name,entry,physical)
-  val ram=if(enabled)cache.peek(key) else null
+  val ram=if(enabled)packageKey(physical)?.let{cache.peek(it)}?:cache.peek(key) else null
   listener.channel(ram)
   val nowProvider=providerRecord(name,physical,entry)
   listener.provider(nowProvider.first,nowProvider.second)
   scope.launch{
    db.load();addon.load()
    val updatedEntry=db.channel(name)
-   val image=if(!enabled)null else if(ram!=null)ram else get(key){
+   val image=if(!enabled)null else bulkChmax(physical)?:if(ram!=null)ram else get(key){
     loadChannel(name,physical,updatedEntry)
    }
    val result=providerRecord(name,physical,updatedEntry,true)
