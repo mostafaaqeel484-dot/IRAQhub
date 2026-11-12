@@ -60,7 +60,7 @@ public final class ChmaxLogoSyncWorker extends Worker {
    Map<String,List<ChlChannelIndex.Service>> services=new HashMap<>();
    Map<Integer,List<String>> fingerprints=new HashMap<>();
    for(ChlChannelIndex.Service service:index.getServices()){
-    if(requestedSat!=Integer.MIN_VALUE&&service.getSat()!=requestedSat)continue;
+    if(!ChmaxSatelliteSelection.includes(requestedSat,service.getSat()))continue;
     angles.add(service.getSat());
     services.computeIfAbsent(service.getSat()+"_"+service.getFrequency()+"_"+service.getSid(),
       k->new ArrayList<>()).add(service);
@@ -225,7 +225,7 @@ public final class ChmaxLogoSyncWorker extends Worker {
     Matcher name=FILE.matcher(entry.getName());if(!name.find())continue;
     int sat=parse(name.group(1)),frequency=parse(name.group(2)),sid=parse(name.group(3));
     if(sat!=expectedSat)throw new IOException("CHMAX_PACKAGE_SAT_MISMATCH");
-    List<ChlChannelIndex.Service> rows=services.get(sat+"_"+frequency+"_"+sid);if(rows==null||rows.isEmpty())continue;
+    List<ChlChannelIndex.Service> rows=services.get(sat+"_"+frequency+"_"+sid);if(rows==null||!ChmaxSatelliteSelection.unambiguous(rows.size()))continue;
     ByteArrayOutputStream png=new ByteArrayOutputStream();int n;
     while((n=input.read(buffer))!=-1){inflated+=n;if(png.size()+n>4*1024*1024||inflated>MAX_PACKAGE*5)throw new IOException("CHMAX_ZIP_BOMB_REJECTED");png.write(buffer,0,n);}
     byte[] bytes=png.toByteArray();BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(bytes,0,bytes.length,bounds);
