@@ -6,10 +6,10 @@ package com.smarthub.plus;
  */
 final class TigerOsdMetrics {
  private TigerOsdMetrics(){}
- // +12dp to fit country flag directly below channel logo in the original layout.
- static int barHeightDp(boolean detailed){return detailed?257:211;}
+ // OSN-sized 240x112 artwork + 31dp flag + name; preserve separate technical footer.
+ static int barHeightDp(boolean detailed){return detailed?304:264;}
  static boolean isCompact(boolean detailed){return !detailed;}
- static int headerHeightDp(){return 120;}
+ static int headerHeightDp(){return 177;}
  static int iconWidthDp(){return 36;}
  static int iconHeightDp(){return 22;}
  static int posterBottomMarginDp(boolean detailed){
