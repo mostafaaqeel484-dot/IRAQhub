@@ -120,15 +120,12 @@ final class NowNextView extends FrameLayout {
   // Reference: channel left, small year + day/date/time at right; icons BELOW date.
   LinearLayout header=new LinearLayout(context);
   header.setGravity(Gravity.CENTER_VERTICAL);
-  LinearLayout headLeft=column();headLeft.setGravity(Gravity.CENTER_VERTICAL);
   LinearLayout headRight=column();headRight.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
-  header.addView(headLeft,new LinearLayout.LayoutParams(0,-1,1.35f));
-  header.addView(headRight,new LinearLayout.LayoutParams(0,-1,1f));
   bar.addView(header,new LinearLayout.LayoutParams(-1,dp(TigerOsdMetrics.headerHeightDp())));
-
-  LinearLayout primary=new LinearLayout(context);
-  primary.setGravity(Gravity.CENTER_VERTICAL);
-  bar.addView(primary,new LinearLayout.LayoutParams(-1,0,1));
+  // The former weighted but empty headLeft and 2nd full-height primary row
+  // created the giant blank panel. All EPG content belongs in the header.
+  final boolean bottomSignal=SignalPlacement.bottom(
+      prefs.getString(SignalPlacement.KEY,SignalPlacement.DEFAULT));
   LinearLayout brand=column();brand.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL);
   logo=new ImageView(context);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
   logo.setBackgroundColor(android.graphics.Color.TRANSPARENT);
@@ -162,8 +159,9 @@ final class NowNextView extends FrameLayout {
   header.addView(brand,0,brandPosition);
 
   LinearLayout programme=column();
-  programme.setPadding(dp(10),0,dp(10),0);
-  primary.addView(programme,new LinearLayout.LayoutParams(0,-2,1.5f));
+  programme.setGravity(Gravity.CENTER_VERTICAL);
+  programme.setPadding(dp(12),0,dp(12),0);
+  header.addView(programme,new LinearLayout.LayoutParams(0,-1,1f));
   heading=label("IRAQhub",compact?13:14,true);
   heading.setGravity(Gravity.CENTER);
   heading.setIncludeFontPadding(false);
@@ -178,7 +176,7 @@ final class NowNextView extends FrameLayout {
   brand.addView(countryFlag,new LinearLayout.LayoutParams(dp(TigerOsdMetrics.channelFlagWidthDp()),
     dp(TigerOsdMetrics.channelFlagHeightDp())));
   broadcast=label("",10,false);broadcast.setTextColor(0xffe0e0e0);
-  headLeft.addView(broadcast);
+  // No empty headLeft column; broadcasting information is in the technical footer.
   nowLine=label("",compact?13:16,true);
   programme.addView(nowLine);
   nextLine=label("",compact?11:13,false);
@@ -244,8 +242,16 @@ final class NowNextView extends FrameLayout {
   addView(swap?left:right,rightPosition);
   leftPosterBox.setVisibility(GONE);rightPosterBox.setVisibility(GONE);
 
-  LinearLayout signal=column();signal.setGravity(Gravity.CENTER_VERTICAL);
-  primary.addView(signal,new LinearLayout.LayoutParams(dp(212),-2));
+  LinearLayout signal=new LinearLayout(context);
+  signal.setOrientation(bottomSignal?LinearLayout.HORIZONTAL:LinearLayout.VERTICAL);
+  signal.setGravity(Gravity.CENTER_VERTICAL);
+  if(bottomSignal){
+    signal.setPadding(dp(12),0,dp(12),0);
+    bar.addView(signal,new LinearLayout.LayoutParams(-1,dp(25)));
+  }else{
+    header.addView(signal,new LinearLayout.LayoutParams(dp(148),-1));
+  }
+  header.addView(headRight,new LinearLayout.LayoutParams(dp(250),-1));
   LinearLayout providerAndDate=new LinearLayout(context);
   providerAndDate.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
   LinearLayout dateBlock=column();dateBlock.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
@@ -263,10 +269,20 @@ final class NowNextView extends FrameLayout {
   strengthBar=meter(0xff28cbfa);
   qualityLabel=label("Q: —",10,false);
   qualityBar=meter(0xffcb27e6);
-  signal.addView(strengthLabel);
-  signal.addView(strengthBar,new LinearLayout.LayoutParams(-1,dp(4)));
-  signal.addView(qualityLabel);
-  signal.addView(qualityBar,new LinearLayout.LayoutParams(-1,dp(4)));
+  if(bottomSignal){
+    signal.addView(strengthLabel,new LinearLayout.LayoutParams(dp(56),-2));
+    LinearLayout.LayoutParams s=new LinearLayout.LayoutParams(0,dp(4),1f);
+    s.rightMargin=dp(18);signal.addView(strengthBar,s);
+    signal.addView(qualityLabel,new LinearLayout.LayoutParams(dp(56),-2));
+    signal.addView(qualityBar,new LinearLayout.LayoutParams(0,dp(4),1f));
+  }else{
+    strengthLabel.setTextSize(9);
+    qualityLabel.setTextSize(9);
+    signal.addView(strengthLabel);
+    signal.addView(strengthBar,new LinearLayout.LayoutParams(-1,dp(3)));
+    signal.addView(qualityLabel);
+    signal.addView(qualityBar,new LinearLayout.LayoutParams(-1,dp(3)));
+  }
 
   // Bind targets for optional RX Details mode. All data sources and getters
   // remain intact; only their visibility changes.
@@ -439,14 +455,18 @@ final class NowNextView extends FrameLayout {
    // 194x76dp already includes the requested +18%. Never double-scale.
    float safeScale=Math.min(1f,appearance.size/118f);
    logo.setScaleX(safeScale);logo.setScaleY(safeScale);
-   logo.setBackgroundColor(Color.BLACK);
+   logo.setBackgroundColor("black".equals(appearance.background)?Color.BLACK:Color.TRANSPARENT);
   }
   if(channelLogo==null){
    if(displayedChannelLogo!=null||!style.equals(displayedLogoStyleAtBitmap))
     logo.setImageResource(R.drawable.channel_placeholder);
-  }else if(channelLogo!=displayedChannelLogo||!style.equals(displayedLogoStyleAtBitmap))
-   logo.setImageBitmap(ChannelLogoBitmap.prepare(channelLogo,
-     appearance.removeWhite,appearance.removeBlack,appearance.crop));
+  }else if(channelLogo!=displayedChannelLogo||!style.equals(displayedLogoStyleAtBitmap)){
+   // Original means exact image including its white MBC card. Black processes
+   // only an edge-connected outer matte and keeps the coloured logo itself.
+   logo.setImageBitmap("black".equals(appearance.background)?
+     ChannelLogoBitmap.prepare(channelLogo,
+       appearance.removeWhite,appearance.removeBlack,appearance.crop):channelLogo);
+  }
   displayedLogoStyleAtBitmap=style;
   displayedChannelLogo=channelLogo;
   logo.setContentDescription("Channel logo · "+s.channelName);
