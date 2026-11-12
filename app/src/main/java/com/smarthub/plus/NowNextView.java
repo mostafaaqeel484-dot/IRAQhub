@@ -584,6 +584,8 @@ final class NowNextView extends FrameLayout {
   updatePosterVisibility();
   displayedChannelLogo=null;
   logo.setImageDrawable(null);providerLogo.setImageDrawable(null);
+  countryFlag.setImageDrawable(null);countryFlag.setVisibility(GONE);
+  displayedFlagCode="";
  }
  void provider(Bitmap image){
   if(!ChannelLogoSourcePrefs.providers(getContext())){
