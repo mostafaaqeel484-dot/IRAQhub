@@ -1,1 +1,586 @@
-{"version":2,"sources":{"tvLogoRepo":"tv-logo/tv-logos","simpleIconsRepo":"simple-icons/simple-icons","tvCommit":"d32e347bb7c4c640dceec23957802ad9182f58a6","simpleCommit":"cd796c98565fc466923fc1128b962e133fa3c612"},"providers":[{"name":"Kanal 7 Media Group","country":"TR","asset":"tv-e212591c1f18fff813ad3344ff1d499fc7531dbc.png"},{"name":"NOW Türkiye","country":"TR","asset":"tv-a48aafc3ac41cb2d523f5f416ad24b3ad1bc35eb.png"},{"name":"Show TV","country":"TR","asset":"tv-ec75f7a8e93c9d778d49e2b3150e9e14abae9da6.png"},{"name":"Turkuvaz Media / ATV","country":"TR","asset":"tv-b672a5b14c64a10e59aef35474b4b6d178c05072.png"},{"name":"Pink Media Group","country":"RS","asset":"tv-8bc1e1dd2a7b6b479bafd07a4b25b3f5a20627b6.png"},{"name":"Euronews Albania","country":"AL","asset":"tv-3eaff0b519d3a2a98981d4672fc5b5a7d9aac7d8.png"},{"name":"Klan TV Group","country":"AL","asset":"tv-cff3b6a4bf4126edc14241d84fbda6591f74a860.png"},{"name":"HRT - Croatian Radiotelevision","country":"HR","asset":"tv-c6ca062a37ac697b7c370894b3953e38250f23c3.png"},{"name":"Nova TV Croatia","country":"HR","asset":"tv-d7347faf5995e0de98260518c0766d9b130ae8dc.png"},{"name":"RTL Hrvatska","country":"HR","asset":"simple-1681c5d98d79c5f31db1a00a509508c58b582820.svg"},{"name":"bTV Media Group Bulgaria","country":"BG","asset":"tv-76bf8f0ee46c982c5cfc85ac45e881f67f1b29f0.png"},{"name":"Nova Broadcasting Group Bulgaria","country":"BG","asset":"tv-cbf8aeee9274c4b7383cb0c0d85036258c17b7ff.png"},{"name":"Orange Romania","country":"RO","asset":"simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"},{"name":"Orange Romania TV","country":"RO","asset":"simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"},{"name":"RTL Hungary","country":"HU","asset":"simple-1681c5d98d79c5f31db1a00a509508c58b582820.svg"},{"name":"TV2 Group Hungary","country":"HU","asset":"tv-6a711ea8404b1701dc1439d5e52d0a773dd7bfe3.png"},{"name":"RTL Nederland / DPG Media","country":"NL","asset":"simple-1681c5d98d79c5f31db1a00a509508c58b582820.svg"},{"name":"Ziggo TV","country":"NL","asset":"simple-1179b37a536cb80eb889dd31cb942fe248f44ba0.svg"},{"name":"Ziggo Sport","country":"NL","asset":"simple-1179b37a536cb80eb889dd31cb942fe248f44ba0.svg"},{"name":"La7 / Cairo Communication","country":"IT","asset":"tv-5e5779adf18f081a5f51c48f9becea6c73d91de5.png"},{"name":"Rai 3 TGR regional feed services","country":"IT","asset":"tv-f01dd9ce9501be2f8cfe77552f2d5d07783136a3.png"},{"name":"Sky Italia","country":"IT","asset":"commons-sky2025.png"},{"name":"ARTE","country":"FR","asset":"tv-11dbeebf716c78e480ec644eaff51684142f913f.png"},{"name":"M6 Group","country":"FR","asset":"tv-2ff550552614eb039d454049a5edd44be3476889.png"},{"name":"TF1 Group","country":"FR","asset":"tv-e25033e267f45983971377e6a4b3aa2a118b8cd3.png"},{"name":"Orange TV France","country":"FR","asset":"simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"},{"name":"Movistar Plus+ Spain","country":"ES","asset":"simple-083f296b8e84b867b6612a93f6e3ef4c99db2751.svg"},{"name":"Movistar+","country":"ES","asset":"simple-083f296b8e84b867b6612a93f6e3ef4c99db2751.svg"},{"name":"Orange TV España","country":"ES","asset":"simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"},{"name":"TVI / Media Capital","country":"PT","asset":"tv-a9cb608a998947debdf8146bfc077a51af3e07ff.png"},{"name":"Vodafone TV Portugal","country":"PT","asset":"simple-f882e2fe0f2a195fcfdcf39fe02b597425b7ade8.svg"},{"name":"Orange Polska","country":"PL","asset":"simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"},{"name":"OrangeSat Slovakia","country":"SK","asset":"simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"},{"name":"Sky Deutschland","country":"DE","asset":"commons-sky2025.png"},{"name":"Sky Digital","country":"GB","asset":"commons-sky2025.png"},{"name":"Airtel Digital TV","country":"IN","asset":"simple-6f71ea437ae9f3181d0b36c4a90c32df91a88784.svg"},{"name":"Arena Channels Group","country":"RS","asset":"commons-arena.png"},{"name":"Arena Sport Croatia / HD-WIN","country":"HR","asset":"commons-arena.png"},{"name":"Arena Sport Crna Gora","country":"ME","asset":"commons-arena.png"},{"name":"Arena Sport BiH","country":"BA","asset":"commons-arena.png"},{"name":"Arena Sport Slovenia","country":"SI","asset":"commons-arena.png"},{"name":"Digitürk / beIN Turkey","country":"TR","asset":"commons-digiturk.svg"},{"name":"D-Smart","country":"TR","asset":"commons-dsmart.png"},{"name":"OSNtv","country":"AE","asset":"commons-osn2023.png"},{"name":"DigitAlb","country":"AL","asset":"commons-digitalb.png"},{"name":"SuperSport Albania","country":"AL","asset":"commons-digitalb.png"},{"name":"Tring Digital","country":"AL","asset":"commons-tring.png"},{"name":"Vizion Plus / Tring Media","country":"AL","asset":"commons-tring.png"},{"name":"Platforma Canal+ Polska","country":"PL","asset":"commons-canalpl.png"},{"name":"Canal+ Group France","country":"FR","asset":"commons-canalpl.png"},{"name":"Canal+ France","country":"FR","asset":"commons-canalpl.png"},{"name":"Canal+ Czechia & Slovakia","country":"CZ","asset":"commons-canalpl.png"},{"name":"MBC Group","country":"SA","asset":"commons-mbcgroup.svg"},{"name":"Rotana","country":"SA","asset":"commons-rotanagroup.svg"},{"name":"Al Jazeera Media Network","country":"QA","asset":"commons-aljazeera.png"},{"name":"beIN MENA","country":"QA","asset":"commons-beinsports.svg"},{"name":"Dubai Media","country":"AE","asset":"commons-dubaimedia.svg"},{"name":"Abu Dhabi Media Network","country":"AE","asset":"commons-abudhabi.svg"},{"name":"Alkass Sports","country":"QA","asset":"commons-alkass.svg"},{"name":"Al Sharqiya Network","country":"IQ","asset":"commons-alsharqiya.png"},{"name":"Al Rabiaa","country":"IQ","asset":"commons-alrabiaa.svg"}],"channels":[],"assets":[{"asset":"tv-e212591c1f18fff813ad3344ff1d499fc7531dbc.png","repo":"tv-logo/tv-logos","path":"countries/turkey/kanal-7-tr.png","sha":"e212591c1f18fff813ad3344ff1d499fc7531dbc","kind":"channel"},{"asset":"tv-a48aafc3ac41cb2d523f5f416ad24b3ad1bc35eb.png","repo":"tv-logo/tv-logos","path":"countries/turkey/now-tr.png","sha":"a48aafc3ac41cb2d523f5f416ad24b3ad1bc35eb","kind":"channel"},{"asset":"tv-ec75f7a8e93c9d778d49e2b3150e9e14abae9da6.png","repo":"tv-logo/tv-logos","path":"countries/turkey/show-tr.png","sha":"ec75f7a8e93c9d778d49e2b3150e9e14abae9da6","kind":"channel"},{"asset":"tv-b672a5b14c64a10e59aef35474b4b6d178c05072.png","repo":"tv-logo/tv-logos","path":"countries/turkey/atv-tr.png","sha":"b672a5b14c64a10e59aef35474b4b6d178c05072","kind":"channel"},{"asset":"tv-8bc1e1dd2a7b6b479bafd07a4b25b3f5a20627b6.png","repo":"tv-logo/tv-logos","path":"countries/serbia/pink-rs.png","sha":"8bc1e1dd2a7b6b479bafd07a4b25b3f5a20627b6","kind":"channel"},{"asset":"tv-3eaff0b519d3a2a98981d4672fc5b5a7d9aac7d8.png","repo":"tv-logo/tv-logos","path":"countries/albania/euronews-albania-al.png","sha":"3eaff0b519d3a2a98981d4672fc5b5a7d9aac7d8","kind":"channel"},{"asset":"tv-cff3b6a4bf4126edc14241d84fbda6591f74a860.png","repo":"tv-logo/tv-logos","path":"countries/albania/tv-klan-al.png","sha":"cff3b6a4bf4126edc14241d84fbda6591f74a860","kind":"channel"},{"asset":"tv-c6ca062a37ac697b7c370894b3953e38250f23c3.png","repo":"tv-logo/tv-logos","path":"countries/croatia/hrt-1-hr.png","sha":"c6ca062a37ac697b7c370894b3953e38250f23c3","kind":"channel"},{"asset":"tv-d7347faf5995e0de98260518c0766d9b130ae8dc.png","repo":"tv-logo/tv-logos","path":"countries/croatia/nova-hr.png","sha":"d7347faf5995e0de98260518c0766d9b130ae8dc","kind":"channel"},{"asset":"tv-76bf8f0ee46c982c5cfc85ac45e881f67f1b29f0.png","repo":"tv-logo/tv-logos","path":"countries/bulgaria/btv-bg.png","sha":"76bf8f0ee46c982c5cfc85ac45e881f67f1b29f0","kind":"channel"},{"asset":"tv-cbf8aeee9274c4b7383cb0c0d85036258c17b7ff.png","repo":"tv-logo/tv-logos","path":"countries/bulgaria/nova-bg.png","sha":"cbf8aeee9274c4b7383cb0c0d85036258c17b7ff","kind":"channel"},{"asset":"tv-6a711ea8404b1701dc1439d5e52d0a773dd7bfe3.png","repo":"tv-logo/tv-logos","path":"countries/hungary/tv2-hu.png","sha":"6a711ea8404b1701dc1439d5e52d0a773dd7bfe3","kind":"channel"},{"asset":"tv-f01dd9ce9501be2f8cfe77552f2d5d07783136a3.png","repo":"tv-logo/tv-logos","path":"countries/italy/rai-3-it.png","sha":"f01dd9ce9501be2f8cfe77552f2d5d07783136a3","kind":"channel"},{"asset":"tv-5e5779adf18f081a5f51c48f9becea6c73d91de5.png","repo":"tv-logo/tv-logos","path":"countries/italy/la7-it.png","sha":"5e5779adf18f081a5f51c48f9becea6c73d91de5","kind":"channel"},{"asset":"tv-e25033e267f45983971377e6a4b3aa2a118b8cd3.png","repo":"tv-logo/tv-logos","path":"countries/france/tf1-fr.png","sha":"e25033e267f45983971377e6a4b3aa2a118b8cd3","kind":"channel"},{"asset":"tv-11dbeebf716c78e480ec644eaff51684142f913f.png","repo":"tv-logo/tv-logos","path":"countries/france/arte-fr.png","sha":"11dbeebf716c78e480ec644eaff51684142f913f","kind":"channel"},{"asset":"tv-a9cb608a998947debdf8146bfc077a51af3e07ff.png","repo":"tv-logo/tv-logos","path":"countries/portugal/tvi-pt.png","sha":"a9cb608a998947debdf8146bfc077a51af3e07ff","kind":"channel"},{"asset":"simple-1681c5d98d79c5f31db1a00a509508c58b582820.svg","repo":"simple-icons/simple-icons","path":"icons/rtl.svg","sha":"1681c5d98d79c5f31db1a00a509508c58b582820","kind":"provider"},{"asset":"simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg","repo":"simple-icons/simple-icons","path":"icons/orange.svg","sha":"8129c8173a28ed8ef116a10172481f375e5f7a2b","kind":"provider"},{"asset":"simple-1179b37a536cb80eb889dd31cb942fe248f44ba0.svg","repo":"simple-icons/simple-icons","path":"icons/ziggo.svg","sha":"1179b37a536cb80eb889dd31cb942fe248f44ba0","kind":"provider"},{"asset":"tv-2ff550552614eb039d454049a5edd44be3476889.png","repo":"tv-logo/tv-logos","path":"countries/france/m6-fr.png","sha":"2ff550552614eb039d454049a5edd44be3476889","kind":"provider"},{"asset":"simple-083f296b8e84b867b6612a93f6e3ef4c99db2751.svg","repo":"simple-icons/simple-icons","path":"icons/movistar.svg","sha":"083f296b8e84b867b6612a93f6e3ef4c99db2751","kind":"provider"},{"asset":"simple-f882e2fe0f2a195fcfdcf39fe02b597425b7ade8.svg","repo":"simple-icons/simple-icons","path":"icons/vodafone.svg","sha":"f882e2fe0f2a195fcfdcf39fe02b597425b7ade8","kind":"provider"},{"asset":"simple-6f71ea437ae9f3181d0b36c4a90c32df91a88784.svg","repo":"simple-icons/simple-icons","path":"icons/airtel.svg","sha":"6f71ea437ae9f3181d0b36c4a90c32df91a88784","kind":"provider"},{"asset":"commons-arena.png","source":"MarhyCZ/picons","name":"Arena Sport logo (2019)","license":"Third-party trademark, see source repository","path":"640/arenasport.png","sha":"655c422343e6b21125e1d716c634540d5773532d"},{"asset":"commons-digiturk.svg","source":"bgrkara/news-directory","name":"Digiturk logo","license":"Third-party trademark, see source repository","path":"assets/home/img/logos/digiturk.svg","sha":"583ddf21f8f9adcdf200698f7278754e56b90101"},{"asset":"commons-dsmart.png","url":"https://thumb.wikimedia.org/wikipedia/commons/thumb/5/53/D-Smart_logo.svg/960px-D-Smart_logo.svg.png"},{"asset":"commons-osn2023.png","url":"https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e5/OSN_TV_Logo_%282023%29.svg/960px-OSN_TV_Logo_%282023%29.svg.png"},{"asset":"commons-digitalb.png","url":"https://upload.wikimedia.org/wikipedia/commons/1/18/Digitalb_logo.png"},{"asset":"commons-tring.png","url":"https://thumb.wikimedia.org/wikipedia/commons/thumb/1/15/Tring_logo.svg/960px-Tring_logo.svg.png"},{"asset":"commons-sky2025.png","url":"https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/Sky_logo_2025.svg/960px-Sky_logo_2025.svg.png"},{"asset":"commons-canalpl.png","url":"https://upload.wikimedia.org/wikipedia/commons/4/46/Canal%2BLogo.png","optional":true},{"asset":"commons-mbcgroup.svg","url":"https://upload.wikimedia.org/wikipedia/commons/6/6b/MBC_Group_Logo.svg","optional":true},{"asset":"commons-rotanagroup.svg","url":"https://upload.wikimedia.org/wikipedia/commons/a/ad/Rotana_Group_Logo.svg","optional":true},{"asset":"commons-aljazeera.png","url":"https://upload.wikimedia.org/wikipedia/commons/3/36/Aljazeera_logo.png","optional":true},{"asset":"commons-beinsports.svg","url":"https://upload.wikimedia.org/wikipedia/commons/8/87/Bein_Sports_Logo.svg","optional":true},{"asset":"commons-dubaimedia.svg","url":"https://upload.wikimedia.org/wikipedia/commons/7/71/Dubai_Media_Logo.svg","optional":true},{"asset":"commons-abudhabi.svg","url":"https://upload.wikimedia.org/wikipedia/commons/a/ac/Abu_Dhabi_Media_Network_logo_2023.svg","optional":true},{"asset":"commons-alkass.svg","url":"https://upload.wikimedia.org/wikipedia/commons/5/54/%D8%B4%D8%B9%D8%A7%D8%B1_%D9%82%D9%86%D9%88%D8%A7%D8%AA_%D8%A7%D9%84%D9%83%D8%A7%D8%B3_%D8%A7%D9%84%D8%B1%D9%8A%D8%A7%D8%B6%D9%8A%D8%A9.svg","optional":true},{"asset":"commons-alsharqiya.png","url":"https://upload.wikimedia.org/wikipedia/commons/1/1e/Al_Sharqiya.png","optional":true},{"asset":"commons-alrabiaa.svg","url":"https://upload.wikimedia.org/wikipedia/commons/5/56/%D8%B4%D8%B9%D8%A7%D8%B1_%D9%82%D9%86%D8%A7%D8%A9_%D8%A7%D9%84%D8%B1%D8%A7%D8%A8%D8%B9%D8%A9.svg","optional":true}],"note":"Provider logos only. Separate from CHMAX channel art. 234 workbook names; audited provider marks + explicitly labelled fallback. 2026-11-12 physical-family rules Sky/Arena/DigitAlb/Tring/CANAL+ Polska/Airtel and Arabic media groups."}
+{
+  "version": 2,
+  "sources": {
+    "tvLogoRepo": "tv-logo/tv-logos",
+    "simpleIconsRepo": "simple-icons/simple-icons",
+    "tvCommit": "d32e347bb7c4c640dceec23957802ad9182f58a6",
+    "simpleCommit": "cd796c98565fc466923fc1128b962e133fa3c612"
+  },
+  "providers": [
+    {
+      "name": "Kanal 7 Media Group",
+      "country": "TR",
+      "asset": "tv-e212591c1f18fff813ad3344ff1d499fc7531dbc.png"
+    },
+    {
+      "name": "NOW Türkiye",
+      "country": "TR",
+      "asset": "tv-a48aafc3ac41cb2d523f5f416ad24b3ad1bc35eb.png"
+    },
+    {
+      "name": "Show TV",
+      "country": "TR",
+      "asset": "tv-ec75f7a8e93c9d778d49e2b3150e9e14abae9da6.png"
+    },
+    {
+      "name": "Turkuvaz Media / ATV",
+      "country": "TR",
+      "asset": "tv-b672a5b14c64a10e59aef35474b4b6d178c05072.png"
+    },
+    {
+      "name": "Pink Media Group",
+      "country": "RS",
+      "asset": "tv-8bc1e1dd2a7b6b479bafd07a4b25b3f5a20627b6.png"
+    },
+    {
+      "name": "Euronews Albania",
+      "country": "AL",
+      "asset": "tv-3eaff0b519d3a2a98981d4672fc5b5a7d9aac7d8.png"
+    },
+    {
+      "name": "Klan TV Group",
+      "country": "AL",
+      "asset": "tv-cff3b6a4bf4126edc14241d84fbda6591f74a860.png"
+    },
+    {
+      "name": "HRT - Croatian Radiotelevision",
+      "country": "HR",
+      "asset": "tv-c6ca062a37ac697b7c370894b3953e38250f23c3.png"
+    },
+    {
+      "name": "Nova TV Croatia",
+      "country": "HR",
+      "asset": "tv-d7347faf5995e0de98260518c0766d9b130ae8dc.png"
+    },
+    {
+      "name": "RTL Hrvatska",
+      "country": "HR",
+      "asset": "simple-1681c5d98d79c5f31db1a00a509508c58b582820.svg"
+    },
+    {
+      "name": "bTV Media Group Bulgaria",
+      "country": "BG",
+      "asset": "tv-76bf8f0ee46c982c5cfc85ac45e881f67f1b29f0.png"
+    },
+    {
+      "name": "Nova Broadcasting Group Bulgaria",
+      "country": "BG",
+      "asset": "tv-cbf8aeee9274c4b7383cb0c0d85036258c17b7ff.png"
+    },
+    {
+      "name": "Orange Romania",
+      "country": "RO",
+      "asset": "simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"
+    },
+    {
+      "name": "Orange Romania TV",
+      "country": "RO",
+      "asset": "simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"
+    },
+    {
+      "name": "RTL Hungary",
+      "country": "HU",
+      "asset": "simple-1681c5d98d79c5f31db1a00a509508c58b582820.svg"
+    },
+    {
+      "name": "TV2 Group Hungary",
+      "country": "HU",
+      "asset": "tv-6a711ea8404b1701dc1439d5e52d0a773dd7bfe3.png"
+    },
+    {
+      "name": "RTL Nederland / DPG Media",
+      "country": "NL",
+      "asset": "simple-1681c5d98d79c5f31db1a00a509508c58b582820.svg"
+    },
+    {
+      "name": "Ziggo TV",
+      "country": "NL",
+      "asset": "simple-1179b37a536cb80eb889dd31cb942fe248f44ba0.svg"
+    },
+    {
+      "name": "Ziggo Sport",
+      "country": "NL",
+      "asset": "simple-1179b37a536cb80eb889dd31cb942fe248f44ba0.svg"
+    },
+    {
+      "name": "La7 / Cairo Communication",
+      "country": "IT",
+      "asset": "tv-5e5779adf18f081a5f51c48f9becea6c73d91de5.png"
+    },
+    {
+      "name": "Rai 3 TGR regional feed services",
+      "country": "IT",
+      "asset": "tv-f01dd9ce9501be2f8cfe77552f2d5d07783136a3.png"
+    },
+    {
+      "name": "Sky Italia",
+      "country": "IT",
+      "asset": "commons-rx6-owner-sky.svg"
+    },
+    {
+      "name": "ARTE",
+      "country": "FR",
+      "asset": "tv-11dbeebf716c78e480ec644eaff51684142f913f.png"
+    },
+    {
+      "name": "M6 Group",
+      "country": "FR",
+      "asset": "tv-2ff550552614eb039d454049a5edd44be3476889.png"
+    },
+    {
+      "name": "TF1 Group",
+      "country": "FR",
+      "asset": "tv-e25033e267f45983971377e6a4b3aa2a118b8cd3.png"
+    },
+    {
+      "name": "Orange TV France",
+      "country": "FR",
+      "asset": "simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"
+    },
+    {
+      "name": "Movistar Plus+ Spain",
+      "country": "ES",
+      "asset": "simple-083f296b8e84b867b6612a93f6e3ef4c99db2751.svg"
+    },
+    {
+      "name": "Movistar+",
+      "country": "ES",
+      "asset": "simple-083f296b8e84b867b6612a93f6e3ef4c99db2751.svg"
+    },
+    {
+      "name": "Orange TV España",
+      "country": "ES",
+      "asset": "simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"
+    },
+    {
+      "name": "TVI / Media Capital",
+      "country": "PT",
+      "asset": "tv-a9cb608a998947debdf8146bfc077a51af3e07ff.png"
+    },
+    {
+      "name": "Vodafone TV Portugal",
+      "country": "PT",
+      "asset": "simple-f882e2fe0f2a195fcfdcf39fe02b597425b7ade8.svg"
+    },
+    {
+      "name": "Orange Polska",
+      "country": "PL",
+      "asset": "simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"
+    },
+    {
+      "name": "OrangeSat Slovakia",
+      "country": "SK",
+      "asset": "simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg"
+    },
+    {
+      "name": "Sky Deutschland",
+      "country": "DE",
+      "asset": "commons-rx6-owner-sky.svg"
+    },
+    {
+      "name": "Sky Digital",
+      "country": "GB",
+      "asset": "commons-rx6-owner-sky.svg"
+    },
+    {
+      "name": "Airtel Digital TV",
+      "country": "IN",
+      "asset": "simple-6f71ea437ae9f3181d0b36c4a90c32df91a88784.svg"
+    },
+    {
+      "name": "Arena Channels Group",
+      "country": "RS",
+      "asset": "commons-rx6-owner-arena.svg"
+    },
+    {
+      "name": "Arena Sport Croatia / HD-WIN",
+      "country": "HR",
+      "asset": "commons-rx6-owner-arena.svg"
+    },
+    {
+      "name": "Arena Sport Crna Gora",
+      "country": "ME",
+      "asset": "commons-rx6-owner-arena.svg"
+    },
+    {
+      "name": "Arena Sport BiH",
+      "country": "BA",
+      "asset": "commons-rx6-owner-arena.svg"
+    },
+    {
+      "name": "Arena Sport Slovenia",
+      "country": "SI",
+      "asset": "commons-rx6-owner-arena.svg"
+    },
+    {
+      "name": "Digitürk / beIN Turkey",
+      "country": "TR",
+      "asset": "commons-digiturk.svg"
+    },
+    {
+      "name": "D-Smart",
+      "country": "TR",
+      "asset": "commons-dsmart.png"
+    },
+    {
+      "name": "OSNtv",
+      "country": "AE",
+      "asset": "commons-osn2023.png"
+    },
+    {
+      "name": "DigitAlb",
+      "country": "AL",
+      "asset": "commons-rx6-owner-digitalb.svg"
+    },
+    {
+      "name": "SuperSport Albania",
+      "country": "AL",
+      "asset": "commons-rx6-owner-digitalb.svg"
+    },
+    {
+      "name": "Tring Digital",
+      "country": "AL",
+      "asset": "commons-tring.png"
+    },
+    {
+      "name": "Vizion Plus / Tring Media",
+      "country": "AL",
+      "asset": "commons-tring.png"
+    },
+    {
+      "name": "Platforma Canal+ Polska",
+      "country": "PL",
+      "asset": "commons-rx6-owner-canal.svg"
+    },
+    {
+      "name": "Canal+ Group France",
+      "country": "FR",
+      "asset": "commons-canalpl.png"
+    },
+    {
+      "name": "Canal+ France",
+      "country": "FR",
+      "asset": "commons-canalpl.png"
+    },
+    {
+      "name": "Canal+ Czechia & Slovakia",
+      "country": "CZ",
+      "asset": "commons-canalpl.png"
+    },
+    {
+      "name": "MBC Group",
+      "country": "SA",
+      "asset": "commons-mbcgroup.svg"
+    },
+    {
+      "name": "Rotana",
+      "country": "SA",
+      "asset": "commons-rotanagroup.svg"
+    },
+    {
+      "name": "Al Jazeera Media Network",
+      "country": "QA",
+      "asset": "commons-aljazeera.png"
+    },
+    {
+      "name": "beIN MENA",
+      "country": "QA",
+      "asset": "commons-beinsports.svg"
+    },
+    {
+      "name": "Dubai Media",
+      "country": "AE",
+      "asset": "commons-dubaimedia.svg"
+    },
+    {
+      "name": "Abu Dhabi Media Network",
+      "country": "AE",
+      "asset": "commons-abudhabi.svg"
+    },
+    {
+      "name": "Alkass Sports",
+      "country": "QA",
+      "asset": "commons-alkass.svg"
+    },
+    {
+      "name": "Al Sharqiya Network",
+      "country": "IQ",
+      "asset": "commons-alsharqiya.png"
+    },
+    {
+      "name": "Al Rabiaa",
+      "country": "IQ",
+      "asset": "commons-alrabiaa.svg"
+    }
+  ],
+  "channels": [],
+  "assets": [
+    {
+      "asset": "tv-e212591c1f18fff813ad3344ff1d499fc7531dbc.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/turkey/kanal-7-tr.png",
+      "sha": "e212591c1f18fff813ad3344ff1d499fc7531dbc",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-a48aafc3ac41cb2d523f5f416ad24b3ad1bc35eb.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/turkey/now-tr.png",
+      "sha": "a48aafc3ac41cb2d523f5f416ad24b3ad1bc35eb",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-ec75f7a8e93c9d778d49e2b3150e9e14abae9da6.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/turkey/show-tr.png",
+      "sha": "ec75f7a8e93c9d778d49e2b3150e9e14abae9da6",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-b672a5b14c64a10e59aef35474b4b6d178c05072.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/turkey/atv-tr.png",
+      "sha": "b672a5b14c64a10e59aef35474b4b6d178c05072",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-8bc1e1dd2a7b6b479bafd07a4b25b3f5a20627b6.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/serbia/pink-rs.png",
+      "sha": "8bc1e1dd2a7b6b479bafd07a4b25b3f5a20627b6",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-3eaff0b519d3a2a98981d4672fc5b5a7d9aac7d8.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/albania/euronews-albania-al.png",
+      "sha": "3eaff0b519d3a2a98981d4672fc5b5a7d9aac7d8",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-cff3b6a4bf4126edc14241d84fbda6591f74a860.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/albania/tv-klan-al.png",
+      "sha": "cff3b6a4bf4126edc14241d84fbda6591f74a860",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-c6ca062a37ac697b7c370894b3953e38250f23c3.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/croatia/hrt-1-hr.png",
+      "sha": "c6ca062a37ac697b7c370894b3953e38250f23c3",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-d7347faf5995e0de98260518c0766d9b130ae8dc.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/croatia/nova-hr.png",
+      "sha": "d7347faf5995e0de98260518c0766d9b130ae8dc",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-76bf8f0ee46c982c5cfc85ac45e881f67f1b29f0.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/bulgaria/btv-bg.png",
+      "sha": "76bf8f0ee46c982c5cfc85ac45e881f67f1b29f0",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-cbf8aeee9274c4b7383cb0c0d85036258c17b7ff.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/bulgaria/nova-bg.png",
+      "sha": "cbf8aeee9274c4b7383cb0c0d85036258c17b7ff",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-6a711ea8404b1701dc1439d5e52d0a773dd7bfe3.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/hungary/tv2-hu.png",
+      "sha": "6a711ea8404b1701dc1439d5e52d0a773dd7bfe3",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-f01dd9ce9501be2f8cfe77552f2d5d07783136a3.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/italy/rai-3-it.png",
+      "sha": "f01dd9ce9501be2f8cfe77552f2d5d07783136a3",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-5e5779adf18f081a5f51c48f9becea6c73d91de5.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/italy/la7-it.png",
+      "sha": "5e5779adf18f081a5f51c48f9becea6c73d91de5",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-e25033e267f45983971377e6a4b3aa2a118b8cd3.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/france/tf1-fr.png",
+      "sha": "e25033e267f45983971377e6a4b3aa2a118b8cd3",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-11dbeebf716c78e480ec644eaff51684142f913f.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/france/arte-fr.png",
+      "sha": "11dbeebf716c78e480ec644eaff51684142f913f",
+      "kind": "channel"
+    },
+    {
+      "asset": "tv-a9cb608a998947debdf8146bfc077a51af3e07ff.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/portugal/tvi-pt.png",
+      "sha": "a9cb608a998947debdf8146bfc077a51af3e07ff",
+      "kind": "channel"
+    },
+    {
+      "asset": "simple-1681c5d98d79c5f31db1a00a509508c58b582820.svg",
+      "repo": "simple-icons/simple-icons",
+      "path": "icons/rtl.svg",
+      "sha": "1681c5d98d79c5f31db1a00a509508c58b582820",
+      "kind": "provider"
+    },
+    {
+      "asset": "simple-8129c8173a28ed8ef116a10172481f375e5f7a2b.svg",
+      "repo": "simple-icons/simple-icons",
+      "path": "icons/orange.svg",
+      "sha": "8129c8173a28ed8ef116a10172481f375e5f7a2b",
+      "kind": "provider"
+    },
+    {
+      "asset": "simple-1179b37a536cb80eb889dd31cb942fe248f44ba0.svg",
+      "repo": "simple-icons/simple-icons",
+      "path": "icons/ziggo.svg",
+      "sha": "1179b37a536cb80eb889dd31cb942fe248f44ba0",
+      "kind": "provider"
+    },
+    {
+      "asset": "tv-2ff550552614eb039d454049a5edd44be3476889.png",
+      "repo": "tv-logo/tv-logos",
+      "path": "countries/france/m6-fr.png",
+      "sha": "2ff550552614eb039d454049a5edd44be3476889",
+      "kind": "provider"
+    },
+    {
+      "asset": "simple-083f296b8e84b867b6612a93f6e3ef4c99db2751.svg",
+      "repo": "simple-icons/simple-icons",
+      "path": "icons/movistar.svg",
+      "sha": "083f296b8e84b867b6612a93f6e3ef4c99db2751",
+      "kind": "provider"
+    },
+    {
+      "asset": "simple-f882e2fe0f2a195fcfdcf39fe02b597425b7ade8.svg",
+      "repo": "simple-icons/simple-icons",
+      "path": "icons/vodafone.svg",
+      "sha": "f882e2fe0f2a195fcfdcf39fe02b597425b7ade8",
+      "kind": "provider"
+    },
+    {
+      "asset": "simple-6f71ea437ae9f3181d0b36c4a90c32df91a88784.svg",
+      "repo": "simple-icons/simple-icons",
+      "path": "icons/airtel.svg",
+      "sha": "6f71ea437ae9f3181d0b36c4a90c32df91a88784",
+      "kind": "provider"
+    },
+    {
+      "asset": "commons-digiturk.svg",
+      "source": "bgrkara/news-directory",
+      "name": "Digiturk logo",
+      "license": "Third-party trademark, see source repository",
+      "path": "assets/home/img/logos/digiturk.svg",
+      "sha": "583ddf21f8f9adcdf200698f7278754e56b90101"
+    },
+    {
+      "asset": "commons-dsmart.png",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/53/D-Smart_logo.svg/960px-D-Smart_logo.svg.png"
+    },
+    {
+      "asset": "commons-osn2023.png",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e5/OSN_TV_Logo_%282023%29.svg/960px-OSN_TV_Logo_%282023%29.svg.png"
+    },
+    {
+      "asset": "commons-tring.png",
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/15/Tring_logo.svg/960px-Tring_logo.svg.png"
+    },
+    {
+      "asset": "commons-canalpl.png",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/46/Canal%2BLogo.png",
+      "optional": true
+    },
+    {
+      "asset": "commons-mbcgroup.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/6b/MBC_Group_Logo.svg",
+      "optional": true
+    },
+    {
+      "asset": "commons-rotanagroup.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Rotana_Group_Logo.svg",
+      "optional": true
+    },
+    {
+      "asset": "commons-aljazeera.png",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/3/36/Aljazeera_logo.png",
+      "optional": true
+    },
+    {
+      "asset": "commons-beinsports.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/87/Bein_Sports_Logo.svg",
+      "optional": true
+    },
+    {
+      "asset": "commons-dubaimedia.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/71/Dubai_Media_Logo.svg",
+      "optional": true
+    },
+    {
+      "asset": "commons-abudhabi.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Abu_Dhabi_Media_Network_logo_2023.svg",
+      "optional": true
+    },
+    {
+      "asset": "commons-alkass.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/5/54/%D8%B4%D8%B9%D8%A7%D8%B1_%D9%82%D9%86%D9%88%D8%A7%D8%AA_%D8%A7%D9%84%D9%83%D8%A7%D8%B3_%D8%A7%D9%84%D8%B1%D9%8A%D8%A7%D8%B6%D9%8A%D8%A9.svg",
+      "optional": true
+    },
+    {
+      "asset": "commons-alsharqiya.png",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Al_Sharqiya.png",
+      "optional": true
+    },
+    {
+      "asset": "commons-alrabiaa.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/5/56/%D8%B4%D8%B9%D8%A7%D8%B1_%D9%82%D9%86%D8%A7%D8%A9_%D8%A7%D9%84%D8%B1%D8%A7%D8%A8%D8%B9%D8%A9.svg",
+      "optional": true
+    },
+    {
+      "asset": "commons-rx6-owner-arena.svg",
+      "local": true,
+      "sha256": "a866b0136c2e9f7dbda1d2a14e956e094ab17af49c6698a88209cc0796265206",
+      "kind": "provider",
+      "source": "image supplied/approved by receiver owner; vectorized for RX6 display"
+    },
+    {
+      "asset": "commons-rx6-owner-digitalb.svg",
+      "local": true,
+      "sha256": "433f6322e05ed268ebff93daa6036bc2c9407c1e0ddf7147a76b90ea10a6d9ac",
+      "kind": "provider",
+      "source": "image supplied/approved by receiver owner; vectorized for RX6 display"
+    },
+    {
+      "asset": "commons-rx6-owner-sky.svg",
+      "local": true,
+      "sha256": "29bc682eb3afb82e117773757d9e7038c3215aa5222c5b9a13ac7804d27b66f6",
+      "kind": "provider",
+      "source": "image supplied/approved by receiver owner; vectorized for RX6 display"
+    },
+    {
+      "asset": "commons-rx6-owner-canal.svg",
+      "local": true,
+      "sha256": "86d3c05199355e337dd24df297fe2c2928b0fdfc2820a1d0b657da3f533fe0b7",
+      "kind": "provider",
+      "source": "image supplied/approved by receiver owner; vectorized for RX6 display"
+    }
+  ],
+  "note": "RX6 provider-only source integration: 4 exact owner-approved logo families are now local SVG assets mapped to 11 provider entries. Other user-approved links are candidates pending identity verification; channel logos remain CHMAX-only. No APK build triggered."
+}
