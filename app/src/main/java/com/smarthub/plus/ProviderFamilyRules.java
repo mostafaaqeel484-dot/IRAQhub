@@ -41,7 +41,7 @@ final class ProviderFamilyRules {
  }
  static boolean sky(String channel){
   return channel.matches("^SKY(?:[ \\-].*|NEWS.*|SPORTS.*|SPORT .*|CINEMA.*|TG24.*|UNO.*|ATLANTIC.*|NATURE.*|CRIME.*|SERIE.*|SHOW.*|ONE.*)$")
-    ||channel.equals("SKY");
+    ||channel.equals("SKY") || channel.endsWith(" SKY NEWS") || channel.endsWith(" SKY NEWS HD");
  }
  static boolean arena(String channel){
   return channel.matches("^ARENA(?:[ \\-].*|SPORT.*|PREMIUM.*|FIGHT.*|TENIS.*|ESPORT.*)$");
@@ -77,7 +77,7 @@ final class ProviderFamilyRules {
   if(ch.startsWith("AL JAZEERA")||ch.startsWith("ALJAZEERA")||
      p.contains("AL JAZEERA MEDIA"))return ALJAZEERA;
   if((ch.startsWith("BEIN ")||ch.startsWith("BEIN-"))&&
-     (sat==420||sat==4200||p.contains("DIGITÜRK")||p.contains("DIGITURK")))
+     (sat==414||sat==420||sat==4200||p.contains("DIGITÜRK")||p.contains("DIGITURK")))
     return BEIN_TR;
   if(ch.startsWith("BEIN ")||ch.startsWith("BEIN-")||p.equals("BEIN MENA"))return BEIN;
   return null; // Continue with workbook's unique published-channel identity.
