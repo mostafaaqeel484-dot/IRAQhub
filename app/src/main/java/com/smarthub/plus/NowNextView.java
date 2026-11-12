@@ -11,7 +11,8 @@ import java.util.*;
 /** Lightweight native-TV OSD with channel left and service-provider branding at the far right. */
 final class NowNextView extends FrameLayout {
  private final ImageView currentPoster,nextPoster,logo,providerLogo;
- private final TextView countryFlag;
+ private final ImageView countryFlag;
+ private String displayedFlagCode="";
  private String selectedProviderBrand="";
  private Bitmap displayedChannelLogo;
  private String displayedLogoStyleAtBitmap="";
@@ -133,14 +134,13 @@ final class NowNextView extends FrameLayout {
   logo.setBackgroundColor(android.graphics.Color.TRANSPARENT);
   // The receiver logo fills most of the top-left column. FIT_CENTER preserves
   // the exact aspect ratio and keeps long DVB channel names readable below.
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(240),dp(112)));
-  countryFlag=label("",27,false);
-  countryFlag.setSingleLine(true);
-  countryFlag.setIncludeFontPadding(false);
-  countryFlag.setTextColor(0xfff5f6fb);
-  countryFlag.setGravity(Gravity.CENTER);
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(TigerOsdMetrics.channelLogoWidthDp()),
+    dp(TigerOsdMetrics.channelLogoHeightDp())));
+  // Render a bundled real national flag; never a platform-dependent emoji.
+  countryFlag=new ImageView(context);
+  countryFlag.setScaleType(ImageView.ScaleType.FIT_CENTER);
+  countryFlag.setBackgroundColor(Color.TRANSPARENT);
   countryFlag.setVisibility(GONE);
-  brand.addView(countryFlag,new LinearLayout.LayoutParams(-1,dp(31)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -157,7 +157,7 @@ final class NowNextView extends FrameLayout {
   providerPanel.setVisibility(GONE);
   // Channel identity belongs in the top header, not at the bottom of the
   // programme row. This keeps the CHMAX logo aligned with the channel name.
-  LinearLayout.LayoutParams brandPosition=new LinearLayout.LayoutParams(dp(254),-1);
+  LinearLayout.LayoutParams brandPosition=new LinearLayout.LayoutParams(dp(194),-1);
   brandPosition.rightMargin=dp(8);
   header.addView(brand,0,brandPosition);
 
@@ -170,11 +170,13 @@ final class NowNextView extends FrameLayout {
   heading.setTextColor(0xff3fe44d);
   // Keep the original RX Skin and 81dp header. The image no longer overlaps
   // the title: show two lines instead of clipping long DVB names.
-  heading.setSingleLine(false);heading.setMaxLines(2);
-  heading.setEllipsize(null);
-  heading.setAutoSizeTextTypeUniformWithConfiguration(10,13,1,
+  heading.setSingleLine(true);heading.setMaxLines(1);
+  heading.setEllipsize(TextUtils.TruncateAt.END);
+  heading.setAutoSizeTextTypeUniformWithConfiguration(9,12,1,
     android.util.TypedValue.COMPLEX_UNIT_SP);
-  brand.addView(heading,new LinearLayout.LayoutParams(-1,-2));
+  brand.addView(heading,new LinearLayout.LayoutParams(-1,dp(TigerOsdMetrics.channelNameHeightDp())));
+  brand.addView(countryFlag,new LinearLayout.LayoutParams(dp(TigerOsdMetrics.channelFlagWidthDp()),
+    dp(TigerOsdMetrics.channelFlagHeightDp())));
   broadcast=label("",10,false);broadcast.setTextColor(0xffe0e0e0);
   headLeft.addView(broadcast);
   nowLine=label("",compact?13:16,true);
@@ -414,8 +416,13 @@ final class NowNextView extends FrameLayout {
    }
    String country=branding.country(s.channelName,s.channelId,provider);
    ChannelLogoAppearance.Config appearance=ChannelLogoAppearance.read(getContext(),s.channelId);
-   countryFlag.setText(country.isEmpty()?"":ProviderCountryCatalog.flag(country));
-   countryFlag.setVisibility(country.isEmpty()||!appearance.flag?GONE:VISIBLE);
+   String flagKey=appearance.flag?country:"";
+   if(!flagKey.equals(displayedFlagCode)){
+    displayedFlagCode=flagKey;
+    Bitmap flagImage=CountryFlagArtwork.get(getContext(),flagKey);
+    countryFlag.setImageBitmap(flagImage);
+    countryFlag.setVisibility(flagImage==null?GONE:VISIBLE);
+   }
    suppressDuplicateProvider=(shownProvider.equalsIgnoreCase("OSN")||shownProvider.equalsIgnoreCase("OSNtv")) &&
      s.channelName.toUpperCase(Locale.ROOT).startsWith("OSN");
    countryFlag.setContentDescription(country.isEmpty()?"":tx("بلد القناة: ","Channel market: ")+country);
@@ -429,9 +436,10 @@ final class NowNextView extends FrameLayout {
   if(customChannel!=null)channelLogo=customChannel;
   String style=appearance.signature()+"|"+s.channelId;
   if(!style.equals(displayedLogoStyleAtBitmap)){
-   logo.setScaleX(appearance.size/100f);logo.setScaleY(appearance.size/100f);
-   logo.setBackgroundColor("white".equals(appearance.background)?Color.WHITE:
-     "black".equals(appearance.background)?Color.BLACK:Color.TRANSPARENT);
+   // 194x76dp already includes the requested +18%. Never double-scale.
+   float safeScale=Math.min(1f,appearance.size/118f);
+   logo.setScaleX(safeScale);logo.setScaleY(safeScale);
+   logo.setBackgroundColor(Color.BLACK);
   }
   if(channelLogo==null){
    if(displayedChannelLogo!=null||!style.equals(displayedLogoStyleAtBitmap))
