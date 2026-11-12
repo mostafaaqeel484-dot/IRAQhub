@@ -17,7 +17,10 @@ final class PosterSourceSwitches {
  static final String COMMONS="art_source_commons_enabled";
  static final String ARCHIVE="art_source_archive_enabled";
  static final String OMDB="art_source_omdb_enabled";
- private static final List<String> KEYS=Arrays.asList(TMDB,OPDB,RPDB,BETTER,TVMAZE,SPORTS,COMMONS,ARCHIVE,OMDB);
+ static final String ANILIST="art_source_anilist_enabled";
+ static final String KITSU="art_source_kitsu_enabled";
+ static final String ANIDB="art_source_anidb_mapping_enabled";
+ private static final List<String> KEYS=Arrays.asList(TMDB,OPDB,RPDB,BETTER,TVMAZE,SPORTS,COMMONS,ARCHIVE,OMDB,ANILIST,KITSU,ANIDB);
  private PosterSourceSwitches(){}
  static boolean known(String key){return KEYS.contains(key);}
  static boolean enabled(Context c,String key){

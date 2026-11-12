@@ -260,7 +260,7 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showInfoBar(){
-  link(tx("مفاتيح API وتفعيل مصادر البوسترات","API Keys & Services"), 
+  link(tx("مفاتيح API · TMDB / RPDB / OMDb / OpenSubtitles / Anime","API Keys & Services · TMDB / RPDB / OMDb / OpenSubtitles / Anime"), 
     tx("TMDB وRPDB وOPDB وOMDb وTheSportsDB · مفاتيح مشفّرة",
        "Encrypted TMDB, RPDB, OPDB, OMDb and TheSportsDB keys"),
     PosterApiSettingsActivity.class);
