@@ -1,7 +1,7 @@
 name: RX6 Original Source Only - Android 14 X5M
 on:
   push:
-    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112' ]
+    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112', 'feature/rx6-separated-channel-provider-logos-api-133-20261112' ]
   pull_request:
     branches: [ 'feature/rx6-original-source-only-20261111' ]
   workflow_dispatch:
@@ -49,6 +49,24 @@ jobs:
           assert all(len(p)>=3 and len(p[1])==2 for p in data['p'])
           assert not any(p[0].startswith('TVP0') for p in data['p'])
           print('Provider register OK: 234 providers, 1376 channel relationships')
+          PY
+      - name: RX6 source and approved-art audit before Gradle
+        run: |
+          python3 scripts/check_rx6_provider_logo_audit.py
+          python3 - <<'PY'
+          import csv, json
+          with open("artwork-review/RX6_234_Logo_Audit_Report.csv", encoding="utf-8-sig", newline="") as f:
+              review=list(csv.DictReader(f))
+          with open("app/src/main/assets/provider-branding/approved-provider-sources.json", encoding="utf-8") as f:
+              selected=json.load(f)["entries"]
+          assert len(review)==234
+          assert len(selected)==133
+          assert len({v["id"] for v in selected})==133
+          blocked={v["provider_id"] for v in review if v["image_review"]=="blocked_wrong_brand_or_flag"}
+          assert len(blocked)>=26
+          assert not (blocked & {v["id"] for v in selected})
+          assert all(v["url"].startswith("https://") for v in selected)
+          print("RX6 source audit: 234 rows, 133 approved, 26 rejected, zero collisions")
           PY
       - name: Bundle only verified provider logos (CHMAX owns channel logos)
         run: |
@@ -105,6 +123,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: IRAQhub_RX6_Family_Provider_Branding_Arabic_Hotbird_SES_APK
+          name: IRAQhub_RX6_406_Independent_Logos_API_Providers_APK
           path: app/build/outputs/apk/rx6OriginalPreview/*.apk
           if-no-files-found: error
