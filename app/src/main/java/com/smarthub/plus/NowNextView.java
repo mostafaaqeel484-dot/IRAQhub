@@ -401,8 +401,9 @@ final class NowNextView extends FrameLayout {
    providerCaption.setText(tx("المزود","PROVIDER")+(provider.endsWith(" (CHL)")?" · CHL":""));
    providerPanel.setContentDescription(tx("مزود الخدمة: ","Service provider: ")+shownProvider);
    // Preserve real manufacturer artwork across the frequent OSD clock ticks.
-   if(!shownProvider.equals(selectedProviderBrand)){
-    selectedProviderBrand=shownProvider;
+   String brandIdentity=shownProvider+"|"+s.channelId;
+   if(!brandIdentity.equals(selectedProviderBrand)){
+    selectedProviderBrand=brandIdentity;
     Bitmap fallbackBrand=branding.badge(provider,s.channelName);
     providerLogo.setImageBitmap(fallbackBrand);
     providerLogo.setVisibility(fallbackBrand==null?GONE:VISIBLE);
@@ -555,7 +556,7 @@ final class NowNextView extends FrameLayout {
  }
  void provider(Bitmap image){
   Bitmap registered=ProviderBrandArt.get(getContext()).badge(
-    selectedProviderBrand,SatelliteState.read(getContext()).channelName);
+    providerName.getText().toString(),SatelliteState.read(getContext()).channelName);
   // A verified provider mark is deliberately separate from channel artwork.
   if(registered!=null)image=registered;
   providerLogo.setImageBitmap(image==null?null:ProviderBrandArt.outlineDark(image));

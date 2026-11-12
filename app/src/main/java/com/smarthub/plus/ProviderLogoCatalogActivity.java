@@ -12,9 +12,15 @@ import java.util.*;
 public final class ProviderLogoCatalogActivity extends HubActivity {
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
-  LinearLayout page=page(tx("شعارات 234 مزوّداً","234 provider artwork catalogue"),
-    tx("الشعار الرسمي عند توفره، وإلا بطاقة ملوّنة باسم المزوّد؛ ليست شعاراً رسمياً. لا تستخدم شعارات القنوات ولا تستبدل CHMAX.",
-       "Genuine provider mark when verified, otherwise a colored labelled placeholder. No channel-logo override or CHMAX changes."));
+  LinearLayout page=col();
+  page.setPadding(dp(22),dp(15),dp(22),dp(15));
+  page.setBackground(RxSkin.wallpaper(this));
+  TextView title=text(tx("شعارات 234 مزوّداً","234 provider artwork catalogue"),23,true);
+  page.addView(title);
+  TextView subtitle=text(tx("شعار حقيقي أو بديل ملون باسم المزوّد، وليس شعار قناة.",
+    "Verified provider mark or clearly labelled colored placeholder; not channel art."),13,false);
+  page.addView(subtitle);
+  setContentView(page);
   List<ProviderCountryCatalog.Provider> providers=
     new ArrayList<>(ProviderCountryCatalog.get(this).all());
   Collections.sort(providers,(a,b)->a.name.compareToIgnoreCase(b.name));
