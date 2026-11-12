@@ -26,6 +26,8 @@ import org.json.JSONObject;
  * every PNG to IRAQhub's exact DVB identity. No private /data path, root or
  * name guessing is used. */
 public final class ChmaxLogoSyncWorker extends Worker {
+ public static final String ONLY_SATELLITE="rx6_chmax_bulk_satellite_tenths";
+ private static final String PACKAGE_KEY="chmax:package:channel:physical:v2:DVB:";
  private static final long MAX_PACKAGE=48L*1024*1024;
  private static final long MAX_TOTAL=640L*1024*1024;
  private static final int MAX_ENTRIES=60_000;
@@ -39,6 +41,11 @@ public final class ChmaxLogoSyncWorker extends Worker {
  @NonNull @Override public Result doWork(){
   Context context=getApplicationContext();
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
+  if(!ChannelLogoSourcePrefs.chmax(context)){
+   p.edit().putString("chmax_package_status","CHMAX_CHANNEL_SOURCE_DISABLED").apply();
+   return Result.success();
+  }
+  final int requestedSat=getInputData().getInt(ONLY_SATELLITE,Integer.MIN_VALUE);
   if(PlaybackResourceMode.active()||p.getBoolean("software_dvb_422_active",false)||
      p.getBoolean("dvb_tuning",false))return Result.retry();
   p.edit().putString("chmax_package_status","REQUESTING").apply();
@@ -53,6 +60,7 @@ public final class ChmaxLogoSyncWorker extends Worker {
    Map<String,List<ChlChannelIndex.Service>> services=new HashMap<>();
    Map<Integer,List<String>> fingerprints=new HashMap<>();
    for(ChlChannelIndex.Service service:index.getServices()){
+    if(requestedSat!=Integer.MIN_VALUE&&service.getSat()!=requestedSat)continue;
     angles.add(service.getSat());
     services.computeIfAbsent(service.getSat()+"_"+service.getFrequency()+"_"+service.getSid(),
       k->new ArrayList<>()).add(service);
@@ -65,6 +73,12 @@ public final class ChmaxLogoSyncWorker extends Worker {
     identities.put(group.getKey(),digest(String.join("|",group.getValue())));
    }
    ArrayList<Integer> sats=new ArrayList<>(angles);
+   if(sats.isEmpty()){
+    p.edit().putString("chmax_package_status","CHMAX_SATELLITE_NOT_IN_IMPORTED_INDEX")
+     .putInt("chmax_requested_satellite",requestedSat).apply();
+    return Result.failure();
+   }
+   p.edit().putInt("chmax_requested_satellite",requestedSat).apply();
    Set<Integer> visited=new HashSet<>();
    boolean stopForServer=false;
    // Small official satellite batches reduce timeout risk; partial results
@@ -97,7 +111,8 @@ public final class ChmaxLogoSyncWorker extends Worker {
      long checked=p.getLong(prefix+"checked_at:"+sat,0);
      String previousFingerprint=p.getString(prefix+"services:"+sat,"");
      String fingerprint=identities.get(sat);
-     if(ChmaxSyncPolicy.skip(previous,old,marker,previousFingerprint,
+     if(p.getInt(prefix+"storage_version:"+sat,0)==2&&
+       ChmaxSyncPolicy.skip(previous,old,marker,previousFingerprint,
          fingerprint,checked,System.currentTimeMillis())){
       matched+=previous;packageCount++;
       continue;
@@ -112,6 +127,7 @@ public final class ChmaxLogoSyncWorker extends Worker {
        .putString(prefix+"services:"+sat,fingerprint)
        .putLong(prefix+"checked_at:"+sat,System.currentTimeMillis())
        .putInt(prefix+"matches:"+sat,result[1])
+       .putInt(prefix+"storage_version:"+sat,2)
        .putInt("chmax_last_completed_sat",sat).apply();
       if(entries>=MAX_ENTRIES)throw new IOException("CHMAX_TOO_MANY_ENTRIES");
      }catch(Exception problem){
@@ -138,6 +154,8 @@ public final class ChmaxLogoSyncWorker extends Worker {
     .putInt("chmax_package_failed_count",failed)
     .putInt("chmax_package_count",packageCount)
     .putInt("chmax_official_logo_count",matched)
+    .putInt("chmax_bulk_last_satellite",requestedSat)
+    .putInt("chmax_bulk_last_matched",matched)
     .putLong("chmax_package_bytes",downloaded)
     .putLong("chmax_package_synced_at",now)
     .putLong("logo_mapping_changed_at",now).apply();
@@ -213,7 +231,7 @@ public final class ChmaxLogoSyncWorker extends Worker {
     byte[] bytes=png.toByteArray();BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(bytes,0,bytes.length,bounds);
     if(!"image/png".equals(bounds.outMimeType)||bounds.outWidth<1||bounds.outHeight<1||bounds.outWidth>8192||bounds.outHeight>8192)continue;
     for(ChlChannelIndex.Service service:rows){
-     write(context,"channel:physical:v2:DVB:"+service.getPhysicalKey(),bytes);matches++;
+     write(context,PACKAGE_KEY+service.getPhysicalKey(),bytes);matches++;
     }
    }
   }
