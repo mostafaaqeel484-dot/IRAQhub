@@ -40,6 +40,19 @@ public final class ManualEpgActivity extends HubActivity {
    });
    note(content,tx("صفحة OSN للمراجعة فقط. لا تتوفر هنا API عامة موثقة؛ لا تحل محل EPG المصنع.",
     "An exact OSN Iraq channel-guide page opens where matched. Reference only; there is no verified public API. Factory/DVB EPG remains primary."));
+   note(content,tx("الربط الاحتياطي لجدول OSN يستخدم EPGShare SA1، وليس واجهة OSN الرسمية. يُستخدم لسد النقص فقط.",
+     "Optional OSN missing-event fallback uses EPGShare SA1, not an official OSN API. Factory/DVB EPG remains primary."));
+   CheckBox osnGap=check(content,
+     tx("تفعيل سد نقص EPG لقنوات OSN المطابقة فقط",
+        "Fill missing EPG on exact OSN channels only"),
+     getSharedPreferences("smarthub",0).getBoolean(OsnEpgFallback.ENABLED,true));
+   osnGap.setOnCheckedChangeListener((button,enabled)->{
+    getSharedPreferences("smarthub",0).edit()
+     .putBoolean(OsnEpgFallback.ENABLED,enabled)
+     .putLong("manual_epg_changed_at",System.currentTimeMillis()).apply();
+   });
+   note(content,tx("حالة ربط OSN: ","OSN EPG status: ")+
+     getSharedPreferences("smarthub",0).getString(OsnEpgFallback.STATUS,"NOT_CHECKED"));
   }
   LinearLayout identity=card(content);
   identity.addView(text(tx("القناة المحددة: ","Selected channel: ")+
