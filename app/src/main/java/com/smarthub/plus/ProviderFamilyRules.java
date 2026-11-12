@@ -27,6 +27,7 @@ final class ProviderFamilyRules {
  private static final Brand ROTANA=new Brand("Rotana","Rotana","SA",false);
  private static final Brand ALJAZEERA=new Brand("Al Jazeera","Al Jazeera Media Network","QA",false);
  private static final Brand BEIN=new Brand("beIN","beIN MENA","QA",false);
+ private static final Brand BEIN_TR=new Brand("Digitürk / beIN Turkey","Digitürk / beIN Turkey","TR",false);
 
  static String clean(String value) {
   String s=value==null?"":value.toUpperCase(Locale.ROOT).trim();
@@ -75,6 +76,9 @@ final class ProviderFamilyRules {
   if(ch.startsWith("ROTANA ")||ch.equals("ROTANA")||p.equals("ROTANA"))return ROTANA;
   if(ch.startsWith("AL JAZEERA")||ch.startsWith("ALJAZEERA")||
      p.contains("AL JAZEERA MEDIA"))return ALJAZEERA;
+  if((ch.startsWith("BEIN ")||ch.startsWith("BEIN-"))&&
+     (sat==420||sat==4200||p.contains("DIGITÜRK")||p.contains("DIGITURK")))
+    return BEIN_TR;
   if(ch.startsWith("BEIN ")||ch.startsWith("BEIN-")||p.equals("BEIN MENA"))return BEIN;
   return null; // Continue with workbook's unique published-channel identity.
  }
