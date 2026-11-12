@@ -1,0 +1,78 @@
+package com.smarthub.plus;
+
+import android.os.Bundle;
+import android.view.View;
+import android.widget.*;
+
+/** Non-destructive RX6 channel-logo appearance editor. Factory and CHMAX images are read-only. */
+public final class ChannelLogoEditorActivity extends HubActivity {
+ private TextView status;
+ @Override public void onCreate(Bundle state){
+  super.onCreate(state);
+  SatelliteState channel=SatelliteState.read(this);
+  final String physical=channel.channelId;
+  final boolean canScope=ChannelLogoAppearance.physical(physical);
+  final LinearLayout panel=page(tx("تخصيص شعار القناة والعلم","Channel logo & flag appearance"),
+   tx("التخصيص يحفظ داخل RX6 ولا يغيّر شعارات CHMAX أو قاعدة الرسيفر.",
+    "Appearance is stored only in RX6; OEM and CHMAX files remain untouched."));
+  panel.addView(text(tx("القناة: ","Channel: ")+channel.channelName,17,true));
+  if(!canScope)panel.addView(text(tx("لا توجد هوية DVB دقيقة؛ متاح التعديل العام فقط.",
+    "No exact DVB service selected. Only global appearance can be edited."),14,false));
+
+  final CheckBox global=check(panel,tx("تطبيق الإعدادات على جميع القنوات","Apply these settings to all channels"),!canScope);
+  global.setEnabled(canScope);
+  ChannelLogoAppearance.Config original=ChannelLogoAppearance.read(this,canScope?physical:null);
+
+  final TextView sizeLabel=text("",16,false);panel.addView(sizeLabel);
+  final SeekBar size=new SeekBar(this);
+  size.setMax(12);size.setProgress((original.size-65)/5);
+  sizeLabel.setText(tx("حجم الشعار: ","Logo size: ")+(65+size.getProgress()*5)+"%");
+  size.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+   @Override public void onProgressChanged(SeekBar bar,int progress,boolean user){
+    sizeLabel.setText(tx("حجم الشعار: ","Logo size: ")+(65+progress*5)+"%");
+   }
+   @Override public void onStartTrackingTouch(SeekBar seek){}
+   @Override public void onStopTrackingTouch(SeekBar seek){}
+  });
+  panel.addView(size);
+
+  final CheckBox white=check(panel,tx("إزالة الإطار الأبيض المتصل بالحافة",
+    "Remove edge-connected white matte"),original.removeWhite);
+  final CheckBox black=check(panel,tx("إزالة الخلفية السوداء المتصلة بالحافة",
+    "Remove edge-connected black matte"),original.removeBlack);
+  final CheckBox crop=check(panel,tx("قص الفراغ الشفاف المحيط بالشعار",
+    "Trim outer transparent padding"),original.crop);
+  final CheckBox flag=check(panel,tx("عرض علم البلد مباشرة تحت الشعار",
+    "Show verified country flag directly below logo"),original.flag);
+
+  panel.addView(text(tx("خلفية مساحة الشعار","Logo area background"),16,true));
+  final RadioGroup backgrounds=new RadioGroup(this);
+  backgrounds.setOrientation(RadioGroup.HORIZONTAL);
+  final RadioButton transparent=new RadioButton(this),dark=new RadioButton(this),light=new RadioButton(this);
+  transparent.setText(tx("شفافة","Transparent"));dark.setText(tx("سوداء","Black"));light.setText(tx("بيضاء","White"));
+  transparent.setTextColor(0xffffffff);dark.setTextColor(0xffffffff);light.setTextColor(0xffffffff);
+  transparent.setId(View.generateViewId());dark.setId(View.generateViewId());light.setId(View.generateViewId());
+  backgrounds.addView(transparent);backgrounds.addView(dark);backgrounds.addView(light);
+  backgrounds.check("black".equals(original.background)?dark.getId():
+    "white".equals(original.background)?light.getId():transparent.getId());
+  panel.addView(backgrounds);
+
+  status=text(tx("النتيجة تُعرض عند فتح InfoBar مجدداً.",
+   "Changes appear on the next InfoBar refresh."),14,false);
+  action(panel,tx("حفظ تخصيص الشعار","Save channel logo appearance"),()->{
+   String background=backgrounds.getCheckedRadioButtonId()==dark.getId()?"black":
+      backgrounds.getCheckedRadioButtonId()==light.getId()?"white":"transparent";
+   ChannelLogoAppearance.Config changed=new ChannelLogoAppearance.Config(
+      65+size.getProgress()*5,white.isChecked(),black.isChecked(),
+      crop.isChecked(),flag.isChecked(),background);
+   ChannelLogoAppearance.save(this,global.isChecked()?null:physical,changed);
+   status.setText(tx("تم حفظ تخصيص الشعار","Logo appearance saved"));
+  });
+  action(panel,tx("استرجاع المظهر الأصلي","Reset to default appearance"),()->{
+   ChannelLogoAppearance.reset(this,global.isChecked()?null:physical);
+   status.setText(tx("تم استرجاع مظهر الشعار الافتراضي",
+     "Original appearance restored for selected scope"));
+  });
+  panel.addView(status);
+ }
+}
