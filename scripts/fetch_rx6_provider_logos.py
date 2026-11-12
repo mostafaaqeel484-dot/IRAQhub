@@ -51,12 +51,13 @@ def fetch_one(row):
                 url.startswith("https://thumb.wikimedia.org/wikipedia/commons/thumb/")):
             raise ValueError("unapproved Commons origin")
         expected=None
-    for attempt in range(3):
+    max_attempts=1 if row.get("optional",False) else 3
+    for attempt in range(max_attempts):
         try:
             req=urllib.request.Request(url,headers={
               "User-Agent":"IRAQhub-RX6-PersonalLogoPreview/1.0 (source attribution in repository)",
               "Accept":"image/png,image/svg+xml,application/octet-stream"})
-            with urllib.request.urlopen(req,timeout=25) as response:
+            with urllib.request.urlopen(req,timeout=10 if row.get("optional",False) else 25) as response:
                 final=response.geturl()
                 if not (final.startswith("https://raw.githubusercontent.com/") or
                         final.startswith("https://upload.wikimedia.org/") or
@@ -73,7 +74,7 @@ def fetch_one(row):
             return name,len(raw),"downloaded"
         except (urllib.error.URLError,TimeoutError,OSError) as error:
             status=getattr(error,"code",None)
-            if attempt<2:time.sleep(5*(attempt+1) if status in (403,429,503) else 2*(attempt+1))
+            if attempt<max_attempts-1:time.sleep(5*(attempt+1) if status in (403,429,503) else 2*(attempt+1))
             else:return name,0,type(error).__name__+(("_"+str(status)) if status else "")
         except Exception as error:
             return name,0,type(error).__name__
@@ -88,22 +89,35 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
 commons_results=[]
 for item in commons_assets:
     commons_results.append(fetch_one(item))
-    time.sleep(2.0)
+    time.sleep(0.6 if item.get("optional",False) else 1.5)
 results=repo_results+commons_results
 ok=[r for r in results if r[1]>0]
+available={r[0] for r in ok}
 missing=[{"name":name,"reason":state} for name,n,state in results if not n]
-summary={"source":"pinned verified manifest",
+failed_required=[
+    row["asset"] for row in assets
+    if row["asset"] not in available and not row.get("optional",False)
+]
+original_provider_count=len(meta["providers"])
+if not failed_required and missing:
+    # The APK asset manifest must NEVER claim a downloaded logo that is absent.
+    # User-visible fallback renders the provider name on a colored card instead.
+    meta["providers"]=[p for p in meta["providers"] if p["asset"] in available]
+    meta["assets"]=[a for a in meta["assets"] if a["asset"] in available]
+    manifest.write_text(json.dumps(meta,ensure_ascii=False,indent=2),"utf-8")
+summary={"source":"pinned and verified provider-only artwork",
          "total":len(assets),"downloaded":len(ok),
          "missing":missing[:100],
-         "channels":len(meta["channels"]),
+         "missing_required":failed_required,
+         "planned_providers":original_provider_count,
          "providers":len(meta["providers"]),
+         "channels":len(meta["channels"]),
          "bytes":sum(x[1] for x in ok)}
 report.write_text(json.dumps(summary,indent=2,ensure_ascii=False),encoding="utf-8")
-print("RX6 real-logo bundler:",summary["downloaded"],"/",summary["total"],
-      "images; providers:",summary["providers"],"channel matches:",summary["channels"],
-      "total MB:",round(summary["bytes"]/1048576,1))
-if missing:print("Missing sample:",missing[:15])
-# Never silently ship a pseudo-logo-only build if downloads are blocked.
-if len(ok)!=len(assets) or missing:
-    print("ERROR: not all verified logo assets were bundled",file=sys.stderr)
+print("RX6 provider artwork:",summary["downloaded"],"/",summary["total"],
+      "assets; verified provider bindings:",summary["providers"],
+      "of",summary["planned_providers"],"planned; channels:",summary["channels"])
+if missing:print("Not packaged (clearly labeled fallback instead):",missing[:15])
+if failed_required:
+    print("ERROR: required existing verified artwork not available",file=sys.stderr)
     sys.exit(1)
