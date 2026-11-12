@@ -72,14 +72,24 @@ def fetch_one(row):
             output.write_bytes(raw)
             return name,len(raw),"downloaded"
         except (urllib.error.URLError,TimeoutError,OSError) as error:
-            if attempt<2:time.sleep(2*(attempt+1))
-            else:return name,0,type(error).__name__
+            status=getattr(error,"code",None)
+            if attempt<2:time.sleep(5*(attempt+1) if status in (403,429,503) else 2*(attempt+1))
+            else:return name,0,type(error).__name__+(("_"+str(status)) if status else "")
         except Exception as error:
             return name,0,type(error).__name__
     return name,0,"unavailable"
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
-    results=list(pool.map(fetch_one,assets))
+# Wikimedia enforces per-IP request limits on large bursts: never issue
+# concurrent Commons logo downloads. GitHub-pinned images can be concurrent.
+repo_assets=[entry for entry in assets if "repo" in entry]
+commons_assets=[entry for entry in assets if "repo" not in entry]
+with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+    repo_results=list(pool.map(fetch_one,repo_assets))
+commons_results=[]
+for item in commons_assets:
+    commons_results.append(fetch_one(item))
+    time.sleep(2.0)
+results=repo_results+commons_results
 ok=[r for r in results if r[1]>0]
 missing=[{"name":name,"reason":state} for name,n,state in results if not n]
 summary={"source":"pinned verified manifest",
