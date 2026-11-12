@@ -52,7 +52,19 @@ jobs:
           PY
       - name: Bundle only verified provider logos (CHMAX owns channel logos)
         run: |
-          python3 scripts/fetch_rx6_provider_logos.py
+          # Wikimedia occasionally returns transient HTTP 429/5xx for 1-3 images.
+          # Every successful asset stays cached on disk for later attempts.
+          # Fail closed if any verified provider mark is still unavailable.
+          success=0
+          for attempt in 1 2 3 4 5 6; do
+            if python3 scripts/fetch_rx6_provider_logos.py; then
+              success=1
+              break
+            fi
+            echo "Retrying pinned provider artwork download (attempt ${attempt}/6)"
+            sleep 8
+          done
+          test "$success" -eq 1
           python3 - <<'PY'
           import json
           result=json.load(open("app/src/main/assets/provider-branding/logo-build-report.json"))
