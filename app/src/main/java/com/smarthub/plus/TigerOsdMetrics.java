@@ -7,9 +7,9 @@ package com.smarthub.plus;
 final class TigerOsdMetrics {
  private TigerOsdMetrics(){}
  // +12dp to fit country flag directly below channel logo in the original layout.
- static int barHeightDp(boolean detailed){return detailed?230:184;}
+ static int barHeightDp(boolean detailed){return detailed?257:211;}
  static boolean isCompact(boolean detailed){return !detailed;}
- static int headerHeightDp(){return 93;}
+ static int headerHeightDp(){return 120;}
  static int iconWidthDp(){return 36;}
  static int iconHeightDp(){return 22;}
  static int posterBottomMarginDp(boolean detailed){

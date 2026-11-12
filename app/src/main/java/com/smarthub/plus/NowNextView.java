@@ -14,6 +14,7 @@ final class NowNextView extends FrameLayout {
  private final TextView countryFlag;
  private String selectedProviderBrand="";
  private Bitmap displayedChannelLogo;
+ private String displayedLogoStyleAtBitmap="";
 
  private static Bitmap withoutWhiteBorder(Bitmap source){
   int w=source.getWidth(),h=source.getHeight();
@@ -131,14 +132,14 @@ final class NowNextView extends FrameLayout {
   logo.setBackgroundColor(android.graphics.Color.TRANSPARENT);
   // The receiver logo fills most of the top-left column. FIT_CENTER preserves
   // the exact aspect ratio and keeps long DVB channel names readable below.
-  brand.addView(logo,new LinearLayout.LayoutParams(dp(142),dp(54)));
-  countryFlag=label("",11,false);
+  brand.addView(logo,new LinearLayout.LayoutParams(dp(164),dp(64)));
+  countryFlag=label("",17,false);
   countryFlag.setSingleLine(true);
   countryFlag.setIncludeFontPadding(false);
   countryFlag.setTextColor(0xfff5f6fb);
   countryFlag.setGravity(Gravity.CENTER);
   countryFlag.setVisibility(GONE);
-  brand.addView(countryFlag,new LinearLayout.LayoutParams(-1,dp(13)));
+  brand.addView(countryFlag,new LinearLayout.LayoutParams(-1,dp(22)));
   providerPanel=column();providerPanel.setGravity(Gravity.CENTER);
   providerCaption=label(tx("المزود","PROVIDER"),9,false);
   providerCaption.setTextColor(muted);
@@ -155,7 +156,7 @@ final class NowNextView extends FrameLayout {
   providerPanel.setVisibility(GONE);
   // Channel identity belongs in the top header, not at the bottom of the
   // programme row. This keeps the CHMAX logo aligned with the channel name.
-  LinearLayout.LayoutParams brandPosition=new LinearLayout.LayoutParams(dp(172),-1);
+  LinearLayout.LayoutParams brandPosition=new LinearLayout.LayoutParams(dp(194),-1);
   brandPosition.rightMargin=dp(8);
   header.addView(brand,0,brandPosition);
 
@@ -412,13 +413,21 @@ final class NowNextView extends FrameLayout {
    }
    String country=branding.country(s.channelName,s.channelId,provider);
    countryFlag.setText(country.isEmpty()?"":ProviderCountryCatalog.flag(country)+"  "+country);
-   countryFlag.setVisibility(country.isEmpty()?GONE:VISIBLE);
+   countryFlag.setVisibility(country.isEmpty()||!prefs.getBoolean("osd_show_channel_flag",true)?GONE:VISIBLE);
    countryFlag.setContentDescription(country.isEmpty()?"":tx("بلد القناة: ","Channel market: ")+country);
    updateProviderVisibility();
   nowLine.setText(tx("الآن  ","NOW  ")+(s.title.isEmpty()?tx("بيانات البرنامج غير متاحة","Programme unavailable"):s.title)+range(s.startMs,s.endMs));
   nextLine.setText(tx("التالي  ","NEXT  ")+(s.nextTitle.isEmpty()?tx("غير متاح من EPG","Unavailable from EPG"):s.nextTitle)+range(s.nextStartMs,s.nextEndMs));
+  int scale=Math.max(65,Math.min(125,prefs.getInt("osd_channel_logo_scale_percent",100)));
+  boolean removeWhite=prefs.getBoolean("osd_channel_logo_remove_white",true);
+  String style=scale+"|"+removeWhite;
+  if(!style.equals(displayedLogoStyleAtBitmap)){
+   logo.setScaleX(scale/100f);logo.setScaleY(scale/100f);
+  }
   if(channelLogo==null)logo.setImageResource(R.drawable.channel_placeholder);
-  else if(channelLogo!=displayedChannelLogo)logo.setImageBitmap(withoutWhiteBorder(channelLogo));
+  else if(channelLogo!=displayedChannelLogo||!style.equals(displayedLogoStyleAtBitmap))
+   logo.setImageBitmap(removeWhite?withoutWhiteBorder(channelLogo):channelLogo);
+  displayedLogoStyleAtBitmap=style;
   displayedChannelLogo=channelLogo;
   logo.setContentDescription("Channel logo · "+s.channelName);
   long length=s.endMs-s.startMs;progress.setProgress(length>0?(int)Math.max(0,Math.min(1000,(System.currentTimeMillis()-s.startMs)*1000/length)):0);progress.setVisibility(length>0?VISIBLE:INVISIBLE);
