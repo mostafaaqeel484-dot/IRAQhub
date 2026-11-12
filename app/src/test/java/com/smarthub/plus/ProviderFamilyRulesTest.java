@@ -15,6 +15,7 @@ public final class ProviderFamilyRulesTest {
   assertEquals("Sky",group("","Sky Sport Arena",HOTBIRD));
   assertEquals("Sky",group("","Sky Sport 4k",HOTBIRD));
   assertEquals("Sky",group("","SkyNews HD","DVB:160:KU:11594:H:30000:1355"));
+  assertEquals("Sky",group("","Kabelio Sky News","DVB:130:KU:11500:V:27500:200"));
   assertEquals("Sky",group("","18 Sky Sports","DVB:90:KU:11222:H:24760:8005"));
   assertEquals("Sky",group("Sky Italia","Sky TG24",""));
  }
@@ -55,5 +56,6 @@ public final class ProviderFamilyRulesTest {
   assertEquals("Al Jazeera",group("","Al Jazeera English HD","DVB:130:KU:11137:H:27500:7306"));
   assertEquals("beIN",group("","beIN SPORTS 1","DVB:260:KU:11300:H:27500:11"));
   assertEquals("Digitürk / beIN Turkey",group("","beIN SPORTS 1","DVB:420:KU:11386:H:30000:14172"));
+  assertEquals("Digitürk / beIN Turkey",group("","beIN SPORTS 1","DVB:414:KU:11386:H:30000:14172"));
  }
 }
