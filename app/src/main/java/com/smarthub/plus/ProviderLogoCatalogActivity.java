@@ -79,6 +79,16 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
    }
   };
   list.setAdapter(adapter);
+  // Long-press opens the editor with this exact provider and its market.
+  list.setOnItemLongClickListener((parent,view,index,itemId)->{
+   ProviderCountryCatalog.Provider entry=providers.get(index);
+   android.content.Intent editor=new android.content.Intent(
+     ProviderLogoCatalogActivity.this,ProviderLogoEditorActivity.class);
+   editor.putExtra("provider_name",entry.name);
+   editor.putExtra("provider_country",entry.country);
+   startActivity(editor);
+   return true;
+  });
   list.setOnItemClickListener((parent,view,index,itemId)->{
    ProviderCountryCatalog.Provider p=providers.get(index);
    if(!ProviderApprovedArtwork.selected(this,p.name)){
