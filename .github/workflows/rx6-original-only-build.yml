@@ -1,12 +1,12 @@
 name: RX6 Original Source Only - Android 14 X5M
 on:
   push:
-    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112', 'feature/rx6-separated-channel-provider-logos-api-133-20261112' ]
+    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112', 'feature/rx6-separated-channel-provider-logos-api-133-20261112', 'fix/rx6-poster-chmax-bulk-422-health-perf-20261112' ]
   pull_request:
     branches: [ 'feature/rx6-original-source-only-20261111' ]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -121,7 +121,29 @@ jobs:
                   assert 'assets/provider-branding/images/'+p['asset'] in names,p
           print('RX6 provider-only register, artwork and channel exclusion verified')
           PY
-      - uses: actions/upload-artifact@v4
+      - name: Publish verified X5M RX6 Debug APK to private draft Release (artifact quota-safe)
+        if: ${{ github.ref == 'refs/heads/fix/rx6-poster-chmax-bulk-422-health-perf-20261112' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="iraqhub-rx6-pr61-${GITHUB_RUN_ID}"
+          SOURCE="app/build/outputs/apk/rx6OriginalPreview/app-rx6OriginalPreview.apk"
+          NAME="IRAQhub_RX6_PR61_X5M_4.0.6_Debug.apk"
+          test -s "$SOURCE"
+          mkdir -p dist
+          cp "$SOURCE" "dist/$NAME"
+          (cd dist && sha256sum "$NAME" > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
+          gh release create "$TAG" "dist/$NAME" dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --draft --prerelease \
+            --title "RX6 PR61 · X5M Android 14 ARMv7 Debug APK · not receiver-tested" \
+            --notes "Signed debug APK for com.smarthub.plus.rx6api234 from PR #61: TMDB-first InfoBar poster fallback, whole-satellite authorised CHMAX package logos, independent 4:2:2 visible-frame checks and UI performance. Source and unit/build checks only; no physical X5M playback validation. Debug keystore may differ from prior runs, requiring uninstall of an older test build with the same package (back up settings first). Not stable and not main app."
+          echo "RX6 PR61 draft Release created: $TAG"
+      - name: Publish artifact on other RX6 branches
+        if: ${{ github.ref != 'refs/heads/fix/rx6-poster-chmax-bulk-422-health-perf-20261112' }}
+        uses: actions/upload-artifact@v4
         with:
           name: IRAQhub_RX6_406_Independent_Logos_API_Providers_APK
           path: app/build/outputs/apk/rx6OriginalPreview/*.apk
