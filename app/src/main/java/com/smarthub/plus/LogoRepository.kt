@@ -148,8 +148,12 @@ class LogoRepository private constructor(context:Context){
   listener.provider(cachedName.first,cachedName.second)
   if(!enabled)return
   scope.launch{
-   val image=slots.withPermit{cache.read(key)?:loadChannel(name,physical,known)?.also{
-    persistLogo(key,it)}}
+   val image=slots.withPermit{
+    cache.read(key)?:observed(name,physical)?.also{persistLogo(key,it)}
+     ?:if(ChannelLogoSourcePrefs.external(app))
+       ReceiverLogoAssets.load(app,name,physical)?.also{persistLogo(key,it)}
+       else null
+   }
    withContext(Dispatchers.Main){listener.channel(image)}
   }
  }
