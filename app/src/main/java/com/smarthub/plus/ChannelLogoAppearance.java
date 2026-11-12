@@ -24,7 +24,7 @@ final class ChannelLogoAppearance {
   String signature(){return size+"|"+removeWhite+"|"+removeBlack+"|"+crop+"|"+flag+"|"+background;}
   JSONObject json(){
    JSONObject data=new JSONObject();
-   try{data.put("size",size);data.put("white",removeWhite);data.put("black",removeBlack);
+   try{data.put("layout",2);data.put("size",size);data.put("white",removeWhite);data.put("black",removeBlack);
     data.put("crop",crop);data.put("flag",flag);data.put("background",background);}
    catch(Exception ignored){}
    return data;
@@ -50,14 +50,18 @@ final class ChannelLogoAppearance {
   SharedPreferences p=c.getSharedPreferences("smarthub",0);
   String json=p.getString(key(channelId),"");
   if(json.isEmpty())json=p.getString(GLOBAL,"");
-  int oldSize=p.getInt("osd_channel_logo_scale_percent",100);
+  int oldSize=p.getInt("osd_channel_logo_scale_percent",118);
+  // Earlier test builds stored 100%; the new reference baseline is +18%.
+  if(oldSize==100)oldSize=118;
   boolean oldWhite=p.getBoolean("osd_channel_logo_remove_white",true);
   boolean oldFlag=p.getBoolean("osd_show_channel_flag",true);
   JSONObject data;
   try{data=new JSONObject(json);}catch(Exception ignored){data=new JSONObject();}
-  return new Config(data.optInt("size",oldSize),data.optBoolean("white",oldWhite),
+  int size=data.optInt("size",oldSize);
+  if(data.optInt("layout",0)<2&&size==100)size=118;
+  return new Config(size,data.optBoolean("white",oldWhite),
    data.optBoolean("black",false),data.optBoolean("crop",true),
-   data.optBoolean("flag",oldFlag),data.optString("background","transparent"));
+   data.optBoolean("flag",oldFlag),data.optString("background","black"));
  }
  static void save(Context c,String channelId,Config value){
   String k=key(channelId);

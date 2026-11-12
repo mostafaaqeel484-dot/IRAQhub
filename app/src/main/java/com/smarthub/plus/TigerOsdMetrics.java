@@ -6,10 +6,16 @@ package com.smarthub.plus;
  */
 final class TigerOsdMetrics {
  private TigerOsdMetrics(){}
- // OSN-sized 240x112 artwork + 31dp flag + name; preserve separate technical footer.
- static int barHeightDp(boolean detailed){return detailed?304:264;}
+ // Exact pre-4.0.8 Tiger bar geometry; enlargement is INSIDE the old bar.
+ static int barHeightDp(boolean detailed){return detailed?257:211;}
  static boolean isCompact(boolean detailed){return !detailed;}
- static int headerHeightDp(){return 177;}
+ static int headerHeightDp(){return 120;}
+ // +18% inside the original 194dp brand column. The flag is half its width.
+ static int channelLogoWidthDp(){return 194;}
+ static int channelLogoHeightDp(){return 76;}
+ static int channelFlagWidthDp(){return channelLogoWidthDp()/2;}
+ static int channelFlagHeightDp(){return 25;}
+ static int channelNameHeightDp(){return headerHeightDp()-channelLogoHeightDp()-channelFlagHeightDp();}
  static int iconWidthDp(){return 36;}
  static int iconHeightDp(){return 22;}
  static int posterBottomMarginDp(boolean detailed){

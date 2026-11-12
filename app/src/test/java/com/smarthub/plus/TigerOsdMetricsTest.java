@@ -6,9 +6,13 @@ public final class TigerOsdMetricsTest {
  @Test public void iconsAreSameSizeAcrossBothRows(){
   assertEquals(36,TigerOsdMetrics.iconWidthDp());
   assertEquals(22,TigerOsdMetrics.iconHeightDp());
-  assertEquals(177,TigerOsdMetrics.headerHeightDp());
-  // 2026 RX6 enlarged-logo reference: full flag and channel brand in the header.
-  assertTrue(TigerOsdMetrics.headerHeightDp()>=112+31+30);
+  assertEquals(120,TigerOsdMetrics.headerHeightDp());
+  // Flag is exactly half the available channel-logo width, stacked below its name.
+  assertEquals(194,TigerOsdMetrics.channelLogoWidthDp());
+  assertEquals(97,TigerOsdMetrics.channelFlagWidthDp());
+  assertEquals(TigerOsdMetrics.channelLogoWidthDp()/2,TigerOsdMetrics.channelFlagWidthDp());
+  assertEquals(120,TigerOsdMetrics.channelLogoHeightDp()+
+   TigerOsdMetrics.channelNameHeightDp()+TigerOsdMetrics.channelFlagHeightDp());
  }
  @Test public void compactModeIsNotBasedOnImpossibleHeightThreshold(){
   assertTrue(TigerOsdMetrics.isCompact(false));
@@ -17,6 +21,7 @@ public final class TigerOsdMetricsTest {
  @Test public void postersStayAboveBothInfoBarSizes(){
   for(boolean expanded:new boolean[]{false,true}){
    int bar=TigerOsdMetrics.barHeightDp(expanded);
+   assertEquals(expanded?257:211,bar);
    assertTrue(bar>=TigerOsdMetrics.headerHeightDp()+70);
    assertEquals(bar+17,TigerOsdMetrics.posterBottomMarginDp(expanded));
   }

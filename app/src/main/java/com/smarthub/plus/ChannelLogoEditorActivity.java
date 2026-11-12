@@ -32,11 +32,11 @@ public final class ChannelLogoEditorActivity extends HubActivity {
 
   final TextView sizeLabel=text("",16,false);panel.addView(sizeLabel);
   final SeekBar size=new SeekBar(this);
-  size.setMax(12);size.setProgress((original.size-65)/5);
-  sizeLabel.setText(tx("حجم الشعار: ","Logo size: ")+(65+size.getProgress()*5)+"%");
+  size.setMax(60);size.setProgress(original.size-65);
+  sizeLabel.setText(tx("حجم الشعار: ","Logo size: ")+(65+size.getProgress())+"%");
   size.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
    @Override public void onProgressChanged(SeekBar bar,int progress,boolean user){
-    sizeLabel.setText(tx("حجم الشعار: ","Logo size: ")+(65+progress*5)+"%");
+    sizeLabel.setText(tx("حجم الشعار: ","Logo size: ")+(65+progress)+"%");
    }
    @Override public void onStartTrackingTouch(SeekBar seek){}
    @Override public void onStopTrackingTouch(SeekBar seek){}
@@ -49,20 +49,11 @@ public final class ChannelLogoEditorActivity extends HubActivity {
     "Remove edge-connected black matte"),original.removeBlack);
   final CheckBox crop=check(panel,tx("قص الفراغ الشفاف المحيط بالشعار",
     "Trim outer transparent padding"),original.crop);
-  final CheckBox flag=check(panel,tx("عرض علم البلد مباشرة تحت الشعار",
-    "Show verified country flag directly below logo"),original.flag);
+  final CheckBox flag=check(panel,tx("عرض صورة علم البلد تحت اسم القناة",
+    "Show actual country flag below channel name"),original.flag);
 
-  panel.addView(text(tx("خلفية مساحة الشعار","Logo area background"),16,true));
-  final RadioGroup backgrounds=new RadioGroup(this);
-  backgrounds.setOrientation(RadioGroup.HORIZONTAL);
-  final RadioButton transparent=new RadioButton(this),dark=new RadioButton(this),light=new RadioButton(this);
-  transparent.setText(tx("شفافة","Transparent"));dark.setText(tx("سوداء","Black"));light.setText(tx("بيضاء","White"));
-  transparent.setTextColor(0xffffffff);dark.setTextColor(0xffffffff);light.setTextColor(0xffffffff);
-  transparent.setId(View.generateViewId());dark.setId(View.generateViewId());light.setId(View.generateViewId());
-  backgrounds.addView(transparent);backgrounds.addView(dark);backgrounds.addView(light);
-  backgrounds.check("black".equals(original.background)?dark.getId():
-    "white".equals(original.background)?light.getId():transparent.getId());
-  panel.addView(backgrounds);
+  panel.addView(text(tx("خلفية الشعار سوداء دائماً داخل الإنفوبار؛ لا نضع مربعاً أبيض.",
+    "The channel logo uses the InfoBar black backdrop without a white box."),14,false));
 
   if(canScope){
    final EditText url=field(panel,tx("رابط HTTPS مباشر لشعار القناة",
@@ -94,11 +85,9 @@ public final class ChannelLogoEditorActivity extends HubActivity {
   status=text(tx("النتيجة تُعرض عند فتح InfoBar مجدداً.",
    "Changes appear on the next InfoBar refresh."),14,false);
   action(panel,tx("حفظ تخصيص الشعار","Save channel logo appearance"),()->{
-   String background=backgrounds.getCheckedRadioButtonId()==dark.getId()?"black":
-      backgrounds.getCheckedRadioButtonId()==light.getId()?"white":"transparent";
    ChannelLogoAppearance.Config changed=new ChannelLogoAppearance.Config(
-      65+size.getProgress()*5,white.isChecked(),black.isChecked(),
-      crop.isChecked(),flag.isChecked(),background);
+      65+size.getProgress(),white.isChecked(),black.isChecked(),
+      crop.isChecked(),flag.isChecked(),"black");
    ChannelLogoAppearance.save(this,global.isChecked()?null:physical,changed);
    status.setText(tx("تم حفظ تخصيص الشعار","Logo appearance saved"));
   });

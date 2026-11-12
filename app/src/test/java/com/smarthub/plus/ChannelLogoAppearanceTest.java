@@ -30,5 +30,6 @@ public final class ChannelLogoAppearanceTest {
   assertTrue(sample.flag);
   assertEquals("transparent",sample.background);
   assertEquals(120,sample.json().optInt("size"));
+  assertEquals(2,sample.json().optInt("layout"));
  }
 }
