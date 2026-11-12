@@ -302,7 +302,7 @@ final class LocalInfoBarController implements AutoCloseable {
   String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().isEmpty())return null;
   try{
-   Bitmap image=EpgArtwork.loadInfobar(host,state,title,upcoming);
+   Bitmap image=EpgArtwork.loadInfobarBroadcast(host,state,title,upcoming);
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
      image==null?"NO_VERIFIED_EPG_ART":"EPG_POSTER_OK").apply();
    return compactPoster(image);
@@ -323,8 +323,12 @@ final class LocalInfoBarController implements AutoCloseable {
     publishSynopsis(expected,upcoming,programme.item.summary);
    }
    Bitmap image=programme==null?null:programme.poster;
+   String credit=programme!=null&&programme.item!=null&&programme.item.imageCredit!=null
+     ?programme.item.imageCredit:"NONE";
+   String label=credit.replaceAll("[^A-Za-z0-9]","_");
+   if(label.length()>48)label=label.substring(0,48);
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
-      image==null?"NO_VERIFIED_TMDB_BETTER_TVMAZE_MATCH":"ONLINE_POSTER_OK").apply();
+      image==null?"NO_VERIFIED_METADATA_POSTER":"ONLINE_POSTER_"+label).apply();
    return image;
   }catch(Exception error){
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
