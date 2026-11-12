@@ -50,12 +50,12 @@ final class ProviderBrandArt {
    if("OSN".equals(family.display)&&image!=null)
     return allWhite(outlineDark(image));
    if(image!=null)return outlineDark(image);
-   return colored(family.display,family.country);
+   return null; // Do not fabricate a provider logo without verified artwork.
   }
   ProviderCountryCatalog.Provider p=data.owner(receiverProvider,channel);
   if(p==null)return null;
   Bitmap logo=assets.provider(p.name,p.country);
-  return logo==null?colored(p.name,p.country):outlineDark(logo);
+  return logo==null?null:outlineDark(logo);
  }
  boolean verified(String provider,String country){return assets.provider(provider,country)!=null;}
  private static Bitmap colored(String label,String country){
