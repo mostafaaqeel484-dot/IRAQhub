@@ -104,6 +104,16 @@ public final class PosterApiSettingsActivity extends HubActivity {
    statusText.append(key.toUpperCase(Locale.ROOT)).append(": ")
      .append(PosterApiSecrets.configured(this,key)?"✓":"—");
   }
+  try{
+   ProviderSecrets keys=ProviderSecrets.read(this);
+   statusText.append("  ·  TMDB: ").append(keys.tmdb.isEmpty()?"—":"✓");
+   statusText.append("  ·  OpenSubtitles: ").append(keys.opensubtitles.isEmpty()?"—":"✓");
+  }catch(Exception ignored){
+   statusText.append("  ·  TMDB/OpenSubtitles: unavailable");
+  }
+  statusText.append("  ·  AniList: ").append(PosterSourceSwitches.enabled(this,PosterSourceSwitches.ANILIST)?"ON":"OFF");
+  statusText.append("  ·  Kitsu: ").append(PosterSourceSwitches.enabled(this,PosterSourceSwitches.KITSU)?"ON":"OFF");
+  statusText.append("  ·  AniDB mapping: ").append(PosterSourceSwitches.enabled(this,PosterSourceSwitches.ANIDB)?"ON":"OFF");
   status.setText(statusText.toString());
  }
 }
