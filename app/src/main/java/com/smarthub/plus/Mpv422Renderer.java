@@ -1,6 +1,8 @@
 package com.smarthub.plus;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.view.PixelCopy;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -240,6 +242,34 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    this.outputWidth=outputWidth;this.outputHeight=outputHeight;
    this.videoFormat=videoFormat;this.outputFormat=outputFormat;
    this.hardwareDecoder=hardwareDecoder;
+  }
+ }
+ /** SurfaceView pixels instead of mpv time-pos: a 96x54 copy (~20 KiB)
+  * every ~5 seconds. Static scenes can be legitimate; see stall policy. */
+ interface FrameSample { void sampled(boolean available,long pixelHash); }
+ void samplePresentedFrame(FrameSample callback){
+  if(callback==null)return;
+  if(destroyed||!loaded||!attached||view.getHolder().getSurface()==null||
+     !view.getHolder().getSurface().isValid()){
+   callback.sampled(false,0);return;
+  }
+  final Bitmap image=Bitmap.createBitmap(96,54,Bitmap.Config.ARGB_8888);
+  try{
+   PixelCopy.request(view,image,result->{
+    boolean available=result==PixelCopy.SUCCESS&&!destroyed;
+    long hash=0;
+    if(available){
+     hash=0xcbf29ce484222325L;
+     for(int y=0;y<54;y+=2)for(int x=0;x<96;x+=2){
+      hash^=image.getPixel(x,y);
+      hash*=0x100000001b3L;
+     }
+    }
+    image.recycle();
+    callback.sampled(available,hash);
+   },main);
+  }catch(Exception unsupported){
+   image.recycle();callback.sampled(false,0);
   }
  }
  Metrics metrics(){
