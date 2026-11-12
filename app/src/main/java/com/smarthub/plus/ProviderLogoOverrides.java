@@ -53,7 +53,7 @@ final class ProviderLogoOverrides {
  }
  static Bitmap logo(Context c,String channelId,String name,String country){
   JSONObject row=forChannel(c,channelId);
-  if(row==null)row=forProvider(c,name,country);
+  if(row==null||row.optString("filename","").isEmpty())row=forProvider(c,name,country);
   if(row==null)return null;
   String filename=row.optString("filename","");
   if(!filename.matches("[a-f0-9]{64}\\.png"))return null;
@@ -116,6 +116,39 @@ final class ProviderLogoOverrides {
   catch(Exception problem){saved.failWrite(out);throw problem;}
   c.getSharedPreferences("smarthub",0).edit().putLong(REVISION,System.currentTimeMillis())
    .putLong("osd_changed_at",System.currentTimeMillis()).apply();
+ }
+ /** Assign one provider to selected, distinct physical DVB services without
+  * modifying the manufacturer's channel list. Selection is additive. */
+ static synchronized int assignChannels(Context c,String name,String country,
+          Collection<String> physicalIds)throws Exception{
+  name=name==null?"":name.trim();
+  country=country==null?"":country.trim().toUpperCase(Locale.ROOT);
+  if(name.length()<2||name.length()>96||!ProviderCountryCatalog.iso(country))
+   throw new IOException("INVALID_PROVIDER");
+  if(physicalIds==null||physicalIds.isEmpty()||physicalIds.size()>500)
+   throw new IOException("SELECT_1_TO_500_SERVICES");
+  JSONObject entries=read(c);
+  JSONObject own=entries.optJSONObject("provider:"+key(name,country));
+  String filename=own==null?"":own.optString("filename","");
+  int added=0;
+  for(String physical:new java.util.LinkedHashSet<>(physicalIds)){
+   if(physical==null||!physical.matches("DVB:-?[0-9]+:[A-Za-z0-9]+:[0-9]+:[A-Za-z]:[0-9]+:[0-9]+"))
+    throw new IOException("UNVERIFIED_PHYSICAL_SERVICE_ID");
+   entries.put("channel:"+physical,new JSONObject()
+     .put("name",name).put("country",country).put("filename",filename));
+   added++;
+  }
+  byte[] bytes=entries.toString().getBytes(StandardCharsets.UTF_8);
+  if(bytes.length>100000)throw new IOException("TOO_MANY_PROVIDER_ASSIGNMENTS");
+  root(c).mkdirs();
+  AtomicFile dst=new AtomicFile(metadata(c));
+  FileOutputStream output=dst.startWrite();
+  try{output.write(bytes);dst.finishWrite(output);}
+  catch(Exception error){dst.failWrite(output);throw error;}
+  c.getSharedPreferences("smarthub",0).edit()
+   .putLong(REVISION,System.currentTimeMillis())
+   .putLong("osd_changed_at",System.currentTimeMillis()).apply();
+  return added;
  }
  static int count(Context c){return read(c).length();}
  static void remove(Context c,String name,String country,String channelId)throws Exception{
