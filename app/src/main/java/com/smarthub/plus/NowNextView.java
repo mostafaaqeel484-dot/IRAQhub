@@ -422,6 +422,11 @@ final class NowNextView extends FrameLayout {
    updateProviderVisibility();
   nowLine.setText(tx("الآن  ","NOW  ")+(s.title.isEmpty()?tx("بيانات البرنامج غير متاحة","Programme unavailable"):s.title)+range(s.startMs,s.endMs));
   nextLine.setText(tx("التالي  ","NEXT  ")+(s.nextTitle.isEmpty()?tx("غير متاح من EPG","Unavailable from EPG"):s.nextTitle)+range(s.nextStartMs,s.nextEndMs));
+  // A user-owned channel image overrides the renderer only while the independent
+  // external channel-logo source is enabled. It never changes OEM/CHMAX data.
+  Bitmap customChannel=ChannelLogoSourcePrefs.external(getContext())?
+    ChannelArtworkOverrides.peek(s.channelId):null;
+  if(customChannel!=null)channelLogo=customChannel;
   String style=appearance.signature()+"|"+s.channelId;
   if(!style.equals(displayedLogoStyleAtBitmap)){
    logo.setScaleX(appearance.size/100f);logo.setScaleY(appearance.size/100f);
