@@ -35,9 +35,13 @@ final class ChannelLogoBitmap {
     if(matte(pixels[left],matte)&&!seen.get(left)){seen.set(left);queue[tail++]=left;}
     if(matte(pixels[right],matte)&&!seen.get(right)){seen.set(right);queue[tail++]=right;}
    }
+   int[] neighbours=new int[4];
    for(int head=0;head<tail;head++){
     int i=queue[head],x=i%w;
-    int[] neighbours={x>0?i-1:-1,x<w-1?i+1:-1,i>=w?i-w:-1,i<w*(h-1)?i+w:-1};
+    neighbours[0]=x>0?i-1:-1;
+    neighbours[1]=x<w-1?i+1:-1;
+    neighbours[2]=i>=w?i-w:-1;
+    neighbours[3]=i<w*(h-1)?i+w:-1;
     for(int next:neighbours){
      if(next<0||seen.get(next)||!matte(pixels[next],matte))continue;
      seen.set(next);queue[tail++]=next;
