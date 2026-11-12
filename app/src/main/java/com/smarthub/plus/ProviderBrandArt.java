@@ -9,7 +9,6 @@ final class ProviderBrandArt {
  private static volatile ProviderBrandArt instance;
  private final ProviderCountryCatalog data;
  private final ProviderLogoAssetIndex assets;
- private static final android.util.LruCache<String,Bitmap> PLACEHOLDERS=new android.util.LruCache<>(48);
  private static final Map<Bitmap,Bitmap> FILTERED =
    Collections.synchronizedMap(new WeakHashMap<Bitmap,Bitmap>());
  private ProviderBrandArt(Context c){
@@ -58,29 +57,6 @@ final class ProviderBrandArt {
   return logo==null?null:outlineDark(logo);
  }
  boolean verified(String provider,String country){return assets.provider(provider,country)!=null;}
- private static Bitmap colored(String label,String country){
-  String key=label+"|"+country;
-  Bitmap cached=PLACEHOLDERS.get(key);if(cached!=null&&!cached.isRecycled())return cached;
-  int w=300,h=104;Bitmap image=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);
-  Canvas canvas=new Canvas(image);
-  float hue=(label.hashCode()&0x7fffffff)%360;
-  int a=Color.HSVToColor(new float[]{hue,.78f,.68f});
-  int b=Color.HSVToColor(new float[]{(hue+32)%360,.58f,.84f});
-  Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
-  paint.setShader(new LinearGradient(0,0,w,h,a,b,Shader.TileMode.CLAMP));
-  canvas.drawRoundRect(0,0,w,h,16,16,paint);
-  paint.setShader(null);paint.setColor(Color.WHITE);
-  paint.setTextAlign(Paint.Align.CENTER);
-  paint.setTypeface(Typeface.create("sans-serif-medium",Typeface.BOLD));
-  float size=label.length()>22?19:label.length()>15?23:29;paint.setTextSize(size);
-  while(paint.measureText(label)>w-24&&size>12){size-=1;paint.setTextSize(size);}
-  canvas.drawText(label,w/2f,53,paint);
-  paint.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
-  paint.setTextSize(11);paint.setColor(0xfff1f6ff);
-  canvas.drawText("PROVIDER · "+country+" · UNVERIFIED ART",w/2f,79,paint);
-  PLACEHOLDERS.put(key,image);
-  return image;
- }
  private static boolean isAlbanianSuperSport(String n){
   return n.matches("(?:SS|SUPERSPORT)(?: ALBANIA)?[ -]?(?:[1-7])(?: HD)?")&&!n.matches(".*5(?: HD)?");
  }
