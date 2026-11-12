@@ -21,8 +21,9 @@ final class ChannelLogoSourcePrefs {
  static boolean providers(Context c){
   return c.getSharedPreferences("smarthub",0).getBoolean(PROVIDERS,true);
  }
- static String sourceId(Context c){
-  return (chmax(c)?"c":"-")+(external(c)?"e":"-");
+ static String sourceId(Context c){return sourceId(chmax(c),external(c));}
+ static String sourceId(boolean chmax,boolean external){
+  return (chmax?"c":"-")+(external?"e":"-");
  }
  static void set(Context c,String key,boolean enabled){
   if(!CHMAX.equals(key)&&!EXTERNAL.equals(key)&&!PROVIDERS.equals(key))
