@@ -6,8 +6,8 @@ import android.view.*;
 import android.widget.*;
 import java.util.*;
 
-/** Virtualized 234-row catalogue: real provider bitmap where audited;
- * a distinctly labelled colored placeholder otherwise, never fake artwork.
+/** Virtualized 234-row catalogue: display verified provider images only;
+ * otherwise show the provider name without inventing a corporate logo.
  * CHMAX/OEM channel logos and EPG are unaffected. */
 public final class ProviderLogoCatalogActivity extends HubActivity {
  @Override public void onCreate(Bundle state){
@@ -17,8 +17,8 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
   page.setBackground(RxSkin.wallpaper(this));
   TextView title=text(tx("شعارات 234 مزوّداً","234 provider artwork catalogue"),23,true);
   page.addView(title);
-  TextView subtitle=text(tx("شعار حقيقي أو بديل ملون باسم المزوّد، وليس شعار قناة.",
-    "Verified provider mark or clearly labelled colored placeholder; not channel art."),13,false);
+  TextView subtitle=text(tx("شعار مزوّد موثوق أو اسمه كنص فقط، وليس شعار قناة.",
+    "Verified provider mark or provider name text only; never channel artwork."),13,false);
   page.addView(subtitle);
   setContentView(page);
   List<ProviderCountryCatalog.Provider> providers=
@@ -29,7 +29,7 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
   for(ProviderCountryCatalog.Provider p:providers)
    if(brands.verified(p.name,p.country))verified++;
   TextView count=text(providers.size()+" providers · "+verified+" verified marks · "+
-      (providers.size()-verified)+" colored non-official placeholders",14,false);
+      (providers.size()-verified)+" names without verified art",14,false);
   page.addView(count);
   ListView list=new ListView(this);
   list.setDividerHeight(dp(2));
