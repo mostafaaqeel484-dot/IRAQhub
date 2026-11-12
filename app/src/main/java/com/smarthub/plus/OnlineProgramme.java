@@ -35,9 +35,9 @@ final class OnlineProgramme {
    // Old BetterPosters/TVmaze IDs must NEVER lock out TMDB after its key
    // is configured. Only reuse a pinned TMDB identity; use IMDb separately.
    String oldId=remembered.optString("id");
-   if(oldId.startsWith("tmdb:")){
+   if(PosterArtworkPriority.pinnedTmdbId(oldId)){
     id=oldId;type=remembered.optString("type");
-   }else if(remembered.optString("imdbId").matches("tt[0-9]{7,10}")){
+   }else if(PosterArtworkPriority.exactImdb(remembered.optString("imdbId"))){
     imdb=remembered.optString("imdbId");
    }
   }
@@ -109,7 +109,7 @@ final class OnlineProgramme {
   Bitmap bitmap=null;
   // BetterPosters is a last-resort IMAGE source even when its metadata
   // supplied an exact IMDb ID. RPDB/OMDb/OPDB get a chance first.
-  if(better&&item.imdbId.matches("tt[0-9]{7,10}")&&!similarPoster){
+  if(PosterArtworkPriority.preferAlternativeOverBetter(j.optString("provider"),item.imdbId)&&!similarPoster){
    try{
     String verified=VerifiedPosterFallback.find(context,item.imdbId,item.title,item.release);
     Bitmap alternate=posterBitmap(context,verified);
