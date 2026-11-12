@@ -48,7 +48,7 @@ final class ProviderApprovedArtwork {
    if(a==0||a==10||a==127||a>=224||a==169&&b==254||
       a==172&&b>=16&&b<=31||a==192&&b==168||
       a==100&&b>=64&&b<=127||a==198&&b>=18&&b<=19||
-      a==192&&b==0||a==192&&b==0||a==192&&b==2||
+      a==192&&b==0||a==192&&b==2||
       a==198&&b==51||a==203&&b==0)return false;
   }
   return true;
@@ -80,7 +80,7 @@ final class ProviderApprovedArtwork {
   init(c.getApplicationContext());
   return urls.containsKey(key(provider));
  }
- private static boolean safeUrl(String value){
+ static boolean safeUrl(String value){
   if(value==null||value.length()>1800)return false;
   try{
    URI u=new URI(value);
@@ -139,10 +139,25 @@ final class ProviderApprovedArtwork {
      .header("User-Agent","IRAQhub-RX6/4.0.5 personal artwork preview")
      .header("Accept","image/png,image/jpeg,image/webp,image/svg+xml").build();
    byte[] payload;
-   try(Response response=CLIENT.newCall(request).execute()){
-    if(!response.isSuccessful()||response.body()==null||
-      response.body().contentLength()>MAX_BYTES)throw new IOException("IMAGE_HTTP_UNAVAILABLE");
-    try(InputStream input=response.body().byteStream();
+   Response response=CLIENT.newCall(request).execute();
+   if(response.code()>=300&&response.code()<400 &&
+      "commons.wikimedia.org".equalsIgnoreCase(new URI(url).getHost())){
+    String redirect=response.header("Location","");
+    response.close();
+    URI next=new URI(url).resolve(redirect);
+    String h=next.getHost();
+    if(!safeUrl(next.toString())||h==null||
+      (!"upload.wikimedia.org".equalsIgnoreCase(h)&&
+       !"thumb.wikimedia.org".equalsIgnoreCase(h)))
+     throw new IOException("UNAPPROVED_COMMONS_REDIRECT");
+    response=CLIENT.newCall(new Request.Builder().url(next.toString())
+      .header("User-Agent","IRAQhub-RX6/4.0.5 personal artwork preview")
+      .header("Accept","image/png,image/jpeg,image/webp,image/svg+xml").build()).execute();
+   }
+   try(Response close=response){
+    if(!close.isSuccessful()||close.body()==null||
+      close.body().contentLength()>MAX_BYTES)throw new IOException("IMAGE_HTTP_UNAVAILABLE");
+    try(InputStream input=close.body().byteStream();
         ByteArrayOutputStream out=new ByteArrayOutputStream()){
      byte[] buffer=new byte[16384];int n;
      while((n=input.read(buffer))!=-1){
@@ -177,7 +192,7 @@ final class ProviderApprovedArtwork {
    String lower=xml.toLowerCase(Locale.ROOT);
    if(xml.length()>500000||lower.contains("<!doctype")||lower.contains("<!entity")||
      lower.contains("<script")||lower.contains("<foreignobject")||
-     lower.contains("href=\\\"http:")||lower.contains("href=\\\"https:")||
+     lower.contains("href=\"http:")||lower.contains("href=\"https:")||
      lower.contains("href='http:")||lower.contains("href='https:"))return null;
    try{
     com.caverock.androidsvg.SVG svg=com.caverock.androidsvg.SVG.getFromString(xml);
