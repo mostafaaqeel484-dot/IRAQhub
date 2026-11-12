@@ -70,7 +70,7 @@ public final class ProviderLogoCatalogActivity extends HubActivity {
       (approved?ProviderApprovedArtwork.cached(ProviderLogoCatalogActivity.this,p.name):null);
     row.image.setImageBitmap(selected);
     row.image.setVisibility(selected!=null?View.VISIBLE:View.GONE);
-    row.label.setText(p.name+" · "+p.country+"\\n"+
+    row.label.setText(p.name+" · "+p.country+"\n"+
       (official?"Bundled or manually added provider image":
        !approved?"Name only — no selected image":
        selected!=null?"User-approved image downloaded":"User-approved source · tap to test download"));

@@ -111,7 +111,7 @@ public final class PosterApiSettingsActivity extends HubActivity {
    String result=PosterApiProbe.test(id,secret);
    runOnUiThread(()->{if(!closed)status.setText(
      id.toUpperCase(Locale.ROOT)+" · "+result+
-     tx("\\nيمكن حفظ المفتاح منفصلاً عن الاختبار.","\\nSave key separately from connection test."));});
+     tx("\nيمكن حفظ المفتاح منفصلاً عن الاختبار.","\nSave key separately from connection test."));});
   });
  }
  private void refresh(){

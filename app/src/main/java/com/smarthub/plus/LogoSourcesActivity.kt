@@ -49,7 +49,7 @@ class LogoSourcesActivity:HubActivity(){
   options.addView(chmax)
   chmax.setOnCheckedChangeListener{_,enabled->
    ChannelLogoSourcePrefs.set(this,ChannelLogoSourcePrefs.CHMAX,enabled)
-   ChlLogoAddon.get(this).enable(enabled)
+   if(enabled&&!ChlLogoAddon.get(this).enabled())ChlLogoAddon.get(this).enable(true)
    refresh()
   }
   val external=CheckBox(this)
