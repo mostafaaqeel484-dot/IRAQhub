@@ -38,7 +38,10 @@ final class BetterPostersProvider {
  private static void validateManifest(JSONObject m)throws IOException{
   if(!"community.betterposters".equals(m.optString("id"))||!m.optString("version").matches("[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?"))throw new IOException("BetterPosters manifest identity/version mismatch");
   JSONArray types=m.optJSONArray("types"),resources=m.optJSONArray("resources"),catalogs=m.optJSONArray("catalogs");
-  if(types==null||resources==null||catalogs==null||!contains(types,"movie")||!contains(types,"series")||!contains(resources,"meta")||!contains(resources,"catalog"))throw new IOException("BetterPosters manifest capabilities incomplete");
+  // Stremio metadata-only addons remain valid. Search requires bp-search
+  // and a catalog, but an already verified IMDb ID can use /meta directly.
+  if(types==null||resources==null||(!contains(types,"movie")&&!contains(types,"series"))||
+     !contains(resources,"meta"))throw new IOException("BetterPosters manifest capabilities incomplete");
  }
  private static boolean contains(JSONArray a,String value){for(int i=0;i<a.length();i++){
    Object row=a.opt(i);
