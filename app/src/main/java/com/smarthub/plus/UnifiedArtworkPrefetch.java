@@ -126,11 +126,15 @@ final class UnifiedArtworkPrefetch {
     }
     long before=prefs.getLong("verified_poster_until:"+key,0);
     sourceRevision=Math.max(sourceRevision,prefs.getLong("providers_changed_at",0));
-    if(before>System.currentTimeMillis()&&
+    boolean upgradeToBetter=PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER)&&
+      !PosterArtworkPriority.betterSource(prefs.getString("verified_poster_source:"+key,""));
+    if(!upgradeToBetter&&before>System.currentTimeMillis()&&
        prefs.getLong("verified_poster_at:"+key,0)>=sourceRevision&&
        !prefs.getString("verified_poster_url:"+key,"").isEmpty())continue;
     String address="",posterSource="",imdb="";
-    // Verify chosen TMDB identity first. Different providers fail independently.
+    JSONObject matchedTmdb=null;
+    // Metadata identification is separate from image priority. TMDB may
+    // supply a verified IMDb identity when BetterPosters has no search catalog.
     try{
      ProviderSecrets secrets=ProviderSecrets.read(context);
      if(secrets!=null&&!secrets.tmdb.isEmpty()){
@@ -138,40 +142,50 @@ final class UnifiedArtworkPrefetch {
         new TmdbProvider(context,secrets.tmdb).resolve(title,id,type,"",0);
       if("matched".equals(tmdb.optString("status"))&&id.equals(tmdb.optString("id"))
          &&type.equals(tmdb.optString("type"))){
-       address=tmdb.optString("poster","");
+       matchedTmdb=tmdb;
        imdb=tmdb.optString("imdbId","");
-       posterSource="TMDB";
       }
      }
-    }catch(Exception unavailable){/* Preserve other providers. */}
-    if(validUrl(address)&&!imageAvailable(context,address))address="";
-    if(!validUrl(address)&&"series".equals(type)&&imdb.matches("tt[0-9]{7,10}"))
-     try{
-      JSONObject maze=new TvmazeProvider(context).resolve(title,imdb);
-      if("matched".equals(maze.optString("status"))&&imdb.equals(maze.optString("imdbId"))
-        &&validUrl(maze.optString("poster",""))){
-       address=maze.optString("poster","");
-       posterSource="TVmaze";
-      }
-     }catch(Exception unavailable){/* Keep verified images only. */}
-    if(!validUrl(address)&&PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
-     JSONObject better=provider.resolve(title,id,type,imdb,0);
-     if("matched".equals(better.optString("status"))&&id.equals(better.optString("id"))
-       &&type.equals(better.optString("type"))&&validUrl(better.optString("poster",""))){
-      address=better.optString("poster","");
-      posterSource="BetterPosters";
-      if(imdb.isEmpty())imdb=better.optString("imdbId","");
+    }catch(Exception unavailable){/* Fallback sources remain independent. */}
+    // Second BetterPosters chance uses verified IMDb identity (or typed TMDB
+    // identity), before ever choosing TMDB's poster. This supports addons
+    // advertising only metadata, without the optional bp-search catalog.
+    if(PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
+     String preferredId=PosterArtworkPriority.exactImdb(imdb)?imdb:id;
+     JSONObject better=provider.resolve(title,preferredId,type,imdb,0);
+     String image=better.optString("poster","");
+     if("matched".equals(better.optString("status"))&&
+        type.equals(better.optString("type"))&&
+        preferredId.equals(better.optString("id"))&&
+        validUrl(image)&&imageAvailable(context,image)){
+      address=image;posterSource="BetterPosters";
      }
-    }catch(Exception unavailable){/* TMDB remains usable. */}
-    if(validUrl(address)&&!imageAvailable(context,address))address="";
-    if(!validUrl(address)&&imdb.matches("tt[0-9]{7,10}")&&
+    }catch(Exception unavailable){/* TMDB and TVmaze stay usable. */}
+    if(!validUrl(address)&&PosterArtworkPriority.exactImdb(imdb)&&
+       PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER)&&
        prefs.getBoolean("betterposters_direct_enabled",true)){
      try{
       String direct=BetterPostersDirect.poster(context,imdb);
-      if(validUrl(direct)){address=direct;posterSource="BetterPosters · IMDb";}
-     }catch(Exception unavailable){/* Fall back. */}
+      if(validUrl(direct)&&imageAvailable(context,direct)){
+       address=direct;posterSource="BetterPosters · IMDb";
+      }
+     }catch(Exception unavailable){/* Continue to TMDB fallback. */}
     }
-    if(validUrl(address)&&!imageAvailable(context,address))address="";
+    if(!validUrl(address)&&matchedTmdb!=null){
+     String tmdbPoster=matchedTmdb.optString("poster","");
+     if(validUrl(tmdbPoster)&&imageAvailable(context,tmdbPoster)){
+      address=tmdbPoster;posterSource="TMDB";
+     }
+    }
+    if(!validUrl(address)&&"series".equals(type)&&PosterArtworkPriority.exactImdb(imdb))
+     try{
+      JSONObject maze=new TvmazeProvider(context).resolve(title,imdb);
+      String image=maze.optString("poster","");
+      if("matched".equals(maze.optString("status"))&&imdb.equals(maze.optString("imdbId"))
+        &&validUrl(image)&&imageAvailable(context,image)){
+       address=image;posterSource="TVmaze";
+      }
+     }catch(Exception unavailable){/* Keep verified images only. */}
     if(!validUrl(address))continue;
     byte[] bytes=ArtworkCache.fetch(context,new URL(address),5*1024*1024);
     if(bytes==null||bytes.length<200)continue;
