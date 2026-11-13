@@ -153,7 +153,8 @@ final class LocalInfoBarController implements AutoCloseable {
 
  private void hideBar(){
   visible=false;
-  if(sportsWork!=null)sportsWork.cancel(true);
+  // Keep an already-started background team lookup alive after the OSD
+  // auto-hides; next INFO should reuse its cached result.
   bar.setVisibility(View.GONE);
   main.removeCallbacks(tick);
   releaseHiddenArtwork();
