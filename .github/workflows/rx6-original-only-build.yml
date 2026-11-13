@@ -1,7 +1,7 @@
 name: RX6 Original Source Only - Android 14 X5M
 on:
   push:
-    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112', 'feature/rx6-separated-channel-provider-logos-api-133-20261112', 'fix/rx6-poster-chmax-bulk-422-health-perf-20261112', 'feature/rx6-zero-overlay-brand-editor-infobar-build-20261112', 'feature/rx6-408-infobar-channel-custom-osn-20261112', 'fix/rx6-408-compact-infobar-real-flags-18pct-20261113' ]
+    branches: [ 'feature/rx6-original-source-only-*', 'feature/rx6-poster-source-switches-20261111', 'fix/rx6-chmax-timeout-osn-epg-20261111', 'feature/rx6-native-epg-manual-source-20261111', 'feature/rx6-provider-branding-country-flags-20261111', 'feature/rx6-authentic-provider-artwork-api-20261112', 'feature/rx6-provider-only-dsmart-api-20261112', 'feature/rx6-api-anime-db-branding-20261112', 'fix/rx6-provider-family-channel-mapping-20261112', 'feature/rx6-separated-channel-provider-logos-api-133-20261112', 'fix/rx6-poster-chmax-bulk-422-health-perf-20261112', 'feature/rx6-zero-overlay-brand-editor-infobar-build-20261112', 'feature/rx6-408-infobar-channel-custom-osn-20261112', 'fix/rx6-408-compact-infobar-real-flags-18pct-20261113', 'fix/rx6-410-centered-epg-signal-background-osn-20261113' ]
   pull_request:
     branches: [ 'feature/rx6-original-source-only-20261111' ]
   workflow_dispatch:
@@ -162,6 +162,6 @@ jobs:
         if: ${{ github.ref != 'refs/heads/fix/rx6-poster-chmax-bulk-422-health-perf-20261112' }}
         uses: actions/upload-artifact@v4
         with:
-          name: IRAQhub_RX6_409_Compact_Infobar_Real_Flags_APK
+          name: IRAQhub_RX6_410_Centered_EPG_Signal_Options_OSN_APK
           path: app/build/outputs/apk/rx6OriginalPreview/*.apk
           if-no-files-found: error

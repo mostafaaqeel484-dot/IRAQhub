@@ -15,6 +15,10 @@ final class OsnGuideReference {
    case "OSN YAHALA AFLAM":case "OSNTV YAHALA AFLAM":return PREFIX+"osntv-yahala-aflam";
    case "OSN YAHALA":case "OSNTV YAHALA":return PREFIX+"osntv-yahala";
    case "OSN NOW":case "OSNTV NOW":return PREFIX+"osntv-now";
+   case "OSN MOVIES FAMILY":case "OSNTV MOVIES FAMILY":return PREFIX+"osntv-movies-family";
+   case "OSN SHOWCASE":case "OSNTV SHOWCASE":return PREFIX+"osntv-showcase";
+   case "OSN KIDS":case "OSNTV KIDS":return PREFIX+"osntv-kids";
+
    case "OSN COMEDY":case "OSNTV COMEDY":return PREFIX+"osntv-comedy";
    case "OSN MOVIES PREMIERE":case "OSNTV MOVIES PREMIERE":return PREFIX+"osntv-movies-premiere";
    case "OSN MOVIES ACTION":case "OSNTV MOVIES ACTION":return PREFIX+"osntv-movies-action";

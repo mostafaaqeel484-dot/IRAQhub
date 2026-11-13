@@ -52,8 +52,32 @@ public final class ChannelLogoEditorActivity extends HubActivity {
   final CheckBox flag=check(panel,tx("عرض صورة علم البلد تحت اسم القناة",
     "Show actual country flag below channel name"),original.flag);
 
-  panel.addView(text(tx("خلفية الشعار سوداء دائماً داخل الإنفوبار؛ لا نضع مربعاً أبيض.",
-    "The channel logo uses the InfoBar black backdrop without a white box."),14,false));
+  panel.addView(text(tx("خلفية شعار القناة","Channel logo background"),16,true));
+  final RadioGroup backgroundChoices=new RadioGroup(this);
+  backgroundChoices.setOrientation(RadioGroup.HORIZONTAL);
+  final RadioButton originalBackground=new RadioButton(this);
+  originalBackground.setId(View.generateViewId());
+  originalBackground.setText(tx("أصلية (مثل MBC الأبيض)","Original artwork (e.g. white MBC)"));
+  originalBackground.setTextColor(0xffffffff);
+  final RadioButton blackBackground=new RadioButton(this);
+  blackBackground.setId(View.generateViewId());
+  blackBackground.setText(tx("سوداء","Black matte"));
+  blackBackground.setTextColor(0xffffffff);
+  backgroundChoices.addView(originalBackground);
+  backgroundChoices.addView(blackBackground);
+  backgroundChoices.check("black".equals(original.background)?
+    blackBackground.getId():originalBackground.getId());
+  panel.addView(backgroundChoices);
+  // Original preserves every logo pixel, including intentional white cards.
+  // Black only changes an edge-connected neutral matte, not a coloured mark.
+  boolean startingBlack="black".equals(original.background);
+  white.setEnabled(startingBlack);black.setEnabled(startingBlack);crop.setEnabled(startingBlack);
+  backgroundChoices.setOnCheckedChangeListener((group,id)->{
+   boolean blackChosen=id==blackBackground.getId();
+   white.setEnabled(blackChosen);
+   black.setEnabled(blackChosen);
+   crop.setEnabled(blackChosen);
+  });
 
   if(canScope){
    final EditText url=field(panel,tx("رابط HTTPS مباشر لشعار القناة",
@@ -87,7 +111,8 @@ public final class ChannelLogoEditorActivity extends HubActivity {
   action(panel,tx("حفظ تخصيص الشعار","Save channel logo appearance"),()->{
    ChannelLogoAppearance.Config changed=new ChannelLogoAppearance.Config(
       65+size.getProgress(),white.isChecked(),black.isChecked(),
-      crop.isChecked(),flag.isChecked(),"black");
+      crop.isChecked(),flag.isChecked(),
+      backgroundChoices.getCheckedRadioButtonId()==blackBackground.getId()?"black":"original");
    ChannelLogoAppearance.save(this,global.isChecked()?null:physical,changed);
    status.setText(tx("تم حفظ تخصيص الشعار","Logo appearance saved"));
   });

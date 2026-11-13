@@ -24,7 +24,7 @@ final class ChannelLogoAppearance {
   String signature(){return size+"|"+removeWhite+"|"+removeBlack+"|"+crop+"|"+flag+"|"+background;}
   JSONObject json(){
    JSONObject data=new JSONObject();
-   try{data.put("layout",2);data.put("size",size);data.put("white",removeWhite);data.put("black",removeBlack);
+   try{data.put("layout",3);data.put("size",size);data.put("white",removeWhite);data.put("black",removeBlack);
     data.put("crop",crop);data.put("flag",flag);data.put("background",background);}
    catch(Exception ignored){}
    return data;
@@ -32,7 +32,7 @@ final class ChannelLogoAppearance {
  }
  static int clamp(int value){return Math.max(65,Math.min(125,value));}
  static String safeBackground(String value){
-  return "black".equals(value)||"white".equals(value)?value:"transparent";
+  return "black".equals(value)?"black":"original";
  }
  static boolean physical(String id){
   return id!=null&&id.startsWith("DVB:")&&id.length()<=180&&id.length()>8;
@@ -58,10 +58,14 @@ final class ChannelLogoAppearance {
   JSONObject data;
   try{data=new JSONObject(json);}catch(Exception ignored){data=new JSONObject();}
   int size=data.optInt("size",oldSize);
+  // v2 forced every channel's original white logo card to black. Opt back
+  // to original pixels unless this v3 user explicitly chose black.
+  int layout=data.optInt("layout",0);
+  String background=layout>=3?data.optString("background","original"):"original";
   if(data.optInt("layout",0)<2&&size==100)size=118;
   return new Config(size,data.optBoolean("white",oldWhite),
    data.optBoolean("black",false),data.optBoolean("crop",true),
-   data.optBoolean("flag",oldFlag),data.optString("background","black"));
+   data.optBoolean("flag",oldFlag),background);
  }
  static void save(Context c,String channelId,Config value){
   String k=key(channelId);
