@@ -10,6 +10,7 @@ import java.util.*;
 final class BetterPostersProvider {
  private static final String MANIFEST_URL="https://btttr.cc/TZAxDsIwDEXv8udwgVwAMbAAG2KwigmV0qbYjlBV9e4ogQDb93vfHrygI6OYgsKfEclYbTPAtahwsHSlucJ3-jGCQ5eGfgxVf6L-YimY8Hhtle9QSlOaciSpouX38QkXh4GN4Je1SDUW-KUqD8qWyo6kIKwKb5L5c_xE4QsemWJv8z_Se3pueRT-BweyfgyNUOAGbhSVyzPKABI4SFXHlKVjeOz2WNcX/manifest.json";
  private static final String ADDON_BASE=MANIFEST_URL.substring(0,MANIFEST_URL.length()-"/manifest.json".length());
+ static String manifestRevision(){return Integer.toHexString(MANIFEST_URL.hashCode());}
  private final Context context;private boolean offline;private long fetchedAt=System.currentTimeMillis();private JSONObject loadedManifest;
  BetterPostersProvider(Context context){this.context=context.getApplicationContext();}
  static String titleTokens(String value){String s=Normalizer.normalize(value==null?"":value,Normalizer.Form.NFKD).replaceAll("\\p{M}+","").toLowerCase(Locale.ROOT).replaceAll("['’]s\\b","").replaceAll("[^\\p{L}\\p{N}]+"," ");List<String> words=new ArrayList<>();Set<String> skip=new HashSet<>(Arrays.asList("the","a","an","of","and"));for(String w:s.trim().split("\\s+")){if(w.isEmpty()||skip.contains(w))continue;words.add(w.length()>4&&w.endsWith("s")?w.substring(0,w.length()-1):w);}Collections.sort(words);return String.join(" ",words);}
