@@ -11,44 +11,91 @@ final class BroadcastEpgProvider {
   if(!busy)refresh(active);
  }
  synchronized void refresh(SatelliteState observed){if(observed.channelName.isEmpty()||observed.channelId.startsWith("IPTV:")||observed.source.startsWith("IPTV"))return;SharedPreferences prefs=context.getSharedPreferences("smarthub",0);if(prefs.getBoolean("dvb_tuning",false)||PlaybackResourceMode.active())return;String identity=ReceiverInfoRepository.channelKey(observed);long now=SystemClock.elapsedRealtime();if(busy&&identity.equals(key)||identity.equals(key)&&now<retry)return;if(busy){generation++;if(task!=null)task.cancel(true);busy=false;}if(!observed.channelId.startsWith("DVB:")&&!observed.title.isEmpty()&&!observed.source.startsWith("DVB")&&!observed.source.startsWith("Online EPG"))return;ReceiverSignalReading signal=DirectReceiverSignal.reading(observed);boolean own=observed.channelId.startsWith("DVB:");boolean nativeReady=own&&signal!=null&&signal.locked==1&&signal.tp==prefs.getInt("own_dvb_runtime_tp",-1)&&observed.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""))&&prefs.getString("own_dvb_physical","").startsWith(prefs.getString("own_dvb_physical_tp","invalid")+":");busy=true;key=identity;retry=now+30000;int ticket=++generation;long started=now;prefs.edit().putString("broadcast_epg_status","DVB_EPG_SEARCHING").putString("broadcast_epg_channel",identity).apply();SatelliteState snapshot=observed.copy();task=io.submit(()->{try{List<NativeEpgEvents.Event> events=new ArrayList<>();String source="DVB EIT · IRAQhub";if(nativeReady){ReceiverCatalog.Channel channel=ReceiverCatalog.get(context).channel(prefs.getLong("own_dvb_channel",-1));if(channel!=null&&snapshot.channelId.equals("DVB:"+channel.physical()))try{events=read(channel.programToken(),signal.tp,channel.sid);}catch(java.io.IOException unavailable){/* Continue with factory/native fallback. */}}if(Thread.currentThread().isInterrupted()||ticket!=generation)return;long time=System.currentTimeMillis();
- // Source order is strict: prepared OEM EPG Pro, native DVB EIT, then
- // optional exact-channel OSN gaps from third-party EPGShare SA1.
- // OSN's public schedule is a reference, not a proven official API.
+ // EPG Pro, DVB EIT and EPG ALL are independently verified DVB sources.
+ // EPG ALL is this app's indexed union, NOT an invented OEM API.
  if(Thread.currentThread().isInterrupted()||ticket!=generation)return;
- NativeEpgEvents.Event current=current(events,time),next=next(events,time);
  SatelliteState active=SatelliteState.read(context);
  if(!identity.equals(ReceiverInfoRepository.channelKey(active)))return;
  if(prefs.getBoolean("dvb_tuning",false)||PlaybackResourceMode.lite(context))return;
- if(nativeReady&&"DVB EIT · IRAQhub".equals(source)){
+ if(nativeReady){
   ReceiverSignalReading latest=DirectReceiverSignal.reading(active);
   if(latest==null||latest.locked!=1||latest.tp!=signal.tp||
-     prefs.getBoolean("dvb_tuning",false))return;
+      prefs.getBoolean("dvb_tuning",false))return;
  }
- if(own&&"DVB EIT · IRAQhub".equals(source)&&!events.isEmpty())
-  UnifiedEpgIndex.get(context).recordNative(active.channelId,events,time);
- if(FactoryProvider.applyPrepared(context,active,false)){
-  FactoryProvider.applyPrepared(context,active,true);active.save(context);
-  prefs.edit().putString("broadcast_epg_status","FACTORY_EPG_PRIMARY").apply();
-  return;
+ long observedAt=System.currentTimeMillis();
+ UnifiedEpgIndex index=UnifiedEpgIndex.get(context);
+ if(own&&!events.isEmpty())index.recordNative(active.channelId,events,observedAt);
+ // Prepared EPG Pro may contain NOW only or NEXT only; do not discard the
+ // other valid programme source just because one manufacturer field exists.
+ boolean factoryNow=FactoryProvider.applyPrepared(context,active,false);
+ boolean factoryNext=FactoryProvider.applyPrepared(context,active,true);
+ SatelliteGuideRepository.Event allNow=own?index.receiverCurrent(active.channelId,observedAt):null;
+ SatelliteGuideRepository.Event allNext=own?index.receiverNext(active.channelId,observedAt):null;
+ if(!factoryNow&&allNow!=null&&
+    DvbEpgAllPolicy.current(allNow.startMs,allNow.endMs,observedAt,allNow.title)){
+  active.title=allNow.title;active.startMs=allNow.startMs;
+  active.endMs=allNow.endMs;active.image=allNow.image;
+  active.source=allNow.source;factoryNow=true;
  }
- if((current==null||next==null)&&OsnEpgFallback.eligible(active.channelId,active.channelName)){
+ if(!factoryNext&&allNext!=null&&
+    DvbEpgAllPolicy.next(allNext.startMs,allNext.endMs,observedAt,allNext.title)){
+  active.nextTitle=allNext.title;active.nextStartMs=allNext.startMs;
+  active.nextEndMs=allNext.endMs;active.nextImage=allNext.image;factoryNext=true;
+ }
+ NativeEpgEvents.Event eitNow=current(events,observedAt),eitNext=next(events,observedAt);
+ if(!factoryNow&&eitNow!=null){
+  active.title=eitNow.title;active.startMs=eitNow.start;
+  active.endMs=eitNow.end;active.image=eitNow.image;
+  active.source="DVB EIT · native receiver";factoryNow=true;
+ }
+ if(!factoryNext&&eitNext!=null){
+  active.nextTitle=eitNext.title;active.nextStartMs=eitNext.start;
+  active.nextEndMs=eitNext.end;active.nextImage=eitNext.image;factoryNext=true;
+ }
+ // For OSN, never confuse a cached EPGShare event with the DVB source.
+ // A manually enabled internet bridge is a last resort, never a DVB default.
+ if((!factoryNow||!factoryNext)&&OsnEpgFallback.eligible(
+       active.channelId,active.channelName)&&
+    prefs.getBoolean(OsnEpgFallback.ENABLED,false)){
   List<NativeEpgEvents.Event> extra=OsnEpgFallback.read(
-      context,active.channelName,active.channelId,time);
-  if(!extra.isEmpty()){
-   NativeEpgEvents.Event fromGuide=current(extra,time),nextGuide=next(extra,time);
-   if(current==null&&fromGuide!=null){
-    current=fromGuide;source="EPGShare SA1 · OSN missing-guide fallback";
-   }
-   if(next==null&&nextGuide!=null){next=nextGuide;}
+      context,active.channelName,active.channelId,observedAt);
+  if(!factoryNow){
+   NativeEpgEvents.Event e=current(extra,observedAt);
+   if(e!=null){active.title=e.title;active.startMs=e.start;active.endMs=e.end;
+    active.image=e.image;active.source="EPGShare SA1 · manual OSN fallback";
+    factoryNow=true;}
+  }
+  if(!factoryNext){
+   NativeEpgEvents.Event e=next(extra,observedAt);
+   if(e!=null){active.nextTitle=e.title;active.nextStartMs=e.start;
+    active.nextEndMs=e.end;active.nextImage=e.image;factoryNext=true;}
   }
  }
- if(current==null){
-  retry=SystemClock.elapsedRealtime()+2500;
-  prefs.edit().putString("broadcast_epg_status",nativeReady?
-    "DVB_EIT_NO_CURRENT_EVENT":"FACTORY_DVB_OSN_EPG_MISSING").apply();
+ if(!factoryNow){
+  // No guessed programme. Keep a genuinely timed receiver programme if
+  // already present, otherwise clear stale/internet-only channel values.
+  if(!DvbEpgAllPolicy.receiverGrade(active.source)||
+     !DvbEpgAllPolicy.current(active.startMs,active.endMs,observedAt,active.title)){
+   active.title="";active.startMs=0;active.endMs=0;active.image="";
+   active.source="";
+  }
+ }
+ if(!factoryNext&&!DvbEpgAllPolicy.next(active.nextStartMs,active.nextEndMs,
+     observedAt,active.nextTitle)){
+  active.nextTitle="";active.nextStartMs=0;active.nextEndMs=0;active.nextImage="";
+ }
+ if(!DvbEpgAllPolicy.current(active.startMs,active.endMs,observedAt,active.title)){
+  retry=SystemClock.elapsedRealtime()+12000;
+  prefs.edit().putString("broadcast_epg_status",
+      "DVB_EPG_ALL_NO_VALID_CURRENT").putString("epg_all_channel",active.channelId)
+      .putString("epg_all_osn_status",
+        active.channelName.toUpperCase(java.util.Locale.ROOT).contains("OSN")?
+         "OSN_FACTORY_EIT_ALL_UNAVAILABLE":"NOT_OSN").apply();
   return;
  }
- boolean artChanged=!active.title.equals(current.title)||active.startMs!=current.start||!active.image.equals(current.image)||!active.nextTitle.equals(next==null?"":next.title)||!active.nextImage.equals(next==null?"":next.image);active.title=current.title;active.startMs=current.start;active.endMs=current.end;active.image=current.image;active.nextTitle=next==null?"":next.title;active.nextStartMs=next==null?0:next.start;active.nextEndMs=next==null?0:next.end;active.nextImage=next==null?"":next.image;active.source=source;active.observedAt=time;active.save(context);new SatelliteGuideRepository(context).record(active);SharedPreferences.Editor update=prefs.edit().putString("broadcast_epg_status",source).putLong("broadcast_epg_updated_at",time).putLong("broadcast_epg_elapsed_ms",SystemClock.elapsedRealtime()-started);if(artChanged)update.putLong("epg_art_changed_at",time);update.apply();if(artChanged)IraqHubSyncScheduler.programmeChanged(context);}catch(Exception unavailable){if(Thread.currentThread().isInterrupted()||ticket!=generation)return;retry=SystemClock.elapsedRealtime()+12000;prefs.edit().putString("broadcast_epg_status","EPG_UNAVAILABLE_"+unavailable.getClass().getSimpleName()).apply();}finally{synchronized(this){if(ticket==generation)busy=false;}}});}
+ if(!identity.equals(ReceiverInfoRepository.channelKey(SatelliteState.read(context))))return;
+ String source=active.source;
+ boolean artChanged=!active.title.equals(current.title)||active.startMs!=current.start||!active.image.equals(current.image)||!active.nextTitle.equals(next==null?"":next.title)||!active.nextImage.equals(next==null?"":next.image);active.title=current.title;active.startMs=current.start;active.endMs=current.end;active.image=current.image;active.nextTitle=next==null?"":next.title;active.nextStartMs=next==null?0:next.start;active.nextEndMs=next==null?0:next.end;active.nextImage=next==null?"":next.image;active.source=source;active.observedAt=time;active.save(context);new SatelliteGuideRepository(context).record(active);SharedPreferences.Editor update=prefs.edit().putString("broadcast_epg_status",source).putString("epg_all_status","DVB_EPG_ALL_VERIFIED").putString("epg_all_channel",active.channelId).putLong("broadcast_epg_updated_at",time).putLong("broadcast_epg_elapsed_ms",SystemClock.elapsedRealtime()-started);if(artChanged)update.putLong("epg_art_changed_at",time);update.apply();if(artChanged)IraqHubSyncScheduler.programmeChanged(context);}catch(Exception unavailable){if(Thread.currentThread().isInterrupted()||ticket!=generation)return;retry=SystemClock.elapsedRealtime()+12000;prefs.edit().putString("broadcast_epg_status","EPG_UNAVAILABLE_"+unavailable.getClass().getSimpleName()).apply();}finally{synchronized(this){if(ticket==generation)busy=false;}}});}
  static NativeEpgEvents.Event current(List<NativeEpgEvents.Event> events,long now){NativeEpgEvents.Event found=null;for(NativeEpgEvents.Event event:events)if(event.start<=now&&event.end>now&&(found==null||event.start>found.start))found=event;return found;}
  static NativeEpgEvents.Event next(List<NativeEpgEvents.Event> events,long now){NativeEpgEvents.Event found=null;for(NativeEpgEvents.Event event:events)if(event.start>now&&(found==null||event.start<found.start))found=event;return found;}
  static List<NativeEpgEvents.Event> read(int programme,int tp,int sid)throws Exception{List<NativeEpgEvents.Event> events=new ArrayList<>();try(DatagramSocket socket=new DatagramSocket()){socket.setSoTimeout(120);byte[] query=("EPG_TDT\n0004\n"+NativeEpgEvents.request(programme,tp,sid,System.currentTimeMillis())).getBytes(StandardCharsets.UTF_8);socket.send(new DatagramPacket(query,query.length,InetAddress.getByName("127.0.0.1"),51021));long began=SystemClock.elapsedRealtime(),end=began+1000;while(SystemClock.elapsedRealtime()<end&&!Thread.currentThread().isInterrupted()){byte[] b=new byte[65507];DatagramPacket packet=new DatagramPacket(b,b.length);try{socket.receive(packet);}catch(SocketTimeoutException idle){continue;}if(packet.getAddress().isLoopbackAddress()){
