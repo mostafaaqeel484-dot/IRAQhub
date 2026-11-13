@@ -151,10 +151,15 @@ final class SportsLatestTeamArtwork {
    JSONObject found=provider.findTeamForRecent(team);
    if(!"verified".equals(found.optString("status")))continue;
    String id=found.optString("id","");
-   JSONObject response=provider.lastEventsForTeam(id);
-   JSONObject event=latestEvent(response,id,now);
+   JSONObject event=null;
+   try{event=latestEvent(provider.lastEventsForTeam(id),id,now);}
+   catch(Exception noHistory){
+    p.edit().putString("sports_latest_history_status",
+      "LAST_MATCH_UNAVAILABLE_"+noHistory.getClass().getSimpleName()).apply();
+   }
    String image=event==null?"":validImage(event);
-   if(image.isEmpty())image=found.optString("fanart","");
+   boolean clubFallback=image.isEmpty();
+   if(clubFallback)image=found.optString("fanart","");
    String status="NO_RECENT_EVENT_ART";
    if(!image.isEmpty()&&TeamLogoManager.trusted(image)){
     try{
@@ -172,7 +177,8 @@ final class SportsLatestTeamArtwork {
      }catch(Exception ignored){}
     }
     status="LAST_VERIFIED_MATCH_CARD";
-   }else if(!image.isEmpty())status="LAST_TEAM_ART";
+   }else if(!image.isEmpty())
+    status=clubFallback?"VERIFIED_CLUB_ART_FALLBACK":"LAST_TEAM_EVENT_POSTER";
    if(image.isEmpty()&&card==null)continue;
    SharedPreferences.Editor edit=p.edit()
      .putString("sports_latest_image:"+key,image)
