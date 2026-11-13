@@ -8,7 +8,7 @@ import java.text.Normalizer;
 import java.util.*;
 /** Direct, key-free BetterPosters Stremio catalogue and metadata provider. */
 final class BetterPostersProvider {
- private static final String MANIFEST_URL="https://btttr.cc/VZAxbsMwDEXv8mf1ArpAkaFL063IQDiEasAWXZJCEBi-eyA5jp3t871PDpzRkdMgyRB_MZCz-ceIsEVDgMuV7g2uaWeEgE7GPqemn9H2WAuunK9b5TXU0iRTGUib2PJ6fMIlYGQnxHmp0pwVcW4qgopL3VFJymaIroWfx38ovcB_oaH3-xHZn9w-OSsfwTd5n9NGKPE7MFFHROYbm7ffVAdSBGhrnqVox4g4fWFZHg/manifest.json";
+ private static final String MANIFEST_URL="https://btttr.cc/TZAxDsIwDEXv8udwgVwAMbAAG2KwigmV0qbYjlBV9e4ogQDb93vfHrygI6OYgsKfEclYbTPAtahwsHSlucJ3-jGCQ5eGfgxVf6L-YimY8Hhtle9QSlOaciSpouX38QkXh4GN4Je1SDUW-KUqD8qWyo6kIKwKb5L5c_xE4QsemWJv8z_Se3pueRT-BweyfgyNUOAGbhSVyzPKABI4SFXHlKVjeOz2WNcX/manifest.json";
  private static final String ADDON_BASE=MANIFEST_URL.substring(0,MANIFEST_URL.length()-"/manifest.json".length());
  private final Context context;private boolean offline;private long fetchedAt=System.currentTimeMillis();private JSONObject loadedManifest;
  BetterPostersProvider(Context context){this.context=context.getApplicationContext();}
@@ -19,12 +19,15 @@ final class BetterPostersProvider {
    throw new IOException("BETTERPOSTERS_DISABLED");
   if(!force&&loadedManifest!=null)return loadedManifest;
   android.content.SharedPreferences prefs=context.getSharedPreferences("poster_sources",0);
-  String cached=prefs.getString("betterposters_manifest","");
-  long cachedAt=prefs.getLong("betterposters_manifest_at",0),now=System.currentTimeMillis();
+  // The manifest can encode addon configuration. Never reuse the previous
+  // configuration's cached JSON after switching to a newly supplied URL.
+  String slot="betterposters_manifest_"+Integer.toHexString(MANIFEST_URL.hashCode());
+  String cached=prefs.getString(slot,"");
+  long cachedAt=prefs.getLong(slot+"_at",0),now=System.currentTimeMillis();
   if(!force&&!cached.isEmpty()&&now-cachedAt<4*3600000L){try{JSONObject value=new JSONObject(cached);validateManifest(value);loadedManifest=value;fetchedAt=cachedAt;return value;}catch(Exception malformedCache){/* fetch a fresh manifest below */}}
   try{
    JSONObject value=new JSONObject(HubHttp.get(MANIFEST_URL,512*1024));validateManifest(value);
-   prefs.edit().putString("betterposters_manifest",value.toString()).putLong("betterposters_manifest_at",now).putString("betterposters_manifest_status","OK").apply();
+   prefs.edit().putString(slot,value.toString()).putLong(slot+"_at",now).putString("betterposters_manifest_status","OK").apply();
    loadedManifest=value;fetchedAt=now;offline=false;return value;
   }catch(Exception error){
    if(!cached.isEmpty()&&now-cachedAt<7L*24*3600000L){JSONObject value=new JSONObject(cached);validateManifest(value);loadedManifest=value;fetchedAt=cachedAt;offline=true;prefs.edit().putString("betterposters_manifest_status","STALE_CACHE").apply();return value;}
