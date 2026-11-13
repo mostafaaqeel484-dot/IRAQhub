@@ -22,10 +22,19 @@ final class FactoryProvider implements AutoCloseable {
   // The logo is channel-scoped. A missing or mismatched EPG programme must
   // not suppress a correctly identified channel logo.
   rememberLogo(identity,data.optString("cimg"));
-  List<FactoryProtocol.Event> events=FactoryProtocol.schedule(reply,zone);FactoryProtocol.Event current=null,next=null;for(FactoryProtocol.Event e:events){if(e.start<=now&&e.end>now)current=e;else if(e.start>now&&next==null)next=e;}if(current==null)throw new Exception("FACTORY_EPG_NOT_PUBLISHED");// The service identity and compatible channel name were already verified.
+  List<FactoryProtocol.Event> events=FactoryProtocol.schedule(reply,zone);FactoryProtocol.Event current=null,next=null;for(FactoryProtocol.Event e:events){if(e.start<=now&&e.end>now)current=e;else if(e.start>now&&next==null)next=e;}if(current==null&&next==null)throw new Exception("FACTORY_EPG_NOT_PUBLISHED");// The service identity and compatible channel name were already verified.
   // A differing native EIT title is not grounds to suppress the requested
   // factory-first EPG; its own NOW/NEXT time window is independently checked.
-  SatelliteState resolved=state.copy();resolved.title=current.title;resolved.startMs=current.start;resolved.endMs=current.end;resolved.image=current.pic;if(next!=null){resolved.nextTitle=next.title;resolved.nextStartMs=next.start;resolved.nextEndMs=next.end;resolved.nextImage=next.pic;}resolved.source="Factory CHMAX / EPG";resolved.observedAt=now;if(closed)return;
+  SatelliteState resolved=state.copy();
+  resolved.title=current==null?"":current.title;
+  resolved.startMs=current==null?0:current.start;
+  resolved.endMs=current==null?0:current.end;
+  resolved.image=current==null?"":current.pic;
+  resolved.nextTitle=next==null?"":next.title;
+  resolved.nextStartMs=next==null?0:next.start;
+  resolved.nextEndMs=next==null?0:next.end;
+  resolved.nextImage=next==null?"":next.pic;
+  resolved.source="Factory CHMAX / EPG";resolved.observedAt=now;if(closed)return;
   { // Persist verified factory EPG for both live refresh and pre-zap.
    // Don't change the now-playing SatelliteState before the tuner switches.
    JSONObject ready=new JSONObject().put("identity",identity)
@@ -36,9 +45,15 @@ final class FactoryProvider implements AutoCloseable {
     .put("nextEnd",resolved.nextEndMs).put("nextImage",resolved.nextImage);
    prefs.edit().putString("factory_before_zap:"+nativeKey,ready.toString())
     .putLong("epg_art_changed_at",now).apply();
+   // EPG ALL retains every time-validated EPG Pro event for the exact
+   // physical DVB service. No name-matched cross-channel database updates.
+   if(DvbEpgAllPolicy.physical(state.channelId))
+    try{UnifiedEpgIndex.get(context).recordFactory(state.channelId,events,now);}
+    catch(Exception unavailable){prefs.edit().putString("epg_all_status",
+       "FACTORY_INDEX_UNAVAILABLE_"+unavailable.getClass().getSimpleName()).apply();}
    if(preZapping)return;
   }
-  SatelliteState active=SatelliteState.read(context);if(!CHMAXIntegration.identity(active).equals(identity))return;cached=resolved;cachedIdentity=identity;resolved.save(context);SharedPreferences.Editor edit=prefs.edit().putLong("epg_art_changed_at",now).putString("factory_current_subtitle_metadata",current.subtitle);edit.apply();}
+  SatelliteState active=SatelliteState.read(context);if(!CHMAXIntegration.identity(active).equals(identity))return;cached=resolved;cachedIdentity=identity;resolved.save(context);SharedPreferences.Editor edit=prefs.edit().putLong("epg_art_changed_at",now).putString("factory_current_subtitle_metadata",current==null?"":current.subtitle);edit.apply();}
  private void rememberLogo(String identity,String raw)throws Exception{
   String logo=FactoryProtocol.image(raw);
   if(!logo.startsWith("https://")){
@@ -139,7 +154,7 @@ final class FactoryProvider implements AutoCloseable {
    String title=ready.optString(upcoming?"nextTitle":"nowTitle");
    long start=ready.optLong(upcoming?"nextStart":"nowStart",0);
    long end=ready.optLong(upcoming?"nextEnd":"nowEnd",0);
-   if(title.isEmpty()||end<=start||end<=now||
+   if(!ProgrammeTitle.available(title)||end<=start||end<=now||
       (!upcoming&&(start>now||end<=now))||(upcoming&&start<=now))return false;
    if(upcoming){state.nextTitle=title;state.nextStartMs=start;state.nextEndMs=end;
     state.nextImage=ready.optString("nextImage");}
