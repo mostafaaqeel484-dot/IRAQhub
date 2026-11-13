@@ -87,11 +87,23 @@ final class BroadcastEpgProvider {
  }
  if(!DvbEpgAllPolicy.current(active.startMs,active.endMs,observedAt,active.title)){
   retry=SystemClock.elapsedRealtime()+12000;
+  // NEXT is useful even when OSN publishes no current title. Do not lose it
+  // by returning before the state is saved. Keep the exact channel guard.
+  boolean nextValid=DvbEpgAllPolicy.next(active.nextStartMs,active.nextEndMs,
+      observedAt,active.nextTitle);
+  if(nextValid&&identity.equals(ReceiverInfoRepository.channelKey(SatelliteState.read(context)))){
+   active.observedAt=time;
+   active.save(context);
+   prefs.edit().putLong("epg_art_changed_at",time).apply();
+  }
   prefs.edit().putString("broadcast_epg_status",
-      "DVB_EPG_ALL_NO_VALID_CURRENT").putString("epg_all_channel",active.channelId)
+      nextValid?"DVB_EPG_ALL_NEXT_ONLY":"DVB_EPG_ALL_NO_VALID_CURRENT")
+      .putString("epg_all_channel",active.channelId)
+      .putString("epg_all_status",nextValid?"VERIFIED_NEXT_ONLY":"NO_CURRENT_EVENT")
       .putString("epg_all_osn_status",
         active.channelName.toUpperCase(java.util.Locale.ROOT).contains("OSN")?
-         "OSN_FACTORY_EIT_ALL_UNAVAILABLE":"NOT_OSN").apply();
+         (nextValid?"OSN_NEXT_FOUND_CURRENT_UNAVAILABLE":
+           "OSN_FACTORY_EIT_ALL_UNAVAILABLE"):"NOT_OSN").apply();
   return;
  }
  if(!identity.equals(ReceiverInfoRepository.channelKey(SatelliteState.read(context))))return;
@@ -103,7 +115,7 @@ final class BroadcastEpgProvider {
     !original.nextImage.equals(active.nextImage);
  active.observedAt=time;active.save(context);
  new SatelliteGuideRepository(context).record(active);
- SharedPreferences.Editor update=prefs.edit().putString("broadcast_epg_status",source).putString("epg_all_status","DVB_EPG_ALL_VERIFIED").putString("epg_all_channel",active.channelId).putLong("broadcast_epg_updated_at",time).putLong("broadcast_epg_elapsed_ms",SystemClock.elapsedRealtime()-started);if(artChanged)update.putLong("epg_art_changed_at",time);update.apply();if(artChanged)IraqHubSyncScheduler.programmeChanged(context);}catch(Exception unavailable){if(Thread.currentThread().isInterrupted()||ticket!=generation)return;retry=SystemClock.elapsedRealtime()+12000;prefs.edit().putString("broadcast_epg_status","EPG_UNAVAILABLE_"+unavailable.getClass().getSimpleName()).apply();}finally{synchronized(this){if(ticket==generation)busy=false;}}});}
+ SharedPreferences.Editor update=prefs.edit().putString("broadcast_epg_status",source).putString("epg_all_status",DvbEpgAllPolicy.receiverGrade(source)?"DVB_EPG_ALL_VERIFIED":"EXTERNAL_FALLBACK_NOT_DVB").putString("epg_all_channel",active.channelId).putLong("broadcast_epg_updated_at",time).putLong("broadcast_epg_elapsed_ms",SystemClock.elapsedRealtime()-started);if(artChanged)update.putLong("epg_art_changed_at",time);update.apply();if(artChanged)IraqHubSyncScheduler.programmeChanged(context);}catch(Exception unavailable){if(Thread.currentThread().isInterrupted()||ticket!=generation)return;retry=SystemClock.elapsedRealtime()+12000;prefs.edit().putString("broadcast_epg_status","EPG_UNAVAILABLE_"+unavailable.getClass().getSimpleName()).apply();}finally{synchronized(this){if(ticket==generation)busy=false;}}});}
  static NativeEpgEvents.Event current(List<NativeEpgEvents.Event> events,long now){NativeEpgEvents.Event found=null;for(NativeEpgEvents.Event event:events)if(event.start<=now&&event.end>now&&(found==null||event.start>found.start))found=event;return found;}
  static NativeEpgEvents.Event next(List<NativeEpgEvents.Event> events,long now){NativeEpgEvents.Event found=null;for(NativeEpgEvents.Event event:events)if(event.start>now&&(found==null||event.start<found.start))found=event;return found;}
  static List<NativeEpgEvents.Event> read(int programme,int tp,int sid)throws Exception{List<NativeEpgEvents.Event> events=new ArrayList<>();try(DatagramSocket socket=new DatagramSocket()){socket.setSoTimeout(120);byte[] query=("EPG_TDT\n0004\n"+NativeEpgEvents.request(programme,tp,sid,System.currentTimeMillis())).getBytes(StandardCharsets.UTF_8);socket.send(new DatagramPacket(query,query.length,InetAddress.getByName("127.0.0.1"),51021));long began=SystemClock.elapsedRealtime(),end=began+1000;while(SystemClock.elapsedRealtime()<end&&!Thread.currentThread().isInterrupted()){byte[] b=new byte[65507];DatagramPacket packet=new DatagramPacket(b,b.length);try{socket.receive(packet);}catch(SocketTimeoutException idle){continue;}if(packet.getAddress().isLoopbackAddress()){
