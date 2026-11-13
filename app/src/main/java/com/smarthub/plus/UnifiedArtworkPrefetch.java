@@ -45,6 +45,7 @@ final class UnifiedArtworkPrefetch {
      boolean freshBetter=PosterArtworkPriority.betterSource(priorSource)&&
        prefs.getLong("verified_poster_until:"+key,0)>now&&
        prefs.getLong("verified_poster_at:"+key,0)>=sourceRevision&&
+       BetterPostersProvider.manifestRevision().equals(prefs.getString("verified_poster_addon:"+key,""))&&
        validUrl(prefs.getString("verified_poster_url:"+key,""));
      if(freshBetter)continue;
      try{
@@ -62,6 +63,7 @@ final class UnifiedArtworkPrefetch {
          .putString("verified_poster_id:"+key,id)
          .putString("verified_poster_type:"+key,type)
          .putString("verified_poster_source:"+key,"BetterPosters")
+         .putString("verified_poster_addon:"+key,BetterPostersProvider.manifestRevision())
          .putLong("verified_poster_until:"+key,Math.min(end+60000,now+MAX_AGE))
          .putLong("verified_poster_at:"+key,now)
          .putLong("epg_art_changed_at",now).apply();
@@ -181,6 +183,8 @@ final class UnifiedArtworkPrefetch {
      .putString("verified_poster_url:"+key,address).putString("verified_poster_id:"+key,id)
      .putString("verified_poster_type:"+key,type)
      .putString("verified_poster_source:"+key,posterSource)
+     .putString("verified_poster_addon:"+key,PosterArtworkPriority.betterSource(posterSource)?
+        BetterPostersProvider.manifestRevision():"")
      .putLong("verified_poster_until:"+key,Math.min(end+60000,System.currentTimeMillis()+MAX_AGE))
      .putLong("verified_poster_at:"+key,System.currentTimeMillis())
      .putLong("epg_art_changed_at",System.currentTimeMillis());
@@ -212,7 +216,9 @@ final class UnifiedArtworkPrefetch {
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
   if(p.getLong("verified_poster_until:"+key,0)<=System.currentTimeMillis())return "";
   String label=p.getString("verified_poster_source:"+key,"");
-  if(label.startsWith("BetterPosters")&&!PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))return "";
+  if(PosterArtworkPriority.betterSource(label)&&
+     (!PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER)||
+      !BetterPostersProvider.manifestRevision().equals(p.getString("verified_poster_addon:"+key,""))))return "";
   if("TMDB".equals(label)&&!PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB))return "";
   if("TVmaze".equals(label)&&!PosterSourceSwitches.enabled(context,PosterSourceSwitches.TVMAZE))return "";
   String source=p.getString("verified_poster_url:"+key,"");
