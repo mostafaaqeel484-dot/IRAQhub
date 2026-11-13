@@ -65,6 +65,21 @@ final class EpgArtwork {
   // channel/event. This also applies to the fast InfoBar broadcast path.
   String better=UnifiedArtworkPrefetch.preferredBetterUrl(c,state,title,upcoming);
   if(!better.isEmpty())addresses.add(better);
+  // Exact match poster first. If the named fixture is not published,
+  // "Parma – Bologna" can display the latest published Parma match artwork.
+  // This image is a team-history illustration, NOT the scheduled fixture.
+  SportsMatch match=c.getSharedPreferences("smarthub",0)
+    .getBoolean("art_source_sportsdb_enabled",true)?sportsMatch(c,state,upcoming):null;
+  if(match!=null&&SportsProgrammeArtwork.verified(match)){
+   String exact=match.image;
+   if(exact!=null&&exact.startsWith("https://")&&TeamLogoManager.trusted(exact))
+    addresses.add(exact);
+  }
+  if(match==null||!SportsProgrammeArtwork.verified(match)||
+      match.image==null||match.image.isEmpty()){
+   String latest=SportsLatestTeamArtwork.cached(c,state,title,upcoming);
+   if(!latest.isEmpty())addresses.add(latest);
+  }
   String broadcast=current?state.image:state.nextImage;
   if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
   if(!cacheOnly)try{
@@ -79,17 +94,6 @@ final class EpgArtwork {
    String verified=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
    if(!verified.isEmpty())addresses.add(verified);
   }
-  SportsMatch match=c.getSharedPreferences("smarthub",0).getBoolean("art_source_sportsdb_enabled",true)?sportsMatch(c,state,upcoming):null;
-  if(match!=null&&SportsProgrammeArtwork.verified(match))try{
-   if(match.image!=null&&!match.image.isEmpty()){
-    URI u=new URI(match.image);
-    if("https".equalsIgnoreCase(u.getScheme())&&u.getUserInfo()==null&&
-      ("www.thesportsdb.com".equalsIgnoreCase(u.getHost())||
-       "r2.thesportsdb.com".equalsIgnoreCase(u.getHost()))&&
-      u.getPath()!=null&&u.getPath().startsWith("/images/"))
-     addresses.add(match.image);
-   }
-  }catch(Exception unavailable){}
   for(String address:addresses)try{
    URI source=new URI(address);String scheme=source.getScheme();
    if(source.getUserInfo()!=null||source.getFragment()!=null)continue;
