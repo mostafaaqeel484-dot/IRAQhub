@@ -40,7 +40,10 @@ final class BetterPostersProvider {
   JSONArray types=m.optJSONArray("types"),resources=m.optJSONArray("resources"),catalogs=m.optJSONArray("catalogs");
   if(types==null||resources==null||catalogs==null||!contains(types,"movie")||!contains(types,"series")||!contains(resources,"meta")||!contains(resources,"catalog"))throw new IOException("BetterPosters manifest capabilities incomplete");
  }
- private static boolean contains(JSONArray a,String value){for(int i=0;i<a.length();i++)if(value.equals(a.optString(i)))return true;return false;}
+ private static boolean contains(JSONArray a,String value){for(int i=0;i<a.length();i++){
+   Object row=a.opt(i);
+   if(value.equals(row instanceof JSONObject?((JSONObject)row).optString("name"):row))return true;
+  }return false;}
  private static boolean supportsSearch(JSONObject manifest,String type){
   JSONArray catalogs=manifest.optJSONArray("catalogs");if(catalogs==null)return false;
   for(int i=0;i<catalogs.length();i++){JSONObject c=catalogs.optJSONObject(i);if(c!=null&&"bp-search".equals(c.optString("id"))&&type.equals(c.optString("type")))return true;}
