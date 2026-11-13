@@ -162,6 +162,6 @@ jobs:
         if: ${{ github.ref != 'refs/heads/fix/rx6-poster-chmax-bulk-422-health-perf-20261112' }}
         uses: actions/upload-artifact@v4
         with:
-          name: IRAQhub_RX6_411_Gold_Floating_Posters_Audio_Captions_APK
+          name: IRAQhub_RX6_412_BetterPosters_First_APK
           path: app/build/outputs/apk/rx6OriginalPreview/*.apk
           if-no-files-found: error
