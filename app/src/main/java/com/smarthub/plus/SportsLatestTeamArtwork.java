@@ -45,13 +45,13 @@ final class SportsLatestTeamArtwork {
  static boolean sameTeam(String request,JSONObject team){
   String canonical=canonical(request);
   if(canonical.equalsIgnoreCase(team.optString("strTeam")))return true;
-  String alternate=team.optString("strAlternate","");
+  String alternate=team.optString("strTeamAlternate","")+", "+team.optString("strTeamShort","");
   for(String alias:alternate.split("[,;|]"))
    if(canonical.equalsIgnoreCase(alias.trim()))return true;
   return false;
  }
  private static String validImage(JSONObject row){
-  for(String field:new String[]{"strPoster","strThumb","strBanner","strFanart1","strFanart2"}){
+  for(String field:new String[]{"strPoster","strThumb","strBanner","strFanart","strSquare","strFanart1","strFanart2"}){
    String url=row.optString(field,"");
    if(url.startsWith("https://")&&TeamLogoManager.trusted(url)){
     try{
@@ -65,11 +65,11 @@ final class SportsLatestTeamArtwork {
  }
  /** Source-verified, latest available team event <= now; free v1 may return
   * only one recent home match, so "latest" means latest returned by provider. */
- static String latestImage(JSONObject data,String teamId,long now){
-  if(teamId==null||!teamId.matches("[0-9]{1,18}")||data==null)return "";
+ static JSONObject latestEvent(JSONObject data,String teamId,long now){
+  if(teamId==null||!teamId.matches("[0-9]{1,18}")||data==null)return null;
   JSONArray events=data.optJSONArray("results");
   if(events==null)events=data.optJSONArray("events");
-  long newest=0;String poster="";
+  long newest=0;JSONObject picked=null;
   if(events!=null)for(int i=0;i<Math.min(events.length(),30);i++){
    JSONObject event=events.optJSONObject(i);
    if(event==null||(!teamId.equals(event.optString("idHomeTeam"))&&
@@ -80,10 +80,48 @@ final class SportsLatestTeamArtwork {
                             event.optString("strTime","00:00:00");
    long at=SportsMatch.utc(stamp);
    if(at<=0||at>now+3600000L||now-at>180L*86400000L)continue;
-   String url=validImage(event);
-   if(!url.isEmpty()&&at>newest){newest=at;poster=url;}
+   if(at>newest){newest=at;picked=event;}
   }
-  return poster;
+  return picked;
+ }
+ static String latestImage(JSONObject data,String teamId,long now){
+  JSONObject event=latestEvent(data,teamId,now);
+  return event==null?"":validImage(event);
+ }
+ static SportsMatch eventCard(JSONObject row,long now){
+  if(row==null)return null;
+  SportsMatch m=new SportsMatch();
+  String id=row.optString("idEvent","");
+  if(!id.matches("[0-9]{1,18}"))return null;
+  m.id="tsdb:"+id;
+  m.homeId=row.optString("idHomeTeam","");
+  m.awayId=row.optString("idAwayTeam","");
+  m.leagueId=row.optString("idLeague","");
+  m.league=row.optString("strLeague","Last verified result");
+  m.home=row.optString("strHomeTeam","");
+  m.away=row.optString("strAwayTeam","");
+  m.homeLogo=row.optString("strHomeTeamBadge","");
+  m.awayLogo=row.optString("strAwayTeamBadge","");
+  m.leagueLogo=row.optString("strLeagueBadge","");
+  m.kickoff=SportsMatch.utc(row.optString("strTimestamp",""));
+  if(m.kickoff==0)m.kickoff=SportsMatch.utc(row.optString("dateEvent","")+"T"+
+    row.optString("strTime","00:00:00"));
+  m.updatedAt=now;
+  return SportsProgrammeArtwork.verified(m)?m:null;
+ }
+ static android.graphics.Bitmap cachedCard(Context c,SatelliteState state,
+      String title,boolean next,boolean cacheOnly){
+  String key=PosterSelection.key(state,title,next);
+  if(key.isEmpty()||!PosterSourceSwitches.enabled(c,PosterSourceSwitches.SPORTS))return null;
+  SharedPreferences prefs=c.getSharedPreferences("smarthub",0);
+  long age=System.currentTimeMillis()-prefs.getLong("sports_latest_at:"+key,0);
+  if(age<0||age>IMAGE_AGE_MS)return null;
+  try{
+   String stored=prefs.getString("sports_latest_event:"+key,"");
+   if(stored.isEmpty())return null;
+   SportsMatch verified=eventCard(new JSONObject(stored),System.currentTimeMillis());
+   return verified==null?null:SportsProgrammeArtwork.card(c,verified,cacheOnly);
+  }catch(Exception missing){return null;}
  }
  static String cached(Context c,SatelliteState state,String title,boolean next){
   if(state==null||!PosterSourceSwitches.enabled(c,PosterSourceSwitches.SPORTS))return "";
@@ -113,18 +151,37 @@ final class SportsLatestTeamArtwork {
    if(!"verified".equals(found.optString("status")))continue;
    String id=found.optString("id","");
    JSONObject response=provider.lastEventsForTeam(id);
-   String image=latestImage(response,id,now);
-   // If no published picture of a recent result, use verified team fanart
-   // rather than attaching an unrelated fixture photo.
+   JSONObject event=latestEvent(response,id,now);
+   String image=event==null?"":validImage(event);
    if(image.isEmpty())image=found.optString("fanart","");
-   if(image.isEmpty()||!TeamLogoManager.trusted(image))continue;
-   byte[] bytes=ArtworkCache.fetch(c,new URL(image),4*1024*1024);
-   if(!ArtworkCache.validImage(bytes))continue;
-   p.edit().putString("sports_latest_image:"+key,image)
+   String status="NO_RECENT_EVENT_ART";
+   if(!image.isEmpty()&&TeamLogoManager.trusted(image)){
+    try{
+     byte[] bytes=ArtworkCache.fetch(c,new URL(image),4*1024*1024);
+     if(!ArtworkCache.validImage(bytes))image="";
+    }catch(Exception failed){image="";}
+   }else image="";
+   SportsMatch card=eventCard(event,now);
+   if(image.isEmpty()&&card!=null){
+    // No JPEG published? Cache badges for a real verified last match and
+    // render a legible football fixture card without inventing an event.
+    for(String logo:new String[]{card.homeLogo,card.awayLogo,card.leagueLogo}){
+     if(TeamLogoManager.trusted(logo))try{
+      ArtworkCache.fetch(c,new URL(logo),1024*1024);
+     }catch(Exception ignored){}
+    }
+    status="LAST_VERIFIED_MATCH_CARD";
+   }else if(!image.isEmpty())status="LAST_TEAM_ART";
+   if(image.isEmpty()&&card==null)continue;
+   SharedPreferences.Editor edit=p.edit()
+     .putString("sports_latest_image:"+key,image)
      .putString("sports_latest_team:"+key,team)
-     .putString("sports_latest_status:"+key,"VERIFIED_RECENT_TEAM_NOT_THIS_FIXTURE")
+     .putString("sports_latest_status:"+key,status)
      .putLong("sports_latest_at:"+key,now)
-     .putLong("epg_art_changed_at",now).apply();
+     .putLong("epg_art_changed_at",now);
+   if(card!=null)edit.putString("sports_latest_event:"+key,event.toString());
+   else edit.remove("sports_latest_event:"+key);
+   edit.apply();
    return true;
   }catch(Exception unavailable){
    p.edit().putString("sports_latest_status:"+key,
