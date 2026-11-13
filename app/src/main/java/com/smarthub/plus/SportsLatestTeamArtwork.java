@@ -111,7 +111,7 @@ final class SportsLatestTeamArtwork {
  }
  static android.graphics.Bitmap cachedCard(Context c,SatelliteState state,
       String title,boolean next,boolean cacheOnly){
-  String key=PosterSelection.key(state,title,next);
+  String key=eventKey(state,title,next);
   if(key.isEmpty()||!PosterSourceSwitches.enabled(c,PosterSourceSwitches.SPORTS))return null;
   SharedPreferences prefs=c.getSharedPreferences("smarthub",0);
   long age=System.currentTimeMillis()-prefs.getLong("sports_latest_at:"+key,0);
@@ -127,7 +127,7 @@ final class SportsLatestTeamArtwork {
   * match title without valid programme times. Scope that fallback to today's
   * physical DVB service and never borrow another channel's artwork. */
  static String eventKey(SatelliteState state,String title,boolean next){
-  String key=eventKey(state,title,next);
+  String key=PosterSelection.key(state,title,next);
   if(!key.isEmpty())return key;
   if(state==null||title==null||fixtureTeams(title).length!=2||
       !state.channelId.startsWith("DVB:")||
