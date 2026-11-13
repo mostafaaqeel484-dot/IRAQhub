@@ -253,19 +253,22 @@ final class NowNextView extends FrameLayout {
     header.addView(signal,new LinearLayout.LayoutParams(dp(148),-1));
   }
   header.addView(headRight,new LinearLayout.LayoutParams(dp(250),-1));
-  LinearLayout providerAndDate=new LinearLayout(context);
-  providerAndDate.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
-  LinearLayout dateBlock=column();dateBlock.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
-  LinearLayout.LayoutParams providerAtDate=new LinearLayout.LayoutParams(dp(98),-2);
-  providerAtDate.rightMargin=dp(9);
-  providerAndDate.addView(providerPanel,providerAtDate);
-  year=label("",10,false);year.setTextColor(0xffb8c0c7);
-  year.setGravity(Gravity.RIGHT);dateBlock.addView(year);
-  clock=label("",compact?13:16,true);
+  // Approved layout: provider mark at upper right, clock/date in slim
+  // lower technical ribbon instead of consuming two rows in the header.
+  LinearLayout.LayoutParams providerAtRight=new LinearLayout.LayoutParams(dp(144),dp(55));
+  providerAtRight.gravity=Gravity.RIGHT;
+  headRight.addView(providerPanel,providerAtRight);
+  LinearLayout dateBlock=new LinearLayout(context);
+  dateBlock.setOrientation(LinearLayout.HORIZONTAL);
+  dateBlock.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
+  clock=label("",compact?12:13,true);
+  clock.setTextColor(0xffffd66d);
   clock.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
-  clock.setGravity(Gravity.RIGHT);dateBlock.addView(clock);
-  providerAndDate.addView(dateBlock,new LinearLayout.LayoutParams(-2,-2));
-  headRight.addView(providerAndDate,new LinearLayout.LayoutParams(-1,-2));
+  dateBlock.addView(clock);
+  year=label("",9,false);year.setTextColor(0xffb8c0c7);
+  LinearLayout.LayoutParams yearPosition=new LinearLayout.LayoutParams(-2,-2);
+  yearPosition.leftMargin=dp(8);
+  dateBlock.addView(year,yearPosition);
   strengthLabel=label("S: —",10,false);
   strengthBar=meter(0xff28cbfa);
   qualityLabel=label("Q: —",10,false);
@@ -336,6 +339,9 @@ final class NowNextView extends FrameLayout {
    caParams.rightMargin=dp(2);
    caStrip.addView(chip,caParams);
   }
+  LinearLayout.LayoutParams timeAtBottom=new LinearLayout.LayoutParams(-2,dp(20));
+  timeAtBottom.rightMargin=dp(12);
+  footer.addView(dateBlock,timeAtBottom);
   footer.addView(caStrip,new LinearLayout.LayoutParams(-2,dp(20)));
   technical.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
   footer.addView(technical,new LinearLayout.LayoutParams(0,-1,1));
