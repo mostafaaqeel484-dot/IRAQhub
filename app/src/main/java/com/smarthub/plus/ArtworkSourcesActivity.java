@@ -51,6 +51,22 @@ public final class ArtworkSourcesActivity extends HubActivity {
     runOnUiThread(()->{if(!closed)outputStatus(message);});
    });
   });
+  action(switches,tx("تحديث بوسترات الآن والتالي من BetterPosters أولاً",
+    "Refresh NOW/NEXT posters with BetterPosters first"),()->{
+   try{
+    androidx.work.Constraints online=new androidx.work.Constraints.Builder()
+      .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build();
+    androidx.work.WorkManager.getInstance(this).enqueueUniqueWork(
+      "rx6-betterposters-manual",
+      androidx.work.ExistingWorkPolicy.REPLACE,
+      new androidx.work.OneTimeWorkRequest.Builder(PosterRefreshWorker.class)
+        .setConstraints(online).build());
+    outputStatus(tx("تمت جدولة التحديث؛ لا تنزيل ثقيل أثناء تشغيل 4:2:2.",
+      "Poster refresh queued; heavy downloads remain suspended during 4:2:2."));
+   }catch(Exception unavailable){
+    outputStatus(tx("تعذر جدولة تحديث البوسترات","Could not queue poster refresh"));
+   }
+  });
   sourceSwitch(switches,PosterSourceSwitches.TMDB,
     tx("TMDB · المصدر الاحتياطي","TMDB · fallback movies and series"));
   sourceSwitch(switches,PosterSourceSwitches.OPDB,
