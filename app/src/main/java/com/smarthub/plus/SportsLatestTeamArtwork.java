@@ -123,9 +123,24 @@ final class SportsLatestTeamArtwork {
    return verified==null?null:SportsProgrammeArtwork.card(c,verified,cacheOnly);
   }catch(Exception missing){return null;}
  }
+ /** Last-team images are safe even when an EPG feed publishes a team
+  * match title without valid programme times. Scope that fallback to today's
+  * physical DVB service and never borrow another channel's artwork. */
+ static String eventKey(SatelliteState state,String title,boolean next){
+  String key=eventKey(state,title,next);
+  if(!key.isEmpty())return key;
+  if(state==null||title==null||fixtureTeams(title).length!=2||
+      !state.channelId.startsWith("DVB:")||
+      !title.equals(next?state.nextTitle:state.title))return "";
+  try{
+   String day=java.time.LocalDate.now(java.time.ZoneId.of("Asia/Baghdad")).toString();
+   return SportsCache.key(state.channelId+"|"+
+      PlaylistRepository.normalize(title)+"|"+day+"|"+next);
+  }catch(Exception invalid){return "";}
+ }
  static String cached(Context c,SatelliteState state,String title,boolean next){
   if(state==null||!PosterSourceSwitches.enabled(c,PosterSourceSwitches.SPORTS))return "";
-  String key=PosterSelection.key(state,title,next);
+  String key=eventKey(state,title,next);
   if(key.isEmpty())return "";
   SharedPreferences p=c.getSharedPreferences("smarthub",0);
   long age=System.currentTimeMillis()-p.getLong("sports_latest_at:"+key,0);
@@ -136,7 +151,7 @@ final class SportsLatestTeamArtwork {
  static boolean prefetch(Context c,SatelliteState state,String title,boolean next){
   if(state==null||!PosterSourceSwitches.enabled(c,PosterSourceSwitches.SPORTS))return false;
   String[] teams=fixtureTeams(title);if(teams.length!=2)return false;
-  String key=PosterSelection.key(state,title,next);
+  String key=eventKey(state,title,next);
   if(key.isEmpty())return false;
   SharedPreferences p=c.getSharedPreferences("smarthub",0);
   if(PlaybackResourceMode.active()||p.getBoolean("software_dvb_422_active",false)||
