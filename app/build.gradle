@@ -39,7 +39,7 @@ android {
   rx6OriginalPreview {
    initWith debug
    applicationIdSuffix '.rx6api234'
-   versionNameSuffix '-rx6-411-gold-posters-audio-captions'
+   versionNameSuffix '-rx6-412-betterposters-first'
    matchingFallbacks = ['debug']
   }
   native422Preview {
