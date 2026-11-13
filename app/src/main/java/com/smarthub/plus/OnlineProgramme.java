@@ -44,15 +44,40 @@ final class OnlineProgramme {
   JSONObject j=new JSONObject().put("status","not_found");
   JSONObject approximateCandidates=null;
   boolean similarPoster=false;
-  // A failed TMDB call is not a reason to disable BetterPosters and TVmaze.
-  if(PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB)&&
-      !tmdbKey.isEmpty()&&(id.isEmpty()||id.startsWith("tmdb:")))try{
+  // BetterPosters is the first automatic movie/series provider.
+  // A failed or ambiguous addon lookup must not block TMDB or TVmaze.
+  if(PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
+   JSONObject better=new BetterPostersProvider(context).resolve(raw,
+      id,type,imdb,duration);
+   if("matched".equals(better.optString("status")))j=better;
+  }catch(Exception unavailable){/* Try independent sources. */}
+  if(!"matched".equals(j.optString("status"))&&
+     PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB)&&
+     !tmdbKey.isEmpty()&&(id.isEmpty()||id.startsWith("tmdb:")))try{
    j=new TmdbProvider(context,tmdbKey).resolve(raw,id,type,imdb,duration);
    if("ambiguous".equals(j.optString("status"))&&!j.isNull("candidates"))
     approximateCandidates=j;
-  }catch(Exception unavailable){/* Try independent providers. */}
-  if(!"matched".equals(j.optString("status"))&&context.getSharedPreferences("smarthub",0)
-    .getBoolean("art_source_tvmaze_enabled",true))try{
+  }catch(Exception unavailable){/* Keep other verified sources usable. */}
+  // Some BetterPosters addons expose /meta but not /catalog search.
+  // Use a verified TMDB identity to retrieve Better artwork BEFORE showing
+  // the TMDB image. TMDB remains the metadata and image fallback.
+  if("TMDB".equals(j.optString("provider"))&&
+     "matched".equals(j.optString("status"))&&
+     PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
+   String tmdbImdb=j.optString("imdbId","");
+   String verified=PosterArtworkPriority.exactImdb(tmdbImdb)?tmdbImdb:j.optString("id","");
+   String kind=j.optString("type","");
+   if(!verified.isEmpty()&&("movie".equals(kind)||"series".equals(kind))){
+    JSONObject better=new BetterPostersProvider(context).resolve(raw,
+      verified,kind,tmdbImdb,duration);
+    if("matched".equals(better.optString("status"))&&
+       verified.equals(better.optString("id"))&&
+       kind.equals(better.optString("type"))&&
+       !better.optString("poster","").isEmpty())j=better;
+   }
+  }catch(Exception unavailable){/* Preserve a valid TMDB fallback. */}
+  if(!"matched".equals(j.optString("status"))&&
+     PosterSourceSwitches.enabled(context,PosterSourceSwitches.TVMAZE))try{
    JSONObject other=new TvmazeProvider(context).resolve(raw,imdb);
    if("matched".equals(other.optString("status")))j=other;
   }catch(Exception unavailable){/* Preserve verified EPG artwork. */}
@@ -60,12 +85,6 @@ final class OnlineProgramme {
    JSONObject anime=AnimeMetadataProvider.resolve(context,raw);
    if(anime!=null&&"matched".equals(anime.optString("status")))j=anime;
   }catch(Exception unavailable){/* Preserve genuine EPG artwork. */}
-  if(!"matched".equals(j.optString("status"))&&
-      PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))try{
-   JSONObject other=new BetterPostersProvider(context).resolve(raw,
-      id,type,imdb,duration);
-   if("matched".equals(other.optString("status")))j=other;
-  }catch(Exception unavailable){/* Keep any existing verified candidate. */}
   if(!"matched".equals(j.optString("status"))&&approximateCandidates!=null
       &&id.isEmpty()&&imdb.isEmpty()&&!tmdbKey.isEmpty()
       &&PosterSourceSwitches.enabled(context,PosterSourceSwitches.TMDB)
