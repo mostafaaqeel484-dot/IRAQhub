@@ -9,7 +9,7 @@ public final class ChannelLogoAppearanceTest {
   assertEquals(65,ChannelLogoAppearance.clamp(-10));
   assertEquals(125,ChannelLogoAppearance.clamp(900));
   assertEquals(100,ChannelLogoAppearance.clamp(100));
-  assertEquals("transparent",ChannelLogoAppearance.safeBackground("unknown"));
+  assertEquals("original",ChannelLogoAppearance.safeBackground("unknown"));
   assertEquals("black",ChannelLogoAppearance.safeBackground("black"));
  }
  @Test public void independentPerServiceKeysAreStable(){
@@ -28,8 +28,8 @@ public final class ChannelLogoAppearanceTest {
   assertFalse(sample.removeBlack);
   assertTrue(sample.crop);
   assertTrue(sample.flag);
-  assertEquals("transparent",sample.background);
+  assertEquals("original",sample.background);
   assertEquals(120,sample.json().optInt("size"));
-  assertEquals(2,sample.json().optInt("layout"));
+  assertEquals(3,sample.json().optInt("layout"));
  }
 }
