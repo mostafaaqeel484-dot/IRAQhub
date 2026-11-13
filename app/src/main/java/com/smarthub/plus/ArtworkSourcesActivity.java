@@ -154,8 +154,8 @@ public final class ArtworkSourcesActivity extends HubActivity {
   });
   action(sportBox,tx("تشخيص البوسترات والـEPG السريع",
     "Show sports posters / fast EPG diagnostics"),()->{
-   SatelliteState state=SatelliteState.read(this);
-   String eventKey=SportsLatestTeamArtwork.eventKey(state,state.title,false);
+   SatelliteState selectedDvb=SatelliteState.read(this);
+   String eventKey=SportsLatestTeamArtwork.eventKey(selectedDvb,selectedDvb.title,false);
    android.content.SharedPreferences p=getSharedPreferences("smarthub",0);
    outputStatus("Sports: "+p.getString("sports_latest_status:"+eventKey,"NOT_REQUESTED")+
      " · image: "+(p.getString("sports_latest_image:"+eventKey,"").isEmpty()?"NO":"YES")+
