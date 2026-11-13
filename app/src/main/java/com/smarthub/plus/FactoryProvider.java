@@ -53,7 +53,21 @@ final class FactoryProvider implements AutoCloseable {
        "FACTORY_INDEX_UNAVAILABLE_"+unavailable.getClass().getSimpleName()).apply();}
    if(preZapping)return;
   }
-  SatelliteState active=SatelliteState.read(context);if(!CHMAXIntegration.identity(active).equals(identity))return;cached=resolved;cachedIdentity=identity;resolved.save(context);SharedPreferences.Editor edit=prefs.edit().putLong("epg_art_changed_at",now).putString("factory_current_subtitle_metadata",current==null?"":current.subtitle);edit.apply();}
+  SatelliteState active=SatelliteState.read(context);
+  if(!CHMAXIntegration.identity(active).equals(identity))return;
+  cached=resolved;cachedIdentity=identity;
+  // EPG Pro sometimes publishes NEXT but not NOW (notably OSN). Merge each
+  // verified field into the live channel without erasing a working DVB EIT NOW.
+  if(current!=null&&ProgrammeTitle.available(current.title)&&
+       current.start<=now&&current.end>now){
+   active.title=current.title;active.startMs=current.start;active.endMs=current.end;
+   active.image=current.pic;active.source="Factory EPG Pro · verified";
+  }
+  if(next!=null&&ProgrammeTitle.available(next.title)&&next.start>now&&next.end>next.start){
+   active.nextTitle=next.title;active.nextStartMs=next.start;
+   active.nextEndMs=next.end;active.nextImage=next.pic;
+  }
+  active.observedAt=now;active.save(context);SharedPreferences.Editor edit=prefs.edit().putLong("epg_art_changed_at",now).putString("factory_current_subtitle_metadata",current==null?"":current.subtitle);edit.apply();}
  private void rememberLogo(String identity,String raw)throws Exception{
   String logo=FactoryProtocol.image(raw);
   if(!logo.startsWith("https://")){

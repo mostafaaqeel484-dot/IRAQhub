@@ -67,7 +67,8 @@ final class TheSportsDBProvider implements SportsDataProvider {
       !"Soccer".equalsIgnoreCase(row.optString("strSport","Soccer"))||
       !SportsLatestTeamArtwork.sameTeam(team,row))continue;
    String fanart="";
-   for(String field:new String[]{"strFanart1","strFanart2","strBanner"}){
+   for(String field:new String[]{"strFanart1","strFanart2","strFanart3",
+         "strFanart4","strBanner","strBadge"}){
     String value=row.optString(field,"");
     if(value.startsWith("https://")&&TeamLogoManager.trusted(value)&&
        value.contains("/images/")){fanart=value;break;}

@@ -126,6 +126,44 @@ public final class ArtworkSourcesActivity extends HubActivity {
      teamTitle.getText().toString().trim()),"TheSportsDB","logo");
   });
 
+  action(sportBox,tx("تحديث صورة آخر مباراة لفريق القناة الحالية",
+    "Refresh latest-team match artwork for current DVB channel"),()->{
+   if(!sports.isChecked()){outputStatus(tx("فعّل المصدر الرياضي أولاً",
+     "Enable TheSportsDB first"));return;}
+   SatelliteState observed=SatelliteState.read(this);
+   if(SportsLatestTeamArtwork.fixtureTeams(observed.title).length!=2&&
+      SportsLatestTeamArtwork.fixtureTeams(observed.nextTitle).length!=2){
+    outputStatus(tx("عنوان EPG الحالي لا يحتوي فريقين مفصولين",
+      "Current EPG titles do not contain two recognised teams"));return;
+   }
+   outputStatus(tx("جارٍ جلب أحدث صورة متاحة لفريق المباراة…",
+     "Looking up latest available team-event art…"));
+   io.execute(()->{
+    boolean success=false;
+    if(SportsLatestTeamArtwork.fixtureTeams(observed.title).length==2)
+     success=SportsLatestTeamArtwork.prefetch(this,observed,observed.title,false);
+    if(SportsLatestTeamArtwork.fixtureTeams(observed.nextTitle).length==2)
+     success=SportsLatestTeamArtwork.prefetch(this,observed,observed.nextTitle,true)||success;
+    String key=SportsLatestTeamArtwork.eventKey(observed,observed.title,false);
+    String reason=getSharedPreferences("smarthub",0).getString(
+      "sports_latest_status:"+key,"NOT_MATCHED_OR_NOT_REQUESTED");
+    String status=success?"SPORTS_IMAGE_OR_VERIFIED_CARD_READY · "+reason:
+      "SPORTS_UNAVAILABLE · "+reason;
+    runOnUiThread(()->{if(!closed)outputStatus(status);});
+   });
+  });
+  action(sportBox,tx("تشخيص البوسترات والـEPG السريع",
+    "Show sports posters / fast EPG diagnostics"),()->{
+   SatelliteState selectedDvb=SatelliteState.read(this);
+   String eventKey=SportsLatestTeamArtwork.eventKey(selectedDvb,selectedDvb.title,false);
+   android.content.SharedPreferences p=getSharedPreferences("smarthub",0);
+   outputStatus("Sports: "+p.getString("sports_latest_status:"+eventKey,"NOT_REQUESTED")+
+     " · image: "+(p.getString("sports_latest_image:"+eventKey,"").isEmpty()?"NO":"YES")+
+     " · EPG: "+p.getString("broadcast_epg_status","NOT_CHECKED")+
+     " · cache: "+p.getLong("epg_cached_enrich_ms",-1)+"ms"+
+     " · "+p.getString("epg_cached_enrich_status","NOT_SAMPLED"));
+  });
+
   LinearLayout playerBox=card(page);
   playerBox.addView(text("TheSportsDB · Player photos",18,true));
   note(playerBox,tx("صور اللاعبين من API المجاني؛ البحث محدود بنتيجة واحدة ويشترط مطابقة الاسم.",

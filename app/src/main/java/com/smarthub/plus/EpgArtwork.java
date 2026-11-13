@@ -63,7 +63,8 @@ final class EpgArtwork {
   }
   // BetterPosters FIRST among automatic poster sources; verified per exact
   // channel/event. This also applies to the fast InfoBar broadcast path.
-  String better=UnifiedArtworkPrefetch.preferredBetterUrl(c,state,title,upcoming);
+  boolean footballFixture=SportsLatestTeamArtwork.fixtureTeams(title).length==2;
+  String better=footballFixture?"":UnifiedArtworkPrefetch.preferredBetterUrl(c,state,title,upcoming);
   if(!better.isEmpty())addresses.add(better);
   // Exact match poster first. If the named fixture is not published,
   // "Parma – Bologna" can display the latest published Parma match artwork.
@@ -80,6 +81,14 @@ final class EpgArtwork {
    String latest=SportsLatestTeamArtwork.cached(c,state,title,upcoming);
    if(!latest.isEmpty())addresses.add(latest);
   }
+  // A verified most-recent club match with real event metadata must win
+  // over a generic EPG image. The user's explicit Commons selection remains
+  // ahead of this sentinel in the ordered candidate set.
+  if(footballFixture&&
+     (match==null||!SportsProgrammeArtwork.verified(match)||
+      !TeamLogoManager.trusted(match.image))){
+   addresses.add("rx6://verified-last-team-event");
+  }
   String broadcast=current?state.image:state.nextImage;
   if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
   if(!cacheOnly)try{
@@ -90,11 +99,16 @@ final class EpgArtwork {
   }catch(Exception unavailable){}
   String published=PublishedEpgArtwork.image(c,state,title,upcoming);
   if(published!=null&&!published.isEmpty())addresses.add(published);
-  if(includePrefetch){
+  if(includePrefetch&&!footballFixture){
    String verified=UnifiedArtworkPrefetch.cachedUrl(c,state,title,upcoming);
    if(!verified.isEmpty())addresses.add(verified);
   }
   for(String address:addresses)try{
+   if("rx6://verified-last-team-event".equals(address)){
+    Bitmap result=SportsLatestTeamArtwork.cachedCard(c,state,title,upcoming,cacheOnly);
+    if(result!=null)return result;
+    continue;
+   }
    URI source=new URI(address);String scheme=source.getScheme();
    if(source.getUserInfo()!=null||source.getFragment()!=null)continue;
    byte[] bytes;
@@ -111,8 +125,16 @@ final class EpgArtwork {
    Bitmap picture=decode(bytes,maxDimension);
    if(picture!=null)return picture;
   }catch(Exception unavailable){/* Fall through to another verified programme source. */}
-  // A sports fallback is an exact-event card, not a vaguely named stock poster.
-  // Draw only after we have a single verified sports event and real team identities.
+  // An exact match poster wins. When the provider publishes no JPEG,
+  // a verified latest-match card keeps the InfoBar populated even when
+  // TheSportsDB's free history endpoint has only one home fixture.
+  if(footballFixture&&
+     (match==null||!SportsProgrammeArtwork.verified(match)||
+      !TeamLogoManager.trusted(match.image))){
+   Bitmap recent=SportsLatestTeamArtwork.cachedCard(c,state,title,upcoming,cacheOnly);
+   if(recent!=null)return recent;
+  }
+  // The exact fixture's neutral card remains a final fallback.
   if(match!=null&&SportsProgrammeArtwork.verified(match)){
    Bitmap card=SportsProgrammeArtwork.card(c,match,cacheOnly);
    if(card!=null)return card;

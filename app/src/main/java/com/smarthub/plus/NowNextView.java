@@ -247,10 +247,12 @@ final class NowNextView extends FrameLayout {
   signal.setOrientation(bottomSignal?LinearLayout.HORIZONTAL:LinearLayout.VERTICAL);
   signal.setGravity(Gravity.CENTER_VERTICAL);
   if(bottomSignal){
-    signal.setPadding(dp(12),0,dp(12),0);
-    bar.addView(signal,new LinearLayout.LayoutParams(-1,dp(25)));
+    signal.setPadding(dp(4),0,dp(4),0);
+    LinearLayout.LayoutParams compactPosition=new LinearLayout.LayoutParams(dp(256),dp(24));
+    compactPosition.gravity=Gravity.RIGHT;
+    bar.addView(signal,compactPosition);
   }else{
-    header.addView(signal,new LinearLayout.LayoutParams(dp(148),-1));
+    header.addView(signal,new LinearLayout.LayoutParams(dp(112),-1));
   }
   header.addView(headRight,new LinearLayout.LayoutParams(dp(250),-1));
   // Approved layout: provider mark at upper right, clock/date in slim
@@ -274,18 +276,19 @@ final class NowNextView extends FrameLayout {
   qualityLabel=label("Q: —",10,false);
   qualityBar=meter(0xffcb27e6);
   if(bottomSignal){
-    signal.addView(strengthLabel,new LinearLayout.LayoutParams(dp(56),-2));
-    LinearLayout.LayoutParams s=new LinearLayout.LayoutParams(0,dp(4),1f);
-    s.rightMargin=dp(18);signal.addView(strengthBar,s);
-    signal.addView(qualityLabel,new LinearLayout.LayoutParams(dp(56),-2));
-    signal.addView(qualityBar,new LinearLayout.LayoutParams(0,dp(4),1f));
+    strengthLabel.setTextSize(9);qualityLabel.setTextSize(9);
+    signal.addView(strengthLabel,new LinearLayout.LayoutParams(dp(47),-2));
+    LinearLayout.LayoutParams s=new LinearLayout.LayoutParams(dp(64),dp(3));
+    s.rightMargin=dp(10);signal.addView(strengthBar,s);
+    signal.addView(qualityLabel,new LinearLayout.LayoutParams(dp(47),-2));
+    signal.addView(qualityBar,new LinearLayout.LayoutParams(dp(64),dp(3)));
   }else{
     strengthLabel.setTextSize(9);
     qualityLabel.setTextSize(9);
     signal.addView(strengthLabel);
-    signal.addView(strengthBar,new LinearLayout.LayoutParams(-1,dp(3)));
+    signal.addView(strengthBar,new LinearLayout.LayoutParams(dp(105),dp(3)));
     signal.addView(qualityLabel);
-    signal.addView(qualityBar,new LinearLayout.LayoutParams(-1,dp(3)));
+    signal.addView(qualityBar,new LinearLayout.LayoutParams(dp(105),dp(3)));
   }
 
   // Bind targets for optional RX Details mode. All data sources and getters

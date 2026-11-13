@@ -49,7 +49,42 @@ public final class SportsLatestTeamArtworkTest {
   assertTrue(SportsLatestTeamArtwork.sameTeam("Man United",man));
   assertFalse(SportsLatestTeamArtwork.sameTeam("Manchester City",man));
   assertTrue(SportsLatestTeamArtwork.sameTeam("Parma",
+    new JSONObject().put("strTeam","Parma Calcio 1913")));
+  assertFalse(SportsLatestTeamArtwork.sameTeam("Manchester United",
+    new JSONObject().put("strTeam","Manchester United Women")));
+  assertTrue(SportsLatestTeamArtwork.sameTeam("Parma",
     new JSONObject().put("strTeam","Parma")));
+ }
+ @Test public void acceptsSourceTeamAliasesAndRealEventFanart()throws Exception{
+  JSONObject provider=new JSONObject().put("strTeam","Manchester United")
+    .put("strTeamAlternate","Man Utd, Man United")
+    .put("strTeamShort","Man Utd");
+  assertTrue(SportsLatestTeamArtwork.sameTeam("Man Utd",provider));
+  assertFalse(SportsLatestTeamArtwork.sameTeam("Manchester City",provider));
+  long now=Instant.parse("2026-11-13T18:00:00Z").toEpochMilli();
+  JSONObject latest=new JSONObject().put("idEvent","2494999")
+    .put("idHomeTeam","133612").put("idAwayTeam","133617")
+    .put("idLeague","4328").put("strLeague","Premier League")
+    .put("strHomeTeam","Manchester United").put("strAwayTeam","Hull City")
+    .put("strSport","Soccer").put("strTimestamp","2026-11-12T15:30:00Z")
+    .put("strFanart","https://r2.thesportsdb.com/images/media/event/fanart/sample.jpg");
+  JSONObject response=new JSONObject().put("results",new JSONArray().put(latest));
+  assertEquals(latest.optString("strFanart"),
+      SportsLatestTeamArtwork.latestImage(response,"133612",now));
+  assertNotNull(SportsLatestTeamArtwork.eventCard(latest,now));
+ }
+ @Test public void sportsEventKeyWorksWithoutEpgTimeButNeverBorrowsChannel()throws Exception{
+  SatelliteState a=new SatelliteState();
+  a.channelId="DVB:190:11954:V:27500:100";
+  a.channelName="Arena Sport";
+  a.title="Parma - Bologna";
+  String key=SportsLatestTeamArtwork.eventKey(a,a.title,false);
+  assertFalse(key.isEmpty());
+  SatelliteState b=a.copy();b.channelId="DVB:190:11954:V:27500:101";
+  assertNotEquals(key,SportsLatestTeamArtwork.eventKey(b,b.title,false));
+  assertEquals("",SportsLatestTeamArtwork.eventKey(a,"Manchester United - Hull City",false));
+  assertEquals("",SportsLatestTeamArtwork.eventKey(a,"Football highlight",false));
+  assertEquals("",SportsLatestTeamArtwork.eventKey(a,a.title,true));
  }
  @Test public void rejectUntrustedLatestImage()throws Exception{
   long now=Instant.parse("2026-11-13T18:00:00Z").toEpochMilli();
