@@ -14,6 +14,7 @@ import android.widget.TextView;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Activity-owned infobar. The same NowNextView used by the original companion,
@@ -27,6 +28,8 @@ final class LocalInfoBarController implements AutoCloseable {
  private final Handler main=new Handler(Looper.getMainLooper());
  private SharedPreferences prefs;
  private final ExecutorService io=Executors.newFixedThreadPool(2);
+ private final ExecutorService sportsIo=Executors.newSingleThreadExecutor();
+ private Future<?> sportsWork;
  private final FactoryProvider chmax;
  private final PublishedEpgArtwork published;
  private String logoKey="",imageKey="",lastPrefetchEvent="";
@@ -109,6 +112,12 @@ final class LocalInfoBarController implements AutoCloseable {
   bar.setVisibility(View.VISIBLE);
   latest=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
   refresh(latest);
+  // The immediate read uses warmed memory; a secondary short refresh lets
+  // a newly tuned service display EPG ALL without blocking INFO rendering.
+  main.postDelayed(()->{if(!closed&&visible){
+   SatelliteState fresh=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
+   refresh(fresh);
+  }},80);
   prefs.edit().putBoolean("now_next_visible",true).apply();
   restartHideTimer();
   main.removeCallbacks(tick);
@@ -144,6 +153,7 @@ final class LocalInfoBarController implements AutoCloseable {
 
  private void hideBar(){
   visible=false;
+  if(sportsWork!=null)sportsWork.cancel(true);
   bar.setVisibility(View.GONE);
   main.removeCallbacks(tick);
   releaseHiddenArtwork();
@@ -219,6 +229,26 @@ final class LocalInfoBarController implements AutoCloseable {
     if(!prefs.getBoolean("software_dvb_422_active",false)&&
        !prefs.getBoolean("dvb_tuning",false)&&snapshot.startMs>0)
      IraqHubSyncScheduler.programmeChanged(host);
+    // The 4-hour general worker was too late for the CURRENT match.
+    // Search only the selected club immediately on a dedicated bounded IO
+    // thread, independent of movie/metadata lookups; never on the UI thread.
+    if(sportsWork!=null)sportsWork.cancel(true);
+    if(SportsLatestTeamArtwork.fixtureTeams(snapshot.title).length==2||
+       SportsLatestTeamArtwork.fixtureTeams(snapshot.nextTitle).length==2){
+     sportsWork=sportsIo.submit(()->{
+      boolean updated=false;
+      if(!Thread.currentThread().isInterrupted()&&
+         SportsLatestTeamArtwork.fixtureTeams(snapshot.title).length==2)
+       updated=SportsLatestTeamArtwork.prefetch(host,snapshot,snapshot.title,false);
+      if(!Thread.currentThread().isInterrupted()&&
+         SportsLatestTeamArtwork.fixtureTeams(snapshot.nextTitle).length==2)
+       updated=SportsLatestTeamArtwork.prefetch(host,snapshot,snapshot.nextTitle,true)||updated;
+      if(updated&&!Thread.currentThread().isInterrupted())
+       main.post(()->{if(!closed&&visible&&broadcastKey.equals(lastPrefetchEvent))
+        refresh(ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host)));
+       });
+     });
+    }
    }
    // Show NOW and NEXT independently before the slower published-EPG scan.
    // A later provider cache update is handled by the next tick.
@@ -276,6 +306,7 @@ final class LocalInfoBarController implements AutoCloseable {
   }
   Bitmap image=poster(snapshot,upcoming);
   if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
+  if(image==null&&SportsLatestTeamArtwork.fixtureTeams(title).length==2)return;
   if(image==null&&PosterLoadPolicy.networkAllowed(enabled,focus,sw422,tuning,title)){
    image=onlinePoster(snapshot,upcoming,expected);
    if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
@@ -302,7 +333,8 @@ final class LocalInfoBarController implements AutoCloseable {
   String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().isEmpty())return null;
   try{
-   Bitmap image=EpgArtwork.loadInfobarBroadcast(host,state,title,upcoming);
+   Bitmap image=EpgArtwork.loadInfobarCached(host,state,title,upcoming);
+   if(image==null)image=EpgArtwork.loadInfobarBroadcast(host,state,title,upcoming);
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
      image==null?"NO_VERIFIED_EPG_ART":"EPG_POSTER_OK").apply();
    return compactPoster(image);
@@ -388,7 +420,8 @@ final class LocalInfoBarController implements AutoCloseable {
   if(closed)return;
   closed=true;visible=false;
   main.removeCallbacks(hide);main.removeCallbacks(tick);main.removeCallbacks(checkSignal);
-  chmax.close();io.shutdownNow();
+  chmax.close();if(sportsWork!=null)sportsWork.cancel(true);
+  sportsIo.shutdownNow();io.shutdownNow();
   prefs.edit().putBoolean("now_next_visible",false).apply();
   releaseHiddenArtwork();
   root.removeView(bar);
