@@ -47,8 +47,20 @@ final class SportsLatestTeamArtwork {
   if(canonical.equalsIgnoreCase(team.optString("strTeam")))return true;
   String alternate=team.optString("strTeamAlternate","")+", "+team.optString("strTeamShort","");
   for(String alias:alternate.split("[,;|]"))
-   if(canonical.equalsIgnoreCase(alias.trim()))return true;
-  return false;
+   if(canonical.equalsIgnoreCase(canonical(alias.trim())))return true;
+  // Some verified Italian team names append "Calcio 1913" to the usual
+  // broadcaster name "Parma". Remove only well-known legal club suffixes;
+  // never permit prefix matching (e.g. Manchester United Women).
+  String request=clubCore(canonical),actual=clubCore(team.optString("strTeam",""));
+  return request.length()>=4&&request.equals(actual);
+ }
+ static String clubCore(String club){
+  if(club==null)return "";
+  return canonical(club).toLowerCase(Locale.ROOT)
+    .replaceAll("(?i)\\b(?:calcio|football|club|fc|cf|afc)\\b"," ")
+    .replaceAll("(?i)\\b(?:18|19|20)[0-9]{2}\\b"," ")
+    .replaceAll("[^\\p{L}0-9]+"," ").trim().replaceAll("\\s+"," ");
+ }
  }
  private static String validImage(JSONObject row){
   for(String field:new String[]{"strPoster","strThumb","strBanner","strFanart","strSquare","strFanart1","strFanart2"}){
