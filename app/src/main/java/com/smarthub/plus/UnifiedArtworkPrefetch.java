@@ -38,10 +38,11 @@ final class UnifiedArtworkPrefetch {
     // BetterPosters is the FIRST automatic movie/series source, including
     // channels carrying a generic DVB/XMLTV guide image. An explicitly
     // selected Commons artwork is still the owner's override.
-    if(PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER)&&
-       CommonsArtworkSelection.event(context,event,title,upcoming)==null){
+    if(PosterArtworkPriority.attemptBetterFirst(
+      PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER),
+      CommonsArtworkSelection.event(context,event,title,upcoming)!=null)){
      String priorSource=prefs.getString("verified_poster_source:"+key,"");
-     boolean freshBetter=priorSource.startsWith("BetterPosters")&&
+     boolean freshBetter=PosterArtworkPriority.betterSource(priorSource)&&
        prefs.getLong("verified_poster_until:"+key,0)>now&&
        prefs.getLong("verified_poster_at:"+key,0)>=sourceRevision&&
        validUrl(prefs.getString("verified_poster_url:"+key,""));
@@ -198,7 +199,7 @@ final class UnifiedArtworkPrefetch {
   String key=PosterSelection.key(event,title,upcoming);
   if(key.isEmpty())return "";
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
-  if(!p.getString("verified_poster_source:"+key,"").startsWith("BetterPosters"))return "";
+  if(!PosterArtworkPriority.betterSource(p.getString("verified_poster_source:"+key,"")))return "";
   return cachedUrl(context,event,title,upcoming);
  }
  static String cachedUrl(Context context,SatelliteState event,String title){
