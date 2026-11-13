@@ -20,8 +20,8 @@ final class ReceiverInfoRepository {
         quickChannel=channel;quickCheckedAt=now;quickNow=null;quickNext=null;
         try{
             UnifiedEpgIndex index=UnifiedEpgIndex.get(context);
-            quickNow=index.current(channel,now);
-            quickNext=index.next(channel,now);
+            quickNow=index.receiverCurrent(channel,now);
+            quickNext=index.receiverNext(channel,now);
         }catch(Exception unavailable){
             // An empty/migrating private SQLite index must never break
             // normal XMLTV or the live receiver EPG.
@@ -49,7 +49,10 @@ final class ReceiverInfoRepository {
     SatelliteState enrich(SatelliteState observed){
         SatelliteState s=observed.copy();long now=System.currentTimeMillis();
         boolean oldExternal=s.source!=null&&(s.source.startsWith("Online EPG")||
-          s.source.startsWith("XMLTV")||s.source.startsWith("Manual EPG"));
+          s.source.startsWith("XMLTV")||s.source.startsWith("Manual EPG")||
+          (s.source.startsWith("EPGShare")&&
+           !context.getSharedPreferences("smarthub",0)
+             .getBoolean(OsnEpgFallback.ENABLED,false)));
         if(oldExternal){
             s.title="";s.startMs=0;s.endMs=0;s.image="";
             s.nextTitle="";s.nextStartMs=0;s.nextEndMs=0;s.nextImage="";
@@ -66,7 +69,7 @@ final class ReceiverInfoRepository {
         SatelliteGuideRepository.Event eNext=s.channelId.equals(quickChannel)?quickNext:null;
         if(!factoryNow&&eNow!=null&&timedCurrent(eNow.title,eNow.startMs,eNow.endMs,now)){
             s.title=eNow.title;s.startMs=eNow.startMs;s.endMs=eNow.endMs;
-            s.image=eNow.image;s.source="DVB EIT · receiver";
+            s.image=eNow.image;s.source=eNow.source;
         }
         if(!factoryNext&&eNext!=null&&timedNext(eNext.title,eNext.startMs,eNext.endMs,now)){
             s.nextTitle=eNext.title;s.nextStartMs=eNext.startMs;

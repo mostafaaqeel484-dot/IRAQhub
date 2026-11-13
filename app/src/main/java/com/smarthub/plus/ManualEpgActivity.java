@@ -45,7 +45,7 @@ public final class ManualEpgActivity extends HubActivity {
    CheckBox osnGap=check(content,
      tx("تفعيل سد نقص EPG لقنوات OSN المطابقة فقط",
         "Fill missing EPG on exact OSN channels only"),
-     getSharedPreferences("smarthub",0).getBoolean(OsnEpgFallback.ENABLED,true));
+     getSharedPreferences("smarthub",0).getBoolean(OsnEpgFallback.ENABLED,false));
    osnGap.setOnCheckedChangeListener((button,enabled)->{
     getSharedPreferences("smarthub",0).edit()
      .putBoolean(OsnEpgFallback.ENABLED,enabled)

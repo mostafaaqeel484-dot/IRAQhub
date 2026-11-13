@@ -23,7 +23,7 @@ final class OsnEpgFallback {
  static List<NativeEpgEvents.Event> read(Context c,String channel,String physical,long time){
   if(!eligible(physical,channel))return Collections.emptyList();
   SharedPreferences prefs=c.getSharedPreferences("smarthub",0);
-  if(!prefs.getBoolean(ENABLED,true))return Collections.emptyList();
+  if(!prefs.getBoolean(ENABLED,false))return Collections.emptyList();
   OnlineEpgGuide guide=new OnlineEpgGuide(c);
   try{
    List<NativeEpgEvents.Event> cached=guide.current(channel,physical,time);
