@@ -190,6 +190,17 @@ final class UnifiedArtworkPrefetch {
     .putInt("verified_poster_prefetch_count",done).apply();
   return done;
  }
+ /** A verified BetterPosters result wins over automatic broadcast/TMDB images.
+  * Manual per-event artwork selected by the owner is checked separately. */
+ static String preferredBetterUrl(Context context,SatelliteState event,String title,
+                                 boolean upcoming){
+  if(!PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER))return "";
+  String key=PosterSelection.key(event,title,upcoming);
+  if(key.isEmpty())return "";
+  SharedPreferences p=context.getSharedPreferences("smarthub",0);
+  if(!p.getString("verified_poster_source:"+key,"").startsWith("BetterPosters"))return "";
+  return cachedUrl(context,event,title,upcoming);
+ }
  static String cachedUrl(Context context,SatelliteState event,String title){
   return cachedUrl(context,event,title,event!=null&&title!=null&&!title.equals(event.title)&&title.equals(event.nextTitle));
  }
