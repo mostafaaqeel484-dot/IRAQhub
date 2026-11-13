@@ -90,7 +90,7 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   if(channel==null){note(tx("افتح قناة DVB أولاً","Play a DVB channel first"));return;}
   JSONArray raw=channel.audio();int selected=getSharedPreferences("smarthub",0)
     .getInt("dvb_audio_index:"+channel.physical(),0),valid=0;
-  for(int i=0;i<raw.length();i++){
+  for(int i=0;i<Math.min(16,raw.length());i++){
    JSONObject t=raw.optJSONObject(i);
    if(t==null||DvbPlayRequest.audio(t.optString("Type"))<0||
       t.optInt("PID",8191)<=0||t.optInt("PID",8191)>=8191)continue;
