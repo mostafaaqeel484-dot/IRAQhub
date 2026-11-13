@@ -14,7 +14,7 @@ import java.util.concurrent.*;
 
 /** Tiger-inspired two-column DVB audio/subtitle control. Never claims an unreadable OEM track is active. */
 public final class ReceiverAvPanelActivity extends HubActivity {
- private static final int BLACK=0xed191020,PURPLE=0xff494057,ORANGE=0xffffa324;
+ private static final int BLACK=0xf2080b11,PURPLE=0xff18212e,ORANGE=0xffffc24c;
  private final ExecutorService worker=Executors.newSingleThreadExecutor();
  private final String[] sections={"Audio","Audio Track","Screen Mode","HDMI Mode","Subtitle","Subtitle Switch"};
  private LinearLayout left,right;private TextView heading,foot;
@@ -29,7 +29,7 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   pane.setPadding(dp(14),dp(14),dp(14),dp(12));
   GradientDrawable surface=new GradientDrawable();
   surface.setColor(BLACK);surface.setCornerRadius(dp(18));
-  surface.setStroke(dp(2),0xfff3d2ab);pane.setBackground(surface);
+  surface.setStroke(dp(2),0xffffc24c);pane.setBackground(surface);
   FrameLayout.LayoutParams placement=new FrameLayout.LayoutParams(
    Math.min(dp(1040),(int)(getResources().getDisplayMetrics().widthPixels*.91f)),
    Math.min(dp(580),(int)(getResources().getDisplayMetrics().heightPixels*.84f)),Gravity.CENTER);
@@ -71,8 +71,10 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   right.removeAllViews();heading.setText(sections[section]+
    (channel==null?"":" · "+channel.name));
   foot.setText(section==4||section==5?
-    "🔴 Set Translation [Arabic]       🟢 Set Subtitle Color":
-    "🔴 Delay       🟢 Import CFG       🟡 Del Import");
+    tx("SUBTITLE · ترجمة عربية / DVB-TXT / OCR بإذن Android",
+       "SUBTITLE · Arabic / DVB-TXT / Android-consented OCR"):
+    tx("AUDIO · اختر المسار وانتظر تأكيد الجهاز",
+       "AUDIO · Choose a track; receiver confirmation required"));
   if(section==0)audioTracks();
   else if(section==1)imported();
   else if(section==4)subtitleTracks();
@@ -90,7 +92,7 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   if(channel==null){note(tx("افتح قناة DVB أولاً","Play a DVB channel first"));return;}
   JSONArray raw=channel.audio();int selected=getSharedPreferences("smarthub",0)
     .getInt("dvb_audio_index:"+channel.physical(),0),valid=0;
-  for(int i=0;i<raw.length();i++){
+  for(int i=0;i<Math.min(16,raw.length());i++){
    JSONObject t=raw.optJSONObject(i);
    if(t==null||DvbPlayRequest.audio(t.optString("Type"))<0||
       t.optInt("PID",8191)<=0||t.optInt("PID",8191)>=8191)continue;
@@ -98,7 +100,8 @@ public final class ReceiverAvPanelActivity extends HubActivity {
    String name=(index==selected?"✓  ":"  ")+t.optString("Lang","und")+
       "   ["+t.optString("Type","DVB")+"]   PID "+t.optInt("PID");
    addRow(name,()->{
-    Intent result=new Intent().putExtra("audio_index",index);
+    Intent result=new Intent().putExtra("audio_index",index)
+      .putExtra("channel_physical",channel.physical());
     setResult(RESULT_OK,result);finish();
    });
   }
@@ -133,8 +136,10 @@ public final class ReceiverAvPanelActivity extends HubActivity {
    final int pid=t.optInt("PID",-1);
    String kind=t.optInt("Type")==1?"ttx":"dvb";
    addRow(t.optString("Lang","und")+"    ["+kind+"]     PID "+pid,()->{
-    if(pid>=0)getSharedPreferences("smarthub",0).edit()
-       .putInt("subtitle_preferred_pid:"+channel.physical(),pid).apply();
+    if(pid>0&&pid<8191)getSharedPreferences("smarthub",0).edit()
+       .putInt("subtitle_preferred_pid:"+channel.physical(),pid)
+       .putInt("subtitle_preferred_type:"+channel.physical(),t.optInt("Type"))
+       .apply();
     new AlertDialog.Builder(this).setTitle(t.optString("Lang","und")+" ["+kind+"]")
       .setMessage(tx("تم حفظ تفضيل المسار. تشغيل ترجمة Firmware بهذا PID غير مؤكد داخل المشغل المستقل؛ افتح أدوات التعريب لقراءة النص أو OCR.",
          "Track preference saved. OEM subtitle decoding by PID is not yet verified in the standalone player; use translation/OCR settings."))
@@ -143,12 +148,22 @@ public final class ReceiverAvPanelActivity extends HubActivity {
       .setNegativeButton(tx("إغلاق","Close"),null).show();
    });
   }
-  addRow("🔴 Set Translation [Arabic]",this::arabic);
-  addRow("🟢 Set Subtitle Color",()->startActivity(new Intent(this,LiveTranslationActivity.class)));
+  addRow(tx("تفعيل الترجمة العربية من النص الظاهر (بإذن Android)",
+    "Enable Arabic caption OCR with Android consent"),this::enableVisibleCaptions);
+  addRow(tx("عرض الترجمة الأصلية من قوائم المصنع",
+    "Open receiver's own subtitle controls"),()->ReceiverNavigation.open(this,ReceiverNavigation.menu()));
+  addRow(tx("إعداد لون وحجم الترجمة","Caption appearance"),
+    ()->startActivity(new Intent(this,LiveTranslationActivity.class)));
+  note(tx("هذه PIDs من قاعدة القنوات، وليست مسارات مفكوكة. يجب أن تعرض الترجمة أولاً في مشغل المصنع أو يتوفر مسار نصي من Media3.",
+    "These are CHL subtitle PIDs, not decoded text. The native player must render subtitles or Media3 must expose a text cue track."));
  }
  private void subtitleActions(){
-  addRow("🔴 Set Translation [Arabic]",this::arabic);
-  addRow("🟢 Set Subtitle Color",()->startActivity(new Intent(this,LiveTranslationActivity.class)));
+  addRow(tx("تفعيل ترجمة عربية من DVB/TXT الظاهرة",
+    "Enable Arabic OCR from visible DVB/TXT captions"),this::enableVisibleCaptions);
+  addRow(tx("إيقاف التقاط وترجمة الشاشة",
+    "Disable screen caption capture"),this::disableVisibleCaptions);
+  addRow(tx("لون وحجم وموضع الترجمة","Caption style, size and placement"),
+    ()->startActivity(new Intent(this,LiveTranslationActivity.class)));
   boolean enabled=getSharedPreferences("smarthub",0).getBoolean("live_translate",false);
   addRow(enabled?tx("إيقاف الترجمة التلقائية","Disable automatic translation"):
        tx("تفعيل ترجمة المسارات النصية","Enable text-cue translation"),()->{
@@ -160,8 +175,33 @@ public final class ReceiverAvPanelActivity extends HubActivity {
  private void arabic(){
   getSharedPreferences("smarthub",0).edit()
     .putString("live_target_language","ar").putBoolean("live_translate",true).apply();
-  toast(tx("العربية مفعلة للنص المتاح. الترجمة المصورة تحتاج OCR وإذن العرض.",
-    "Arabic enabled for readable cues. Bitmap DVB subtitles require OCR and screen permission."));
+  toast(tx("تم اختيار العربية للمسارات النصية المتاحة. DVB المصوّر يحتاج OCR وإذن التقاط.",
+    "Arabic selected for readable cues. Bitmap DVB requires OCR and capture consent."));
+ }
+ private void enableVisibleCaptions(){
+  getSharedPreferences("smarthub",0).edit()
+    .putString("live_target_language","ar")
+    .putBoolean("live_translate",true)
+    .putBoolean("native_caption_ocr",true)
+    .putBoolean("overlay_caption",false).apply();
+  // A real user action launches the Android system MediaProjection permission
+  // dialog. No OEM subtitle PID is falsely reported as decoded.
+  new AlertDialog.Builder(this)
+   .setTitle(tx("تشغيل الترجمة العربية","Enable Arabic subtitles"))
+   .setMessage(tx("لترجمة DVB/TXT يجب أن تكون الترجمة الأصلية ظاهرة أولاً على الشاشة. سيتم طلب إذن التقاط شاشة Android وتعالج الجمل محلياً. القنوات المحمية لا يمكن التقاطها.",
+     "Original DVB/TXT captions must already be visible. Android will request screen capture consent and text is processed locally. Protected channels cannot be captured."))
+   .setPositiveButton(tx("الموافقة وفتح إذن Android","Open Android consent"),(dialog,which)->
+     startActivity(new Intent(this,CaptionCaptureActivity.class)))
+   .setNeutralButton(tx("إعدادات الترجمة","Caption settings"),(dialog,which)->
+     startActivity(new Intent(this,LiveTranslationActivity.class)))
+   .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+ }
+ private void disableVisibleCaptions(){
+  getSharedPreferences("smarthub",0).edit()
+    .putBoolean("native_caption_ocr",false)
+    .putBoolean("live_translate",false).apply();
+  stopService(new Intent(this,CaptionCaptureService.class));
+  toast(tx("تم إيقاف OCR والترجمة العربية","OCR and Arabic caption translation stopped"));
  }
  private void note(String value){
   TextView v=label(value,13,false);v.setTextColor(0xffc8c4d5);
@@ -184,7 +224,7 @@ public final class ReceiverAvPanelActivity extends HubActivity {
  }
  private GradientDrawable tile(boolean active){
   GradientDrawable d=new GradientDrawable();d.setColor(active?ORANGE:PURPLE);
-  d.setCornerRadius(dp(12));d.setStroke(dp(1),0xffe8b99a);return d;
+  d.setCornerRadius(dp(12));d.setStroke(dp(1),0xffffb93d);return d;
  }
  private TextView label(String value,int size,boolean bold){
   TextView v=new TextView(this);v.setText(value);v.setTextSize(size);

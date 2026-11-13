@@ -111,7 +111,8 @@ final class NowNextView extends FrameLayout {
   bar.setPadding(dp(20),dp(8),dp(20),dp(7));
   GradientDrawable dark=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
    new int[]{Color.argb(alpha,0,0,0),Color.argb(Math.min(255,alpha+12),6,6,8)});
-  dark.setCornerRadius(0);bar.setBackground(dark);
+  dark.setCornerRadius(dp(15));
+  dark.setStroke(dp(1),0xffffc24c);bar.setBackground(dark);
   bar.setElevation(0);
   LayoutParams barPosition=new LayoutParams(-1,barH,Gravity.BOTTOM);
   barPosition.setMargins(0,0,0,0);
@@ -183,12 +184,12 @@ final class NowNextView extends FrameLayout {
   nextLine.setTextColor(0xffbac6d4);programme.addView(nextLine);
   progress=new ProgressBar(context,null,android.R.attr.progressBarStyleHorizontal);
   progress.setMax(1000);
-  progress.setProgressTintList(android.content.res.ColorStateList.valueOf(0xfff14640));
+  progress.setProgressTintList(android.content.res.ColorStateList.valueOf(0xffffc52d));
   progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff344657));
   LinearLayout.LayoutParams progressParams=new LinearLayout.LayoutParams(-1,dp(4));
   progressParams.topMargin=dp(6);programme.addView(progress,progressParams);
   remaining=label("",compact?9:11,false);
-  remaining.setTextColor(accent);
+  remaining.setTextColor(0xffffc52d);
   programme.addView(remaining);
   status=label("",10,false);status.setTextColor(muted);
   status.setVisibility(GONE);programme.addView(status);
@@ -198,9 +199,9 @@ final class NowNextView extends FrameLayout {
   // Never move the video surface or cover the channel/date ribbon.
   LinearLayout left=column();left.setGravity(Gravity.CENTER_HORIZONTAL);
   left.setPadding(dp(7),dp(6),dp(7),dp(7));
-  left.setBackground(card(0xeb09131e,9));
+  left.setBackground(goldPosterCard());left.setElevation(dp(5));
   currentTitle=label(tx("الآن","NOW"),10,true);
-  currentTitle.setGravity(Gravity.CENTER);currentTitle.setTextColor(accent);
+  currentTitle.setGravity(Gravity.CENTER);currentTitle.setTextColor(0xffffc52d);
   currentPoster=poster();
   currentWorkName=label("",11,true);
   currentWorkName.setSingleLine(false);currentWorkName.setMaxLines(2);
@@ -216,7 +217,7 @@ final class NowNextView extends FrameLayout {
   left.addView(currentSynopsis,new LinearLayout.LayoutParams(-1,-2));
   LinearLayout right=column();right.setGravity(Gravity.CENTER_HORIZONTAL);
   right.setPadding(dp(7),dp(6),dp(7),dp(7));
-  right.setBackground(card(0xeb09131e,9));
+  right.setBackground(goldPosterCard());right.setElevation(dp(5));
   nextTitle=label(tx("التالي","NEXT"),10,true);
   nextTitle.setGravity(Gravity.CENTER);nextTitle.setTextColor(0xffd3d7db);
   nextPoster=poster();
@@ -235,9 +236,9 @@ final class NowNextView extends FrameLayout {
   leftPosterBox=left;rightPosterBox=right;
   boolean swap=prefs.getBoolean("osd_swap_posters",false);
   LayoutParams leftPosition=new LayoutParams(dp(184),-2,Gravity.START|Gravity.BOTTOM);
-  leftPosition.setMargins(dp(12),0,0,barH+dp(12));
+  leftPosition.setMargins(dp(8),0,0,barH+dp(6));
   LayoutParams rightPosition=new LayoutParams(dp(184),-2,Gravity.END|Gravity.BOTTOM);
-  rightPosition.setMargins(0,0,dp(12),barH+dp(12));
+  rightPosition.setMargins(0,0,dp(8),barH+dp(6));
   addView(swap?right:left,leftPosition);
   addView(swap?left:right,rightPosition);
   leftPosterBox.setVisibility(GONE);rightPosterBox.setVisibility(GONE);
@@ -252,19 +253,22 @@ final class NowNextView extends FrameLayout {
     header.addView(signal,new LinearLayout.LayoutParams(dp(148),-1));
   }
   header.addView(headRight,new LinearLayout.LayoutParams(dp(250),-1));
-  LinearLayout providerAndDate=new LinearLayout(context);
-  providerAndDate.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
-  LinearLayout dateBlock=column();dateBlock.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
-  LinearLayout.LayoutParams providerAtDate=new LinearLayout.LayoutParams(dp(98),-2);
-  providerAtDate.rightMargin=dp(9);
-  providerAndDate.addView(providerPanel,providerAtDate);
-  year=label("",10,false);year.setTextColor(0xffb8c0c7);
-  year.setGravity(Gravity.RIGHT);dateBlock.addView(year);
-  clock=label("",compact?13:16,true);
+  // Approved layout: provider mark at upper right, clock/date in slim
+  // lower technical ribbon instead of consuming two rows in the header.
+  LinearLayout.LayoutParams providerAtRight=new LinearLayout.LayoutParams(dp(144),dp(55));
+  providerAtRight.gravity=Gravity.RIGHT;
+  headRight.addView(providerPanel,providerAtRight);
+  LinearLayout dateBlock=new LinearLayout(context);
+  dateBlock.setOrientation(LinearLayout.HORIZONTAL);
+  dateBlock.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
+  clock=label("",compact?12:13,true);
+  clock.setTextColor(0xffffd66d);
   clock.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
-  clock.setGravity(Gravity.RIGHT);dateBlock.addView(clock);
-  providerAndDate.addView(dateBlock,new LinearLayout.LayoutParams(-2,-2));
-  headRight.addView(providerAndDate,new LinearLayout.LayoutParams(-1,-2));
+  dateBlock.addView(clock);
+  year=label("",9,false);year.setTextColor(0xffb8c0c7);
+  LinearLayout.LayoutParams yearPosition=new LinearLayout.LayoutParams(-2,-2);
+  yearPosition.leftMargin=dp(8);
+  dateBlock.addView(year,yearPosition);
   strengthLabel=label("S: —",10,false);
   strengthBar=meter(0xff28cbfa);
   qualityLabel=label("Q: —",10,false);
@@ -335,6 +339,9 @@ final class NowNextView extends FrameLayout {
    caParams.rightMargin=dp(2);
    caStrip.addView(chip,caParams);
   }
+  LinearLayout.LayoutParams timeAtBottom=new LinearLayout.LayoutParams(-2,dp(20));
+  timeAtBottom.rightMargin=dp(12);
+  footer.addView(dateBlock,timeAtBottom);
   footer.addView(caStrip,new LinearLayout.LayoutParams(-2,dp(20)));
   technical.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
   footer.addView(technical,new LinearLayout.LayoutParams(0,-1,1));
@@ -647,6 +654,12 @@ final class NowNextView extends FrameLayout {
  private static String shortTime(long at){if(at<=0)return "";SimpleDateFormat f=new SimpleDateFormat("HH:mm",Locale.ROOT);f.setTimeZone(TimeZone.getTimeZone("Asia/Baghdad"));return f.format(new Date(at));}
  private void divider(LinearLayout parent){View v=new View(getContext());v.setBackgroundColor(0x337da4ba);parent.addView(v,new LinearLayout.LayoutParams(dp(1),dp(84)));}
  private GradientDrawable card(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
+ private GradientDrawable goldPosterCard(){
+  GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+    new int[]{0xf0161a20,0xf1080b11});
+  d.setCornerRadius(dp(12));d.setStroke(dp(2),0xffffc24c);
+  return d;
+ }
  private ProgressBar meter(int color){ProgressBar p=new ProgressBar(getContext(),null,android.R.attr.progressBarStyleHorizontal);p.setMax(100);p.setProgressTintList(android.content.res.ColorStateList.valueOf(color));p.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x33577385));return p;}
  private static int percent(String value){try{return Math.max(0,Math.min(100,Math.round(Float.parseFloat(value.replace("%","")))));}catch(Exception e){return 0;}}
  private ImageView poster(){ImageView v=new ImageView(getContext());v.setScaleType(ImageView.ScaleType.FIT_CENTER);v.setBackground(card(0xaa112333,10));v.setClipToOutline(true);v.setElevation(dp(8));return v;}
