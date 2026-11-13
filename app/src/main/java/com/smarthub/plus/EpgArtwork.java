@@ -81,6 +81,14 @@ final class EpgArtwork {
    String latest=SportsLatestTeamArtwork.cached(c,state,title,upcoming);
    if(!latest.isEmpty())addresses.add(latest);
   }
+  // A verified most-recent club match with real event metadata must win
+  // over a generic EPG image. The user's explicit Commons selection remains
+  // ahead of this sentinel in the ordered candidate set.
+  if(footballFixture&&
+     (match==null||!SportsProgrammeArtwork.verified(match)||
+      !TeamLogoManager.trusted(match.image))){
+   addresses.add("rx6://verified-last-team-event");
+  }
   String broadcast=current?state.image:state.nextImage;
   if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
   if(!cacheOnly)try{
@@ -96,6 +104,11 @@ final class EpgArtwork {
    if(!verified.isEmpty())addresses.add(verified);
   }
   for(String address:addresses)try{
+   if("rx6://verified-last-team-event".equals(address)){
+    Bitmap result=SportsLatestTeamArtwork.cachedCard(c,state,title,upcoming,cacheOnly);
+    if(result!=null)return result;
+    continue;
+   }
    URI source=new URI(address);String scheme=source.getScheme();
    if(source.getUserInfo()!=null||source.getFragment()!=null)continue;
    byte[] bytes;
