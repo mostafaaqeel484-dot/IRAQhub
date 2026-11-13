@@ -33,14 +33,7 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
   db.execSQL("CREATE INDEX epg_by_channel_time ON epg(channel_id,end_ms,start_ms)");
  }
  @Override public void onUpgrade(SQLiteDatabase db,int old,int newer){}
- static int sourceRank(String value){
-  String s=value==null?"":value.toLowerCase(java.util.Locale.ROOT);
-  if(s.contains("eit")||s.contains("dvb native"))return 300;
-  if(s.contains("android tv")||s.contains("published epg"))return 250;
-  if(s.contains("xmltv")||s.contains("mapped guide"))return 200;
-  if(s.contains("observed")||s.contains("receiver"))return 150;
-  return 100;
- }
+ static int sourceRank(String value){return DvbEpgAllPolicy.rank(value);}
  private static boolean valid(String channel,long start,long end,String title,long now){
   return channel!=null&&channel.startsWith("DVB:")&&channel.length()<=250&&
    title!=null&&!title.trim().isEmpty()&&title.length()<=240&&
@@ -117,6 +110,48 @@ final class UnifiedEpgIndex extends SQLiteOpenHelper {
    mapped.put(channel+"|"+event.start,e);
   }
   if(!mapped.isEmpty())record(mapped,now);
+ }
+ /** EPG Pro contributes only a schedule already verified against the
+  * exact manufacturer's service reference and physical DVB channel.
+  * Prepared factory data can remain visible in EPG ALL past the 2min pre-zap
+  * window, but the event itself is never used after its timed end. */
+ synchronized void recordFactory(String physical,
+       java.util.List<FactoryProtocol.Event> verified,long now){
+  if(!DvbEpgAllPolicy.physical(physical)||verified==null||verified.isEmpty())return;
+  java.util.Map<String,SatelliteGuideRepository.Event> rows=new java.util.LinkedHashMap<>();
+  for(FactoryProtocol.Event source:verified){
+   if(source==null||!valid(physical,source.start,source.end,source.title,now))continue;
+   SatelliteGuideRepository.Event event=new SatelliteGuideRepository.Event();
+   event.channelId=physical;
+   event.title=source.title;
+   event.startMs=source.start;event.endMs=source.end;
+   event.image=source.pic==null?"":source.pic;
+   event.source="Factory EPG Pro · verified";
+   event.observedAt=now;
+   rows.put(physical+"|"+source.start,event);
+  }
+  if(!rows.isEmpty())record(rows,now);
+ }
+ /** EPG ALL is the local aggregation of precisely bound EPG Pro, EIT
+  * and published DVB schedules, never a name-matching remote feed. */
+ synchronized SatelliteGuideRepository.Event receiverCurrent(String channel,long now){
+  SatelliteGuideRepository.Event candidate=current(channel,now);
+  return candidate!=null&&DvbEpgAllPolicy.receiverGrade(candidate.source)?candidate:null;
+ }
+ synchronized SatelliteGuideRepository.Event receiverNext(String channel,long now){
+  if(!DvbEpgAllPolicy.physical(channel))return null;
+  try(Cursor cursor=getReadableDatabase().rawQuery(
+    "SELECT title,start_ms,end_ms,image,source FROM epg "+
+    "WHERE channel_id=? AND start_ms>? AND end_ms>start_ms AND source_rank>=250 "+
+    "ORDER BY start_ms ASC,source_rank DESC LIMIT 1",
+    new String[]{channel,Long.toString(now)})){
+   if(!cursor.moveToFirst())return null;
+   SatelliteGuideRepository.Event e=new SatelliteGuideRepository.Event();
+   e.channelId=channel;e.title=cursor.getString(0);
+   e.startMs=cursor.getLong(1);e.endMs=cursor.getLong(2);
+   e.image=cursor.getString(3);e.source=cursor.getString(4);
+   return e;
+  }
  }
  synchronized SatelliteGuideRepository.Event next(String channel,long now){
   if(channel==null||!channel.startsWith("DVB:"))return null;
