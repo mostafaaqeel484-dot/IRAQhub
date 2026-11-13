@@ -42,7 +42,7 @@ final class SportsLatestTeamArtwork {
   if(key.equals("spurs"))return "Tottenham Hotspur";
   return v;
  }
- private static boolean sameTeam(String request,JSONObject team){
+ static boolean sameTeam(String request,JSONObject team){
   String canonical=canonical(request);
   if(canonical.equalsIgnoreCase(team.optString("strTeam")))return true;
   String alternate=team.optString("strAlternate","");
