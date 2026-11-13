@@ -76,7 +76,7 @@ final class EpgArtwork {
     addresses.add(exact);
   }
   if(match==null||!SportsProgrammeArtwork.verified(match)||
-      match.image==null||match.image.isEmpty()){
+      !TeamLogoManager.trusted(match.image)){
    String latest=SportsLatestTeamArtwork.cached(c,state,title,upcoming);
    if(!latest.isEmpty())addresses.add(latest);
   }
