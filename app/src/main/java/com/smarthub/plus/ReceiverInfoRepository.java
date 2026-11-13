@@ -57,7 +57,7 @@ final class ReceiverInfoRepository {
             if(manualJob!=null)manualJob.cancel(true);
         }
         if(!manualLoading&&(manualCheckedAt<0||
-            now-manualCheckedAt>=2500)){
+            now-manualCheckedAt>=15000)){
             manualLoading=true;
             final int token=++manualGeneration;
             final String name=observed.channelName;
