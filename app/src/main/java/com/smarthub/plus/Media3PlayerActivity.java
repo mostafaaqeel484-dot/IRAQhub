@@ -22,7 +22,8 @@ public class Media3PlayerActivity extends HubActivity {
  private CueTranslationController live;private String trackLanguage="";private StyledSubtitles styled;private androidx.media3.ui.SubtitleView styledView;private ExoPlayer player;private PlayerView surface;private TextView title,status,caption,timing;private PlaylistRepository library;private PlaylistRepository.Channel channel;private List<PlaylistRepository.Channel> channels=new ArrayList<>();private List<SubtitleParser.Cue> cues=Collections.emptyList();private boolean closed,resume,assNative,resourcesHeld,softwareFallbackStarted;private long delay,lastPublish,lastTelemetryFlush;private final AtomicLong telemetryFrames=new AtomicLong(),telemetryOffsetUs=new AtomicLong(),telemetryDropped=new AtomicLong(),telemetryDropEvents=new AtomicLong(),telemetryLastDropElapsedMs=new AtomicLong();private String programmeKey="",profile="default";private final Handler handler=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private int generation;
  private final Runnable clock=new Runnable(){public void run(){if(closed)return;if(player!=null){PlaybackClock.positionMs=player.getCurrentPosition();delay=SubtitleSyncRepository.offset(Media3PlayerActivity.this);CaptionClock.positionMs=player.getCurrentPosition();CaptionClock.playing=player.isPlaying();if(styledView!=null&&styled!=null)styledView.setCues(styled.at(player.getCurrentPosition()-delay));PlaybackClock.channelId=channel==null?"":channel.id;if(!cues.isEmpty()&&!assNative){String value=SubtitleParser.textAt(cues,player.getCurrentPosition()-delay);CaptionClock.text=value;if(!value.contentEquals(caption.getText()))caption.setText(value);caption.setVisibility(value.isEmpty()||styled!=null?View.INVISIBLE:View.VISIBLE);}if(System.currentTimeMillis()-lastPublish>1000){publish();}if(System.currentTimeMillis()-lastTelemetryFlush>=1000){flushDecoderTelemetry();}}handler.postDelayed(this,100);}};
  @Override public void onCreate(Bundle state){super.onCreate(state);LinearLayout root=col();root.setBackgroundColor(Color.BLACK);LinearLayout head=row();title=text("IRAQhub · Media3",20,true);head.addView(title,new LinearLayout.LayoutParams(0,-2,1));small(head,tx("رجوع","Back"),this::finish);root.addView(head);status=text("",14,false);root.addView(status);FrameLayout frame=new FrameLayout(this);surface=new PlayerView(this);surface.setUseController(true);
- /* SurfaceView is PlayerView's default; retain platform YUV/HDR conversion. */surface.setKeepScreenOn(true);frame.addView(surface,new FrameLayout.LayoutParams(-1,-1));caption=text("",28,true);caption.setGravity(Gravity.CENTER);caption.setVisibility(View.INVISIBLE);caption.setBackgroundColor(0xb0000000);caption.setShadowLayer(4,1,2,Color.BLACK);FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);cp.setMargins(dp(25),0,dp(25),dp(35));frame.addView(caption,cp);styledView=new androidx.media3.ui.SubtitleView(this);frame.addView(styledView,new FrameLayout.LayoutParams(-1,-1));root.addView(frame,new LinearLayout.LayoutParams(-1,0,1));LinearLayout buttons=row();small(buttons,tx("السابقة","Previous"),()->change(-1));small(buttons,tx("تشغيل / إيقاف","Play / pause"),()->{if(player.isPlaying())player.pause();else player.play();});small(buttons,tx("التالية","Next"),()->change(1));small(buttons,tx("فك برمجي","Software decode"),this::openSoftwareDecoder);small(buttons,tx("ترجمة SRT / ASS","SRT / ASS subtitles"),this::subtitles);small(buttons,tx("المساعد","Companion"),()->{try{startForegroundService(new Intent(this,SatelliteCompanionService.class).setAction(SatelliteCompanionService.ACTION_OPEN));}catch(Exception e){toast(e.getMessage());}});root.addView(buttons);LinearLayout sync=row();small(sync,"−0.5 s",()->offset(-500));timing=text("",14,false);sync.addView(timing,new LinearLayout.LayoutParams(0,-2,1));small(sync,"+0.5 s",()->offset(500));small(sync,"A−",()->resize(-2));small(sync,"A+",()->resize(2));root.addView(sync);small(buttons,tx("مزامنة الترجمة","Subtitle sync"),()->new android.app.AlertDialog.Builder(this).setView(new SubtitleSyncControls(this)).setPositiveButton(tx("إغلاق","Close"),(d,w)->{}).show());setContentView(root);android.app.ActivityManager am=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);
+ /* SurfaceView is PlayerView's default; retain platform YUV/HDR conversion. */surface.setKeepScreenOn(true);frame.addView(surface,new FrameLayout.LayoutParams(-1,-1));caption=text("",28,true);caption.setGravity(Gravity.CENTER);caption.setVisibility(View.INVISIBLE);caption.setBackgroundColor(0xb0000000);caption.setShadowLayer(4,1,2,Color.BLACK);FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);cp.setMargins(dp(25),0,dp(25),dp(35));frame.addView(caption,cp);styledView=new androidx.media3.ui.SubtitleView(this);frame.addView(styledView,new FrameLayout.LayoutParams(-1,-1));root.addView(frame,new LinearLayout.LayoutParams(-1,0,1));LinearLayout buttons=row();small(buttons,tx("السابقة","Previous"),()->change(-1));small(buttons,tx("تشغيل / إيقاف","Play / pause"),()->{if(player.isPlaying())player.pause();else player.play();});small(buttons,tx("التالية","Next"),()->change(1));small(buttons,tx("فك برمجي","Software decode"),this::openSoftwareDecoder);small(buttons,tx("المسار الصوتي","Audio tracks"),this::audioTracks);
+ small(buttons,tx("ترجمة SRT / ASS","SRT / ASS subtitles"),this::subtitles);small(buttons,tx("المساعد","Companion"),()->{try{startForegroundService(new Intent(this,SatelliteCompanionService.class).setAction(SatelliteCompanionService.ACTION_OPEN));}catch(Exception e){toast(e.getMessage());}});root.addView(buttons);LinearLayout sync=row();small(sync,"−0.5 s",()->offset(-500));timing=text("",14,false);sync.addView(timing,new LinearLayout.LayoutParams(0,-2,1));small(sync,"+0.5 s",()->offset(500));small(sync,"A−",()->resize(-2));small(sync,"A+",()->resize(2));root.addView(sync);small(buttons,tx("مزامنة الترجمة","Subtitle sync"),()->new android.app.AlertDialog.Builder(this).setView(new SubtitleSyncControls(this)).setPositiveButton(tx("إغلاق","Close"),(d,w)->{}).show());setContentView(root);android.app.ActivityManager am=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);
   android.app.ActivityManager.MemoryInfo mem=new android.app.ActivityManager.MemoryInfo();
   if(am!=null)am.getMemoryInfo(mem);
   boolean lowMemory=(am!=null&&am.isLowRamDevice())||mem.totalMem<2L*1024*1024*1024;
@@ -105,7 +106,81 @@ public class Media3PlayerActivity extends HubActivity {
  private void play(PlaylistRepository.Channel item){softwareFallbackStarted=false;generation++;if(live!=null)live.clear();channel=item;prefs().edit().putString("decoder_channel",item.id).putInt("decoder_width",0).putInt("decoder_height",0).putBoolean("iptv_stream_422_profile",false).putString("decoder_name","").putString("decoder_kind","UNKNOWN").putLong("decoder_init_ms",-1).putLong("decoder_first_frame_at",0).putString("decoder_input_mime","").putString("decoder_input_codecs","").putBoolean("decoder_input_profile422",false).putString("decoder_422_verification","WAITING_FOR_FORMAT").putLong("decoder_processed_frames",0).putLong("decoder_processing_offset_us",0).putLong("decoder_dropped_frames",0).putLong("decoder_dropped_frame_events",0).putLong("decoder_last_drop_elapsed_ms",0).remove("decoder_last_error").apply();telemetryFrames.set(0);telemetryOffsetUs.set(0);telemetryDropped.set(0);telemetryDropEvents.set(0);telemetryLastDropElapsedMs.set(0);lastTelemetryFlush=System.currentTimeMillis();programmeKey="";cues=Collections.emptyList();styled=null;if(styledView!=null)styledView.setCues(Collections.emptyList());assNative=false;caption.setText("");title.setText(item.name);player.setMediaItem(MediaItem.fromUri(item.uri));player.prepare();player.play();publish();surface.requestFocus();File saved=new File(getFilesDir(),"iptv-caption-"+fileKey(item.id)+".txt");if(saved.isFile())load(saved);}
  private void change(int step){if(channels.isEmpty()||channel==null)return;int index=0;for(int i=0;i<channels.size();i++)if(channels.get(i).id.equals(channel.id))index=i;play(channels.get((index+step+channels.size())%channels.size()));}
  private void publish(){lastPublish=System.currentTimeMillis();if(channel==null||library==null)return;long now=lastPublish;PlaylistRepository.Programme current=library.now(channel,now),next=null;for(PlaylistRepository.Programme p:library.schedule(channel))if(p.startMs>now&&(next==null||p.startMs<next.startMs))next=p;SatelliteState state=new SatelliteState();state.channelId=channel.id;state.channelName=channel.name;state.source="IPTV / XMLTV";state.observedAt=now;if(current!=null){state.title=current.title;state.image=current.image;state.startMs=current.startMs;state.endMs=current.endMs;}if(next!=null){state.nextTitle=next.title;state.nextImage=next.image;state.nextStartMs=next.startMs;state.nextEndMs=next.endMs;}String key=state.channelId+"|"+state.startMs+"|"+state.title;if(!key.equals(programmeKey)){programmeKey=key;state.save(this);profile=state.title.isEmpty()?"channel:"+channel.id:"film:"+PlaylistRepository.normalize(state.title);delay=prefs().getLong("subtitle_offset:"+profile,0);timing.setText(tx("تأخير: ","Offset: ")+delay+" ms");}prefs().edit().putLong("satellite_observed_at",now).apply();}
- private void subtitles(){new android.app.AlertDialog.Builder(this).setItems(new String[]{tx("استيراد SRT / ASS / VTT","Import SRT / ASS / VTT"),tx("استخدام الملف المحفوظ من مزود الترجمة","Use downloaded subtitle file"),tx("إخفاء الترجمة","Hide subtitles")},(d,w)->{if(w==0)launchDocument(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),701);else if(w==1)load(new File(getFilesDir(),SubtitleStorage.FILE));else{cues=Collections.emptyList();styled=null;if(live!=null)live.clear();styledView.setCues(Collections.emptyList());caption.setVisibility(View.INVISIBLE);player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT,true).build());}}).show();}
+ private void audioTracks(){
+  if(player==null)return;
+  List<androidx.media3.common.TrackSelectionOverride> options=new ArrayList<>();
+  List<String> labels=new ArrayList<>();
+  for(Tracks.Group group:player.getCurrentTracks().getGroups()){
+   if(group.getType()!=C.TRACK_TYPE_AUDIO)continue;
+   for(int n=0;n<group.length;n++){
+    if(!group.isTrackSupported(n))continue;
+    Format format=group.getTrackFormat(n);
+    String language=format.language==null?"und":format.language;
+    String codec=format.codecs==null?
+      (format.sampleMimeType==null?"":format.sampleMimeType):format.codecs;
+    labels.add((group.isTrackSelected(n)?"✓  ":"   ")+language+
+       " · "+codec+(format.channelCount>0?" · "+format.channelCount+"ch":""));
+    options.add(new androidx.media3.common.TrackSelectionOverride(
+       group.getMediaTrackGroup(),n));
+   }
+  }
+  if(options.isEmpty()){
+   toast(tx("البث لا ينشر مسارات صوت قابلة للاختيار",
+     "No selectable audio tracks are exposed by this stream"));return;
+  }
+  new android.app.AlertDialog.Builder(this)
+   .setTitle(tx("تبديل المسار الصوتي","Select audio track"))
+   .setItems(labels.toArray(new String[0]),(dialog,index)->{
+    if(player==null||index>=options.size())return;
+    player.setTrackSelectionParameters(player.getTrackSelectionParameters()
+      .buildUpon().setOverrideForType(options.get(index)).build());
+    toast(tx("تم إرسال اختيار المسار إلى Media3",
+      "Media3 audio track selection requested"));
+   })
+   .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+ }
+ private void subtitles(){
+  new android.app.AlertDialog.Builder(this)
+   .setTitle(tx("الصوت والترجمة","Captions and subtitles"))
+   .setItems(new String[]{
+    tx("تفعيل ترجمة البث المدمجة","Enable embedded subtitle tracks"),
+    tx("استيراد SRT / ASS / VTT","Import SRT / ASS / VTT"),
+    tx("استعمال ملف ترجمة محفوظ","Load downloaded subtitle file"),
+    tx("ترجمة المسار النصي إلى العربية","Translate readable text cues to Arabic"),
+    tx("إخفاء الترجمة","Disable subtitles")
+   },(d,w)->{
+    if(w==0){
+     cues=Collections.emptyList();styled=null;CaptionClock.text="";
+     if(styledView!=null)styledView.setCues(Collections.emptyList());
+     player.setTrackSelectionParameters(player.getTrackSelectionParameters()
+       .buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT,false)
+       .setPreferredTextLanguage("ar")
+       .setSelectUndeterminedTextLanguage(true).build());
+     if(surface.getSubtitleView()!=null)surface.getSubtitleView().setVisibility(View.VISIBLE);
+     toast(tx("تفعيل مسارات الترجمة المتاحة في البث",
+       "Enabled broadcast subtitle tracks where available"));
+    }else if(w==1){
+     launchDocument(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*")
+      .addCategory(Intent.CATEGORY_OPENABLE),701);
+    }else if(w==2){
+     load(new File(getFilesDir(),SubtitleStorage.FILE));
+    }else if(w==3){
+     prefs().edit().putBoolean("live_translate",true)
+       .putString("live_target_language","ar").apply();
+     toast(tx("الترجمة العربية مفعلة للمسارات النصية المنشورة",
+       "Arabic translation enabled for exposed text cues"));
+    }else{
+     cues=Collections.emptyList();styled=null;CaptionClock.text="";
+     if(live!=null)live.clear();
+     if(styledView!=null)styledView.setCues(Collections.emptyList());
+     caption.setVisibility(View.INVISIBLE);
+     player.setTrackSelectionParameters(player.getTrackSelectionParameters()
+       .buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT,true).build());
+     if(surface.getSubtitleView()!=null)
+      surface.getSubtitleView().setVisibility(View.INVISIBLE);
+    }
+   }).show();
+ }
  private void load(File file){final int token=++generation;io.execute(()->{try(InputStream in=new FileInputStream(file)){String content=PlaylistRepository.readBounded(in);List<SubtitleParser.Cue> parsed=SubtitleParser.parse(content);if(parsed.isEmpty())throw new IOException("No valid subtitle cues");boolean ass=content.contains("[Events]");StyledSubtitles formatted=new StyledSubtitles(content);runOnUiThread(()->{if(closed||token!=generation)return;cues=parsed;styled=formatted;boolean downloaded=file.getName().equals(SubtitleStorage.FILE);if(downloaded)profile=prefs().getString("subtitle_profile",profile);String fileIdentity=downloaded?prefs().getString("subtitle_file_identity",SubtitleSyncRepository.digest(content)):SubtitleSyncRepository.digest(content);SubtitleSyncRepository.bind(this,profile,fileIdentity,downloaded?prefs().getString("subtitle_provider","Downloaded"):"Local",downloaded?prefs().getString("subtitle_display_name",file.getName()):prefs().getString("iptv_caption_name:"+channel.id,file.getName()));delay=SubtitleSyncRepository.offset(this);timing.setText(tx("تأخير: ","Offset: ")+delay+" ms");assNative=false;caption.setVisibility(View.INVISIBLE);player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT,true).build());toast(tx("تم تحميل الترجمة","Subtitles loaded"));});}catch(Exception e){runOnUiThread(()->toast(tx("تعذر قراءة الترجمة: ","Subtitle error: ")+e.getMessage()));}});}
  private static String fileKey(String value){try{byte[] bytes=java.security.MessageDigest.getInstance("SHA-256").digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));StringBuilder out=new StringBuilder();for(byte b:bytes)out.append(String.format(java.util.Locale.ROOT,"%02x",b&255));return out.toString();}catch(Exception e){throw new IllegalStateException(e);}}
  private void offset(long change){delay=SubtitleSyncRepository.adjust(this,change);if(assNative){assNative=false;player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT,true).build());}timing.setText(tx("تأخير: ","Offset: ")+delay+" ms");}
