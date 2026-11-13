@@ -37,7 +37,7 @@ final class SportsLatestTeamArtwork {
   if(v.length()<3||v.length()>55||!v.matches("[\\p{L}0-9 .&'’/-]+"))return "";
   String key=v.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]","");
   if(key.equals("manunited")||key.equals("manutd")||key.equals("manchesterutd")||
-     key.equals("manutd"))return "Manchester United";
+     key.equals("manchesterunited"))return "Manchester United";
   if(key.equals("intermilan"))return "Inter Milan";
   if(key.equals("spurs"))return "Tottenham Hotspur";
   return v;
@@ -143,7 +143,8 @@ final class SportsLatestTeamArtwork {
       p.getBoolean("dvb_tuning",false)||!p.getString("iraqhub_pvr_session","").isEmpty())return false;
   long now=System.currentTimeMillis();
   long last=p.getLong("sports_latest_attempt:"+key,0);
-  if(last>0&&now-last>=0&&now-last<RECHECK_MS)return !cached(c,state,title,next).isEmpty();
+  if(last>0&&now-last>=0&&now-last<RECHECK_MS)return !cached(c,state,title,next).isEmpty()||
+   !p.getString("sports_latest_event:"+key,"").isEmpty();
   p.edit().putLong("sports_latest_attempt:"+key,now).apply();
   TheSportsDBProvider provider=new TheSportsDBProvider(c);
   for(String team:teams)try{
