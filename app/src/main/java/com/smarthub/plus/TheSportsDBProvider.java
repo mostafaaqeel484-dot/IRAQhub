@@ -50,6 +50,44 @@ final class TheSportsDBProvider implements SportsDataProvider {
   }
   return match==null?new JSONObject().put("status","not_found"):match;
  }
+ /** Search only a single canonical team, never the whole fixture title.
+  * The free V1 endpoint returns one team, so require an exact verified name.
+  * Used by latest-team artwork fallback, not by fixture/match identity. */
+ JSONObject findTeamForRecent(String supplied)throws Exception{
+  requireEnabled();
+  String team=SportsLatestTeamArtwork.canonical(supplied);
+  if(team.isEmpty())return new JSONObject().put("status","not_found");
+  String path="searchteams.php?t="+java.net.URLEncoder.encode(team,"UTF-8");
+  JSONObject data=cache.get(api()+path,24L*3600000L).getJSONObject("data");
+  JSONArray rows=data.optJSONArray("teams");
+  if(rows==null)return new JSONObject().put("status","not_found");
+  for(int i=0;i<Math.min(rows.length(),1);i++){
+   JSONObject row=rows.optJSONObject(i);
+   if(row==null||!row.optString("idTeam").matches("[0-9]{1,18}")||
+      !"Soccer".equalsIgnoreCase(row.optString("strSport","Soccer"))||
+      !SportsLatestTeamArtwork.sameTeam(team,row))continue;
+   String fanart="";
+   for(String field:new String[]{"strFanart1","strFanart2","strBanner"}){
+    String value=row.optString(field,"");
+    if(value.startsWith("https://")&&TeamLogoManager.trusted(value)&&
+       value.contains("/images/")){fanart=value;break;}
+   }
+   return new JSONObject().put("status","verified")
+     .put("id",row.optString("idTeam"))
+     .put("team",row.optString("strTeam"))
+     .put("fanart",fanart);
+  }
+  return new JSONObject().put("status","not_found");
+ }
+ /** Documented V1 team-history route; the public key can return just one
+  * home event. We use the newest published entry, not a made-up result. */
+ JSONObject lastEventsForTeam(String numericId)throws Exception{
+  requireEnabled();
+  if(numericId==null||!numericId.matches("[0-9]{1,18}"))
+   throw new IOException("SPORTS_TEAM_ID_REQUIRED");
+  return cache.get(api()+"eventslast.php?id="+numericId,4L*3600000L)
+    .getJSONObject("data");
+ }
  /** Resolve an official team badge by numeric team ID, not a guessed name.
   * SportsCache enforces the public API's free-rate budget. */
  String badgeById(String id,String name)throws Exception{requireEnabled();
