@@ -14,7 +14,7 @@ import java.util.concurrent.*;
 
 /** Tiger-inspired two-column DVB audio/subtitle control. Never claims an unreadable OEM track is active. */
 public final class ReceiverAvPanelActivity extends HubActivity {
- private static final int BLACK=0xed191020,PURPLE=0xff494057,ORANGE=0xffffa324;
+ private static final int BLACK=0xf2080b11,PURPLE=0xff18212e,ORANGE=0xffffc24c;
  private final ExecutorService worker=Executors.newSingleThreadExecutor();
  private final String[] sections={"Audio","Audio Track","Screen Mode","HDMI Mode","Subtitle","Subtitle Switch"};
  private LinearLayout left,right;private TextView heading,foot;
@@ -29,7 +29,7 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   pane.setPadding(dp(14),dp(14),dp(14),dp(12));
   GradientDrawable surface=new GradientDrawable();
   surface.setColor(BLACK);surface.setCornerRadius(dp(18));
-  surface.setStroke(dp(2),0xfff3d2ab);pane.setBackground(surface);
+  surface.setStroke(dp(2),0xffffc24c);pane.setBackground(surface);
   FrameLayout.LayoutParams placement=new FrameLayout.LayoutParams(
    Math.min(dp(1040),(int)(getResources().getDisplayMetrics().widthPixels*.91f)),
    Math.min(dp(580),(int)(getResources().getDisplayMetrics().heightPixels*.84f)),Gravity.CENTER);
@@ -71,8 +71,10 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   right.removeAllViews();heading.setText(sections[section]+
    (channel==null?"":" · "+channel.name));
   foot.setText(section==4||section==5?
-    "🔴 Set Translation [Arabic]       🟢 Set Subtitle Color":
-    "🔴 Delay       🟢 Import CFG       🟡 Del Import");
+    tx("SUBTITLE · ترجمة عربية / DVB-TXT / OCR بإذن Android",
+       "SUBTITLE · Arabic / DVB-TXT / Android-consented OCR"):
+    tx("AUDIO · اختر المسار وانتظر تأكيد الجهاز",
+       "AUDIO · Choose a track; receiver confirmation required"));
   if(section==0)audioTracks();
   else if(section==1)imported();
   else if(section==4)subtitleTracks();
@@ -222,7 +224,7 @@ public final class ReceiverAvPanelActivity extends HubActivity {
  }
  private GradientDrawable tile(boolean active){
   GradientDrawable d=new GradientDrawable();d.setColor(active?ORANGE:PURPLE);
-  d.setCornerRadius(dp(12));d.setStroke(dp(1),0xffe8b99a);return d;
+  d.setCornerRadius(dp(12));d.setStroke(dp(1),0xffffb93d);return d;
  }
  private TextView label(String value,int size,boolean bold){
   TextView v=new TextView(this);v.setText(value);v.setTextSize(size);
