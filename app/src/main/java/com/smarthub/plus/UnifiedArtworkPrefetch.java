@@ -31,6 +31,48 @@ final class UnifiedArtworkPrefetch {
    if(start<=0||end<=start||end<System.currentTimeMillis())continue;
    try{
     String existing=upcoming?event.nextImage:event.image;
+    String key=PosterSelection.key(event,title,upcoming);
+    if(key.isEmpty())continue;
+    long now=System.currentTimeMillis();
+    long sourceRevision=prefs.getLong("poster_sources_changed_at",0);
+    // BetterPosters is the FIRST automatic movie/series source, including
+    // channels carrying a generic DVB/XMLTV guide image. An explicitly
+    // selected Commons artwork is still the owner's override.
+    if(PosterSourceSwitches.enabled(context,PosterSourceSwitches.BETTER)&&
+       CommonsArtworkSelection.event(context,event,title,upcoming)==null){
+     String priorSource=prefs.getString("verified_poster_source:"+key,"");
+     boolean freshBetter=priorSource.startsWith("BetterPosters")&&
+       prefs.getLong("verified_poster_until:"+key,0)>now&&
+       prefs.getLong("verified_poster_at:"+key,0)>=sourceRevision&&
+       validUrl(prefs.getString("verified_poster_url:"+key,""));
+     if(freshBetter)continue;
+     try{
+      double minutes=(end-start)/60000.0;
+      JSONObject better=provider.resolve(title,"","","",minutes);
+      String image=better.optString("poster","");
+      String type=better.optString("type","");
+      String id=better.optString("id","");
+      if("matched".equals(better.optString("status"))&&
+         ("movie".equals(type)||"series".equals(type))&&
+         (id.matches("tt[0-9]{7,10}")||id.matches("tmdb:[1-9][0-9]{0,10}"))&&
+         validUrl(image)&&imageAvailable(context,image)){
+       prefs.edit()
+         .putString("verified_poster_url:"+key,image)
+         .putString("verified_poster_id:"+key,id)
+         .putString("verified_poster_type:"+key,type)
+         .putString("verified_poster_source:"+key,"BetterPosters")
+         .putLong("verified_poster_until:"+key,Math.min(end+60000,now+MAX_AGE))
+         .putLong("verified_poster_at:"+key,now)
+         .putLong("epg_art_changed_at",now).apply();
+       done++;continue;
+      }
+     }catch(Exception unavailable){
+      // The addon can be unavailable, misconfigured or return no exact title.
+      // All verified TMDB/TVmaze/EPG poster fallbacks remain usable.
+     }
+    }
+    // Native guide image wins only if the BetterPosters first pass had no
+    // exact verified result. Preserve fast browsing and established EPG.
     if(existing!=null&&!existing.isEmpty())continue;
     JSONObject chosen=PosterSelection.read(context,event,title,upcoming);
     String id=chosen.optString("id"),type=chosen.optString("type");
@@ -79,11 +121,8 @@ final class UnifiedArtworkPrefetch {
      }catch(Exception unavailable){/* No guessed episode artwork. */}
      continue;
     }
-    String key=PosterSelection.key(event,title,upcoming);
-    if(key.isEmpty())continue;
     long before=prefs.getLong("verified_poster_until:"+key,0);
-    long sourceRevision=Math.max(prefs.getLong("poster_sources_changed_at",0),
-       prefs.getLong("providers_changed_at",0));
+    sourceRevision=Math.max(sourceRevision,prefs.getLong("providers_changed_at",0));
     if(before>System.currentTimeMillis()&&
        prefs.getLong("verified_poster_at:"+key,0)>=sourceRevision&&
        !prefs.getString("verified_poster_url:"+key,"").isEmpty())continue;
