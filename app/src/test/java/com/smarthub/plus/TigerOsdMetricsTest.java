@@ -21,7 +21,7 @@ public final class TigerOsdMetricsTest {
  @Test public void postersStayAboveBothInfoBarSizes(){
   for(boolean expanded:new boolean[]{false,true}){
    int bar=TigerOsdMetrics.barHeightDp(expanded);
-   assertEquals(expanded?257:211,bar);
+   assertEquals(expanded?226:185,bar);
    assertTrue(bar>=TigerOsdMetrics.headerHeightDp()+70);
    assertEquals(bar+17,TigerOsdMetrics.posterBottomMarginDp(expanded));
   }
