@@ -39,7 +39,7 @@ android {
   rx6OriginalPreview {
    initWith debug
    applicationIdSuffix '.rx6api234'
-   versionNameSuffix '-rx6-412-betterposters-first'
+   versionNameSuffix '-rx6-413-dvb-epg-all-sports'
    matchingFallbacks = ['debug']
   }
   native422Preview {
