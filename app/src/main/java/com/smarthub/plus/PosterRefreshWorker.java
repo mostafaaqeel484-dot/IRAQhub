@@ -59,8 +59,9 @@ public final class PosterRefreshWorker extends Worker {
    // All requests are bounded and never made from InfoBar on the UI thread.
    try{
     SatelliteState watched=SatelliteState.read(c);
+    SportsMatch currentFixture=MatchRepository.get(c).forProgramme(watched);
     if(watched.channelId.startsWith("DVB:")&&!watched.title.isEmpty()&&
-       (MatchRepository.get(c).forProgramme(watched)==null)){
+       (currentFixture==null||!TeamLogoManager.trusted(currentFixture.image))){
      if(SportsLatestTeamArtwork.prefetch(c,watched,watched.title,false))sports++;
     }
     if(watched.channelId.startsWith("DVB:")&&!watched.nextTitle.isEmpty()&&
@@ -68,7 +69,8 @@ public final class PosterRefreshWorker extends Worker {
      SatelliteState upcoming=watched.copy();
      upcoming.title=watched.nextTitle;
      upcoming.startMs=watched.nextStartMs;upcoming.endMs=watched.nextEndMs;
-     if(MatchRepository.get(c).forProgramme(upcoming)==null&&
+     SportsMatch nextFixture=MatchRepository.get(c).forProgramme(upcoming);
+     if((nextFixture==null||!TeamLogoManager.trusted(nextFixture.image))&&
         SportsLatestTeamArtwork.prefetch(c,watched,watched.nextTitle,true))sports++;
     }
    }catch(Exception unavailable){
