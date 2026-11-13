@@ -8,24 +8,72 @@ final class ReceiverInfoRepository {
     private static volatile ReceiverInfoRepository instance;
     private final Context context;
     private SatelliteGuideRepository guide;private BroadcastEpgProvider epg;
-    private String quickChannel="";
-    private long quickCheckedAt=-1;
-    private SatelliteGuideRepository.Event quickNow,quickNext;
-    // Reuse two indexed queries for 1.5s while INFO refreshes, rather than
-    // opening SQLite on every frame/clock tick.
+    private final java.util.concurrent.ExecutorService guideIo=
+      java.util.concurrent.Executors.newSingleThreadExecutor();
+    private String quickChannel="",manualChannel="";
+    private long quickCheckedAt=-1,manualCheckedAt=-1;
+    private volatile SatelliteGuideRepository.Event quickNow,quickNext;
+    private volatile java.util.List<NativeEpgEvents.Event> manualEvents=
+       java.util.Collections.emptyList();
+    private java.util.concurrent.Future<?> quickJob,manualJob;
+    private int quickGeneration,manualGeneration;
+    private boolean quickLoading,manualLoading;
+    // Screen reads are memory-only. Cold SQLite/manual XMLTV reads are async,
+    // and stale channel requests are cancelled before touching view state.
     private synchronized void refreshQuick(String channel,long now){
         if(channel==null||!channel.startsWith("DVB:"))return;
-        if(channel.equals(quickChannel)&&quickCheckedAt>=0&&
-           now>=quickCheckedAt&&now-quickCheckedAt<1500)return;
-        quickChannel=channel;quickCheckedAt=now;quickNow=null;quickNext=null;
-        try{
-            UnifiedEpgIndex index=UnifiedEpgIndex.get(context);
-            quickNow=index.receiverCurrent(channel,now);
-            quickNext=index.receiverNext(channel,now);
-        }catch(Exception unavailable){
-            // An empty/migrating private SQLite index must never break
-            // normal XMLTV or the live receiver EPG.
+        if(!channel.equals(quickChannel)){
+            quickChannel=channel;quickCheckedAt=-1;
+            quickNow=null;quickNext=null;quickLoading=false;
+            ++quickGeneration;
+            if(quickJob!=null)quickJob.cancel(true);
         }
+        if(quickLoading||quickCheckedAt>=0&&now>=quickCheckedAt&&
+              now-quickCheckedAt<1200)return;
+        final int token=++quickGeneration;
+        quickLoading=true;
+        quickJob=guideIo.submit(()->{
+            SatelliteGuideRepository.Event current=null,next=null;
+            try{
+                UnifiedEpgIndex index=UnifiedEpgIndex.get(context);
+                current=index.receiverCurrent(channel,System.currentTimeMillis());
+                next=index.receiverNext(channel,System.currentTimeMillis());
+            }catch(Exception unavailable){/* Native tuner and factory EPG remain usable. */}
+            synchronized(ReceiverInfoRepository.this){
+                if(token!=quickGeneration||!channel.equals(quickChannel))return;
+                quickNow=current;quickNext=next;
+                quickCheckedAt=System.currentTimeMillis();
+                quickLoading=false;
+            }
+        });
+    }
+    private synchronized java.util.List<NativeEpgEvents.Event> manualCached(
+          SatelliteState observed,long now){
+        String id=observed.channelId;
+        if(!id.equals(manualChannel)){
+            manualChannel=id;manualCheckedAt=-1;manualLoading=false;
+            manualEvents=java.util.Collections.emptyList();
+            ++manualGeneration;
+            if(manualJob!=null)manualJob.cancel(true);
+        }
+        if(!manualLoading&&(manualCheckedAt<0||
+            now-manualCheckedAt>=2500)){
+            manualLoading=true;
+            final int token=++manualGeneration;
+            final String name=observed.channelName;
+            manualJob=guideIo.submit(()->{
+                java.util.List<NativeEpgEvents.Event> rows=java.util.Collections.emptyList();
+                try{rows=ManualEpgStore.read(context,id,name,System.currentTimeMillis());}
+                catch(Exception unavailable){}
+                synchronized(ReceiverInfoRepository.this){
+                    if(token!=manualGeneration||!id.equals(manualChannel))return;
+                    manualEvents=rows;
+                    manualCheckedAt=System.currentTimeMillis();
+                    manualLoading=false;
+                }
+            });
+        }
+        return manualEvents;
     }
     static boolean timedCurrent(String title,long start,long end,long now){
         return title!=null&&!title.trim().isEmpty()&&start>0&&start<=now&&end>now;
@@ -47,6 +95,7 @@ final class ReceiverInfoRepository {
     static String channelKey(SatelliteState s){return s.channelId+"|"+ChannelCatalogue.normalized(s.channelName);}
     SatelliteState current(){return enrich(SatelliteState.read(context));}
     SatelliteState enrich(SatelliteState observed){
+        long began=android.os.SystemClock.elapsedRealtimeNanos();
         SatelliteState s=observed.copy();long now=System.currentTimeMillis();
         boolean oldExternal=s.source!=null&&(s.source.startsWith("Online EPG")||
           s.source.startsWith("XMLTV")||s.source.startsWith("Manual EPG")||
@@ -80,8 +129,7 @@ final class ReceiverInfoRepository {
         // 3) Only an explicitly downloaded, exact-service manual guide.
         // No automatic external XMLTV/EPGShare requests or provider writes.
         if((needNow||needNext)&&s.channelId.startsWith("DVB:")){
-            List<NativeEpgEvents.Event> local=ManualEpgStore.read(
-              context,s.channelId,s.channelName,now);
+            List<NativeEpgEvents.Event> local=manualCached(s,now);
             if(needNow){
                 NativeEpgEvents.Event m=ManualEpgStore.now(local,now);
                 if(m!=null){
@@ -96,6 +144,17 @@ final class ReceiverInfoRepository {
                     s.nextEndMs=m.end;s.nextImage=m.image;
                 }
             }
+        }
+        // Diagnostic budget is for the warmed in-memory binding path, NOT
+        // for the cold OEM/network/tuner EPG fetch (which cannot be 50ms).
+        long elapsed=(android.os.SystemClock.elapsedRealtimeNanos()-began)/1000000L;
+        android.content.SharedPreferences prefs=context.getSharedPreferences("smarthub",0);
+        long lastSample=prefs.getLong("epg_cached_metric_at",0);
+        if(now-lastSample>=5000){
+            prefs.edit().putLong("epg_cached_metric_at",now)
+              .putLong("epg_cached_enrich_ms",elapsed)
+              .putString("epg_cached_enrich_status",elapsed<=50?
+                 "CACHED_WITHIN_50MS":"CACHED_SLOW_"+elapsed+"MS").apply();
         }
         return s;
     }
