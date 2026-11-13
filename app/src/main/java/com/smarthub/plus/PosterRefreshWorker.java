@@ -54,6 +54,26 @@ public final class PosterRefreshWorker extends Worker {
    catch(Exception unavailable){
     p.edit().putString("sports_poster_prefetch_error",unavailable.getClass().getSimpleName()).apply();
    }
+   // TheSportsDB free history is limited; query first club alone for the
+   // currently watched match (and NEXT), not the entire fixture name.
+   // All requests are bounded and never made from InfoBar on the UI thread.
+   try{
+    SatelliteState watched=SatelliteState.read(c);
+    if(watched.channelId.startsWith("DVB:")&&!watched.title.isEmpty()&&
+       (MatchRepository.get(c).forProgramme(watched)==null)){
+     if(SportsLatestTeamArtwork.prefetch(c,watched,watched.title,false))sports++;
+    }
+    if(watched.channelId.startsWith("DVB:")&&!watched.nextTitle.isEmpty()&&
+       watched.nextStartMs>System.currentTimeMillis()){
+     SatelliteState upcoming=watched.copy();
+     upcoming.title=watched.nextTitle;
+     upcoming.startMs=watched.nextStartMs;upcoming.endMs=watched.nextEndMs;
+     if(MatchRepository.get(c).forProgramme(upcoming)==null&&
+        SportsLatestTeamArtwork.prefetch(c,watched,watched.nextTitle,true))sports++;
+    }
+   }catch(Exception unavailable){
+    p.edit().putString("sports_latest_team_error",unavailable.getClass().getSimpleName()).apply();
+   }
    // A valid addon Manifest is NOT proof that a poster was downloaded.
    String status=verified+sports>0?"POSTERS_VERIFIED_AND_CACHED":
      manifestOk?"POSTER_MANIFEST_OK_NO_VERIFIED_IMAGE":"NO_VERIFIED_POSTER_SOURCE";
