@@ -34,15 +34,46 @@ public final class ArtworkSourcesActivity extends HubActivity {
   note(switches,tx("الإيقاف يمنع الطلبات الجديدة ولا يحذف الصور المحفوظة. التغيير يُحفظ تلقائياً.",
     "Off stops new lookups without deleting saved images. Changes save automatically."));
   switches.addView(text(tx("الأفلام والمسلسلات","Films and series"),16,true));
+  sourceSwitch(switches,PosterSourceSwitches.BETTER,
+    tx("BetterPosters · المصدر الأول للبوسترات","BetterPosters · FIRST poster source"));
+  note(switches,tx("الترتيب التلقائي: BetterPosters أولاً؛ إذا لم تتوفر صورة مطابقة يُجرَّب TMDB ثم بقية المصادر. EPG المصنع لا يتغير.",
+    "Automatic priority: BetterPosters first, then TMDB and other sources if no verified image. Factory EPG remains unchanged."));
+  action(switches,tx("فحص اتصال BetterPosters manifest","Check BetterPosters manifest"),()->{
+   outputStatus(tx("جارٍ فحص manifest…","Checking manifest…"));
+   io.execute(()->{
+    String result;
+    try{
+     JSONObject m=new BetterPostersProvider(getApplicationContext()).refreshManifest();
+     result="BetterPosters · MANIFEST_OK · "+m.optString("version")+" · "+
+        tx("فحص البوستر يتم منفصلاً","Poster download must be checked separately");
+    }catch(Exception error){result="BetterPosters · MANIFEST_UNAVAILABLE · "+error.getClass().getSimpleName();}
+    String message=result;
+    runOnUiThread(()->{if(!closed)outputStatus(message);});
+   });
+  });
+  action(switches,tx("تحديث بوسترات الآن والتالي من BetterPosters أولاً",
+    "Refresh NOW/NEXT posters with BetterPosters first"),()->{
+   try{
+    androidx.work.Constraints online=new androidx.work.Constraints.Builder()
+      .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build();
+    androidx.work.WorkManager.getInstance(this).enqueueUniqueWork(
+      "rx6-betterposters-manual",
+      androidx.work.ExistingWorkPolicy.REPLACE,
+      new androidx.work.OneTimeWorkRequest.Builder(PosterRefreshWorker.class)
+        .setConstraints(online).build());
+    outputStatus(tx("تمت جدولة التحديث؛ لا تنزيل ثقيل أثناء تشغيل 4:2:2.",
+      "Poster refresh queued; heavy downloads remain suspended during 4:2:2."));
+   }catch(Exception unavailable){
+    outputStatus(tx("تعذر جدولة تحديث البوسترات","Could not queue poster refresh"));
+   }
+  });
   sourceSwitch(switches,PosterSourceSwitches.TMDB,
-    tx("TMDB · الأفلام والمسلسلات","TMDB · movies and series"));
+    tx("TMDB · المصدر الاحتياطي","TMDB · fallback movies and series"));
   sourceSwitch(switches,PosterSourceSwitches.OPDB,
     tx("OpenPosterDB (OPDB) · بوسترات IMDb","OpenPosterDB (OPDB) · IMDb posters"));
   sourceSwitch(switches,PosterSourceSwitches.RPDB,
     tx("RatingPosterDB (RPDB) · بوسترات بالتقييم","RatingPosterDB (RPDB) · rated posters"));
   sourceSwitch(switches,PosterSourceSwitches.OMDB,tx("OMDb · بوسترات IMDb بمفتاح Patron","OMDb · IMDb posters with patron API"));
-  sourceSwitch(switches,PosterSourceSwitches.BETTER,
-    tx("BetterPosters · بوسترات إضافية","BetterPosters · extra artwork"));
   sourceSwitch(switches,PosterSourceSwitches.ARCHIVE,
     tx("Archive.org · بوسترات أرشيفية بترخيص","Archive.org · licensed archive posters"));
   note(switches,tx("OPDB وRPDB يحتاجان IMDb ID مؤكداً. OMDb يحتاج مفتاح Poster API منفصلاً؛ مفاتيح RPDB لا تعمل معه.",
@@ -139,6 +170,7 @@ public final class ArtworkSourcesActivity extends HubActivity {
       new Intent(this,ProviderSetupActivity.class)));
  }
 
+ private void outputStatus(String status){if(output!=null)output.setText(status);else toast(status);}
  private CheckBox sourceSwitch(LinearLayout group,String key,String title){
   CheckBox item=check(group,title,PosterSourceSwitches.enabled(this,key));
   item.setOnCheckedChangeListener((v,on)->{

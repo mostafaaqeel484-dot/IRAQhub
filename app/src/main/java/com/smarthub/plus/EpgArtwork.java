@@ -16,8 +16,8 @@ final class EpgArtwork {
   SatelliteState state=SatelliteState.read(c);return load(c,state,raw);
  }
  /**
-  * Programme-specific priority: broadcast/XMLTV, published Android TV EPG,
-  * verified TMDB/BetterPosters/TVmaze cache, exact sports event, native crop.
+  * Programme-specific priority: manual choice, verified BetterPosters,
+  * broadcast/XMLTV, published guide, verified TMDB/TVmaze, sports, native crop.
   * A dead or corrupt URL must never prevent another trusted source displaying.
   */
  static Bitmap load(Context c,SatelliteState state,String raw)throws Exception{
@@ -61,6 +61,10 @@ final class EpgArtwork {
    org.json.JSONObject commons=CommonsArtworkSelection.event(c,state,title,upcoming);
    if(commons!=null)addresses.add(commons.optString("poster"));
   }
+  // BetterPosters FIRST among automatic poster sources; verified per exact
+  // channel/event. This also applies to the fast InfoBar broadcast path.
+  String better=UnifiedArtworkPrefetch.preferredBetterUrl(c,state,title,upcoming);
+  if(!better.isEmpty())addresses.add(better);
   String broadcast=current?state.image:state.nextImage;
   if(broadcast!=null&&!broadcast.isEmpty())addresses.add(broadcast);
   if(!cacheOnly)try{

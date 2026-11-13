@@ -8,8 +8,9 @@ import java.text.Normalizer;
 import java.util.*;
 /** Direct, key-free BetterPosters Stremio catalogue and metadata provider. */
 final class BetterPostersProvider {
- private static final String MANIFEST_URL="https://btttr.cc/VZAxbsMwDEXv8mf1ArpAkaFL063IQDiEasAWXZJCEBi-eyA5jp3t871PDpzRkdMgyRB_MZCz-ceIsEVDgMuV7g2uaWeEgE7GPqemn9H2WAuunK9b5TXU0iRTGUib2PJ6fMIlYGQnxHmp0pwVcW4qgopL3VFJymaIroWfx38ovcB_oaH3-xHZn9w-OSsfwTd5n9NGKPE7MFFHROYbm7ffVAdSBGhrnqVox4g4fWFZHg/manifest.json";
+ private static final String MANIFEST_URL="https://btttr.cc/TZAxDsIwDEXv8udwgVwAMbAAG2KwigmV0qbYjlBV9e4ogQDb93vfHrygI6OYgsKfEclYbTPAtahwsHSlucJ3-jGCQ5eGfgxVf6L-YimY8Hhtle9QSlOaciSpouX38QkXh4GN4Je1SDUW-KUqD8qWyo6kIKwKb5L5c_xE4QsemWJv8z_Se3pueRT-BweyfgyNUOAGbhSVyzPKABI4SFXHlKVjeOz2WNcX/manifest.json";
  private static final String ADDON_BASE=MANIFEST_URL.substring(0,MANIFEST_URL.length()-"/manifest.json".length());
+ static String manifestRevision(){return Integer.toHexString(MANIFEST_URL.hashCode());}
  private final Context context;private boolean offline;private long fetchedAt=System.currentTimeMillis();private JSONObject loadedManifest;
  BetterPostersProvider(Context context){this.context=context.getApplicationContext();}
  static String titleTokens(String value){String s=Normalizer.normalize(value==null?"":value,Normalizer.Form.NFKD).replaceAll("\\p{M}+","").toLowerCase(Locale.ROOT).replaceAll("['’]s\\b","").replaceAll("[^\\p{L}\\p{N}]+"," ");List<String> words=new ArrayList<>();Set<String> skip=new HashSet<>(Arrays.asList("the","a","an","of","and"));for(String w:s.trim().split("\\s+")){if(w.isEmpty()||skip.contains(w))continue;words.add(w.length()>4&&w.endsWith("s")?w.substring(0,w.length()-1):w);}Collections.sort(words);return String.join(" ",words);}
@@ -19,12 +20,15 @@ final class BetterPostersProvider {
    throw new IOException("BETTERPOSTERS_DISABLED");
   if(!force&&loadedManifest!=null)return loadedManifest;
   android.content.SharedPreferences prefs=context.getSharedPreferences("poster_sources",0);
-  String cached=prefs.getString("betterposters_manifest","");
-  long cachedAt=prefs.getLong("betterposters_manifest_at",0),now=System.currentTimeMillis();
+  // The manifest can encode addon configuration. Never reuse the previous
+  // configuration's cached JSON after switching to a newly supplied URL.
+  String slot="betterposters_manifest_"+Integer.toHexString(MANIFEST_URL.hashCode());
+  String cached=prefs.getString(slot,"");
+  long cachedAt=prefs.getLong(slot+"_at",0),now=System.currentTimeMillis();
   if(!force&&!cached.isEmpty()&&now-cachedAt<4*3600000L){try{JSONObject value=new JSONObject(cached);validateManifest(value);loadedManifest=value;fetchedAt=cachedAt;return value;}catch(Exception malformedCache){/* fetch a fresh manifest below */}}
   try{
    JSONObject value=new JSONObject(HubHttp.get(MANIFEST_URL,512*1024));validateManifest(value);
-   prefs.edit().putString("betterposters_manifest",value.toString()).putLong("betterposters_manifest_at",now).putString("betterposters_manifest_status","OK").apply();
+   prefs.edit().putString(slot,value.toString()).putLong(slot+"_at",now).putString("betterposters_manifest_status","OK").apply();
    loadedManifest=value;fetchedAt=now;offline=false;return value;
   }catch(Exception error){
    if(!cached.isEmpty()&&now-cachedAt<7L*24*3600000L){JSONObject value=new JSONObject(cached);validateManifest(value);loadedManifest=value;fetchedAt=cachedAt;offline=true;prefs.edit().putString("betterposters_manifest_status","STALE_CACHE").apply();return value;}
@@ -34,9 +38,15 @@ final class BetterPostersProvider {
  private static void validateManifest(JSONObject m)throws IOException{
   if(!"community.betterposters".equals(m.optString("id"))||!m.optString("version").matches("[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?"))throw new IOException("BetterPosters manifest identity/version mismatch");
   JSONArray types=m.optJSONArray("types"),resources=m.optJSONArray("resources"),catalogs=m.optJSONArray("catalogs");
-  if(types==null||resources==null||catalogs==null||!contains(types,"movie")||!contains(types,"series")||!contains(resources,"meta")||!contains(resources,"catalog"))throw new IOException("BetterPosters manifest capabilities incomplete");
+  // Stremio metadata-only addons remain valid. Search requires bp-search
+  // and a catalog, but an already verified IMDb ID can use /meta directly.
+  if(types==null||resources==null||(!contains(types,"movie")&&!contains(types,"series"))||
+     !contains(resources,"meta"))throw new IOException("BetterPosters manifest capabilities incomplete");
  }
- private static boolean contains(JSONArray a,String value){for(int i=0;i<a.length();i++)if(value.equals(a.optString(i)))return true;return false;}
+ private static boolean contains(JSONArray a,String value){for(int i=0;i<a.length();i++){
+   Object row=a.opt(i);
+   if(value.equals(row instanceof JSONObject?((JSONObject)row).optString("name"):row))return true;
+  }return false;}
  private static boolean supportsSearch(JSONObject manifest,String type){
   JSONArray catalogs=manifest.optJSONArray("catalogs");if(catalogs==null)return false;
   for(int i=0;i<catalogs.length();i++){JSONObject c=catalogs.optJSONObject(i);if(c!=null&&"bp-search".equals(c.optString("id"))&&type.equals(c.optString("type")))return true;}

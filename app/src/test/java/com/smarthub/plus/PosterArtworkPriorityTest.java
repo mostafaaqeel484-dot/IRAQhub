@@ -13,8 +13,11 @@ public class PosterArtworkPriorityTest {
   assertTrue(PosterArtworkPriority.exactImdb("tt0133093"));
   assertFalse(PosterArtworkPriority.exactImdb("The Matrix"));
   assertFalse(PosterArtworkPriority.exactImdb(""));
-  assertTrue(PosterArtworkPriority.preferAlternativeOverBetter("BetterPosters","tt0133093"));
-  assertFalse(PosterArtworkPriority.preferAlternativeOverBetter("TMDB","tt0133093"));
-  assertFalse(PosterArtworkPriority.preferAlternativeOverBetter("BetterPosters",""));
+  assertTrue(PosterArtworkPriority.betterSource("BetterPosters"));
+  assertFalse(PosterArtworkPriority.betterSource("TMDB"));
+  assertTrue(PosterArtworkPriority.betterSource("BetterPosters · IMDb"));
+   assertTrue(PosterArtworkPriority.attemptBetterFirst(true,false));
+   assertFalse(PosterArtworkPriority.attemptBetterFirst(false,false));
+   assertFalse(PosterArtworkPriority.attemptBetterFirst(true,true));
  }
 }
