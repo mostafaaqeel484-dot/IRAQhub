@@ -95,7 +95,7 @@ final class BroadcastEpgProvider {
   return;
  }
  if(!identity.equals(ReceiverInfoRepository.channelKey(SatelliteState.read(context))))return;
- String source=active.source;
+ source=active.source;
  boolean artChanged=!original.title.equals(active.title)||
     original.startMs!=active.startMs||!original.image.equals(active.image)||
     !original.nextTitle.equals(active.nextTitle)||
