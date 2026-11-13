@@ -5,11 +5,11 @@ import android.content.*;import android.os.*;import org.json.*;import java.net.*
 final class ReceiverPlayback implements AutoCloseable {
  private static final Object CONTROL=new Object();private static volatile ReceiverPlayback activeOwner;boolean owns(){return activeOwner==this;}
  interface Listener{void accepted(ReceiverCatalog.Channel channel);void error(String code);void audio(int selected);default void pip(boolean accepted){}}
- private final DirectReceiverSignal sharedSignal;private final Context context;private final Listener listener;private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private final LatestRequestQueue<ReceiverCatalog.Channel> zapQueue=new LatestRequestQueue<>();private volatile boolean closed,loading;private volatile Thread worker;private volatile DatagramSocket socket;private volatile ReceiverCatalog.Channel current;private volatile JSONObject request;private volatile int pendingAudio=-1;private volatile int generation;private volatile boolean pipPending,pipActive,pipIssued;private volatile long videoAccepted;private long decoderCheck,epgRefreshAt,zapStartedAt;private int recoveries;private String recoveredPhysical="";private final DvbVideoHealth frameHealth=new DvbVideoHealth();private boolean videoHealthWarned;
+ private final DirectReceiverSignal sharedSignal;private final Context context;private final Listener listener;private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService io=Executors.newSingleThreadExecutor();private final LatestRequestQueue<ReceiverCatalog.Channel> zapQueue=new LatestRequestQueue<>();private volatile boolean closed,loading;private volatile Thread worker;private volatile DatagramSocket socket;private volatile ReceiverCatalog.Channel current;private volatile JSONObject request;private volatile int pendingAudio=-1;private volatile String pendingAudioPhysical="";private volatile int generation;private volatile boolean pipPending,pipActive,pipIssued;private volatile long videoAccepted;private long decoderCheck,epgRefreshAt,zapStartedAt;private int recoveries;private String recoveredPhysical="";private final DvbVideoHealth frameHealth=new DvbVideoHealth();private boolean videoHealthWarned;
  ReceiverPlayback(Context c,Listener l){context=c.getApplicationContext();listener=l;sharedSignal=ReceiverInfoRepository.get(context).acquireSignal();}
  synchronized void play(ReceiverCatalog.Channel channel){if(closed||!zapQueue.offer(channel))return;loading=true;start(channel);}
  private void settled(int token,Runnable notify){main.post(()->{if(closed||token!=generation||!loading)return;ReceiverCatalog.Channel next=zapQueue.complete();loading=false;if(next!=null){loading=true;start(next);}else notify.run();});}
- private void start(ReceiverCatalog.Channel channel){int token=++generation;zapStartedAt=SystemClock.elapsedRealtime();
+ private void start(ReceiverCatalog.Channel channel){int token=++generation;pendingAudio=-1;pendingAudioPhysical="";zapStartedAt=SystemClock.elapsedRealtime();
  FactoryProvider.prepareBeforeZap(context,channel);
  io.execute(()->{try{
   if(channel.ca==-1)throw new IOException("DVB_METADATA_REQUIRED");
@@ -24,7 +24,27 @@ final class ReceiverPlayback implements AutoCloseable {
    .putLong("zap_command_ack_ms",Math.max(0,videoAccepted-zapStartedAt))
    .putString("zap_target",selected.physical())
    .putLong("zap_accepted_at",System.currentTimeMillis()).apply();
-  frameHealth.reset();videoHealthWarned=false;decoderCheck=0;context.getSharedPreferences("smarthub",0).edit().putString("own_ca_status",selected.ca==0?"FTA":"REQUEST_ACCEPTED").apply();context.getSharedPreferences("smarthub",0).edit().putBoolean("own_dvb_ack",true).apply();FrontPanelBridge.publish(context,selected);listener.accepted(selected);}else{context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",false).apply();listener.error("DVB_PLAY_REJECTED");}});}else if(command==7&&pipPending){pipPending=false;pipActive=ok;main.post(()->{if(!closed)listener.pip(ok);});}else if(command==4){int selected=pendingAudio;main.post(()->{if(!closed){if(!ok)listener.error("DVB_AUDIO_REJECTED");}});}else if(command==31||command==126){int begin=parts[2].indexOf('{');if(begin>=0&&current!=null){JSONObject v=new JSONObject(parts[2].substring(begin));if(v.optInt("id",-1)==current.programToken()){int width=v.optInt("width",0),height=v.optInt("height",0);if(width>0&&height>0&&width<=8192&&height<=8192){SharedPreferences.Editor edit=context.getSharedPreferences("smarthub",0).edit().putString("decoder_channel","DVB:"+current.physical()).putInt("decoder_width",width).putInt("decoder_height",height);int fps=v.optInt("framerate",0),bitrate=v.optInt("bitrate",0);if(fps>0&&fps<=240)edit.putInt("decoder_fps",fps);if(bitrate>0&&bitrate<=1000000000)edit.putInt("decoder_bitrate",bitrate);edit.apply();}}}}else if(command==200||command==201)main.post(()->{if(!closed)listener.error("DVB_DECODE_FAILED");});}catch(SocketTimeoutException idle){}catch(Exception failure){if(closed||input.isClosed()||token!=generation)return;}finally{if(!closed&&!loading&&token==generation&&current!=null){
+  frameHealth.reset();videoHealthWarned=false;decoderCheck=0;context.getSharedPreferences("smarthub",0).edit().putString("own_ca_status",selected.ca==0?"FTA":"REQUEST_ACCEPTED").apply();context.getSharedPreferences("smarthub",0).edit().putBoolean("own_dvb_ack",true).apply();FrontPanelBridge.publish(context,selected);listener.accepted(selected);}else{context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",false).apply();listener.error("DVB_PLAY_REJECTED");}});}else if(command==7&&pipPending){pipPending=false;pipActive=ok;main.post(()->{if(!closed)listener.pip(ok);});}else if(command==4){
+   // Only a confirmed firmware Play/0004 ACK may change the persisted audio
+   // index or tell UI the track is active. UDP send alone proves nothing.
+   final int selected=pendingAudio;
+   final String physical=pendingAudioPhysical;
+   pendingAudio=-1;pendingAudioPhysical="";
+   ReceiverCatalog.Channel tuned=current;
+   if(selected>=0&&tuned!=null&&physical.equals(tuned.physical())){
+    if(ok){
+     context.getSharedPreferences("smarthub",0).edit()
+      .putInt("dvb_audio_index:"+physical,selected)
+      .putString("dvb_audio_status","FIRMWARE_AUDIO_ACK")
+      .putLong("dvb_audio_changed_at",System.currentTimeMillis()).apply();
+     main.post(()->{if(!closed&&token==generation)listener.audio(selected);});
+    }else{
+     context.getSharedPreferences("smarthub",0).edit()
+      .putString("dvb_audio_status","FIRMWARE_AUDIO_REJECTED").apply();
+     main.post(()->{if(!closed&&token==generation)listener.error("DVB_AUDIO_REJECTED");});
+    }
+   }
+  }else if(command==31||command==126){int begin=parts[2].indexOf('{');if(begin>=0&&current!=null){JSONObject v=new JSONObject(parts[2].substring(begin));if(v.optInt("id",-1)==current.programToken()){int width=v.optInt("width",0),height=v.optInt("height",0);if(width>0&&height>0&&width<=8192&&height<=8192){SharedPreferences.Editor edit=context.getSharedPreferences("smarthub",0).edit().putString("decoder_channel","DVB:"+current.physical()).putInt("decoder_width",width).putInt("decoder_height",height);int fps=v.optInt("framerate",0),bitrate=v.optInt("bitrate",0);if(fps>0&&fps<=240)edit.putInt("decoder_fps",fps);if(bitrate>0&&bitrate<=1000000000)edit.putInt("decoder_bitrate",bitrate);edit.apply();}}}}else if(command==200||command==201)main.post(()->{if(!closed)listener.error("DVB_DECODE_FAILED");});}catch(SocketTimeoutException idle){}catch(Exception failure){if(closed||input.isClosed()||token!=generation)return;}finally{if(!closed&&!loading&&token==generation&&current!=null){
   long now=SystemClock.elapsedRealtime();
   // EPG refresh is not part of the zapping hot path. Cache remains visible.
   if(now-epgRefreshAt>=1500){
@@ -93,7 +113,36 @@ final class ReceiverPlayback implements AutoCloseable {
    prefs.edit().putString("decoder_channel",state.channelId).putInt("decoder_width",size.width).putInt("decoder_height",size.height).apply();
  }
 
- void audio(int index){if(closed)return;io.execute(()->{try{JSONArray tracks=request==null?null:request.optJSONArray("stAudioInfo");if(tracks==null||index<0||index>=tracks.length())throw new IOException("DVB_AUDIO_UNAVAILABLE");pendingAudio=index;JSONObject selected=new JSONObject(tracks.getJSONObject(index).toString()).put("iVolume",volume());send(4,selected);if(current!=null)context.getSharedPreferences("smarthub",0).edit().putInt("dvb_audio_index:"+current.physical(),index).apply();main.post(()->{if(!closed)listener.audio(index);});}catch(Exception failure){main.post(()->{if(!closed)listener.error("DVB_AUDIO_UNAVAILABLE");});}});}
+ void audio(int index){
+  if(closed)return;
+  io.execute(()->{
+   try{
+    ReceiverCatalog.Channel tuned=current;
+    JSONArray tracks=request==null?null:request.optJSONArray("stAudioInfo");
+    if(tuned==null||loading||!owns()||tracks==null||index<0||index>=tracks.length())
+     throw new IOException("DVB_AUDIO_UNAVAILABLE");
+    JSONObject selected=new JSONObject(tracks.getJSONObject(index).toString())
+      .put("iVolume",volume());
+    pendingAudio=index;pendingAudioPhysical=tuned.physical();
+    final int token=generation;
+    context.getSharedPreferences("smarthub",0).edit()
+     .putString("dvb_audio_status","FIRMWARE_AUDIO_PENDING").apply();
+    send(4,selected);
+    main.postDelayed(()->{
+     if(!closed&&token==generation&&pendingAudio==index&&
+        tuned==current&&tuned.physical().equals(pendingAudioPhysical)){
+      pendingAudio=-1;pendingAudioPhysical="";
+      context.getSharedPreferences("smarthub",0).edit()
+       .putString("dvb_audio_status","FIRMWARE_AUDIO_ACK_TIMEOUT").apply();
+      listener.error("DVB_AUDIO_ACK_TIMEOUT");
+     }
+    },2500);
+   }catch(Exception failure){
+    pendingAudio=-1;pendingAudioPhysical="";
+    main.post(()->{if(!closed)listener.error("DVB_AUDIO_UNAVAILABLE");});
+   }
+  });
+ }
  private int volume(){SharedPreferences p=context.getSharedPreferences("smarthub",0);return p.getBoolean("dvb_muted",false)?0:Math.max(0,Math.min(100,p.getInt("dvb_volume",20)));}
  void volumeChanged(){if(closed)return;io.execute(()->{try{sendRaw(6,Integer.toString(volume()));}catch(Exception unavailable){main.post(()->{if(!closed)listener.error("DVB_AUDIO_CONTROL_UNAVAILABLE");});}});}
  void nativeAudio(boolean enabled){if(closed)return;io.execute(()->{try{sendRaw(117,enabled?"1":"0");}catch(Exception unavailable){main.post(()->{if(!closed)listener.error("DVB_AUDIO_CONTROL_UNAVAILABLE");});}});}
