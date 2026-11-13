@@ -49,6 +49,10 @@ public final class SportsLatestTeamArtworkTest {
   assertTrue(SportsLatestTeamArtwork.sameTeam("Man United",man));
   assertFalse(SportsLatestTeamArtwork.sameTeam("Manchester City",man));
   assertTrue(SportsLatestTeamArtwork.sameTeam("Parma",
+    new JSONObject().put("strTeam","Parma Calcio 1913")));
+  assertFalse(SportsLatestTeamArtwork.sameTeam("Manchester United",
+    new JSONObject().put("strTeam","Manchester United Women")));
+  assertTrue(SportsLatestTeamArtwork.sameTeam("Parma",
     new JSONObject().put("strTeam","Parma")));
  }
  @Test public void acceptsSourceTeamAliasesAndRealEventFanart()throws Exception{
