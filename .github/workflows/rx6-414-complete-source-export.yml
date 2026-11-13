@@ -1,0 +1,51 @@
+name: RX6 4.0.14 full source ZIP export
+
+on:
+  push:
+    branches:
+      - fix/rx6-414-sports-on-zap-fast-epg-compact-meters-20261113
+
+permissions:
+  contents: read
+
+jobs:
+  full-source:
+    name: Export all tracked Android source (not APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact RX6 source commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Archive full repository with original assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          OUTPUT="dist/IRAQhub_RX6_4.0.14_Complete_Source.zip"
+          git archive --format=zip --prefix=IRAQhub_RX6_4.0.14_Source/ --output="$OUTPUT" HEAD
+          test -s "$OUTPUT"
+          unzip -t "$OUTPUT" | tail -n 1
+          unzip -Z -1 "$OUTPUT" | grep -Fx 'IRAQhub_RX6_4.0.14_Source/app/build.gradle'
+          unzip -Z -1 "$OUTPUT" | grep -Fx 'IRAQhub_RX6_4.0.14_Source/settings.gradle'
+          unzip -Z -1 "$OUTPUT" | grep -Fx 'IRAQhub_RX6_4.0.14_Source/app/src/main/java/com/smarthub/plus/LocalInfoBarController.java'
+          unzip -Z -1 "$OUTPUT" | grep -Fx 'IRAQhub_RX6_4.0.14_Source/app/src/main/java/com/smarthub/plus/SportsLatestTeamArtwork.java'
+          unzip -Z -1 "$OUTPUT" | grep -Fx 'IRAQhub_RX6_4.0.14_Source/.github/workflows/rx6-original-only-build.yml'
+          printf '%s\n' "$GITHUB_SHA" > dist/SOURCE_COMMIT.txt
+          git ls-files | wc -l | awk '{print "Source tracked files: "$1}'
+          sha256sum "$OUTPUT" | tee dist/SHA256SUMS.txt
+          sha256sum -c dist/SHA256SUMS.txt
+
+      - name: Downloadable full source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: IRAQhub_RX6_4.0.14_FULL_SOURCE_ZIP
+          path: |
+            dist/IRAQhub_RX6_4.0.14_Complete_Source.zip
+            dist/SOURCE_COMMIT.txt
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
