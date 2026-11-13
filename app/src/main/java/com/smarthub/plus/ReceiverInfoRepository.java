@@ -49,7 +49,10 @@ final class ReceiverInfoRepository {
     SatelliteState enrich(SatelliteState observed){
         SatelliteState s=observed.copy();long now=System.currentTimeMillis();
         boolean oldExternal=s.source!=null&&(s.source.startsWith("Online EPG")||
-          s.source.startsWith("XMLTV")||s.source.startsWith("Manual EPG"));
+          s.source.startsWith("XMLTV")||s.source.startsWith("Manual EPG")||
+          (s.source.startsWith("EPGShare")&&
+           !context.getSharedPreferences("smarthub",0)
+             .getBoolean(OsnEpgFallback.ENABLED,false)));
         if(oldExternal){
             s.title="";s.startMs=0;s.endMs=0;s.image="";
             s.nextTitle="";s.nextStartMs=0;s.nextEndMs=0;s.nextImage="";
