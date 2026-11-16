@@ -125,7 +125,7 @@ public final class MediaRepository {
     }
     public Bitmap image(Item item) {
         if(!licensedImage(item))return null;
-        File file;try{file=new File(context.getFilesDir(),"media-cache/open_image_"+item.id+"_"+digest(item.image)+".png");}catch(Exception invalid){return null;}Bitmap cached=BitmapFactory.decodeFile(file.getAbsolutePath());if(cached!=null&&System.currentTimeMillis()-file.lastModified()<CACHE_AGE)return cached;
+        File file;try{file=new File(context.getFilesDir(),"media-cache/open_image_"+item.id+"_"+digest(item.image)+".png");}catch(Exception invalid){return null;}Bitmap cached=readLocalPoster(file);if(cached!=null&&System.currentTimeMillis()-file.lastModified()<CACHE_AGE)return cached;
         HttpURLConnection c=null;
         try{pace();c=(HttpURLConnection)new URL(item.image).openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(7000);c.setReadTimeout(10000);c.setRequestProperty("User-Agent","SmartHubPlus/1.0 (Android TV encyclopedia; personal use)");
             if(c.getResponseCode()!=200)return cached;byte[] data;try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(out.size()+n>3*1024*1024)return cached;out.write(b,0,n);}data=out.toByteArray();}
@@ -133,6 +133,21 @@ public final class MediaRepository {
             BitmapFactory.Options opts=new BitmapFactory.Options();while(bounds.outWidth/Math.max(1,opts.inSampleSize)>800||bounds.outHeight/Math.max(1,opts.inSampleSize)>1200)opts.inSampleSize=Math.max(1,opts.inSampleSize)*2;
             Bitmap bitmap=BitmapFactory.decodeByteArray(data,0,data.length,opts);if(bitmap!=null){File folder=file.getParentFile();if(folder.isDirectory()||folder.mkdirs())try(FileOutputStream out=new FileOutputStream(file)){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}}return bitmap;
         }catch(Exception ignored){return cached;}finally{if(c!=null)c.disconnect();}
+    }
+    /** Turbo: inspect bounds first to avoid decoding a full-size 4K disk image
+     * for a compact details tile. Keep ARGB transparency and saved files. */
+    private static Bitmap readLocalPoster(File file) {
+        if(!file.isFile()||file.length()<100||file.length()>5L*1024*1024)return null;
+        BitmapFactory.Options bounds=new BitmapFactory.Options();
+        bounds.inJustDecodeBounds=true;
+        BitmapFactory.decodeFile(file.getAbsolutePath(),bounds);
+        if(bounds.outWidth<1||bounds.outHeight<1||bounds.outWidth>10000||bounds.outHeight>10000)return null;
+        BitmapFactory.Options sample=new BitmapFactory.Options();
+        sample.inPreferredConfig=Bitmap.Config.ARGB_8888;
+        sample.inSampleSize=1;
+        while(bounds.outWidth/sample.inSampleSize>800||bounds.outHeight/sample.inSampleSize>1200)
+            sample.inSampleSize*=2;
+        return BitmapFactory.decodeFile(file.getAbsolutePath(),sample);
     }
     /** Work imagery and portraits come only from the work's own claims and credited cast. */
     public List<Item> gallery(String id,String language)throws Exception{
