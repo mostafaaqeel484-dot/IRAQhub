@@ -3,6 +3,9 @@ package com.smarthub.plus;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Bounded local poster/logo image cache; only our SHA-256-named image files.
@@ -12,7 +15,22 @@ import java.util.Comparator;
 final class ArtworkCachePruner {
  static final int MAX_IMAGES=256;
  static final long MAX_TOTAL_BYTES=128L*1024*1024;
+ // Count confirmed image reads as use without touching the on-disk download date.
+ // Only 512 recent paths; no poster pixels or Bitmaps are held here.
+ private static final Map<String,Long> RECENT=Collections.synchronizedMap(
+  new LinkedHashMap<String,Long>(512,0.75f,true){
+   @Override protected boolean removeEldestEntry(Map.Entry<String,Long> oldest){
+    return size()>512;
+   }
+  });
  private ArtworkCachePruner(){}
+ static void markRead(File file){
+  if(imageFile(file))RECENT.put(file.getAbsolutePath(),System.currentTimeMillis());
+ }
+ private static long accessed(File file){
+  Long time=RECENT.get(file.getAbsolutePath());
+  return Math.max(file.lastModified(),time==null?0:time);
+ }
  private static boolean imageFile(File f){
   if(f==null||!f.isFile())return false;
   String name=f.getName();
@@ -30,7 +48,7 @@ final class ArtworkCachePruner {
   if(directory==null||!directory.isDirectory())return;
   File[] files=directory.listFiles(ArtworkCachePruner::imageFile);
   if(files==null||files.length==0)return;
-  Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());
+  Arrays.sort(files,Comparator.comparingLong(ArtworkCachePruner::accessed).reversed());
   boolean protect=justSaved!=null&&imageFile(justSaved)&&
     directory.equals(justSaved.getParentFile());
   // Count the newly saved image BEFORE choosing LRU survivors. Otherwise
@@ -44,7 +62,7 @@ final class ArtworkCachePruner {
     size+=length;count++;continue;
    }
    // Deletion failure is non-fatal and is retried on the next successful save.
-   file.delete();
+   if(file.delete())RECENT.remove(file.getAbsolutePath());
   }
  }
 }
