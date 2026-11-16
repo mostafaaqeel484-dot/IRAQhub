@@ -156,7 +156,7 @@ final class LocalInfoBarController implements AutoCloseable {
   restartHideTimer();
  }
 
- /** Programme synopsis is a separate, explicitly requested BLUE action. */
+ /** Optional synopsis dialog is never bound to the Blue or INFO remote key. */
  void showProgrammeDetails(){
   if(closed)return;
   final SatelliteState snapshot=latest.copy();
