@@ -5,6 +5,7 @@ import android.app.AlertDialog;import android.content.*;import android.graphics.
 public final class DvbPlaybackActivity extends HubActivity {
  private final ExecutorService io=Executors.newSingleThreadExecutor();private final Handler main=new Handler(Looper.getMainLooper());private ReceiverPlayback player;private LocalInfoBarController localInfo;private volatile ReceiverCatalog.Channel channel,selection;private TextView message;private boolean closed,resumed,playing;private int audioIndex;private IPAudioController internetAudio;
  private ReceiverPlaybackOverlay remote;
+ private boolean infoOnResume;
  private ReceiverCatalog.Channel tuneTarget;
  private boolean targetFailed,targetNoSignal;
  private final ChannelNumberInput numbers=new ChannelNumberInput();
@@ -46,6 +47,11 @@ public final class DvbPlaybackActivity extends HubActivity {
  @Override protected void onResume(){
   super.onResume();
   resumed=true;
+  if(getIntent().getBooleanExtra("rx6_info_request",false)){
+   infoOnResume=true;
+   getIntent().removeExtra("rx6_info_request");
+  }
+  if(infoOnResume){infoOnResume=false;info();}
   prefs().edit().putBoolean("dvb_player_visible",playing).apply();
   if(tuneTarget!=null&&localInfo!=null){
    localInfo.showZapTarget(tuneTarget,targetFailed&&targetNoSignal);
@@ -67,14 +73,14 @@ public final class DvbPlaybackActivity extends HubActivity {
    });
   }
  }
- @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);long id=intent.getLongExtra("channel",channel==null?-1:channel.id);if(channel==null||id!=channel.id)playing=false;io.execute(()->{ReceiverCatalog.Channel selected=ReceiverCatalog.get(this).channel(id);if(selected!=null)selection=selected;main.post(()->{if(!closed&&selected!=null){if(channel!=null&&channel.id==selected.id&&playing){if(internetAudio!=null)internetAudio.apply(selected.physical());}else{playTarget(selected);}}});});}
+ @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("rx6_info_request",false)){intent.removeExtra("rx6_info_request");if(resumed)info();else infoOnResume=true;}long id=intent.getLongExtra("channel",channel==null?-1:channel.id);if(channel==null||id!=channel.id)playing=false;io.execute(()->{ReceiverCatalog.Channel selected=ReceiverCatalog.get(this).channel(id);if(selected!=null)selection=selected;main.post(()->{if(!closed&&selected!=null){if(channel!=null&&channel.id==selected.id&&playing){if(internetAudio!=null)internetAudio.apply(selected.physical());}else{playTarget(selected);}}});});}
  @Override protected void onPause(){resumed=false;blue.cancel();main.removeCallbacks(autoZap);numbers.clear();if(remote!=null)remote.digits("");if(localInfo!=null)localInfo.dismiss();prefs().edit().putBoolean("dvb_player_visible",false).apply();super.onPause();}
  private void publishAudio(int index){if(channel==null)return;org.json.JSONArray tracks=channel.audio();org.json.JSONObject selected=null;int valid=0;for(int n=0;n<Math.min(16,tracks.length());n++){org.json.JSONObject t=tracks.optJSONObject(n);if(t!=null&&DvbPlayRequest.audio(t.optString("Type"))>=0&&t.optInt("PID",8191)>0&&t.optInt("PID",8191)<8191){if(valid++==index){selected=t;break;}}}if(selected!=null)prefs().edit().putString("own_dvb_audio",selected.optString("Lang")+" · "+selected.optString("Type")).apply();}
  private void companion(){
   if(localInfo!=null)localInfo.hideForCompanion();
   SatelliteActivity.openPlaybackCompanion(this);
  }
- private void info(){if(localInfo!=null)localInfo.showDetails();}
+ private void info(){if(localInfo!=null)localInfo.showInfoBar();}
  private void volume(int key){int level=prefs().getInt("dvb_volume",20);boolean mute=prefs().getBoolean("dvb_muted",false);if(key==KeyEvent.KEYCODE_VOLUME_UP||key==KeyEvent.KEYCODE_VOLUME_DOWN){level=Math.max(0,Math.min(100,level+(key==KeyEvent.KEYCODE_VOLUME_UP?5:-5)));mute=false;}else mute=!mute;prefs().edit().putInt("dvb_volume",level).putBoolean("dvb_muted",mute).apply();player.volumeChanged();if(internetAudio!=null)internetAudio.remoteVolume(level,mute);if(remote!=null)remote.volume(level,mute);}
  private void numberDigit(int digit){
   numbers.add(digit);
