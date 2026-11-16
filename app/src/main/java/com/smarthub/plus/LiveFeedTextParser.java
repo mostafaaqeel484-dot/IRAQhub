@@ -54,20 +54,28 @@ final class LiveFeedTextParser {
    String after=text.substring(end,Math.min(segEnd,end+680));
    Entry result=new Entry();
    result.frequency=rf[0];result.polarity=rf[1];result.symbolRate=rf[2];
-   Matcher orbit=ORBIT.matcher(before);
+   // A feed card often repeats RF twice: the header comes before the
+   // satellite detail. Prefer a satellite named in this same segment so a
+   // new satellite does not inherit the preceding transponder's orbit.
+   Matcher orbit=ORBIT.matcher(after);
    int last=-1;
-   while(orbit.find()) {
+   String satContext=after;
+   if(orbit.find()){
     last=orbit.start();
     result.orbital=orbit.group(1)+orbit.group(2).toUpperCase(Locale.ROOT);
-   }
-   // Newer cards may label the satellite after their first frequency.
-   if(result.orbital.isEmpty()){
-    orbit=ORBIT.matcher(after);
-    if(orbit.find()){result.orbital=orbit.group(1)+orbit.group(2).toUpperCase(Locale.ROOT);}
+   }else{
+    satContext=before;
+    orbit=ORBIT.matcher(before);
+    while(orbit.find()){
+     last=orbit.start();
+     result.orbital=orbit.group(1)+orbit.group(2).toUpperCase(Locale.ROOT);
+    }
    }
    if(last>=0){
-    String label=before.substring(Math.max(0,before.lastIndexOf('\n',last)+1),last)
+    String label=satContext.substring(Math.max(0,satContext.lastIndexOf('\n',last)+1),last)
       .replaceAll("[\\p{Cntrl}]", " ").replaceAll("\\s+"," ").trim();
+    int marker=label.lastIndexOf("📡");
+    if(marker>=0)label=label.substring(marker+2).trim();
     int image=label.lastIndexOf("Image ");
     if(image>=0)label=label.substring(image+6);
     if(label.length()>78)label=label.substring(label.length()-78);
