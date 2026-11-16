@@ -17,7 +17,9 @@ final class ArtworkCache {
   try{
    if(!file.isFile()||file.length()<100||file.length()>limit)return null;
    byte[] bytes=java.nio.file.Files.readAllBytes(file.toPath());
-   return validImage(bytes)?bytes:null;
+   if(!validImage(bytes))return null;
+   ArtworkCachePruner.markRead(file);
+   return bytes;
   }catch(Exception unavailable){return null;}
  }
  /** Decode-bounds validation prevents caching HTML/JSON error pages as images.
