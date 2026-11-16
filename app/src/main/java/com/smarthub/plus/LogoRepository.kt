@@ -51,17 +51,12 @@ class LogoRepository private constructor(context:Context){
   val state=SatelliteState().apply{channelId=physical;channelName=name}
   val selected=prefs.getString("native_logo_source:"+CHMAXIntegration.identity(state),"")?:""
   val manual=selected=="MANUAL_CHANNEL_IMAGE"
-  if(!manual)return null
-  // Manual USB images are independent/local; captured OEM/CHMAX images are native.
-  if(manual&&!ChannelLogoSourcePrefs.external(app))return null
-  if(!manual&&!ChannelLogoSourcePrefs.chmax(app))return null
-  val current=SatelliteState.read(app)
-  val exact=current.channelId==physical&&current.channelName.isNotBlank()&&
-    SatelliteUiParser.normalized(current.channelName)==SatelliteUiParser.normalized(name)
-  if(exact||manual||physical.startsWith("DVB:"))
-    CHMAXIntegration.logo(app,state,false)?.let{return it}
-  return if(manual&&ChannelLogoSourcePrefs.external(app)&&
-      prefs.getBoolean("adb_logo_imported:"+physical,false))
+  // Official CHMAX saves are not labelled MANUAL_CHANNEL_IMAGE. Older OEM
+  // screen captures have no marker: both were incorrectly hidden before.
+  if(!SavedLogoSourcePolicy.allow(selected,
+     ChannelLogoSourcePrefs.chmax(app),ChannelLogoSourcePrefs.external(app)))return null
+  CHMAXIntegration.logo(app,state,false)?.let{return it}
+  return if(manual&&prefs.getBoolean("adb_logo_imported:"+physical,false))
     cache.read("channel:physical:v2:"+physical) else null
  }
  private fun observedProviderName(name:String,physical:String?,fallback:String):String{
