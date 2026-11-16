@@ -20,7 +20,7 @@ final class LiveFeedTextParser {
  private static final Pattern ORBIT=Pattern.compile("@\\s*([0-9]{1,3}(?:\\.[0-9]+)?)\\s*°?\\s*([EW])",Pattern.CASE_INSENSITIVE);
  private static final Pattern CODEC=Pattern.compile("(?i)(H\\.26[45]|HEVC|AVC|MPEG-2)");
  private static final Pattern CHROMA=Pattern.compile("4:2:[02]|4:4:4");
- private static final Pattern NAME=Pattern.compile("🆔\\s*([^\\n\\r\\uD83D\\uDD11\\uD83D\\uDCE1\\uD83D\\uDCF6\\uD83C\\uDFAC\\uD83D\\uDCCA]{1,90})");
+ private static final Pattern NAME=Pattern.compile("🆔\\s*([^\\n\\r]{1,90})");
  private static final Pattern STATUS=Pattern.compile("(?<![A-Za-z])(ON|OFF)(?![A-Za-z])",Pattern.CASE_INSENSITIVE);
  private static final Pattern FEED=Pattern.compile("(?i)\\bFEED\\s*[0-9]{1,3}\\b");
  private static final int MAX_RECORDS=320;
