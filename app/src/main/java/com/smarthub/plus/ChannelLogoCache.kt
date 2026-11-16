@@ -10,7 +10,7 @@ import java.io.File
 /** Compact channel logos: no full-size raster retained for a 48dp Tiger icon. */
 class ChannelLogoCache(context:Context){
  private val dir=File(context.filesDir,"resolved-logos")
- private val ram=object:LruCache<String,Bitmap>(3*1024*1024){
+ private val ram=object:LruCache<String,Bitmap>(2*1024*1024){
   override fun sizeOf(k:String,b:Bitmap)=b.allocationByteCount
  }
  fun peek(key:String):Bitmap?=ram.get(key)
@@ -22,7 +22,7 @@ class ChannelLogoCache(context:Context){
   BitmapFactory.decodeFile(file.path,bounds)
   if(bounds.outWidth !in 1..8192||bounds.outHeight !in 1..8192)return null
   val opts=BitmapFactory.Options().apply{
-   inSampleSize=LogoImageSizing.sample(bounds.outWidth,bounds.outHeight,512)
+   inSampleSize=LogoImageSizing.sample(bounds.outWidth,bounds.outHeight,256)
    inPreferredConfig=Bitmap.Config.ARGB_8888
   }
   return BitmapFactory.decodeFile(file.path,opts)?.also{ram.put(key,it)}
@@ -31,8 +31,8 @@ class ChannelLogoCache(context:Context){
  fun remember(key:String,bitmap:Bitmap){ram.put(key,bitmap)}
  fun save(key:String,bitmap:Bitmap){
   dir.mkdirs()
-  val ratio=512f/kotlin.math.max(bitmap.width,bitmap.height)
-  val output=if(ratio>=1f)bitmap.copy(Bitmap.Config.ARGB_8888,false) else Bitmap.createScaledBitmap(bitmap,
+  val ratio=256f/kotlin.math.max(bitmap.width,bitmap.height)
+  val output=if(ratio>=1f)bitmap else Bitmap.createScaledBitmap(bitmap,
    kotlin.math.max(1,kotlin.math.round(bitmap.width*ratio).toInt()),
    kotlin.math.max(1,kotlin.math.round(bitmap.height*ratio).toInt()),true)
   val file=AtomicFile(File(dir,digest(key)+".png"))

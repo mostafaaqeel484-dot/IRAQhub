@@ -15,19 +15,19 @@ public final class ArtworkCachePrunerTest {
   assertTrue(file.setLastModified(modified));
   return file;
  }
- @Test public void removesOldestWhenMoreThan24Cached()throws Exception{
+ @Test public void removesOldestWhenMoreThanDiskBudgetCached()throws Exception{
   File dir=temp.newFolder("cache");
-  for(int i=1;i<=30;i++)add(dir,i,128,10000L+i*1000);
+  for(int i=1;i<=ArtworkCachePruner.MAX_IMAGES+6;i++)add(dir,i,128,10000L+i*1000);
   ArtworkCachePruner.prune(dir,null);
   for(int i=1;i<=6;i++)assertFalse(new File(dir,
     String.format(java.util.Locale.ROOT,"%064x",i)).exists());
-  for(int i=7;i<=30;i++)assertTrue(new File(dir,
+  for(int i=7;i<=ArtworkCachePruner.MAX_IMAGES+6;i++)assertTrue(new File(dir,
     String.format(java.util.Locale.ROOT,"%064x",i)).exists());
  }
  @Test public void protectsNewImageAndAtomicFiles()throws Exception{
   File dir=temp.newFolder("art");
   File protectedFile=add(dir,1,80,1000L);
-  for(int i=2;i<=26;i++)add(dir,i,80,1000L+i);
+  for(int i=2;i<=ArtworkCachePruner.MAX_IMAGES+2;i++)add(dir,i,80,1000L+i);
   File inProgress=new File(dir,"atomic.new");
   try(FileOutputStream out=new FileOutputStream(inProgress)){out.write(1);}
   ArtworkCachePruner.prune(dir,protectedFile);

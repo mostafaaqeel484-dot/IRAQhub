@@ -85,6 +85,22 @@ public class SatelliteActivity extends HubActivity {
     private void overlaySettings(){try{startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));}catch(Exception e){toast(tx("افتح إذن الظهور فوق التطبيقات من إعدادات Android","Open display-over-other-apps access in Android settings"));}}
     private void accessibilitySettings(){new AlertDialog.Builder(this).setTitle("IRAQhub — ربط القنوات").setMessage(tx("فعّل هذه الخدمة لقراءة اسم القناة وEPG الظاهر من تطبيق الرسيفر، ولفتح IRAQhub بزر MENU أثناء المشاهدة. يمكنك إلغاء اختصار MENU من هذه الصفحة. يبقى الزر الأزرق بوظيفته المعتادة حتى تفعّل اختصاره. ستفتح إعدادات Android لاختيار الخدمة بنفسك.","Enable this bridge to read the receiver's visible channel and EPG data and open IRAQhub with MENU while watching. You can disable the MENU shortcut on this page. Blue retains its normal action until you enable its shortcut. Android settings will open so you can choose the service yourself.")).setNegativeButton(tx("رجوع","Back"),null).setPositiveButton(tx("فتح الإعدادات","Open settings"),(d,w)->{try{AccessibilitySetup.open(this);}catch(Exception e){toast(e.getMessage());}}).show();}
     private void start(String action){if(!Settings.canDrawOverlays(this)){toast(tx("امنح إذن الظهور ثم شغّل المساعد","Allow overlay access, then start the companion"));overlaySettings();return;}try{prefs().edit().putBoolean("satellite_companion_enabled",true).apply();startForegroundService(new Intent().setClassName(getPackageName(),"com.smarthub.plus.SatelliteCompanionService").setAction(action));startActivity(new Intent(this,DvbPlaybackActivity.class));}catch(Exception e){prefs().edit().putBoolean("satellite_companion_enabled",false).apply();toast(e.getMessage());}refresh();}
+    static void openPlaybackCompanion(android.app.Activity host) {
+        if (!Settings.canDrawOverlays(host)) {
+            android.widget.Toast.makeText(host, "امنح إذن الظهور فوق التطبيقات لفتح مساعد القنوات", android.widget.Toast.LENGTH_LONG).show();
+            try {
+                host.startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + host.getPackageName())));
+            } catch (android.content.ActivityNotFoundException ignored) {}
+            return;
+        }
+        try {
+            host.startForegroundService(new Intent(host, SatelliteCompanionService.class)
+                    .setAction(SatelliteCompanionService.ACTION_OPEN));
+        } catch (IllegalStateException | SecurityException failure) {
+            android.widget.Toast.makeText(host, "تعذر فتح مساعد القنوات", android.widget.Toast.LENGTH_SHORT).show();
+        }
+    }
     private void stop(){prefs().edit().putBoolean("satellite_companion_enabled",false).apply();stopService(new Intent().setClassName(getPackageName(),"com.smarthub.plus.SatelliteCompanionService"));refresh();toast(tx("أُوقف مساعد القنوات","Satellite companion stopped"));}
     private void programme(Class<?> screen){String chosen=query.getText().toString().trim();if(chosen.length()<2){toast(tx("اختر عنوان EPG حديثاً أو اكتب اسم البرنامج يدوياً","Choose a recent EPG title or enter the programme name manually"));return;}SatelliteState actual=contextState();Intent intent=new Intent(this,screen).putExtra("title",chosen).putExtra("channel_id",actual.channelId).putExtra("event_start_ms",actual.startMs);String bound=prefs().getString("satellite_imdb_title","");if(chosen.equals(actual.title)&&chosen.equals(bound)){String id=prefs().getString("satellite_imdb_id","");if(!id.isEmpty())intent.putExtra("imdb_id",id);}startActivity(intent);}
     /** Opens only the known receiver application; never sends tuning or database writes. */

@@ -43,7 +43,17 @@ final class FactoryProtocol {
   String a=receiver.trim().replaceFirst("(?i)\\s+(?:SD|HD|FHD|UHD|4K)\\s*$","");
   String b=published.trim().replaceFirst("(?i)\\s+(?:SD|HD|FHD|UHD|4K)\\s*$","");
   return !a.isEmpty()&&!b.isEmpty()&&
-    ChannelCatalogue.normalized(a).equals(ChannelCatalogue.normalized(b));
+    factoryChannelName(a).equals(factoryChannelName(b));
+ }
+ static String alternateOsnName(String name){
+  String value=name.trim();
+  String shortName=value.replaceFirst("(?i)^OSN\\s*TV\\s+","OSN ");
+  if(!value.equals(shortName))return shortName;
+  if(value.matches("(?i)^OSN\\s+(?!TV\\b).+"))return value.replaceFirst("(?i)^OSN\\s+","OSNtv ");
+  return "";
+ }
+ private static String factoryChannelName(String name){
+  return ChannelCatalogue.normalized(name.replaceFirst("(?i)^OSN\\s*TV\\s+(?=\\p{L})","OSN "));
  }
  static String channelKey(JSONObject search,String name,String currentTitle,long now,ZoneId zone)throws Exception{JSONObject data=search.optJSONObject("data");JSONArray rows=data==null?null:data.optJSONArray("channelList");List<JSONObject> matching=new ArrayList<>();if(rows!=null)for(int n=0;n<Math.min(50,rows.length());n++){JSONObject ch=rows.optJSONObject(n);if(ch!=null&&PublishedEpgArtwork.matchesChannel(name,ch.optString("name")))matching.add(ch);}if(matching.isEmpty()&&rows!=null){
   // Only quality-suffix variants may be considered, never a loosely named

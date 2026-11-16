@@ -1,58 +1,50 @@
-name: IRAQhub RX6 4.0.18 — Exact Source X5M APK
+name: IRAQhub RX6 4.0.18 - Exact Uploaded Source APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [build/rx6-418-exact-source]
-    paths:
-      - 'app/**'
-      - 'scripts/verify_rx6_418_source.py'
-      - 'gradle.properties'
-      - 'build.gradle'
-      - 'settings.gradle'
+    branches:
+      - 'build/rx6-418-exact-source'
 
 permissions:
   contents: write
 
 concurrency:
-  group: rx6-418-${{ github.ref }}
+  group: rx6-418-exact-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-verify:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
-      - name: Check full RX6 4.0.18 upload, reject old GitHub versions
+      - name: Verify correct SOURCE ZIP snapshot, not older RX6 branch
         shell: bash
         run: |
           set -euo pipefail
           grep -Fq "versionName '4.0.18-rx6'" app/build.gradle
-          grep -Eq "versionCode[[:space:]]+65([^0-9]|$)" app/build.gradle
-          test -s scripts/verify_rx6_418_source.py
+          grep -Fq "versionCode 65" app/build.gradle
           test -s app/src/main/java/com/smarthub/plus/LiveFeedActivity.java
           test -s app/src/main/java/com/smarthub/plus/RemoteDirectionPolicy.java
           test -s app/src/main/java/com/smarthub/plus/ArtworkCachePruner.java
-          test -s app/src/test/java/com/smarthub/plus/RemoteDirectionPolicyTest.java
-          test -s app/src/main/assets/provider-branding/country-flags/index.json || test "$(find app/src/main/assets/provider-branding/country-flags -name '*.png' | wc -l)" -ge 200
+          test -s app/src/main/java/com/smarthub/plus/ChannelLogoCache.kt
           python3 scripts/verify_rx6_418_source.py
-          echo "RX6 4.0.18 source gate: PASS"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v4
-      - name: Install SDK 36 and NDK r29 for ARMv7
+      - name: Install exact SDK / build-tools / NDK
         run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865'
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: JVM regression tests
+      - name: Run all local Android JVM regression tests
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
-      - name: Build side-by-side test APK
+      - name: Assemble side-by-side X5M preview (ARMv7 only)
         run: gradle :app:assembleRx6OriginalPreview --no-daemon --stacktrace
-      - name: Check generated APK and Android 14 ARMv7 packaging
+      - name: Verify exact final APK contents, signature and Android 14 compatibility
         shell: bash
         run: |
           set -euo pipefail
@@ -62,28 +54,23 @@ jobs:
           unzip -tq "$APK"
           "$BT/zipalign" -c -v 4 "$APK"
           "$BT/apksigner" verify --min-sdk-version 34 --verbose --print-certs "$APK"
-          "$BT/aapt" dump badging "$APK" | tee "$RUNNER_TEMP/badging.txt"
-          grep -F "package: name='com.smarthub.plus.rx6api234'" "$RUNNER_TEMP/badging.txt"
-          grep -F "native-code: 'armeabi-v7a'" "$RUNNER_TEMP/badging.txt"
+          "$BT/aapt" dump badging "$APK" | tee "$RUNNER_TEMP/iraqhub-badging.txt"
+          grep -F "package: name='com.smarthub.plus.rx6api418'" "$RUNNER_TEMP/iraqhub-badging.txt"
+          grep -F "native-code: 'armeabi-v7a'" "$RUNNER_TEMP/iraqhub-badging.txt"
           python3 - "$APK" <<'PY'
           import sys,zipfile
-          with zipfile.ZipFile(sys.argv[1]) as z:
-              entries=z.namelist()
-              assert any(s.startswith('classes') and s.endswith('.dex') for s in entries)
-              libs=[s for s in entries if s.startswith('lib/') and s.endswith('.so')]
-              assert libs and all(s.startswith('lib/armeabi-v7a/') for s in libs),libs
-              assert 'lib/armeabi-v7a/libc++_shared.so' in entries
-              print('ARMv7 native libraries:',len(libs))
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              files=set(apk.namelist())
+              assert any(name.startswith('classes') and name.endswith('.dex') for name in files)
+              so=[name for name in files if name.startswith('lib/') and name.endswith('.so')]
+              assert so and all(name.startswith('lib/armeabi-v7a/') for name in so),so
+              assert 'lib/armeabi-v7a/libc++_shared.so' in files
+              print('Verified 32-bit ARMv7 APK libraries:',len(so))
           PY
           mkdir -p dist
           cp "$APK" dist/IRAQhub_RX6_4.0.18_X5M_SideBySide_Debug.apk
           (cd dist && sha256sum *.apk > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
-      - uses: actions/upload-artifact@v4
-        with:
-          name: IRAQhub-RX6-4.0.18-X5M-APK
-          path: dist/
-          if-no-files-found: error
-      - name: Create private-by-default draft pre-release, not stable
+      - name: Store signed preview in a draft pre-release (do not publish as stable)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -95,9 +82,11 @@ jobs:
             dist/IRAQhub_RX6_4.0.18_X5M_SideBySide_Debug.apk \
             dist/SHA256SUMS.txt \
             --target "$GITHUB_SHA" --draft --prerelease \
-            --title "IRAQhub RX6 4.0.18 · X5M ARMv7 test build" \
-            --notes "Exact source gate passed; Android JVM tests and APK signature/ABI checks passed. Debug-signed side-by-side com.smarthub.plus.rx6api234. Not device tested. DVB manual scan and 4:2:2 playback NOT certified."
-          mkdir -p "$RUNNER_TEMP/release-verify"
-          gh release download "$TAG" -D "$RUNNER_TEMP/release-verify" -p '*.apk' -p 'SHA256SUMS.txt'
-          (cd "$RUNNER_TEMP/release-verify" && sha256sum -c SHA256SUMS.txt)
-          echo "DRAFT https://github.com/${GH_REPO}/releases/tag/${TAG}"
+            --title "IRAQhub RX6 4.0.18 X5M · source-matched preview" \
+            --notes "Built from the uploaded RX6 4.0.18 source, not from an older PR. CI unit tests, ARMv7 package, zip alignment and Android 14 signature checked. This is a side-by-side, temporary DEBUG-signed APK (com.smarthub.plus.rx6api418). Live DVB scan, 4:2:2, EPG, WebView and remote controls remain unverified on the physical X5M. Do not replace production or treat as stable."
+          mkdir -p "$RUNNER_TEMP/apk-verify"
+          gh release download "$TAG" -D "$RUNNER_TEMP/apk-verify" -p '*.apk' -p SHA256SUMS.txt
+          (cd "$RUNNER_TEMP/apk-verify" && sha256sum -c SHA256SUMS.txt)
+          cmp "dist/IRAQhub_RX6_4.0.18_X5M_SideBySide_Debug.apk" \
+            "$RUNNER_TEMP/apk-verify/IRAQhub_RX6_4.0.18_X5M_SideBySide_Debug.apk"
+          echo "Verified draft: https://github.com/${GH_REPO}/releases/tag/${TAG}"

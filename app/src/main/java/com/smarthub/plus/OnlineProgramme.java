@@ -108,14 +108,25 @@ final class OnlineProgramme {
    if(verified==null||!verified.matches("tt[0-9]{7,10}"))try{
     verified=PosterSelection.read(context,event,raw,upcoming).optString("imdbId","");
    }catch(Exception ignored){verified="";}
-   if(verified!=null&&verified.matches("tt[0-9]{7,10}"))try{
+   JSONObject omdb=null;
+   if(!PosterArtworkPriority.exactImdb(verified)){
+    omdb=VerifiedPosterFallback.omdb(context,"",raw);
+    if(omdb!=null)verified=omdb.optString("imdbID");
+   }
+   if(PosterArtworkPriority.exactImdb(verified))try{
     String link=VerifiedPosterFallback.find(context,verified,raw,"");
     Bitmap picture=posterBitmap(context,link);
+    boolean omdbImage=picture==null;
+    if(omdbImage){
+     if(omdb==null)omdb=VerifiedPosterFallback.omdb(context,verified,raw);
+     link=omdb==null?"":omdb.optString("Poster");
+     picture=posterBitmap(context,link);
+    }
     if(picture!=null){
      MediaRepository.Item standalone=new MediaRepository.Item();
      standalone.id="imdb:"+verified;standalone.imdbId=verified;
      standalone.title=raw;standalone.image=link;standalone.imageKind="poster";
-     standalone.imagePage=link;standalone.imageCredit=posterSourceCredit(link);
+     standalone.imagePage=link;standalone.imageCredit=omdbImage?"OMDb":posterSourceCredit(link);
      standalone.imageLicense="Poster rights remain with the respective copyright owners";
      standalone.fetchedAt=System.currentTimeMillis();
      return new OnlineProgramme(standalone,picture);
@@ -136,9 +147,15 @@ final class OnlineProgramme {
   if(bitmap==null&&item.imdbId.matches("tt[0-9]{7,10}")&&!similarPoster){
    String external=VerifiedPosterFallback.find(context,item.imdbId,item.title,item.release);
    Bitmap alternative=posterBitmap(context,external);
+   boolean omdbImage=alternative==null;
+   if(omdbImage){
+    JSONObject omdb=VerifiedPosterFallback.omdb(context,item.imdbId,item.title);
+    external=omdb==null?"":omdb.optString("Poster");
+    alternative=posterBitmap(context,external);
+   }
    if(alternative!=null){
     bitmap=alternative;address=external;
-    item.imageCredit=posterSourceCredit(external);
+    item.imageCredit=omdbImage?"OMDb":posterSourceCredit(external);
     item.imageLicense="External verified-source poster · rights retained by creators";
    }
   }

@@ -10,7 +10,7 @@ final class BroadcastEpgProvider {
   retry=0;
   if(!busy)refresh(active);
  }
- synchronized void refresh(SatelliteState observed){if(observed.channelName.isEmpty()||observed.channelId.startsWith("IPTV:")||observed.source.startsWith("IPTV"))return;SharedPreferences prefs=context.getSharedPreferences("smarthub",0);if(prefs.getBoolean("dvb_tuning",false)||PlaybackResourceMode.active())return;String identity=ReceiverInfoRepository.channelKey(observed);long now=SystemClock.elapsedRealtime();if(busy&&identity.equals(key)||identity.equals(key)&&now<retry)return;if(busy){generation++;if(task!=null)task.cancel(true);busy=false;}if(!observed.channelId.startsWith("DVB:")&&!observed.title.isEmpty()&&!observed.source.startsWith("DVB")&&!observed.source.startsWith("Online EPG"))return;ReceiverSignalReading signal=DirectReceiverSignal.reading(observed);boolean own=observed.channelId.startsWith("DVB:");boolean nativeReady=own&&signal!=null&&signal.locked==1&&signal.tp==prefs.getInt("own_dvb_runtime_tp",-1)&&observed.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""))&&prefs.getString("own_dvb_physical","").startsWith(prefs.getString("own_dvb_physical_tp","invalid")+":");busy=true;key=identity;retry=now+30000;int ticket=++generation;long started=now;prefs.edit().putString("broadcast_epg_status","DVB_EPG_SEARCHING").putString("broadcast_epg_channel",identity).apply();SatelliteState snapshot=observed.copy();task=io.submit(()->{try{List<NativeEpgEvents.Event> events=new ArrayList<>();String source="DVB EIT · IRAQhub";if(nativeReady){ReceiverCatalog.Channel channel=ReceiverCatalog.get(context).channel(prefs.getLong("own_dvb_channel",-1));if(channel!=null&&snapshot.channelId.equals("DVB:"+channel.physical()))try{events=read(channel.programToken(),signal.tp,channel.sid);}catch(java.io.IOException unavailable){/* Continue with factory/native fallback. */}}if(Thread.currentThread().isInterrupted()||ticket!=generation)return;long time=System.currentTimeMillis();
+ synchronized void refresh(SatelliteState observed){if(observed.channelName.isEmpty()||observed.channelId.startsWith("IPTV:")||observed.source.startsWith("IPTV"))return;SharedPreferences prefs=context.getSharedPreferences("smarthub",0);if(prefs.getBoolean("dvb_tuning",false)||PlaybackResourceMode.active())return;String identity=ReceiverInfoRepository.channelKey(observed);long now=SystemClock.elapsedRealtime();if(busy&&identity.equals(key)||identity.equals(key)&&now<retry)return;if(busy){generation++;if(task!=null)task.cancel(true);busy=false;}if(!observed.channelId.startsWith("DVB:")&&!observed.title.isEmpty()&&!observed.source.startsWith("DVB")&&!observed.source.startsWith("Online EPG"))return;ReceiverSignalReading signal=DirectReceiverSignal.reading(observed);boolean own=observed.channelId.startsWith("DVB:");boolean nativeReady=own&&signal!=null&&signal.locked==1&&signal.tp==prefs.getInt("own_dvb_runtime_tp",-1)&&observed.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""))&&prefs.getString("own_dvb_physical","").startsWith(prefs.getString("own_dvb_physical_tp","invalid")+":");busy=true;key=identity;retry=now+5000;int ticket=++generation;long started=now;prefs.edit().putString("broadcast_epg_status","DVB_EPG_SEARCHING").putString("broadcast_epg_channel",identity).apply();SatelliteState snapshot=observed.copy();task=io.submit(()->{try{List<NativeEpgEvents.Event> events=new ArrayList<>();String source="DVB EIT · IRAQhub";if(nativeReady){ReceiverCatalog.Channel channel=ReceiverCatalog.get(context).channel(prefs.getLong("own_dvb_channel",-1));if(channel!=null&&snapshot.channelId.equals("DVB:"+channel.physical()))try{events=read(channel.programToken(),signal.tp,channel.sid);}catch(java.io.IOException unavailable){/* Continue with factory/native fallback. */}}if(Thread.currentThread().isInterrupted()||ticket!=generation)return;long time=System.currentTimeMillis();
  // EPG Pro, DVB EIT and EPG ALL are independently verified DVB sources.
  // EPG ALL is this app's indexed union, NOT an invented OEM API.
  if(Thread.currentThread().isInterrupted()||ticket!=generation)return;
@@ -26,12 +26,15 @@ final class BroadcastEpgProvider {
  long observedAt=System.currentTimeMillis();
  UnifiedEpgIndex index=UnifiedEpgIndex.get(context);
  if(own&&!events.isEmpty())index.recordNative(active.channelId,events,observedAt);
+ android.util.Log.d("IraqhubEpg","nativeReady="+nativeReady+" eitEvents="+events.size());
  // Prepared EPG Pro may contain NOW only or NEXT only; do not discard the
  // other valid programme source just because one manufacturer field exists.
  boolean factoryNow=FactoryProvider.applyPrepared(context,active,false);
  boolean factoryNext=FactoryProvider.applyPrepared(context,active,true);
  SatelliteGuideRepository.Event allNow=own?index.receiverCurrent(active.channelId,observedAt):null;
  SatelliteGuideRepository.Event allNext=own?index.receiverNext(active.channelId,observedAt):null;
+ android.util.Log.d("IraqhubEpg","preparedNow="+factoryNow+" preparedNext="+factoryNext+
+   " indexedNow="+(allNow!=null)+" indexedNext="+(allNext!=null));
  if(!factoryNow&&allNow!=null&&
     DvbEpgAllPolicy.current(allNow.startMs,allNow.endMs,observedAt,allNow.title)){
   active.title=allNow.title;active.startMs=allNow.startMs;
@@ -55,15 +58,17 @@ final class BroadcastEpgProvider {
  }
  // For OSN, never confuse a cached EPGShare event with the DVB source.
  // A manually enabled internet bridge is a last resort, never a DVB default.
- if((!factoryNow||!factoryNext)&&OsnEpgFallback.eligible(
-       active.channelId,active.channelName)&&
-    prefs.getBoolean(OsnEpgFallback.ENABLED,false)){
-  List<NativeEpgEvents.Event> extra=OsnEpgFallback.read(
-      context,active.channelName,active.channelId,observedAt);
+ boolean officialOsn=OsnEpgFallback.officialChannel(active.channelId,active.channelName);
+ if((!factoryNow||!factoryNext)&&(officialOsn||OsnEpgFallback.eligible(
+       active.channelId,active.channelName))&&
+    prefs.getBoolean(OsnEpgFallback.ENABLED,officialOsn)){
+  List<NativeEpgEvents.Event> extra=officialOsn?OsnEpgFallback.official(context,active.channelName,observedAt):
+      OsnEpgFallback.read(context,active.channelName,active.channelId,observedAt);
+  if(Thread.currentThread().isInterrupted()||ticket!=generation)return;
   if(!factoryNow){
    NativeEpgEvents.Event e=current(extra,observedAt);
    if(e!=null){active.title=e.title;active.startMs=e.start;active.endMs=e.end;
-    active.image=e.image;active.source="EPGShare SA1 · manual OSN fallback";
+    active.image=e.image;active.source=officialOsn?"OSN · Official TV Guide":"EPGShare SA1 · manual OSN fallback";
     factoryNow=true;}
   }
   if(!factoryNext){
@@ -86,15 +91,22 @@ final class BroadcastEpgProvider {
   active.nextTitle="";active.nextStartMs=0;active.nextEndMs=0;active.nextImage="";
  }
  if(!DvbEpgAllPolicy.current(active.startMs,active.endMs,observedAt,active.title)){
-  retry=SystemClock.elapsedRealtime()+12000;
+  // A zap can be observed before the tuner reports lock. Retry that case
+  // on the next playback tick; keep a backoff after a real empty EIT read.
+  retry=SystemClock.elapsedRealtime()+(own&&!nativeReady?1000:5000);
   // NEXT is useful even when OSN publishes no current title. Do not lose it
   // by returning before the state is saved. Keep the exact channel guard.
   boolean nextValid=DvbEpgAllPolicy.next(active.nextStartMs,active.nextEndMs,
       observedAt,active.nextTitle);
-  if(nextValid&&identity.equals(ReceiverInfoRepository.channelKey(SatelliteState.read(context)))){
+  if(identity.equals(ReceiverInfoRepository.channelKey(SatelliteState.read(context)))&&
+     !prefs.getBoolean("dvb_tuning",false)){
    active.observedAt=time;
    active.save(context);
-   prefs.edit().putLong("epg_art_changed_at",time).apply();
+   if(!original.title.equals(active.title)||original.startMs!=active.startMs||
+      !original.nextTitle.equals(active.nextTitle)||original.nextStartMs!=active.nextStartMs){
+    prefs.edit().putLong("epg_art_changed_at",time).apply();
+    if(nextValid)IraqHubSyncScheduler.programmeChanged(context);
+   }
   }
   prefs.edit().putString("broadcast_epg_status",
       nextValid?"DVB_EPG_ALL_NEXT_ONLY":"DVB_EPG_ALL_NO_VALID_CURRENT")

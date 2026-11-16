@@ -34,6 +34,10 @@ final class PrivatePosterCache {
    return BitmapFactory.decodeFile(f.getAbsolutePath(),scale);
   }catch(Exception invalid){return null;}
  }
+ private static String status(Context c,String source,String value){
+  c.getSharedPreferences("smarthub",0).edit().putString("poster_source_result:"+source,value).apply();
+  return "";
+ }
  static String fetch(Context c,String source,String imdb,String key){
   if(!PosterApiSecrets.supported(source)||"sportsdb".equals(source)||
      !PosterApiSecrets.valid(key)||imdb==null||!imdb.matches("tt[0-9]{7,10}"))return "";
@@ -56,7 +60,12 @@ final class PrivatePosterCache {
    connection.setConnectTimeout(5000);connection.setReadTimeout(10000);
    connection.setRequestProperty("Accept","image/jpeg,image/png,image/webp");
    try{
-    if(connection.getResponseCode()!=200||connection.getContentLengthLong()>MAX)return "";
+    int code=connection.getResponseCode();
+    if(code==401||code==403)return status(c,source,"KEY_REJECTED_OR_POSTER_ACCESS_DENIED");
+    if(code==404)return status(c,source,"POSTER_NOT_FOUND");
+    if(code==429)return status(c,source,"RATE_LIMIT");
+    if(code!=200)return status(c,source,"HTTP_"+code);
+    if(connection.getContentLengthLong()>MAX)return status(c,source,"IMAGE_TOO_LARGE");
     try(InputStream in=connection.getInputStream();
         ByteArrayOutputStream bytes=new ByteArrayOutputStream()){
      byte[] buffer=new byte[16384];int n;
@@ -65,17 +74,18 @@ final class PrivatePosterCache {
       bytes.write(buffer,0,n);
      }
      byte[] raw=bytes.toByteArray();
-     if(!VerifiedPosterFallback.valid(raw))return "";
+     if(!VerifiedPosterFallback.valid(raw))return status(c,source,"INVALID_IMAGE");
      AtomicFile safe=new AtomicFile(f);
      FileOutputStream out=safe.startWrite();
      try{out.write(raw);safe.finishWrite(out);}
      catch(Exception io){safe.failWrite(out);return "";}
+     status(c,source,"POSTER_DOWNLOADED");
      return identity;
     }
    }finally{connection.disconnect();}
   }catch(Exception ignored){
    // URLs can contain private API keys; never log the exception or URL.
-   return read(c,identity)==null?"":identity;
+   return read(c,identity)==null?status(c,source,"NETWORK_OR_TLS_ERROR"):identity;
   }
  }
 }

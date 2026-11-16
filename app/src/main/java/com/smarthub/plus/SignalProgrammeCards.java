@@ -91,6 +91,7 @@ final class SignalProgrammeCards implements AutoCloseable {
    String title=next?snapshot.nextTitle:snapshot.title;
    if(newProgramme){
     images[i].setImageDrawable(null);
+    images[i].setVisibility(View.GONE);
     titles[i].setText(title.isEmpty()?"—":title);
     summaries[i].setText(title.isEmpty()?"": "...");
    }
@@ -128,7 +129,17 @@ final class SignalProgrammeCards implements AutoCloseable {
   main.post(()->{
    if(closed||!active||!expected.equals(lastKey))return;
    int index=upcoming?1:0;
-   if(result!=null)images[index].setImageBitmap(result);
+   if(result!=null){
+    ImageView view=images[index];
+    int maxWidth=result.getWidth()>result.getHeight()?dp(145):dp(110);
+    float scale=Math.min((float)maxWidth/result.getWidth(),(float)dp(157)/result.getHeight());
+    LinearLayout.LayoutParams size=(LinearLayout.LayoutParams)view.getLayoutParams();
+    size.width=Math.max(1,Math.round(result.getWidth()*scale));
+    size.height=Math.max(1,Math.round(result.getHeight()*scale));
+    view.setLayoutParams(size);
+    view.setImageBitmap(result);
+    view.setVisibility(View.VISIBLE);
+   }
    summaries[index].setText(text.isEmpty()?"النبذة غير متاحة":text);
   });
  }

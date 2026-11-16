@@ -15,7 +15,15 @@ final class FactoryProvider implements AutoCloseable {
     contextKey.equals(requestKey)&&now<retry)return;busy=true;requestKey=contextKey;retry=now+60000;SatelliteState snapshot=state.copy();io.execute(()->{try{fetch(snapshot,key);FactoryEpgGuard.success(prefs);prefs.edit().putString("factory_status","FACTORY_EPG_CONNECTED").putLong("factory_last_success",System.currentTimeMillis()).apply();}catch(Exception e){retry=System.currentTimeMillis()+60000;String failure=FactoryClient.safe(e);FactoryEpgGuard.failure(prefs,failure,System.currentTimeMillis());if(!failure.contains("CHANNEL")&&!failure.contains("PROGRAMME")&&!failure.contains("NOT_PUBLISHED"))blockedUntil=System.currentTimeMillis()+300000;prefs.edit().putString("factory_status",failure).apply();}finally{busy=false;}});}
  private void fetch(SatelliteState state,String identity)throws Exception{fetch(state,identity,false);}
  private void fetch(SatelliteState state,String identity,boolean preZapping)throws Exception{FactoryClient client=new FactoryClient(context);ZoneId zone=ZoneId.of(prefs.getString("tv_epg_timezone","Asia/Baghdad"));long now=System.currentTimeMillis();Map<String,String> p=new LinkedHashMap<>();p.put("cid",Integer.toString(client.identity().optInt("cid",-1)));p.put("timezone",ZonedDateTime.now(zone).getOffset().getId());p.put("language","en");DateTimeFormatter f=DateTimeFormatter.ofPattern("yyyy-MM-dd");p.put("start",Instant.ofEpochMilli(now-3600000).atZone(zone).format(f));p.put("end",Instant.ofEpochMilli(now+24*3600000L).atZone(zone).format(f));p.put("pageSize","25");p.put("pageNum","1");String nativeKey=SportsCache.key(identity);String channel=prefs.getString("factory_channel:"+nativeKey,"");if(!FactoryProtocol.reference(channel)){// CHMAX channel search is about SERVICE identity, never the now-playing programme.
- p.put("searchKey",state.channelName.trim());JSONObject search=client.get("/epgapi/v1/schedule/search",p);channel=FactoryProtocol.channelKey(search,state.channelName,state.title,now,zone);if(channel.isEmpty())throw new Exception("FACTORY_CHANNEL_NOT_MATCHED");String satellite="";JSONObject searchData=search.optJSONObject("data");JSONArray rows=searchData==null?null:searchData.optJSONArray("channelList");if(rows!=null)for(int i=0;i<Math.min(50,rows.length());i++){JSONObject row=rows.optJSONObject(i);if(row!=null&&channel.equals(row.optString("id")))satellite=row.optString("satellite");}String reference=FactoryProtocol.resolveReference(search,channel,null);if(reference.isEmpty()&&!satellite.isEmpty()&&satellite.length()<100)reference=FactoryProtocol.resolveReference(search,channel,client.get("/epgapi/v1/satellite/channel/list",Collections.singletonMap("querySats",satellite)));if(!FactoryProtocol.reference(reference))throw new Exception("FACTORY_CHANNEL_REFERENCE_UNAVAILABLE");channel=reference;prefs.edit().putString("factory_channel:"+nativeKey,channel).apply();}
+ p.put("searchKey",state.channelName.trim());JSONObject search=client.get("/epgapi/v1/schedule/search",p);channel=FactoryProtocol.channelKey(search,state.channelName,state.title,now,zone);if(channel.isEmpty()){
+   String alternate=FactoryProtocol.alternateOsnName(state.channelName);
+   if(!alternate.isEmpty()){
+    p.put("searchKey",alternate);
+    search=client.get("/epgapi/v1/schedule/search",p);
+    channel=FactoryProtocol.channelKey(search,state.channelName,state.title,now,zone);
+   }
+  }
+  if(channel.isEmpty())throw new Exception("FACTORY_CHANNEL_NOT_MATCHED");String satellite="";JSONObject searchData=search.optJSONObject("data");JSONArray rows=searchData==null?null:searchData.optJSONArray("channelList");if(rows!=null)for(int i=0;i<Math.min(50,rows.length());i++){JSONObject row=rows.optJSONObject(i);if(row!=null&&channel.equals(row.optString("id")))satellite=row.optString("satellite");}String reference=FactoryProtocol.resolveReference(search,channel,null);if(reference.isEmpty()&&!satellite.isEmpty()&&satellite.length()<100)reference=FactoryProtocol.resolveReference(search,channel,client.get("/epgapi/v1/satellite/channel/list",Collections.singletonMap("querySats",satellite)));if(!FactoryProtocol.reference(reference))throw new Exception("FACTORY_CHANNEL_REFERENCE_UNAVAILABLE");channel=reference;prefs.edit().putString("factory_channel:"+nativeKey,channel).apply();}
   Map<String,String> query=new LinkedHashMap<>();query.put("sn",client.identity().optString("sn"));query.put("sat",channel);query.put("start",p.get("start"));query.put("end",p.get("end"));query.put("timezone",p.get("timezone"));query.put("language","en");query.put("simple","0");JSONObject reply=client.get("/epgapi/v1/schedule/list",query);JSONObject data=reply.optJSONObject("data");
   if(data==null||!FactoryProtocol.compatibleChannelName(state.channelName,data.optString("name")))
     throw new Exception("FACTORY_CHANNEL_MISMATCH");
@@ -131,7 +139,6 @@ final class FactoryProvider implements AutoCloseable {
   }
   AUTO_LOGO_IO.execute(()->{
    try{
-    if(CHMAXIntegration.logo(app,wanted,false)!=null)return;
     // This MUST use the manufacturer's separate CHMAX channel-icon API.
     // Factory EPG Pro can reject code 50000 without blocking channel logos.
     Bitmap logo=FactoryProvider.cachedLogo(app,wanted.channelName,wanted.channelId);
@@ -185,9 +192,6 @@ final class FactoryProvider implements AutoCloseable {
    SatelliteState s=new SatelliteState();s.channelName=name;s.channelId=id;
    String key=SportsCache.key(CHMAXIntegration.identity(s));
    SharedPreferences p=c.getSharedPreferences("smarthub",0);
-   // Permanent original CHMAX artwork must work offline and after reboot.
-   Bitmap retained=CHMAXIntegration.logo(c,s,false);
-   if(retained!=null)return retained;
    if(System.currentTimeMillis()-p.getLong("factory_logo_time:"+key,0)>86400000)return null;
    String url=p.getString("factory_logo:"+key,"");
    if(!url.startsWith("https://"))return null;
@@ -201,10 +205,7 @@ final class FactoryProvider implements AutoCloseable {
    o.inSampleSize=1;
    while(o.outWidth/o.inSampleSize>1024||o.outHeight/o.inSampleSize>1024)o.inSampleSize*=2;
    o.inJustDecodeBounds=false;
-   Bitmap decoded=BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);
-   if(decoded!=null)try{CHMAXIntegration.saveObservedLogo(c,id,name,decoded);}
-     catch(Exception ignored){/* Display still succeeds; disk IO can retry. */}
-   return decoded;
+   return BitmapFactory.decodeByteArray(bytes,0,bytes.length,o);
   }catch(Exception e){return null;}
  }
  public void close(){closed=true;io.shutdownNow();}

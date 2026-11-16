@@ -28,7 +28,7 @@ final class PosterApiProbe {
     url="https://img.omdbapi.com/?apikey="+escaped+"&i="+SAMPLE+"&h=600";
    else return "UNKNOWN_SERVICE";
    HttpsURLConnection connection=(HttpsURLConnection)new URL(url).openConnection();
-   connection.setRequestMethod("HEAD");
+   connection.setRequestMethod("GET");
    connection.setInstanceFollowRedirects(false);
    connection.setConnectTimeout(6000);connection.setReadTimeout(9000);
    connection.setRequestProperty("Accept","image/jpeg,image/png,image/webp");
@@ -39,7 +39,7 @@ final class PosterApiProbe {
      return "CONNECTED_AND_POSTER_AVAILABLE";
     if(code==401||code==403)return "KEY_REJECTED_OR_NO_POSTER_ENTITLEMENT";
     if(code==429)return "RATE_LIMITED_RETRY_LATER";
-    if(code==405||code==501)return "SOURCE_DOES_NOT_SUPPORT_HEAD_CHECK";
+    if(code==405||code==501)return "SOURCE_REJECTED_POSTER_REQUEST";
     if(code==404)return "REACHABLE_BUT_SAMPLE_POSTER_NOT_FOUND";
     if(code>=300&&code<400)return "REDIRECT_NOT_FOLLOWED";
     return "HTTP_"+code+"_UNVERIFIED";

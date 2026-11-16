@@ -42,7 +42,7 @@ public final class ProviderLogoEditorActivity extends HubActivity {
    picker.setType("image/*");
    launchDocument(picker,PICK_IMAGE);
   });
-  action(body,tx("اختيار عدة قنوات تابعة لهذا المزوّد","Select multiple associated DVB channels"),
+  action(body,tx("إضافة قنوات للمزوّد","Select multiple associated DVB channels"),
     ()->chooseChannels());
   action(body,tx("حفظ انتماء القنوات المحددة للمزوّد","Save chosen channel assignments"),
     ()->saveChannels());
@@ -53,7 +53,7 @@ public final class ProviderLogoEditorActivity extends HubActivity {
    io.execute(()->{
     try{
      int undone=ProviderLogoOverrides.clearChannels(this,selected);
-     selectedDvb.removeAll(selected);
+     runOnUiThread(()->selectedDvb.removeAll(selected));
      result(tx("أُلغي ربط قنوات: ","Unassigned channels: ")+undone);
     }catch(Exception e){result(tx("تعذر إلغاء الربط","Cannot remove assignments"));}
    });
@@ -98,50 +98,84 @@ public final class ProviderLogoEditorActivity extends HubActivity {
   });
  }
  private void chooseChannels(){
-  EditText query=new EditText(this);
-  query.setSingleLine(true);
-  query.setHint(tx("ابحث بالاسم أو التردد","Search name or frequency"));
-  new android.app.AlertDialog.Builder(this)
-   .setTitle(tx("بحث قنوات المزوّد","Find provider channels"))
-   .setView(query)
-   .setPositiveButton(tx("عرض القنوات","Show channels"),(dialog,which)->{
-    String term=query.getText().toString().trim();
-    status.setText(tx("جارٍ قراءة فهرس القنوات…","Reading DVB channel list…"));
-    io.execute(()->{
-     try{
-      List<ReceiverCatalog.Channel> rows=ReceiverCatalog.get(this)
-       .channels(term,-1,-1,false,false,0);
-      Set<String> ambiguous=ReceiverCatalog.get(this).ambiguousPhysicalKeys();
-      ArrayList<ReceiverCatalog.Channel> eligible=new ArrayList<>();
-      for(ReceiverCatalog.Channel c:rows)
-       if(!ambiguous.contains(c.physical()))eligible.add(c);
-      runOnUiThread(()->{if(!closed)showChannelList(eligible);});
-     }catch(Exception failure){result(tx("فشل قراءة قنوات الرسيفر","Receiver channel list unavailable"));}
+  io.execute(()->{
+   try{
+    List<ReceiverCatalog.Sat> satellites=ReceiverCatalog.get(this).satellites();
+    runOnUiThread(()->{
+     if(closed||isFinishing())return;
+     if(satellites.isEmpty()){
+      status.setText(tx("لا توجد أقمار في فهرس الرسيفر","No satellites in receiver catalog"));
+      return;
+     }
+     String[] labels=new String[satellites.size()];
+     for(int i=0;i<labels.length;i++)labels[i]=satellites.get(i).label();
+     new android.app.AlertDialog.Builder(this).setTitle(tx("قائمة الأقمار","Satellite list"))
+      .setItems(labels,(dialog,index)->loadChannels(satellites.get(index),"",0))
+      .setNegativeButton(tx("إلغاء","Cancel"),null).show();
     });
-   }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
+   }catch(Exception failure){result(tx("تعذرت قراءة الأقمار","Cannot read satellites"));}
+  });
  }
- private void showChannelList(List<ReceiverCatalog.Channel> rows){
-  if(rows.isEmpty()){
-   status.setText(tx("ماكو قنوات مطابقة أو هوياتها غير مميزة","No unique matching DVB services"));
-   return;
-  }
+ private void loadChannels(ReceiverCatalog.Sat satellite,String query,int offset){
+  io.execute(()->{
+   try{
+    ReceiverCatalog catalog=ReceiverCatalog.get(this);
+    List<ReceiverCatalog.Channel> page=catalog.channels(query,satellite.id,-1,false,false,offset);
+    Set<String> ambiguous=catalog.ambiguousPhysicalKeys();
+    ArrayList<ReceiverCatalog.Channel> eligible=new ArrayList<>();
+    for(ReceiverCatalog.Channel row:page)if(!ambiguous.contains(row.physical()))eligible.add(row);
+    runOnUiThread(()->{
+     if(!closed&&!isFinishing())showChannelList(satellite,query,offset,page.size()==120,eligible);
+    });
+   }catch(Exception failure){result(tx("تعذرت قراءة القنوات","Cannot read channels"));}
+  });
+ }
+ private void showChannelList(ReceiverCatalog.Sat satellite,String query,int offset,boolean more,
+   List<ReceiverCatalog.Channel> rows){
   String[] labels=new String[rows.size()];
   boolean[] checked=new boolean[rows.size()];
   for(int i=0;i<rows.size();i++){
-   ReceiverCatalog.Channel c=rows.get(i);
-   labels[i]=c.name+" · "+c.satName+" · "+c.frequency+" "+c.pol;
-   checked[i]=selectedDvb.contains("DVB:"+c.physical());
+   ReceiverCatalog.Channel row=rows.get(i);
+   labels[i]=row.name+" · "+row.frequency+" "+row.pol;
+   checked[i]=selectedDvb.contains("DVB:"+row.physical());
   }
-  new android.app.AlertDialog.Builder(this)
-   .setTitle(tx("حدد القنوات (حتى 120 نتيجة لكل بحث)","Select channels · up to 120 per search"))
-   .setMultiChoiceItems(labels,checked,(dialog,index,on)->{
-    String key="DVB:"+rows.get(index).physical();
-    if(on)selectedDvb.add(key);else selectedDvb.remove(key);
-   })
-   .setPositiveButton(tx("اعتماد التحديد","Keep selection"),(dialog,which)->
-      status.setText(tx("القنوات المحددة: ","Selected services: ")+selectedDvb.size()))
-   .setNeutralButton(tx("بحث آخر","Search again"),(dialog,which)->chooseChannels())
-   .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+  Runnable keep=()->{
+   for(int i=0;i<rows.size();i++){
+    String key="DVB:"+rows.get(i).physical();
+    if(checked[i])selectedDvb.add(key);else selectedDvb.remove(key);
+   }
+   status.setText(tx("القنوات المحددة: ","Selected services: ")+selectedDvb.size());
+  };
+  android.app.AlertDialog.Builder builder=new android.app.AlertDialog.Builder(this)
+   .setTitle(satellite.label()+" · "+(offset/120+1)+" · "+selectedDvb.size())
+   .setPositiveButton(tx("اعتماد التحديد","Keep selection"),(dialog,which)->keep.run())
+   .setNeutralButton(tx("بحث","Search"),(dialog,which)->{
+    keep.run();
+    EditText input=new EditText(this);
+    input.setSingleLine(true);
+    input.setText(query);
+    input.setHint(tx("اسم القناة أو التردد","Channel name or frequency"));
+    new android.app.AlertDialog.Builder(this).setTitle(satellite.label()).setView(input)
+     .setPositiveButton(tx("عرض القنوات","Show channels"),
+       (d,w)->loadChannels(satellite,input.getText().toString().trim(),0))
+     .setNegativeButton(tx("رجوع","Back"),(d,w)->loadChannels(satellite,query,offset)).show();
+   });
+  if(rows.isEmpty())builder.setMessage(tx("لا توجد قنوات قابلة للربط في هذه الصفحة",
+    "No assignable channels on this page"));
+  else builder.setMultiChoiceItems(labels,checked,(dialog,index,on)->{
+   checked[index]=on;
+   keep.run();
+   ((android.app.AlertDialog)dialog).setTitle(satellite.label()+" · "+(offset/120+1)+" · "+selectedDvb.size());
+  });
+  if(more)builder.setNegativeButton(tx("التالي","Next page"),(dialog,which)->{
+   keep.run();
+   loadChannels(satellite,query,offset+120);
+  });
+  else if(offset>0)builder.setNegativeButton(tx("السابق","Previous page"),(dialog,which)->{
+   keep.run();
+   loadChannels(satellite,query,offset-120);
+  });
+  builder.show();
  }
  private void saveChannels(){
   final String provider=provider(),iso=iso();

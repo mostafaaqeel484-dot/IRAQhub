@@ -17,7 +17,7 @@ final class ProgrammeSynopsisSource {
    if(event!=null&&PlaylistRepository.normalize(title).equals(
        PlaylistRepository.normalize(event.title))&&
        event.description!=null&&!event.description.isEmpty())
-    return ProgrammeSynopsisText.clean(event.description,160);
+    return event.description;
   }catch(Exception unavailable){/* Try the live sports metadata below. */}
   try{
    SatelliteState event=snapshot.copy();

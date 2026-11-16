@@ -408,13 +408,13 @@ final class NowNextView extends FrameLayout {
   resolutionStrip.setContentDescription(badge.isEmpty()?tx("الدقة غير متاحة","Video resolution not available"):badge);
   // The transponder belongs in the channel-list footer, not below the channel title.
   broadcast.setText("");broadcast.setVisibility(GONE);
-  currentPoster.setImageBitmap(current);nextPoster.setImageBitmap(next);
-  if(current==null)currentPoster.setImageDrawable(null);if(next==null)nextPoster.setImageDrawable(null);currentPoster.setAlpha(current==null?.2f:1);nextPoster.setAlpha(next==null?.2f:1);
+  bindPoster(leftPosterBox,currentPoster,current);
+  bindPoster(rightPosterBox,nextPoster,next);
   currentPoster.setContentDescription(tx("الآن · ","NOW · ")+s.title);
   nextPoster.setContentDescription(tx("التالي · ","NEXT · ")+s.nextTitle);
   currentTitle.setText(tx("الآن · ","NOW · ")+shortTime(s.startMs));
   nextTitle.setText(tx("التالي · ","NEXT · ")+shortTime(s.nextStartMs));
-  currentWorkName.setText(s.title);nextWorkName.setText(s.nextTitle);
+  currentWorkName.setText(ratedTitle(s,false));nextWorkName.setText(ratedTitle(s,true));
   String number=s.channelId.replaceFirst("^Aurum:","");
   if(s.channelId.startsWith("DVB:")){
    int ordinal=prefs.getInt("own_dvb_sat_number",0);
@@ -665,6 +665,34 @@ final class NowNextView extends FrameLayout {
  }
  private ProgressBar meter(int color){ProgressBar p=new ProgressBar(getContext(),null,android.R.attr.progressBarStyleHorizontal);p.setMax(100);p.setProgressTintList(android.content.res.ColorStateList.valueOf(color));p.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x33577385));return p;}
  private static int percent(String value){try{return Math.max(0,Math.min(100,Math.round(Float.parseFloat(value.replace("%","")))));}catch(Exception e){return 0;}}
+ private String ratedTitle(SatelliteState state,boolean upcoming){
+  String title=upcoming?state.nextTitle:state.title;
+  String rating=PosterSelection.read(getContext(),state,title,upcoming).optString("certification");
+  return rating.isEmpty()?title:title+"  ·  "+rating;
+ }
+ private void bindPoster(LinearLayout box,ImageView view,Bitmap bitmap){
+  int width=dp(108),height=dp(143);
+  if(bitmap!=null){
+   int maxWidth=bitmap.getWidth()>bitmap.getHeight()?
+     Math.min(dp(210),Math.max(dp(108),getWidth()/4)):width;
+   float scale=Math.min((float)maxWidth/bitmap.getWidth(),(float)height/bitmap.getHeight());
+   width=Math.max(1,Math.round(bitmap.getWidth()*scale));
+   height=Math.max(1,Math.round(bitmap.getHeight()*scale));
+  }
+  LinearLayout.LayoutParams imageParams=(LinearLayout.LayoutParams)view.getLayoutParams();
+  if(imageParams.width!=width||imageParams.height!=height){
+   imageParams.width=width;
+   imageParams.height=height;
+   view.setLayoutParams(imageParams);
+  }
+  FrameLayout.LayoutParams boxParams=(FrameLayout.LayoutParams)box.getLayoutParams();
+  int boxWidth=bitmap==null?dp(184):width+box.getPaddingLeft()+box.getPaddingRight();
+  if(boxParams.width!=boxWidth){
+   boxParams.width=boxWidth;
+   box.setLayoutParams(boxParams);
+  }
+  view.setImageBitmap(bitmap);
+ }
  private ImageView poster(){ImageView v=new ImageView(getContext());v.setScaleType(ImageView.ScaleType.FIT_CENTER);v.setBackground(card(0xaa112333,10));v.setClipToOutline(true);v.setElevation(dp(8));return v;}
  private LinearLayout column(){LinearLayout v=new LinearLayout(getContext());v.setOrientation(LinearLayout.VERTICAL);return v;}
  private TextView label(String value,int size,boolean bold){TextView v=new TextView(getContext());v.setText(value);v.setTextSize(size*textScale);v.setTextColor(ink);v.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);v.setSingleLine(true);v.setEllipsize(TextUtils.TruncateAt.END);Typeface original=UserTypeface.get(getContext());if(original==null)original=RxOriginalAssets.font(getContext());

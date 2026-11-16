@@ -69,6 +69,11 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
   root.addView(view,0,new FrameLayout.LayoutParams(-1,-1));
   view.getHolder().addCallback(this);
  }
+ /** Set the local software-decoder volume without retuning DVB or changing channels. */
+ void volumePercent(int level){
+  try{if(mpv!=null&&!destroyed)mpv.setPropertyString("volume",Integer.toString(
+    Math.max(0,Math.min(100,level))));}catch(Exception ignored){}
+ }
  boolean start(String url){
   if(destroyed||url==null||url.isEmpty())return false;
   try{
@@ -165,6 +170,8 @@ final class Mpv422Renderer implements SurfaceHolder.Callback, MPVLib.EventObserv
    pendingUrl=url;
    mpv.init();
    initialized=true;
+   volumePercent(context.getSharedPreferences("smarthub",Context.MODE_PRIVATE)
+     .getInt("dvb_volume",20));
    view.setVisibility(android.view.View.VISIBLE);
    // Some X5M versions create SurfaceHolder before/after mpv.init.
    // Either order is handled, but attach/loadfile happen exactly once.

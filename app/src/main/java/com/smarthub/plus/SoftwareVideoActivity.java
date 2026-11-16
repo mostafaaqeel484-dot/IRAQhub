@@ -1,4 +1,5 @@
 package com.smarthub.plus;
+import android.content.Intent;
 
 import android.net.Uri;
 import android.app.AlertDialog;
@@ -48,6 +49,25 @@ public final class SoftwareVideoActivity extends HubActivity {
     private long decoderOpenedAt;
     private boolean decoderBuffering;
     private boolean preferredSubtitleChecked;
+    private static SoftwareVideoActivity visibleCaptionPlayer;
+    private String captionFtaChannel="";
+    private String captionTrackLanguage="";
+
+    static boolean canCaptureCaptions(String channelId){
+      SoftwareVideoActivity player=visibleCaptionPlayer;
+      return player!=null&&!player.released&&!player.backgroundStopped&&player.hasWindowFocus()&&
+        player.satelliteRelay!=null&&player.satelliteRelay.running()&&
+        channelId.startsWith("DVB:")&&channelId.equals(player.captionFtaChannel);
+    }
+
+    static String captionLanguage(String channelId){
+      return canCaptureCaptions(channelId)?visibleCaptionPlayer.captionTrackLanguage:"";
+    }
+    private int subtitleAttempts;
+    private final Runnable preferredSubtitleCheck=this::applyPreferredLibVlcSubtitle;
+    private boolean liveSubtitlePickerOpened;
+    private int liveSubtitlePickerAttempts;
+    private final Runnable liveSubtitlePickerCheck=this::openLiveSubtitlePicker;
     private int selectedSubtitlePid(){
       long id=getIntent().getLongExtra("dvb_channel",-1);
       if(id<0)return -1;
@@ -63,21 +83,25 @@ public final class SoftwareVideoActivity extends HubActivity {
       if(pid<0)return;
       try{
         MediaPlayer.TrackDescription[] subtitles=mediaPlayer.getSpuTracks();
-        if(subtitles==null||subtitles.length==0)return;
-        preferredSubtitleChecked=true;
-        for(MediaPlayer.TrackDescription track:subtitles){
-          if(track.id!=pid)continue;
+        if(subtitles!=null)for(MediaPlayer.TrackDescription track:subtitles){
+          if(track==null||track.id!=pid)continue;
           boolean ok=mediaPlayer.setSpuTrack(track.id);
-          prefs().edit().putString("native_subtitle_status",
-            ok?"LIBVLC_MATCHED_TS_PID_"+pid:"LIBVLC_PID_SELECT_FAILED_"+pid).apply();
-          return;
+          if(ok&&mediaPlayer.getSpuTrack()==track.id){
+            preferredSubtitleChecked=true;
+            captionTrackLanguage=NativeTrackInfo.language(track.name==null?"":track.name);
+            subtitleStatus("LIBVLC_MATCHED_TS_PID_"+pid);
+            return;
+          }
         }
-        prefs().edit().putString("native_subtitle_status",
-          "LIBVLC_PID_NOT_PRESENT_"+pid).apply();
       }catch(Throwable unsupported){
-        prefs().edit().putString("native_subtitle_status",
-          "LIBVLC_SUBTITLE_TRACKS_UNAVAILABLE").apply();
+        // The demuxer may not have announced the track yet.
       }
+      if(++subtitleAttempts<8)main.postDelayed(preferredSubtitleCheck,1000);
+      else subtitleStatus("LIBVLC_PREFERRED_PID_UNCONFIRMED_"+pid);
+    }
+    private void subtitleStatus(String value){
+      prefs().edit().putString("native_subtitle_status",value).apply();
+      android.util.Log.d("IraqhubSubtitles",value);
     }
     private long lastPictureProgressAt,videoStatsAt;
     private long previousDisplayed=-1,previousDecoded=-1,previousAudio=-1,previousDemux=-1;
@@ -240,7 +264,8 @@ public final class SoftwareVideoActivity extends HubActivity {
                 new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
         root.addView(tracks, trackParams);
         setContentView(root);
-        localInfo=new LocalInfoBarController(this,root);
+        if(getIntent().getLongExtra("dvb_channel",-1L)<0)
+          localInfo=new LocalInfoBarController(this,root);
 
         long dvbChannel=getIntent().getLongExtra("dvb_channel",-1L);
         if(dvbChannel>=0){
@@ -249,7 +274,7 @@ public final class SoftwareVideoActivity extends HubActivity {
                 public void post(Runnable task,long delay){main.postDelayed(task,delay);}
                 public void cancel(Runnable task){main.removeCallbacks(task);}
             },new BlueKeyGesture.Listener(){
-                public void single(){if(localInfo!=null)localInfo.showDetails();}
+                public void single(){if(localInfo!=null)localInfo.showProgrammeDetails();}
                 public void signal(){startActivity(new android.content.Intent(
                     SoftwareVideoActivity.this,SignalInformationActivity.class));}
                 public void assistant(){startActivity(new android.content.Intent(
@@ -316,6 +341,8 @@ public final class SoftwareVideoActivity extends HubActivity {
               next.source="DVB · IRAQhub · LibVLC";
               next.observedAt=System.currentTimeMillis();
               next.save(SoftwareVideoActivity.this);
+              main.post(()->{if(!released&&!backgroundStopped)
+                captionFtaChannel=channel.ca==0?"DVB:"+channel.physical():"";});
               FrontPanelBridge.publish(SoftwareVideoActivity.this,channel,panelNumber);
               prefs().edit().putString("software_422_runtime","TS_READY").apply();
               NativeSatelliteAudioGate.enforce(SoftwareVideoActivity.this,nativeAudioToken);
@@ -374,7 +401,10 @@ public final class SoftwareVideoActivity extends HubActivity {
             // must see the real PAT/PMT and timestamps.
             libVLC = new LibVLC(this, options);
             mediaPlayer = new MediaPlayer(libVLC);
-            mediaPlayer.attachViews(videoLayout, null, false, false);
+            boolean satellite422=getIntent().getLongExtra("dvb_channel",-1L)>=0
+              && !Software422Profile.STABLE.equals(Software422Profile.current(this));
+            mediaPlayer.attachViews(videoLayout, null, false, satellite422);
+            android.util.Log.d("Iraqhub422","LibVLC output="+(satellite422?"TextureView":"SurfaceView"));
             mediaPlayer.setEventListener(event -> runOnUiThread(() -> {
                 if (released || status == null) return;
                 switch (event.type) {
@@ -404,7 +434,12 @@ public final class SoftwareVideoActivity extends HubActivity {
                         break;
                     case MediaPlayer.Event.Playing:
                         decoderBuffering=false;
-                        main.postDelayed(this::applyPreferredLibVlcSubtitle,1500);
+                        main.removeCallbacks(preferredSubtitleCheck);
+                        if(subtitleAttempts<8)main.postDelayed(preferredSubtitleCheck,500);
+                        if(getIntent().getBooleanExtra("open_live_subtitles",false)&&!liveSubtitlePickerOpened){
+                            main.removeCallbacks(liveSubtitlePickerCheck);
+                            main.postDelayed(liveSubtitlePickerCheck,1200);
+                        }
                         NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
                         if(!videoOutputSeen)main.postDelayed(voutWatchdog,14000L);
                         prefs().edit().putString("software_422_runtime",
@@ -437,6 +472,7 @@ public final class SoftwareVideoActivity extends HubActivity {
             mediaPlayer.setMedia(media);
             media.release();
             mediaPlayer.play();
+            mediaPlayer.setVolume(prefs().getInt("dvb_volume",20));
             main.removeCallbacks(frameHealth);
             main.postDelayed(frameHealth,2600);
         } catch (Throwable failure) {
@@ -585,6 +621,10 @@ public final class SoftwareVideoActivity extends HubActivity {
           }).setNegativeButton(tx("رجوع","Close"),null).show();
     }
     private void closeDecoder(){
+        main.removeCallbacks(preferredSubtitleCheck);
+        main.removeCallbacks(liveSubtitlePickerCheck);
+        liveSubtitlePickerAttempts=0;
+        subtitleAttempts=0;
         main.removeCallbacks(frameHealth);
         resetVideoStats();
         main.removeCallbacks(voutWatchdog);
@@ -638,16 +678,17 @@ public final class SoftwareVideoActivity extends HubActivity {
       String[] labels=new String[tracks.size()+1];
       labels[0]=tx("إيقاف الترجمة","Disable subtitles");
       for(int i=0;i<tracks.size();i++)labels[i+1]=tracks.get(i).label;
-      new android.app.AlertDialog.Builder(this)
+      subtitleTranslationShortcut(new android.app.AlertDialog.Builder(this)
         .setTitle(tx("مسارات الترجمة من البث الفعلي","Actual stream subtitles"))
         .setItems(labels,(dialog,index)->{
           int id=index==0?-1:tracks.get(index-1).id;
           boolean ok=mpvRenderer!=null&&mpvRenderer.selectSubtitle(id);
+          if(ok)captionTrackLanguage=index==0?"":NativeTrackInfo.language(tracks.get(index-1).label);
           prefs().edit().putString("native_subtitle_status",
             ok?"MPV_USER_SELECTED_"+id:"MPV_SUBTITLE_SELECTION_UNAVAILABLE").apply();
           status.setText(ok?tx("تم اختيار الترجمة في mpv","mpv subtitle track selected"):
             tx("لم يتمكن mpv من اختيار المسار","mpv subtitle selection unavailable"));
-        }).show();
+        }).show());
     }
     private void showAudioTracks() {
         MediaPlayer.TrackDescription[] tracks;
@@ -678,42 +719,118 @@ public final class SoftwareVideoActivity extends HubActivity {
                 .show();
     }
 
-    private void showSubtitleTracks() {
+    private MediaPlayer.TrackDescription[] libVlcSubtitleTracks(){
         MediaPlayer.TrackDescription[] tracks;
-        try { tracks = mediaPlayer.getSpuTracks(); }
-        catch (Throwable error) { tracks = null; }
-        if (tracks == null || tracks.length == 0) {
-            status.setText(tx("لا توجد ترجمات داخل البث", "No embedded subtitles available"));
+        try{tracks=mediaPlayer==null?null:mediaPlayer.getSpuTracks();}
+        catch(IllegalStateException unavailable){tracks=null;}
+        return tracks==null?new MediaPlayer.TrackDescription[0]:java.util.Arrays.stream(tracks)
+            .filter(track->track!=null&&track.id>=0)
+            .toArray(MediaPlayer.TrackDescription[]::new);
+    }
+
+    private void openLiveSubtitlePicker(){
+        if(released||backgroundStopped||isFinishing()||liveSubtitlePickerOpened||mediaPlayer==null)return;
+        if(!hasWindowFocus()||libVlcSubtitleTracks().length==0){
+            if(++liveSubtitlePickerAttempts<7){
+                main.postDelayed(liveSubtitlePickerCheck,800);
+                return;
+            }
+        }
+        if(hasWindowFocus())showSubtitleTracks();
+    }
+
+    private void showSubtitleTracks() {
+        liveSubtitlePickerOpened=true;
+        main.removeCallbacks(liveSubtitlePickerCheck);
+        final MediaPlayer.TrackDescription[] subtitleTracks=libVlcSubtitleTracks();
+        subtitleStatus("LIBVLC_TRACK_COUNT_"+subtitleTracks.length);
+        if (subtitleTracks.length==0) {
+            status.setText(tx("المشغّل لم يكتشف مسارات ترجمة من البث بعد · اضغط SUB لإعادة الفحص",
+                "No live subtitle tracks detected yet · press SUB to check again"));
             return;
         }
-        final MediaPlayer.TrackDescription[] subtitleTracks = tracks;
         String[] labels = new String[subtitleTracks.length + 1];
         labels[0] = tx("إيقاف الترجمة", "Disable subtitles");
         int selected = mediaPlayer.getSpuTrack() == -1 ? 0 : -1;
         for (int i = 0; i < subtitleTracks.length; i++) {
-            labels[i + 1] = subtitleTracks[i].name == null ? ("Subtitle " + subtitleTracks[i].id) : subtitleTracks[i].name;
+            MediaPlayer.TrackDescription track=subtitleTracks[i];
+            String name=track.name;
+            labels[i+1]=(name==null||name.trim().isEmpty()?tx("ترجمة","Subtitle"):name)
+                +" · ID "+track.id;
             if (subtitleTracks[i].id == mediaPlayer.getSpuTrack()) selected = i + 1;
         }
-        new AlertDialog.Builder(this)
-                .setTitle(tx("اختر الترجمة", "Select subtitle"))
+        subtitleTranslationShortcut(new AlertDialog.Builder(this)
+                .setTitle(tx("مسارات الترجمة من البث","Live broadcast subtitle tracks"))
                 .setSingleChoiceItems(labels, selected, (dialog, which) -> {
                     int trackId = which == 0 ? -1 : subtitleTracks[which - 1].id;
-                    boolean ok = mediaPlayer != null && mediaPlayer.setSpuTrack(trackId);
+                    boolean ok=mediaPlayer!=null&&mediaPlayer.setSpuTrack(trackId)
+                        &&mediaPlayer.getSpuTrack()==trackId;
+                    if(ok){
+                        preferredSubtitleChecked=true;
+                        String name=which==0?null:subtitleTracks[which-1].name;
+                        captionTrackLanguage=NativeTrackInfo.language(name==null?"":name);
+                        main.removeCallbacks(preferredSubtitleCheck);
+                    }
+                    subtitleStatus(ok?"LIBVLC_USER_SELECTED_"+trackId:"LIBVLC_SELECTION_FAILED");
                     if (status != null) status.setText(ok
                             ? tx("تم تغيير الترجمة", "Subtitle selection changed")
                             : tx("تعذر تغيير الترجمة", "Could not change subtitle"));
                     dialog.dismiss();
                 })
                 .setNegativeButton(tx("إغلاق", "Close"), null)
-                .show();
+                .show());
+    }
+
+    private void subtitleTranslationShortcut(AlertDialog dialog){
+      dialog.setOnKeyListener((d,key,event)->{
+        if(key!=android.view.KeyEvent.KEYCODE_PROG_RED)return false;
+        if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
+          dialog.dismiss();
+          new AlertDialog.Builder(this)
+            .setTitle(tx("ضبط التعريب [العربية]","Set Translation [Arabic]"))
+            .setMessage(tx("شغّل مسار الترجمة أولاً. يلزم إذن Android لقراءة النص الظاهر على القنوات المجانية.",
+              "Select a subtitle track first. Android screen capture consent is required for visible captions on free-to-air channels."))
+            .setPositiveButton(tx("تفعيل","Enable"),(prompt,which)->{
+              prefs().edit().putString("live_target_language","ar").apply();
+              if(!CaptionCaptureService.running)startActivity(new Intent(this,CaptionCaptureActivity.class));
+            })
+            .setNeutralButton(tx("إيقاف التعريب","Disable translation"),(prompt,which)->
+              stopService(new Intent(this,CaptionCaptureService.class)))
+            .setNegativeButton(tx("إلغاء","Cancel"),null).show();
+        }
+        return true;
+      });
     }
 
     private void showDvbInfoBar(){
         if(localInfo!=null)localInfo.show();
     }
 
+    /** Mirror the native DVB remote layout for independent 4:2:2 playback. */
+    private void changePlaybackVolume(int change){
+        int current=prefs().getInt("dvb_volume",20);
+        int value=Math.max(0,Math.min(100,current+change));
+        prefs().edit().putInt("dvb_volume",value).putBoolean("dvb_muted",false).apply();
+        if(mediaPlayer!=null)mediaPlayer.setVolume(value);
+        if(mpvRenderer!=null)mpvRenderer.volumePercent(value);
+    }
+
     @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
         int k=event.getKeyCode();
+        int directionAction=RemoteDirectionPolicy.action(k,false);
+        if(directionAction!=RemoteDirectionPolicy.NONE){
+            if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&
+              (event.getRepeatCount()==0||event.getRepeatCount()%2==0))
+                changePlaybackVolume(directionAction==RemoteDirectionPolicy.VOLUME_UP?5:-5);
+            return true;
+        }
+        if(k==android.view.KeyEvent.KEYCODE_CAPTIONS||k==439){
+            if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
+                if(mpvRenderer!=null)showMpvSubtitleTracks();
+                else if(mediaPlayer!=null)showSubtitleTracks();
+            }
+            return true;
+        }
         if(k==android.view.KeyEvent.KEYCODE_F4){
             if(event.getAction()==android.view.KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)choosePerformance();
             return true;
@@ -753,6 +870,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     }
 
     @Override protected void onPause() {
+        if(visibleCaptionPlayer==this)visibleCaptionPlayer=null;
         if(blue!=null)blue.cancel();
         if(localInfo!=null)localInfo.dismiss();
         if(mediaPlayer!=null&&mediaPlayer.isPlaying())mediaPlayer.pause();
@@ -765,6 +883,7 @@ public final class SoftwareVideoActivity extends HubActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        visibleCaptionPlayer=this;
         if(getIntent().getLongExtra("dvb_channel",-1)>=0&&nativeAudioToken==0)
           nativeAudioToken=NativeSatelliteAudioGate.suppress(this);
         NativeSatelliteAudioGate.enforce(this,nativeAudioToken);
@@ -772,6 +891,7 @@ public final class SoftwareVideoActivity extends HubActivity {
     }
 
     @Override protected void onStop(){
+        captionFtaChannel="";
         // Suspend only our own 4:2:2 decoder and PVR/TS relay while off-screen.
         // Never force-stop Aurum or the DVB tuner service.
         backgroundStopped=true;

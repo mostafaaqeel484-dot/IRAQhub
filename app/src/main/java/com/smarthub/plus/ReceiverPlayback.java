@@ -44,7 +44,7 @@ final class ReceiverPlayback implements AutoCloseable {
      main.post(()->{if(!closed&&token==generation)listener.error("DVB_AUDIO_REJECTED");});
     }
    }
-  }else if(command==31||command==126){int begin=parts[2].indexOf('{');if(begin>=0&&current!=null){JSONObject v=new JSONObject(parts[2].substring(begin));if(v.optInt("id",-1)==current.programToken()){int width=v.optInt("width",0),height=v.optInt("height",0);if(width>0&&height>0&&width<=8192&&height<=8192){SharedPreferences.Editor edit=context.getSharedPreferences("smarthub",0).edit().putString("decoder_channel","DVB:"+current.physical()).putInt("decoder_width",width).putInt("decoder_height",height);int fps=v.optInt("framerate",0),bitrate=v.optInt("bitrate",0);if(fps>0&&fps<=240)edit.putInt("decoder_fps",fps);if(bitrate>0&&bitrate<=1000000000)edit.putInt("decoder_bitrate",bitrate);edit.apply();}}}}else if(command==200||command==201)main.post(()->{if(!closed)listener.error("DVB_DECODE_FAILED");});}catch(SocketTimeoutException idle){}catch(Exception failure){if(closed||input.isClosed()||token!=generation)return;}finally{if(!closed&&!loading&&token==generation&&current!=null){
+  }else if(command==31||command==126){int begin=parts[2].indexOf('{');if(begin>=0&&current!=null){JSONObject v=new JSONObject(parts[2].substring(begin));if(v.optInt("id",-1)==current.programToken()){int width=v.optInt("width",0),height=v.optInt("height",0);if(width>0&&height>0&&width<=8192&&height<=8192){SharedPreferences.Editor edit=context.getSharedPreferences("smarthub",0).edit().putString("decoder_channel","DVB:"+current.physical()).putInt("decoder_width",width).putInt("decoder_height",height);int fps=v.optInt("framerate",0),bitrate=v.optInt("bitrate",0);if(fps>0&&fps<=240)edit.putInt("decoder_fps",fps);if(bitrate>0&&bitrate<=1000000000)edit.putInt("decoder_bitrate",bitrate);edit.apply();}}}}else if(command==200||command==201)main.post(()->{if(!closed&&token==generation&&!loading)listener.error("DVB_DECODE_FAILED");});}catch(SocketTimeoutException idle){}catch(Exception failure){if(closed||input.isClosed()||token!=generation)return;}finally{if(!closed&&!loading&&token==generation&&current!=null){
   long now=SystemClock.elapsedRealtime();
   // EPG refresh is not part of the zapping hot path. Cache remains visible.
   if(now-epgRefreshAt>=1500){
@@ -149,5 +149,39 @@ final class ReceiverPlayback implements AutoCloseable {
  void pip(ReceiverCatalog.Channel selected){if(closed||loading)return;io.execute(()->{try{ReceiverCatalog.Channel active=current;if(active==null||selected.ca!=0||!selected.transponder().equals(active.transponder()))throw new IOException("PIP_SAME_TRANSPONDER_REQUIRED");ReceiverSignalReading tuner=DvbTuner.read();if(tuner.locked!=1||tuner.tp!=context.getSharedPreferences("smarthub",0).getInt("own_dvb_runtime_tp",-1))throw new IOException("DVB_NOT_LOCKED");JSONObject body=DvbPlayRequest.create(selected.data,(int)selected.id,selected.sid,selected.angle,selected.frequency,selected.pol,selected.symbolRate,tuner.tp,0);body.put("bPip",1).put("iMode",0);pipPending=true;pipIssued=true;send(7,body);main.postDelayed(()->{if(!closed&&pipPending){pipPending=false;listener.error("PIP_RESPONSE_UNAVAILABLE");}},3500);}catch(Exception unavailable){main.post(()->{if(!closed)listener.error(unavailable.getMessage()==null?"PIP_UNAVAILABLE":unavailable.getMessage());});}});}
  void stopPip(){if(closed)return;io.execute(()->{try{if(owns())sendRaw(8,"null");pipActive=false;pipPending=false;pipIssued=false;}catch(Exception ignored){}});}
  void positionPip(int direction){if(closed||direction<0||direction>5)return;io.execute(()->{try{if(pipActive)sendRaw(10,Integer.toString(direction));}catch(Exception ignored){}});}
- @Override public void close(){if(closed)return;closed=true;zapQueue.clear();ReceiverInfoRepository.get(context).releaseSignal(sharedSignal);generation++;main.removeCallbacksAndMessages(null);Thread active=worker;if(active!=null)active.interrupt();new Thread(()->{try{ReceiverSignalReading frame=null;try{frame=DvbTuner.read();}catch(Exception unavailable){}synchronized(CONTROL){if(activeOwner==this){if(current!=null&&socket!=null&&request!=null&&frame!=null&&frame.tp==request.optInt("tp_id",-1)){if(pipActive||pipIssued)sendRaw(8,"null");send(3,new JSONObject().put("iTunerIndex",0));}activeOwner=null;context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",false).apply();}}}catch(Exception ignored){}finally{if(socket!=null)socket.close();}},"iraqhub-decoder-stop").start();io.shutdownNow();}
+ @Override public void close(){closeAfterRelease(null);}
+ void closeAfterRelease(Runnable callback){
+  if(closed)return;
+  closed=true;
+  zapQueue.clear();
+  ReceiverInfoRepository.get(context).releaseSignal(sharedSignal);
+  generation++;
+  main.removeCallbacksAndMessages(null);
+  Thread active=worker;
+  if(active!=null)active.interrupt();
+  new Thread(()->{
+   try{
+    ReceiverSignalReading frame=null;
+    try{frame=DvbTuner.read();}catch(Exception unavailable){}
+    synchronized(CONTROL){
+     if(activeOwner==this){
+      try{
+       if(current!=null&&socket!=null&&request!=null&&frame!=null&&frame.tp==request.optInt("tp_id",-1)){
+        if(pipActive||pipIssued)sendRaw(8,"null");
+        send(3,new JSONObject().put("iTunerIndex",0));
+       }
+      }finally{
+       activeOwner=null;
+       context.getSharedPreferences("smarthub",0).edit().putBoolean("dvb_tuning",false).apply();
+      }
+     }
+    }
+   }catch(Exception ignored){}
+   finally{
+    if(socket!=null)socket.close();
+    if(callback!=null)main.post(callback);
+   }
+  },"iraqhub-decoder-stop").start();
+  io.shutdownNow();
+ }
 }

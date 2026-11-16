@@ -130,12 +130,17 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
  /** One uninterrupted scoped satellite list; the cursor is consumed off the UI thread. */
  List<Channel> channelsContinuous(String query,long satellite,int type,boolean favorite,
        boolean alphabetical,long group,boolean encryptedOnly){
+  return channelsContinuous(query,satellite,type,favorite,alphabetical,group,encryptedOnly,"");
+ }
+ List<Channel> channelsContinuous(String query,long satellite,int type,boolean favorite,
+       boolean alphabetical,long group,boolean encryptedOnly,String provider){
   StringBuilder sql=new StringBuilder(JOIN+" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");
   List<String> args=new ArrayList<>();
   args.add(ReceiverChannelRepository.searchKey(query));
   if(satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(satellite));}
   if(type>=0){sql.append(" AND c.tv=?");args.add(Integer.toString(type));}
   if(encryptedOnly)sql.append(" AND c.ca>0");
+  appendProvider(sql,args,provider);
   if(favorite)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");
   if(group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(group));}
   sql.append(alphabetical?" ORDER BY c.name COLLATE NOCASE,c._id":
@@ -148,11 +153,29 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   }
   return out;
  }
+ List<String> satelliteProviders(long satellite,int type){
+  StringBuilder sql=new StringBuilder("SELECT DISTINCT trim(c.provider) COLLATE NOCASE "+
+    "FROM ch c JOIN tp t ON t._id=c.tp_id WHERE trim(c.provider)<>''");
+  List<String> args=new ArrayList<>();
+  if(satellite>=0){sql.append(" AND t.sat_id=?");args.add(Long.toString(satellite));}
+  if(type>=0){sql.append(" AND c.tv=?");args.add(Integer.toString(type));}
+  sql.append(" ORDER BY 1 LIMIT 500");
+  List<String> names=new ArrayList<>();
+  try(Cursor c=getReadableDatabase().rawQuery(sql.toString(),args.toArray(new String[0]))){
+   while(c.moveToNext())names.add(c.getString(0));
+  }
+  return names;
+ }
+ private static void appendProvider(StringBuilder sql,List<String> args,String provider){
+  if(provider.isEmpty())return;
+  sql.append(" AND trim(c.provider)=? COLLATE NOCASE");
+  args.add(provider);
+ }
  int pageFor(Channel channel){return pageFor(channel,new ChannelScope("",channel.satId,channel.tv,false,false,-1));}
  Channel adjacent(Channel active,int direction){return adjacent(active,direction,new ChannelScope("",active.satId,active.tv,false,false,-1));}
- private String scopeWhere(ChannelScope scope,List<String> args){StringBuilder sql=new StringBuilder(" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");args.add(ReceiverChannelRepository.searchKey(scope.query));if(scope.satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(scope.satellite));}sql.append(" AND c.tv=?");args.add(Integer.toString(scope.type));if(scope.favorites)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");if(scope.group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(scope.group));}return sql.toString();}
+ private String scopeWhere(ChannelScope scope,List<String> args){StringBuilder sql=new StringBuilder(" WHERE instr(c.search_key || t.freq || lower(t.pol) || t.sr,?)>0");args.add(ReceiverChannelRepository.searchKey(scope.query));if(scope.satellite>=0){sql.append(" AND s._id=?");args.add(Long.toString(scope.satellite));}sql.append(" AND c.tv=?");args.add(Integer.toString(scope.type));if(scope.favorites)sql.append(" AND EXISTS(SELECT 1 FROM favorite f WHERE f.channel_id=c._id)");if(scope.group>=0){sql.append(" AND EXISTS(SELECT 1 FROM fav_member m WHERE m.channel_id=c._id AND m.group_id=?)");args.add(Long.toString(scope.group));}appendProvider(sql,args,scope.provider);return sql.toString();}
  private String scopeOrder(ChannelScope scope){return scope.alphabetical?" ORDER BY c.name COLLATE NOCASE,c._id":scope.group>=0?" ORDER BY (SELECT m.ordinal FROM fav_member m WHERE m.channel_id=c._id AND m.group_id="+scope.group+"),c._id":" ORDER BY c.order_index,c._id";}
- ChannelScope validScope(ChannelScope scope){SQLiteDatabase db=getReadableDatabase();long sat=scope.satellite,group=scope.group;if(sat>=0&&DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat WHERE _id=?",new String[]{Long.toString(sat)})==0)sat=-1;if(group>=0&&DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM fav_group WHERE _id=?",new String[]{Long.toString(group)})==0)group=-1;return new ChannelScope(scope.query,sat,scope.type,scope.favorites,scope.alphabetical,group);}
+ ChannelScope validScope(ChannelScope scope){SQLiteDatabase db=getReadableDatabase();long sat=scope.satellite,group=scope.group;if(sat>=0&&DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM sat WHERE _id=?",new String[]{Long.toString(sat)})==0)sat=-1;if(group>=0&&DatabaseUtils.longForQuery(db,"SELECT COUNT(*) FROM fav_group WHERE _id=?",new String[]{Long.toString(group)})==0)group=-1;return new ChannelScope(scope.query,sat,scope.type,scope.favorites,scope.alphabetical,group,sat==scope.satellite?scope.provider:"");}
  /** Short-lived navigation index avoids scanning 10k channel IDs at each CH+.
   * Scope filters and catalog import generation are part of the cache identity.
   * The 750 ms expiry guarantees quick recovery after changes to favourites
@@ -169,8 +192,7 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
  };
  synchronized List<Long> navigationIds(ChannelScope scope){
   if(scope==null)return Collections.emptyList();
-  String key=scope.query+"|"+scope.satellite+"|"+scope.type+"|"+scope.favorites+
-    "|"+scope.alphabetical+"|"+scope.group+"|"+
+  String key=scope.json()+"|"+
     context.getSharedPreferences("smarthub",0).getLong("installation_changed_at",0);
   long now=android.os.SystemClock.elapsedRealtime();
   NavigationSnapshot cached=navigationCache.get(key);
@@ -198,6 +220,8 @@ final class ReceiverCatalog extends SQLiteOpenHelper {
   List<Long> ids=navigationIds(tuned);
   int position=ids.indexOf(active.id);
   if(position<0){
+   if(tuned.satellite>=0||!tuned.provider.isEmpty())
+    return ids.isEmpty()?null:channel(ids.get(direction>0?0:ids.size()-1));
    // A previous search/favourites filter must not trap CH+/CH- in the wrong list.
    tuned=new ChannelScope("",-1,active.tv,false,tuned.alphabetical,-1);
    ids=navigationIds(tuned);

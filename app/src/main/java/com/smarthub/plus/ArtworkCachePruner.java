@@ -10,8 +10,8 @@ import java.util.Comparator;
  * recordings or any user-provided artwork.
  */
 final class ArtworkCachePruner {
- static final int MAX_IMAGES=24;
- static final long MAX_TOTAL_BYTES=40L*1024*1024;
+ static final int MAX_IMAGES=256;
+ static final long MAX_TOTAL_BYTES=128L*1024*1024;
  private ArtworkCachePruner(){}
  private static boolean imageFile(File f){
   if(f==null||!f.isFile())return false;

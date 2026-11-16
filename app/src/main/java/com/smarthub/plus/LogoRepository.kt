@@ -51,6 +51,7 @@ class LogoRepository private constructor(context:Context){
   val state=SatelliteState().apply{channelId=physical;channelName=name}
   val selected=prefs.getString("native_logo_source:"+CHMAXIntegration.identity(state),"")?:""
   val manual=selected=="MANUAL_CHANNEL_IMAGE"
+  if(!manual)return null
   // Manual USB images are independent/local; captured OEM/CHMAX images are native.
   if(manual&&!ChannelLogoSourcePrefs.external(app))return null
   if(!manual&&!ChannelLogoSourcePrefs.chmax(app))return null
@@ -90,7 +91,7 @@ class LogoRepository private constructor(context:Context){
   if(ChannelLogoSourcePrefs.chmax(app)&&physical?.startsWith("DVB:")==true)
     "chmax:package:channel:physical:v2:$physical" else null
  private fun bulkChmax(physical:String?):Bitmap?=packageKey(physical)?.let{cache.read(it)}
- private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)="rx6:channel:source-v4:"+ChannelLogoSourcePrefs.sourceId(app)+":"+(if(physical?.startsWith("DVB:")==true)"physical:$physical" else (e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name)))
+ private fun channelKey(name:String,e:ChannelAliasDatabase.Entry?,physical:String?)="rx6:channel:source-v5:"+ChannelLogoSourcePrefs.sourceId(app)+":"+(if(physical?.startsWith("DVB:")==true)"physical:$physical" else (e?.let{db.key(it)}?:if(addon.enabled())"chl-name:"+ChlChannelIndex.normalize(name) else ChannelAliasDatabase.normalize(name)))
  /** Only disk/RAM cache, used when the decoder needs all CPU bandwidth. */
  /** Show RAM hits instantly. Disk decode and verified receiver branding run
   * on the bounded IO pool, never on D-Pad scroll or InfoBar render threads. */

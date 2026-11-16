@@ -249,6 +249,7 @@ public class LauncherActivity extends HubActivity {
   nav(nav,"guide",tx("دليل البرامج","EPG"),HomeIcon.GUIDE,()->open(SatelliteGuideActivity.class));
   nav(nav,"signal",tx("الإشارة","Signal"),HomeIcon.WIFI,()->open(SignalInformationActivity.class));
   nav(nav,"other",tx("الأدوات","Tools"),HomeIcon.APPS,()->open(ToolsActivity.class));
+  nav(nav,"live-feed",tx("الفيدات","Live Feed"),HomeIcon.SATELLITE,()->open(LiveFeedActivity.class));
  }
  private int homeInk(){return light?0xff202024:0xfff1f1f5;}
  private int homeMuted(){return light?0xff494952:0xffc5c5cc;}

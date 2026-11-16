@@ -47,6 +47,23 @@ class ChlLogoAddon private constructor(private val context:Context){
  @Synchronized fun clear(){ReceiverCatalog.get(context).clear();AtomicFile(File(context.filesDir,"chl-logo-index.bin")).delete();AtomicFile(File(context.filesDir,"chl-logo-index.json")).delete();index=null;loaded=true;val edit=prefs.edit();prefs.all.keys.filter{it.startsWith("chl_provider:")}.forEach{edit.remove(it)};edit.apply();prefs.edit().putBoolean("chl_chmax_enabled",false).remove("receiver_catalog_format").remove("receiver_catalog_count").apply();changed()}
  fun snapshot():ChlChannelIndex?{load();return index}
  fun provider(name:String)=index?.provider(name)?:prefs.getString("chl_provider:"+ChlChannelIndex.normalize(name),"")?:""
+ @Synchronized fun syncProviders(): Int {
+  val services = snapshot()?.services ?: return 0
+  val names = mutableMapOf<String, String>()
+  for (service in services) {
+   val key = "chl_provider:" + ChlChannelIndex.normalize(service.name)
+   val prior = names.putIfAbsent(key, service.provider)
+   if (prior != null && prior != service.provider) names[key] = ""
+  }
+  val edit = prefs.edit()
+  val previous = prefs.all.filterKeys { it.startsWith("chl_provider:") }
+  val accepted = names.filterValues { it.isNotBlank() }
+  if (previous == accepted) return accepted.size
+  for (key in previous.keys) if (key !in accepted) edit.remove(key)
+  for ((key, provider) in accepted) edit.putString(key, provider)
+  edit.putLong("providers_changed_at", System.currentTimeMillis()).apply()
+  return accepted.size
+ }
  fun rememberProvider(name:String){val value=index?.provider(name)?:return;val key="chl_provider:"+ChlChannelIndex.normalize(name);if(prefs.getString(key,"")!=value)prefs.edit().putString(key,value).apply()}
  fun choice(name:String)=index?.choose(name,selectionSeed)
  fun resolve(name:String,loader:ChannelLogoResolver):Bitmap?{load();rememberProvider(name);for(service in index?.choices(name,selectionSeed)?.take(3)?:emptyList())resolve(service,loader)?.let{return it};return null}

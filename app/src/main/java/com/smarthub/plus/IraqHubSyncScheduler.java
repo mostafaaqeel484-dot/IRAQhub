@@ -22,6 +22,7 @@ final class IraqHubSyncScheduler {
  private static final String XMLTV="iraqhub-unified-epg-poster-sync"; // retain old unique work identity
  private static final String POSTERS="iraqhub-native-posters-sync";
  private static final String DVB="iraqhub-native-dvb-epg-sync";
+ private static final String PROVIDERS="iraqhub-provider-catalogue";
  private static final String CHMAX="iraqhub-official-chmax-logo-sync";
  private static final ExecutorService PRIORITY_IO=Executors.newSingleThreadExecutor();
  private IraqHubSyncScheduler(){}
@@ -33,7 +34,7 @@ final class IraqHubSyncScheduler {
   return new String[]{XMLTV,POSTERS,DVB,CHMAX,
    XMLTV+"-initial",POSTERS+"-initial",DVB+"-initial",CHMAX+"-initial",
    XMLTV+"-manual",POSTERS+"-manual",DVB+"-manual",CHMAX+"-manual",
-   POSTERS+"-programme"};
+   POSTERS+"-programme",PROVIDERS,PROVIDERS+"-initial"};
  }
  /** Cancel only IRAQhub-owned optional WorkManager jobs. Never kill the OEM
   * tuner, TS/PVR capture, AudioTrack or any process outside the launcher. */
@@ -96,6 +97,10 @@ final class IraqHubSyncScheduler {
   manager.cancelUniqueWork(XMLTV);
   manager.cancelUniqueWork(XMLTV+"-initial");
   manager.cancelUniqueWork(XMLTV+"-manual");
+  manager.enqueueUniquePeriodicWork(PROVIDERS,ExistingPeriodicWorkPolicy.KEEP,
+    new PeriodicWorkRequest.Builder(ProviderCatalogueSyncWorker.class,4,TimeUnit.HOURS).build());
+  manager.enqueueUniqueWork(PROVIDERS+"-initial",ExistingWorkPolicy.KEEP,
+    new OneTimeWorkRequest.Builder(ProviderCatalogueSyncWorker.class).build());
   manager.enqueueUniquePeriodicWork(POSTERS,ExistingPeriodicWorkPolicy.KEEP,
     everyFourHours(PosterRefreshWorker.class,internet));
   manager.enqueueUniquePeriodicWork(DVB,ExistingPeriodicWorkPolicy.KEEP,

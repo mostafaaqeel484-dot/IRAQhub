@@ -54,9 +54,12 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   section=getIntent().getBooleanExtra("show_subtitle",false)?4:0;
   render();
   worker.execute(()->{
+   String expected=getIntent().getStringExtra("channel_physical");
    ReceiverCatalog.Channel found=ReceiverCatalog.get(this).channel(
-       getSharedPreferences("smarthub",0).getLong("own_dvb_channel",-1));
-   runOnUiThread(()->{if(!closed){channel=found;render();}});
+       getIntent().getLongExtra("channel_id",prefs().getLong("own_dvb_channel",-1)));
+   ReceiverCatalog.Channel verified=found!=null&&(expected==null||expected.equals(found.physical()))?
+     found:null;
+   runOnUiThread(()->{if(!closed){channel=verified;render();}});
   });
  }
  private void render(){
@@ -71,8 +74,8 @@ public final class ReceiverAvPanelActivity extends HubActivity {
   right.removeAllViews();heading.setText(sections[section]+
    (channel==null?"":" · "+channel.name));
   foot.setText(section==4||section==5?
-    tx("SUBTITLE · ترجمة عربية / DVB-TXT / OCR بإذن Android",
-       "SUBTITLE · Arabic / DVB-TXT / Android-consented OCR"):
+    tx("الأحمر · ضبط التعريب [العربية]     الأخضر · الإعدادات",
+       "Red · Set Translation [Arabic]     Green · Settings"):
     tx("AUDIO · اختر المسار وانتظر تأكيد الجهاز",
        "AUDIO · Choose a track; receiver confirmation required"));
   if(section==0)audioTracks();
@@ -129,33 +132,48 @@ public final class ReceiverAvPanelActivity extends HubActivity {
  }
  private void subtitleTracks(){
   if(channel==null){note(tx("افتح قناة DVB أولاً","Play a DVB channel first"));return;}
-  JSONArray tracks=channel.data.optJSONArray("Sub");
-  if(tracks==null||tracks.length()==0)note(tx("لا توجد مسارات ترجمة محفوظة في DB","No subtitle entries in DB"));
-  if(tracks!=null)for(int i=0;i<tracks.length();i++){
-   JSONObject t=tracks.optJSONObject(i);if(t==null)continue;
-   final int pid=t.optInt("PID",-1);
-   String kind=t.optInt("Type")==1?"ttx":"dvb";
-   addRow(t.optString("Lang","und")+"    ["+kind+"]     PID "+pid,()->{
-    if(pid>0&&pid<8191)getSharedPreferences("smarthub",0).edit()
-       .putInt("subtitle_preferred_pid:"+channel.physical(),pid)
-       .putInt("subtitle_preferred_type:"+channel.physical(),t.optInt("Type"))
-       .apply();
-    new AlertDialog.Builder(this).setTitle(t.optString("Lang","und")+" ["+kind+"]")
-      .setMessage(tx("تم حفظ تفضيل المسار. تشغيل ترجمة Firmware بهذا PID غير مؤكد داخل المشغل المستقل؛ افتح أدوات التعريب لقراءة النص أو OCR.",
-         "Track preference saved. OEM subtitle decoding by PID is not yet verified in the standalone player; use translation/OCR settings."))
-      .setPositiveButton(tx("إعداد الترجمة","Translation settings"),
-       (d,w)->startActivity(new Intent(this,LiveTranslationActivity.class)))
-      .setNegativeButton(tx("إغلاق","Close"),null).show();
+  addRow(tx("مسارات البث الفعلية · فتح مشغّل الترجمة",
+    "Live broadcast tracks · open subtitle player"),this::openSubtitlePlayer);
+  List<SavedSubtitleTracks.Track> saved=SavedSubtitleTracks.from(channel.data.optJSONArray("Sub"));
+  for(SavedSubtitleTracks.Track track:saved){
+   String kind=track.type==1?"TTX":"DVB";
+   String page=track.page>=0?" · "+tx("صفحة","Page")+" "+track.page:"";
+   addRow(track.language+" ["+kind+"] · PID "+track.pid+page+" · "+tx("محفوظ","Saved"),()->{
+    SharedPreferences.Editor edit=prefs().edit();
+    if(SavedSubtitleTracks.uniquePid(saved,track.pid)){
+     edit.putInt("subtitle_preferred_pid:"+channel.physical(),track.pid)
+       .putInt("subtitle_preferred_type:"+channel.physical(),track.type);
+    }else{
+     edit.remove("subtitle_preferred_pid:"+channel.physical())
+       .remove("subtitle_preferred_type:"+channel.physical());
+     toast(tx("هذا الرقم مشترك بين مسارات. اختر الصفحة من قائمة البث.",
+       "This PID is shared by several tracks. Select the page from the live list."));
+    }
+    edit.apply();
+    openSubtitlePlayer();
    });
   }
+  if(saved.isEmpty())note(tx("لا توجد أوصاف ترجمة محفوظة لهذه القناة. افتح مسارات البث لفحص الترجمة المتاحة الآن.",
+    "This channel has no saved subtitle descriptors. Open live broadcast tracks to check current availability."));
   addRow(tx("تفعيل الترجمة العربية من النص الظاهر (بإذن Android)",
     "Enable Arabic caption OCR with Android consent"),this::enableVisibleCaptions);
   addRow(tx("عرض الترجمة الأصلية من قوائم المصنع",
     "Open receiver's own subtitle controls"),()->ReceiverNavigation.open(this,ReceiverNavigation.menu()));
   addRow(tx("إعداد لون وحجم الترجمة","Caption appearance"),
     ()->startActivity(new Intent(this,LiveTranslationActivity.class)));
-  note(tx("هذه PIDs من قاعدة القنوات، وليست مسارات مفكوكة. يجب أن تعرض الترجمة أولاً في مشغل المصنع أو يتوفر مسار نصي من Media3.",
-    "These are CHL subtitle PIDs, not decoded text. The native player must render subtitles or Media3 must expose a text cue track."));
+  if(!saved.isEmpty())note(tx("يتحقق المشغّل من المسارات المحفوظة عند قراءة البث الحي.",
+    "The player verifies saved subtitle descriptors against the live stream."));
+ }
+ private void openSubtitlePlayer(){
+  if(channel==null)return;
+  if(channel.tv!=0||channel.ca<0){
+   toast(tx("مسارات البث متاحة لقنوات التلفزيون ذات بيانات تشغيل صالحة.",
+     "Live tracks require a TV service with valid playback metadata."));
+   return;
+  }
+  setResult(RESULT_OK,new Intent().putExtra("software_subtitles",true)
+    .putExtra("channel_physical",channel.physical()));
+  finish();
  }
  private void subtitleActions(){
   addRow(tx("تفعيل ترجمة عربية من DVB/TXT الظاهرة",
@@ -173,25 +191,30 @@ public final class ReceiverAvPanelActivity extends HubActivity {
     ()->startActivity(new Intent(this,LiveTranslationActivity.class)));
  }
  private void arabic(){
-  getSharedPreferences("smarthub",0).edit()
-    .putString("live_target_language","ar").putBoolean("live_translate",true).apply();
-  toast(tx("تم اختيار العربية للمسارات النصية المتاحة. DVB المصوّر يحتاج OCR وإذن التقاط.",
-    "Arabic selected for readable cues. Bitmap DVB requires OCR and capture consent."));
+  new AlertDialog.Builder(this).setTitle(tx("تعريب الترجمة [العربية]","Subtitle Translation [Arabic]"))
+   .setItems(new String[]{tx("العربية · ترجمة النص الظاهر","Arabic · Translate visible captions"),
+     tx("العربية · المسارات النصية داخل Media3","Arabic · Media3 text tracks"),
+     tx("إيقاف التعريب","Turn off translation")},(dialog,which)->{
+    if(which==0)enableVisibleCaptions();
+    else if(which==1){
+     prefs().edit().putString("live_target_language","ar").putBoolean("live_translate",true).apply();
+     toast(tx("تم تفعيل التعريب للمسارات النصية المدعومة","Arabic enabled for supported text tracks"));
+    }else disableVisibleCaptions();
+   }).show();
  }
  private void enableVisibleCaptions(){
-  getSharedPreferences("smarthub",0).edit()
-    .putString("live_target_language","ar")
-    .putBoolean("live_translate",true)
-    .putBoolean("native_caption_ocr",true)
-    .putBoolean("overlay_caption",false).apply();
   // A real user action launches the Android system MediaProjection permission
   // dialog. No OEM subtitle PID is falsely reported as decoded.
   new AlertDialog.Builder(this)
    .setTitle(tx("تشغيل الترجمة العربية","Enable Arabic subtitles"))
    .setMessage(tx("لترجمة DVB/TXT يجب أن تكون الترجمة الأصلية ظاهرة أولاً على الشاشة. سيتم طلب إذن التقاط شاشة Android وتعالج الجمل محلياً. القنوات المحمية لا يمكن التقاطها.",
      "Original DVB/TXT captions must already be visible. Android will request screen capture consent and text is processed locally. Protected channels cannot be captured."))
-   .setPositiveButton(tx("الموافقة وفتح إذن Android","Open Android consent"),(dialog,which)->
-     startActivity(new Intent(this,CaptionCaptureActivity.class)))
+   .setPositiveButton(tx("متابعة","Continue"),(dialog,which)->{
+     prefs().edit().putString("live_target_language","ar")
+       .putBoolean("live_translate",true).apply();
+     if(!CaptionCaptureService.running)startActivity(new Intent(this,CaptionCaptureActivity.class));
+     finish();
+   })
    .setNeutralButton(tx("إعدادات الترجمة","Caption settings"),(dialog,which)->
      startActivity(new Intent(this,LiveTranslationActivity.class)))
    .setNegativeButton(tx("إلغاء","Cancel"),null).show();

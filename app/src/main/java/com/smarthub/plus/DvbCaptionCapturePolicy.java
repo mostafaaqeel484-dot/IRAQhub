@@ -19,6 +19,9 @@ final class DvbCaptionCapturePolicy {
  static boolean safe(Context app){
   SharedPreferences p=app.getSharedPreferences("smarthub",0);
   SatelliteState state=SatelliteState.read(app);
+  if(p.getBoolean("native_caption_ocr",false)&&!p.getBoolean("dvb_tuning",true)&&
+     !p.getBoolean("satellite_native_banner_visible",false)&&
+     SoftwareVideoActivity.canCaptureCaptions(state.channelId))return true;
   return allowed(state.channelId,p.getString("own_dvb_physical",""),
     p.getString("own_dvb_physical",""),
     p.getBoolean("dvb_player_visible",false),

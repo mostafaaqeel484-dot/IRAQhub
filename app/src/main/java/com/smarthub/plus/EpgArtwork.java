@@ -10,8 +10,8 @@ import java.util.*;
 /** EPG programme images, never channel logos. URL/XMLTV and observed native-guide crops. */
 final class EpgArtwork {
  static String key(String channel,String title){try{String raw=PlaylistRepository.normalize(channel)+"\n"+PlaylistRepository.normalize(title);StringBuilder out=new StringBuilder();for(byte b:MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8)))out.append(String.format(Locale.ROOT,"%02x",b&255));return out.toString();}catch(Exception e){throw new IllegalStateException(e);}}
- private static File directory(Context c){File dir=new File(c.getCacheDir(),"epg-programme-art");dir.mkdirs();return dir;}
- static synchronized void saveGuide(Context c,String channel,String title,Bitmap bitmap)throws IOException{if(channel.isEmpty()||title.isEmpty()||bitmap==null)return;File target=new File(directory(c),key(channel,title)+".png");try(FileOutputStream out=new FileOutputStream(target)){if(!bitmap.compress(Bitmap.CompressFormat.PNG,100,out))throw new IOException("Cannot save EPG artwork");}File[] files=directory(c).listFiles();if(files!=null){Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());long size=0;for(int n=0;n<files.length;n++){size+=files[n].length();if(n>=32||size>16*1024*1024)files[n].delete();}}c.getSharedPreferences("smarthub",0).edit().putLong("epg_art_changed_at",System.currentTimeMillis()).putString("epg_art_observed_channel",channel).putString("epg_art_observed_title",title).apply();}
+ private static File directory(Context c){File dir=new File(c.getFilesDir(),"epg-programme-art");dir.mkdirs();return dir;}
+ static synchronized void saveGuide(Context c,String channel,String title,Bitmap bitmap)throws IOException{if(channel.isEmpty()||title.isEmpty()||bitmap==null)return;File target=new File(directory(c),key(channel,title)+".png");try(FileOutputStream out=new FileOutputStream(target)){if(!bitmap.compress(Bitmap.CompressFormat.PNG,100,out))throw new IOException("Cannot save EPG artwork");}File[] files=directory(c).listFiles();if(files!=null){Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());long size=0;for(int n=0;n<files.length;n++){size+=files[n].length();if(n>=192||size>96L*1024*1024)files[n].delete();}}c.getSharedPreferences("smarthub",0).edit().putLong("epg_art_changed_at",System.currentTimeMillis()).putString("epg_art_observed_channel",channel).putString("epg_art_observed_title",title).apply();}
  static Bitmap load(Context c,String raw)throws Exception{
   SatelliteState state=SatelliteState.read(c);return load(c,state,raw);
  }
@@ -53,7 +53,8 @@ final class EpgArtwork {
  private static Bitmap load(Context c,SatelliteState state,String raw,boolean upcoming,boolean cacheOnly,int maxDimension,boolean includePrefetch)throws Exception{
   if(state==null||raw==null||raw.trim().isEmpty())return null;
   String title=raw.trim();
-  boolean current=!upcoming&&title.equals(state.title),next=upcoming&&title.equals(state.nextTitle);
+  boolean current=!upcoming&&title.equals(state.title==null?"":state.title.trim()),
+    next=upcoming&&title.equals(state.nextTitle==null?"":state.nextTitle.trim());
   if(!current&&!next)return null;
   LinkedHashSet<String> addresses=new LinkedHashSet<>();
   // Exact user-selected Commons File: only; keep event key and attribution.
@@ -66,9 +67,6 @@ final class EpgArtwork {
   boolean footballFixture=SportsLatestTeamArtwork.fixtureTeams(title).length==2;
   String better=footballFixture?"":UnifiedArtworkPrefetch.preferredBetterUrl(c,state,title,upcoming);
   if(!better.isEmpty())addresses.add(better);
-  // Exact match poster first. If the named fixture is not published,
-  // "Parma – Bologna" can display the latest published Parma match artwork.
-  // This image is a team-history illustration, NOT the scheduled fixture.
   SportsMatch match=c.getSharedPreferences("smarthub",0)
     .getBoolean("art_source_sportsdb_enabled",true)?sportsMatch(c,state,upcoming):null;
   if(match!=null&&SportsProgrammeArtwork.verified(match)){
@@ -76,17 +74,9 @@ final class EpgArtwork {
    if(exact!=null&&exact.startsWith("https://")&&TeamLogoManager.trusted(exact))
     addresses.add(exact);
   }
-  if(match==null||!SportsProgrammeArtwork.verified(match)||
-      !TeamLogoManager.trusted(match.image)){
+  if(footballFixture){
    String latest=SportsLatestTeamArtwork.cached(c,state,title,upcoming);
    if(!latest.isEmpty())addresses.add(latest);
-  }
-  // A verified most-recent club match with real event metadata must win
-  // over a generic EPG image. The user's explicit Commons selection remains
-  // ahead of this sentinel in the ordered candidate set.
-  if(footballFixture&&
-     (match==null||!SportsProgrammeArtwork.verified(match)||
-      !TeamLogoManager.trusted(match.image))){
    addresses.add("rx6://verified-last-team-event");
   }
   String broadcast=current?state.image:state.nextImage;
@@ -163,6 +153,8 @@ final class EpgArtwork {
  }
  private static Bitmap loadGuide(Context c,String channel,String title,int maxDimension)throws Exception{
   File file=new File(directory(c),key(channel,title)+".png");
+  // Older app releases placed guide captures in cacheDir; read them without a network hit.
+  if(!file.isFile())file=new File(new File(c.getCacheDir(),"epg-programme-art"),key(channel,title)+".png");
   if(file.isFile()&&System.currentTimeMillis()-file.lastModified()<12*3600000L)
    try(InputStream in=new FileInputStream(file)){return decode(read(in),maxDimension);}
   return null;

@@ -13,8 +13,7 @@ final class VerifiedPosterFallback {
  private static final ConcurrentHashMap<String,Long> retry=new ConcurrentHashMap<>();
  private VerifiedPosterFallback(){}
  static String find(Context context,String imdb,String exactTitle,String releaseYear){
-  if(imdb==null||!imdb.matches("tt[0-9]{7,10}")||
-      PlaybackResourceMode.active()||
+  if(PlaybackResourceMode.active()||
       context.getSharedPreferences("smarthub",0).getBoolean("software_dvb_422_active",false))return "";
   SharedPreferences p=context.getSharedPreferences("smarthub",0);
   long now=System.currentTimeMillis();
@@ -22,6 +21,15 @@ final class VerifiedPosterFallback {
   boolean useRpdb=PosterSourceSwitches.enabled(context,PosterSourceSwitches.RPDB);
   boolean useArchive=PosterSourceSwitches.enabled(context,PosterSourceSwitches.ARCHIVE);
   boolean useOmdb=PosterSourceSwitches.enabled(context,PosterSourceSwitches.OMDB);
+  if(imdb==null||!imdb.matches("tt[0-9]{7,10}")){
+   if(!useArchive)return "";
+   String key="archive|"+exactTitle+"|"+releaseYear;
+   Long until=retry.get(key);
+   if(until!=null&&now<until)return "";
+   String image=archive(context,exactTitle,releaseYear);
+   if(image.isEmpty())retry.put(key,now+3600000L);
+   return image;
+  }
   if(!useOpdb&&!useRpdb&&!useArchive&&!useOmdb)return "";
   // Re-enabling a source must bypass a failure cooldown for a different source set.
   String retryKey=imdb+"|"+useOpdb+"|"+useRpdb+"|"+useArchive+"|"+useOmdb+"|"+p.getLong("poster_sources_changed_at",0);
@@ -53,6 +61,38 @@ final class VerifiedPosterFallback {
   }
   retry.put(retryKey,now+60L*60L*1000L);
   return "";
+ }
+ static JSONObject omdb(Context context,String imdb,String title){
+  if(!PosterSourceSwitches.enabled(context,PosterSourceSwitches.OMDB))return null;
+  String key=PosterApiSecrets.get(context,"omdb");
+  if(key.isEmpty()||(!PosterArtworkPriority.exactImdb(imdb)&&(title==null||title.trim().isEmpty())))return null;
+  boolean known=PosterArtworkPriority.exactImdb(imdb);
+  try{
+   URL url=new URL("https://www.omdbapi.com/?apikey="+URLEncoder.encode(key,"UTF-8")+
+     (known?"&i="+imdb:"&t="+URLEncoder.encode(title.trim(),"UTF-8")));
+   javax.net.ssl.HttpsURLConnection connection=(javax.net.ssl.HttpsURLConnection)url.openConnection();
+   connection.setInstanceFollowRedirects(false);
+   connection.setConnectTimeout(5000);
+   connection.setReadTimeout(7000);
+   try{
+    if(connection.getResponseCode()!=200)return null;
+    try(java.io.InputStream in=connection.getInputStream();
+        java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+     byte[] buffer=new byte[4096];
+     int count;
+     while((count=in.read(buffer))!=-1){
+      if(out.size()+count>65536)return null;
+      out.write(buffer,0,count);
+     }
+     JSONObject row=new JSONObject(new String(out.toByteArray(),StandardCharsets.UTF_8));
+     String id=row.optString("imdbID");
+     if(!"True".equalsIgnoreCase(row.optString("Response"))||!PosterArtworkPriority.exactImdb(id))return null;
+     if(known? !imdb.equals(id):!PlaylistRepository.normalize(title).equals(
+         PlaylistRepository.normalize(row.optString("Title"))))return null;
+     return row;
+    }
+   }finally{connection.disconnect();}
+  }catch(Exception unavailable){return null;}
  }
  static boolean valid(byte[] data){
   if(!ArtworkCache.validImage(data))return false;

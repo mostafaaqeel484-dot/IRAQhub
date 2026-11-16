@@ -22,9 +22,11 @@ public class Software422ProfileTest {
   assertTrue(options.contains("--avcodec-skip-frame=0"));
   assertFalse(options.contains("--skip-frames"));
  }
- @Test public void stableHasFullFilteringAndBuffer(){
+ @Test public void stableRelaxesNonReferenceFilteringAndRetainsFrames(){
   ArrayList<String> options=Software422Profile.buildOptions(Software422Profile.STABLE);
-  assertTrue(options.contains("--avcodec-skiploopfilter=0"));
+  assertTrue(options.contains("--avcodec-skiploopfilter=1"));
+  assertTrue(options.contains("--avcodec-skip-frame=0"));
+  assertTrue(options.contains("--avcodec-skip-idct=0"));
   assertTrue(options.contains("--no-drop-late-frames"));
   assertTrue(options.contains("--network-caching=1650"));
   assertTrue(options.contains("--live-caching=1400"));

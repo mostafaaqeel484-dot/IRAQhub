@@ -19,11 +19,25 @@ final class SportsLatestTeamArtwork {
  private static final long IMAGE_AGE_MS=18L*3600000L;
  private SportsLatestTeamArtwork(){}
 
- /** Try the first listed team; if that isn't present, use the second.
+ /** Parse both sides so the first team can be used as the search key.
   * Never turn a non-fixture film title into a team name search. */
+ private static final String COMPETITION_PREFIX=
+   "(?:(?:UEFA|AFC|CAF|CONCACAF)\\s+)?Champions League|Europa League|Premier League|"+
+   "La Liga|Serie A|Bundesliga|Ligue 1|FA Cup|World Cup|"+
+   "الدوري الإنجليزي الممتاز|الدوري الإسباني|الدوري الإيطالي|الدوري السعودي|"+
+   "دوري [اأ]بطال (?:[اأ]وروبا|[اآ]سيا|[اأ]فريقيا)|دوري [اأ]بطال|كأس العالم";
+ private static final java.util.regex.Pattern FIXTURE_PREFIX=java.util.regex.Pattern.compile(
+   "(?iu)^\\s*(?:(?:\\[|\\()?(?:live|football|soccer|calcio|diretta|مباشر|كرة القدم)"+
+   "(?:\\]|\\))?|"+COMPETITION_PREFIX+")(?=\\s|[:：|–—-]|$)\\s*[:：|–—-]?\\s*");
  static String[] fixtureTeams(String raw){
   if(raw==null)return new String[0];
-  String clean=raw.replaceFirst("(?i)^\\s*(?:live|football|soccer|calcio|diretta|مباشر|كرة القدم)\\s*[:：-]\\s*","").trim();
+  String clean=FIXTURE_PREFIX.matcher(raw).replaceFirst("");
+  while(true){
+   String remainder=FIXTURE_PREFIX.matcher(clean).replaceFirst("");
+   if(remainder.equals(clean))break;
+   clean=remainder;
+  }
+  clean=clean.trim();
   if(clean.length()<7||clean.length()>140)return new String[0];
   String[] parts=clean.split("(?i)\\s+(?:vs\\.?|v\\.?|versus|ضد)\\s+|\\s*[–—]\\s*|\\s+-\\s+",-1);
   if(parts.length!=2)return new String[0];
@@ -77,6 +91,9 @@ final class SportsLatestTeamArtwork {
  /** Source-verified, latest available team event <= now; free v1 may return
   * only one recent home match, so "latest" means latest returned by provider. */
  static JSONObject latestEvent(JSONObject data,String teamId,long now){
+  return latestEvent(data,teamId,now,false);
+ }
+ private static JSONObject latestEvent(JSONObject data,String teamId,long now,boolean requireImage){
   if(teamId==null||!teamId.matches("[0-9]{1,18}")||data==null)return null;
   JSONArray events=data.optJSONArray("results");
   if(events==null)events=data.optJSONArray("events");
@@ -90,13 +107,14 @@ final class SportsLatestTeamArtwork {
    if(stamp.isEmpty())stamp=event.optString("dateEvent","")+"T"+
                             event.optString("strTime","00:00:00");
    long at=SportsMatch.utc(stamp);
-   if(at<=0||at>now+3600000L||now-at>180L*86400000L)continue;
+   if(at<=0||at>now||now-at>180L*86400000L)continue;
+   if(requireImage&&validImage(event).isEmpty())continue;
    if(at>newest){newest=at;picked=event;}
   }
   return picked;
  }
  static String latestImage(JSONObject data,String teamId,long now){
-  JSONObject event=latestEvent(data,teamId,now);
+  JSONObject event=latestEvent(data,teamId,now,true);
   return event==null?"":validImage(event);
  }
  static SportsMatch eventCard(JSONObject row,long now){
@@ -145,7 +163,7 @@ final class SportsLatestTeamArtwork {
       !title.equals(next?state.nextTitle:state.title))return "";
   try{
    String day=java.time.LocalDate.now(java.time.ZoneId.of("Asia/Baghdad")).toString();
-   return SportsCache.key(state.channelId+"|"+
+   return SportsCache.key("first-team-v2|"+state.channelId+"|"+
       PlaylistRepository.normalize(title)+"|"+day+"|"+next);
   }catch(Exception invalid){return "";}
  }
@@ -173,17 +191,23 @@ final class SportsLatestTeamArtwork {
    !p.getString("sports_latest_event:"+key,"").isEmpty();
   p.edit().putLong("sports_latest_attempt:"+key,now).apply();
   TheSportsDBProvider provider=new TheSportsDBProvider(c);
-  for(String team:teams)try{
+  String team=teams[0];
+  try{
    JSONObject found=provider.findTeamForRecent(team);
-   if(!"verified".equals(found.optString("status")))continue;
+   if(!"verified".equals(found.optString("status")))return false;
    String id=found.optString("id","");
    JSONObject event=null;
-   try{event=latestEvent(provider.lastEventsForTeam(id),id,now);}
+   String eventImage="";
+   try{
+    JSONObject history=provider.lastEventsForTeam(id);
+    event=latestEvent(history,id,now);
+    eventImage=latestImage(history,id,now);
+   }
    catch(Exception noHistory){
     p.edit().putString("sports_latest_history_status",
       "LAST_MATCH_UNAVAILABLE_"+noHistory.getClass().getSimpleName()).apply();
    }
-   String image=event==null?"":validImage(event);
+   String image=eventImage;
    boolean clubFallback=image.isEmpty();
    if(clubFallback)image=found.optString("fanart","");
    String status="NO_RECENT_EVENT_ART";
@@ -205,7 +229,7 @@ final class SportsLatestTeamArtwork {
     status="LAST_VERIFIED_MATCH_CARD";
    }else if(!image.isEmpty())
     status=clubFallback?"VERIFIED_CLUB_ART_FALLBACK":"LAST_TEAM_EVENT_POSTER";
-   if(image.isEmpty()&&card==null)continue;
+   if(image.isEmpty()&&card==null)return false;
    SharedPreferences.Editor edit=p.edit()
      .putString("sports_latest_image:"+key,image)
      .putString("sports_latest_team:"+key,team)

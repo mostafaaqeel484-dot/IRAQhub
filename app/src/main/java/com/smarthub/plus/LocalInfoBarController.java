@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
@@ -30,9 +32,15 @@ final class LocalInfoBarController implements AutoCloseable {
  private final ExecutorService io=Executors.newFixedThreadPool(2);
  private final ExecutorService sportsIo=Executors.newSingleThreadExecutor();
  private Future<?> sportsWork;
+ private final ExecutorService posterIo=Executors.newFixedThreadPool(2);
+ private Future<?> nowPosterWork,nextPosterWork;
+ private void cancelPosterWork(){
+  if(nowPosterWork!=null)nowPosterWork.cancel(true);
+  if(nextPosterWork!=null)nextPosterWork.cancel(true);
+ }
  private final FactoryProvider chmax;
  private final PublishedEpgArtwork published;
- private String logoKey="",imageKey="",lastPrefetchEvent="";
+ private String logoKey="",imageKey="",lastPrefetchEvent="",displayedPosterEvent="";
  private String logoService="";
  private long lastFullTick;
  private String observedRevisions="";
@@ -44,10 +52,18 @@ final class LocalInfoBarController implements AutoCloseable {
  private Bitmap paintedChannel,paintedProvider,paintedNow,paintedNext;
  private volatile boolean closed;
  private boolean visible,expanded;
+ private boolean monitorLock,noSignal;
+ private SatelliteState zapTarget;
  private int seq;
  private SatelliteState latest=new SatelliteState();
- private final Runnable hide=()->{hideBar();refreshSignalNotice();};
- private final Runnable checkSignal=this::refreshSignalNotice;
+ private final Runnable hide=()->{if(!noSignal&&zapTarget==null)hideBar();};
+ private final Runnable checkSignal=new Runnable(){
+  @Override public void run(){
+   if(closed||!monitorLock)return;
+   refreshSignalNotice();
+   main.postDelayed(this,1300);
+  }
+ };
  private final Runnable tick=new Runnable(){
   @Override public void run(){
    if(closed)return;
@@ -62,7 +78,7 @@ final class LocalInfoBarController implements AutoCloseable {
     // EPG/SQLite requests at 1 Hz while software 4:2:2 needs the CPU.
     boolean lite=PlaybackResourceMode.lite(host);
     if(changed||now-lastFullTick>=(lite?4200:1500)){
-     SatelliteState observed=SatelliteState.read(host);
+     SatelliteState observed=zapTarget==null?SatelliteState.read(host):zapTarget;
      SatelliteState enriched=ReceiverInfoRepository.get(host).enrich(observed);
      refresh(enriched);
      lastFullTick=now;
@@ -86,36 +102,38 @@ final class LocalInfoBarController implements AutoCloseable {
   params.bottomMargin=prefs.getBoolean("osd_dock_to_bottom",true)?0:OsdGeometry.bottom(activity);
   root.addView(bar,params);
 
-  // A confirmed lock loss survives the InfoBar timer without keeping its
-  // posters, programme rows or tuner meters on screen.
   signalNotice=new TextView(activity);
   signalNotice.setText(prefs.getBoolean("arabic",true)?"لا توجد إشارة":"No signal");
-  signalNotice.setTextColor(0xffffb1b1);
-  signalNotice.setBackgroundColor(0xe8000000);
+  signalNotice.setTextColor(0xffffe0a0);
+  signalNotice.setTypeface(null,Typeface.BOLD);
+  signalNotice.setTextSize(25);
+  signalNotice.setGravity(Gravity.CENTER);
   float density=activity.getResources().getDisplayMetrics().density;
-  int horizontal=Math.round(16*density),vertical=Math.round(6*density);
+  int horizontal=Math.round(36*density),vertical=Math.round(16*density);
+  GradientDrawable notice=new GradientDrawable(
+    GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xed141e2c,0xf7243444});
+  notice.setCornerRadius(Math.round(12*density));
+  notice.setStroke(Math.max(1,Math.round(density)),0xffdfaa58);
+  signalNotice.setBackground(notice);
+  signalNotice.setElevation(Math.round(6*density));
   signalNotice.setPadding(horizontal,vertical,horizontal,vertical);
-  FrameLayout.LayoutParams noticePosition=new FrameLayout.LayoutParams(-2,-2,
-    Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
-  noticePosition.bottomMargin=vertical;
+  FrameLayout.LayoutParams noticePosition=new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER);
   signalNotice.setVisibility(View.GONE);
   root.addView(signalNotice,noticePosition);
  }
 
  void show(){
   if(closed)return;
-  main.removeCallbacks(checkSignal);
-  signalNotice.setVisibility(View.GONE);
   visible=true;
   lastPaintState="";lastPaintAt=0;
   expanded=false;bar.setExpanded(false);
   bar.setVisibility(View.VISIBLE);
-  latest=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
+  latest=ReceiverInfoRepository.get(host).enrich(zapTarget==null?SatelliteState.read(host):zapTarget);
   refresh(latest);
   // The immediate read uses warmed memory; a secondary short refresh lets
   // a newly tuned service display EPG ALL without blocking INFO rendering.
   main.postDelayed(()->{if(!closed&&visible){
-   SatelliteState fresh=ReceiverInfoRepository.get(host).enrich(SatelliteState.read(host));
+   SatelliteState fresh=ReceiverInfoRepository.get(host).enrich(zapTarget==null?SatelliteState.read(host):zapTarget);
    refresh(fresh);
   }},80);
   prefs.edit().putBoolean("now_next_visible",true).apply();
@@ -125,6 +143,30 @@ final class LocalInfoBarController implements AutoCloseable {
  }
 
  /** First INFO opens Tiger ribbon; repeated INFO expands current/next posters. */
+ void showProgrammeDetails(){
+  if(closed)return;
+  final SatelliteState snapshot=latest.copy();
+  io.execute(()->{
+   String current=ProgrammeSynopsisSource.local(host,snapshot,false);
+   String next=ProgrammeSynopsisSource.local(host,snapshot,true);
+   main.post(()->{
+    if(closed||host.isFinishing()||!snapshot.channelId.equals(latest.channelId)||
+       !snapshot.title.equals(latest.title)||snapshot.startMs!=latest.startMs||
+       !snapshot.nextTitle.equals(latest.nextTitle)||snapshot.nextStartMs!=latest.nextStartMs)return;
+    String message=programmeDetails("الآن",snapshot.title,current,currentSynopsis,"osd_now_poster_status");
+    if(!snapshot.nextTitle.isEmpty())
+     message+="\n\n"+programmeDetails("التالي",snapshot.nextTitle,next,nextSynopsis,"osd_next_poster_status");
+    new android.app.AlertDialog.Builder(host).setTitle("تفاصيل البرنامج").setMessage(message)
+     .setPositiveButton(android.R.string.ok,null).show();
+   });
+  });
+ }
+ private String programmeDetails(String section,String title,String local,String summary,String statusKey){
+  String description=local.isEmpty()?summary:local;
+  return section+" · "+(title.isEmpty()?"—":title)+"\n"+
+    (description.isEmpty()?"النبذة غير متاحة":description)+"\n"+
+    "البوستر · "+prefs.getString(statusKey,"NOT_TESTED");
+ }
  void showDetails(){
   if(closed)return;
   if(!visible){show();return;}
@@ -136,19 +178,63 @@ final class LocalInfoBarController implements AutoCloseable {
 
  private void restartHideTimer(){
   main.removeCallbacks(hide);
+  if(zapTarget!=null||noSignal)return;
   main.postDelayed(hide,InfoBarDuration.millis(prefs.getInt(
     InfoBarDuration.KEY,InfoBarDuration.DEFAULT_SECONDS)));
  }
 
  private void refreshSignalNotice(){
-  if(closed||visible)return;
+  if(closed||zapTarget!=null)return;
   SatelliteState state=SatelliteState.read(host);
   ReceiverSignalReading signal=DirectReceiverSignal.reading(state);
-  boolean noSignal=state.channelId.startsWith("DVB:")&&signal!=null&&signal.locked==0&&
+  boolean current=state.channelId.startsWith("DVB:")&&signal!=null&&
     !prefs.getBoolean("dvb_tuning",false)&&
-    state.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""));
-  signalNotice.setVisibility(noSignal?View.VISIBLE:View.GONE);
-  if(noSignal)main.postDelayed(checkSignal,1300);
+    state.channelId.equals("DVB:"+prefs.getString("own_dvb_physical",""))&&
+    (signal.tp==prefs.getInt("own_dvb_runtime_tp",-1)||signal.tp==-1&&signal.locked==0);
+  if(current&&signal.locked<0)return;
+  if(current)setNoSignal(signal.locked==0);
+ }
+
+ void showZapTarget(ReceiverCatalog.Channel channel,boolean signalLost){
+  if(closed)return;
+  pauseSignalMonitoring();
+  SatelliteState target=new SatelliteState();
+  target.channelId="DVB:"+channel.physical();
+  target.channelName=channel.name;
+  target.source="DVB · IRAQhub";
+  zapTarget=target;
+  noSignal=signalLost;
+  signalNotice.setVisibility(signalLost?View.VISIBLE:View.GONE);
+  show();
+ }
+
+ void showTuned(boolean foreground){
+  zapTarget=null;
+  if(!foreground){dismiss();return;}
+  setNoSignal(false);
+  resumeSignalMonitoring();
+  show();
+ }
+
+ boolean keepsVisible(){return zapTarget!=null||noSignal;}
+
+ void resumeSignalMonitoring(){
+  if(closed||monitorLock||zapTarget!=null)return;
+  monitorLock=true;
+  main.post(checkSignal);
+ }
+
+ void pauseSignalMonitoring(){
+  monitorLock=false;
+  main.removeCallbacks(checkSignal);
+ }
+
+ private void setNoSignal(boolean value){
+  if(noSignal==value)return;
+  noSignal=value;
+  signalNotice.setVisibility(value?View.VISIBLE:View.GONE);
+  if(value&&!visible)show();
+  else restartHideTimer();
  }
 
  private void hideBar(){
@@ -209,23 +295,29 @@ final class LocalInfoBarController implements AutoCloseable {
    prefs.getLong("epg_art_changed_at",0);
   String broadcastKey=id+"|"+state.title+"|"+state.startMs+"|"+
    state.nextTitle+"|"+state.nextStartMs;
+  boolean canPrefetch=!PlaybackResourceMode.active()&&
+    !prefs.getBoolean("software_dvb_422_active",false)&&!prefs.getBoolean("dvb_tuning",false)&&
+    prefs.getString("iraqhub_pvr_session","").isEmpty();
+  art+="|"+canPrefetch;
   boolean eventChanged=!broadcastKey.equals(lastPrefetchEvent);
   boolean unresolved=(!state.title.isEmpty()&&currentPoster==null)||
     (!state.nextTitle.isEmpty()&&nextPoster==null);
   if(!prefs.getBoolean("osd_posters",true)){
+   cancelPosterWork();
    imageKey=art;currentPoster=null;nextPoster=null;
    currentSynopsis="";nextSynopsis="";
   }else if(!art.equals(imageKey)||unresolved&&System.currentTimeMillis()>posterRetryAt){
    imageKey=art;posterRetryAt=System.currentTimeMillis()+45000;
    // A cache timestamp update does not change the NOW/NEXT event.
    // Keep the displayed poster and synopsis until a new image arrives.
-   if(eventChanged){
+   if(!broadcastKey.equals(displayedPosterEvent)){
+    displayedPosterEvent=broadcastKey;
     currentPoster=null;nextPoster=null;
     currentSynopsis="";nextSynopsis="";
    }
    final String expected=art;
    final SatelliteState snapshot=state.copy();
-   if(eventChanged){
+   if(eventChanged&&canPrefetch){
     lastPrefetchEvent=broadcastKey;
     if(!prefs.getBoolean("software_dvb_422_active",false)&&
        !prefs.getBoolean("dvb_tuning",false)&&snapshot.startMs>0)
@@ -253,9 +345,10 @@ final class LocalInfoBarController implements AutoCloseable {
    }
    // Show NOW and NEXT independently before the slower published-EPG scan.
    // A later provider cache update is handled by the next tick.
-   io.execute(()->loadPoster(snapshot,false,expected));
-   io.execute(()->loadPoster(snapshot,true,expected));
-   if(!prefs.getBoolean("software_dvb_422_active",false))
+   cancelPosterWork();
+   nowPosterWork=posterIo.submit(()->loadPoster(snapshot,false,expected));
+   nextPosterWork=posterIo.submit(()->loadPoster(snapshot,true,expected));
+   if(canPrefetch)
     io.execute(()->{
      try{published.refresh(snapshot,System.currentTimeMillis());}
      catch(Exception ignored){}
@@ -263,26 +356,17 @@ final class LocalInfoBarController implements AutoCloseable {
   }
   if(System.currentTimeMillis()>=logoRetry&&!state.channelName.isEmpty()){
    logoRetry=System.currentTimeMillis()+60000;
-   final String expected=logoKey;
    final SatelliteState snap=state.copy();
    io.execute(()->{
     if(prefs.getBoolean("software_dvb_422_active",false))return;
     chmax.enrich(snap);
-    if(!prefs.getBoolean("osd_chmax_logos",true)||!prefs.getBoolean("factory_enabled",true))return;
-    Bitmap logo=prefs.getBoolean("software_dvb_422_active",false)?null:FactoryProvider.logo(host,snap.channelName,snap.channelId);
-    if(logo==null)logo=CHMAXIntegration.logo(host,snap,false);
-    if(logo!=null){
-     Bitmap result=logo;
-     main.post(()->{if(!closed&&expected.equals(logoKey)){
-      channelLogo=result;paint();
-     }});
-    }
    });
   }
   paint();
  }
 
  private void loadPoster(SatelliteState snapshot,boolean upcoming,String expected){
+  if(Thread.currentThread().isInterrupted())return;
   String title=upcoming?snapshot.nextTitle:snapshot.title;
   boolean enabled=prefs.getBoolean("osd_posters",true);
   if(!PosterLoadPolicy.cacheAllowed(enabled,title))return;
@@ -305,16 +389,16 @@ final class LocalInfoBarController implements AutoCloseable {
    }
    return;
   }
-  Bitmap image=poster(snapshot,upcoming);
+  Bitmap image=poster(snapshot,upcoming,!tuning);
   if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
   if(image==null&&SportsLatestTeamArtwork.fixtureTeams(title).length==2)return;
-  if(image==null&&PosterLoadPolicy.networkAllowed(enabled,focus,sw422,tuning,title)){
+  if(image==null&&!Thread.currentThread().isInterrupted()&&PosterLoadPolicy.networkAllowed(enabled,focus,sw422,tuning,title)){
    image=onlinePoster(snapshot,upcoming,expected);
    if(image!=null)publishPoster(expected,upcoming,compactPoster(image));
   }
  }
  private void publishSynopsis(String expected,boolean upcoming,String description){
-  final String shortText=ProgrammeSynopsisText.clean(description,160);
+  final String shortText=ProgrammeSynopsisText.clean(description,112);
   if(shortText.isEmpty())return;
   main.post(()->{
    if(closed||!visible||!expected.equals(imageKey))return;
@@ -330,12 +414,13 @@ final class LocalInfoBarController implements AutoCloseable {
    paint();
   });
  }
- private Bitmap poster(SatelliteState state,boolean upcoming){
+ private Bitmap poster(SatelliteState state,boolean upcoming,boolean allowNetwork){
   String title=upcoming?state.nextTitle:state.title;
   if(title==null||title.trim().isEmpty())return null;
   try{
    Bitmap image=EpgArtwork.loadInfobarCached(host,state,title,upcoming);
-   if(image==null)image=EpgArtwork.loadInfobarBroadcast(host,state,title,upcoming);
+   if(image==null&&allowNetwork&&!Thread.currentThread().isInterrupted())
+    image=EpgArtwork.loadInfobarBroadcast(host,state,title,upcoming);
    prefs.edit().putString(upcoming?"osd_next_poster_status":"osd_now_poster_status",
      image==null?"NO_VERIFIED_EPG_ART":"EPG_POSTER_OK").apply();
    return compactPoster(image);
@@ -403,24 +488,33 @@ final class LocalInfoBarController implements AutoCloseable {
   currentSynopsis="";nextSynopsis="";
   paintedCurrentSynopsis="";paintedNextSynopsis="";
   paintedChannel=null;paintedProvider=null;paintedNow=null;paintedNext=null;
-  logoKey="";logoService="";observedRevisions="";imageKey="";lastPaintState="";lastPaintAt=0;
+  logoKey="";logoService="";observedRevisions="";imageKey="";displayedPosterEvent="";lastPaintState="";lastPaintAt=0;
   posterRetryAt=0;logoRetry=0;
   bar.clearArtwork();
  }
 
  boolean isVisible(){return visible;}
 
+ void hideForCompanion(){
+  if(keepsVisible())return;
+  main.removeCallbacks(hide);
+  hideBar();
+ }
+
  void dismiss(){
   main.removeCallbacks(hide);
-  main.removeCallbacks(checkSignal);
+  pauseSignalMonitoring();
   signalNotice.setVisibility(View.GONE);
+  noSignal=false;
   hideBar();
  }
 
  @Override public void close(){
+  cancelPosterWork();
+  posterIo.shutdownNow();
   if(closed)return;
   closed=true;visible=false;
-  main.removeCallbacks(hide);main.removeCallbacks(tick);main.removeCallbacks(checkSignal);
+  main.removeCallbacks(hide);main.removeCallbacks(tick);pauseSignalMonitoring();
   chmax.close();if(sportsWork!=null)sportsWork.cancel(true);
   sportsIo.shutdownNow();io.shutdownNow();
   prefs.edit().putBoolean("now_next_visible",false).apply();

@@ -57,7 +57,7 @@ public final class SatelliteCompanionService extends Service {
         if(!Settings.canDrawOverlays(this)){prefs.edit().putString("satellite_companion_error","Display-over-apps permission is required").putBoolean("satellite_companion_enabled",false).apply();stopSelf();return START_NOT_STICKY;}
         prefs.edit().putBoolean("satellite_companion_enabled",true).putBoolean("satellite_companion_running",true).putString("satellite_companion_error","").apply();
         if(!pollStarted){pollStarted=true;poller.scheduleWithFixedDelay(this::poll,0,1,TimeUnit.SECONDS);}
-        if(ACTION_OPEN.equals(intent.getAction())){expanded=true;openGrace=SystemClock.elapsedRealtime()+2500;prefs.edit().putBoolean("satellite_companion_expanded",true).apply();rebuild();}
+        if(ACTION_OPEN.equals(intent.getAction())) expand();
         else if(ACTION_INFO.equals(intent.getAction())){syncOnly=false;expanded=false;openGrace=SystemClock.elapsedRealtime()+2500;bannerTime.duration(infoBarDuration());bannerTime.show(SystemClock.elapsedRealtime());prefs.edit().putBoolean("satellite_companion_expanded",false).apply();rebuild();}
         else if(overlay==null&&prefs.getBoolean("satellite_tv_visible",false))rebuild();
         return START_NOT_STICKY;
@@ -69,10 +69,11 @@ public final class SatelliteCompanionService extends Service {
     private long infoBarDuration(){return InfoBarDuration.millis(prefs.getInt(InfoBarDuration.KEY,InfoBarDuration.DEFAULT_SECONDS));}
     private void accept(SatelliteState incoming){bannerTime.duration(infoBarDuration());
         if(destroyed)return;
-        // Our DVB and LibVLC activities render NowNextView inside their own
-        // window. Never draw a second global overlay on top of that infobar.
-        if(prefs.getBoolean("dvb_player_visible",false)||
-           prefs.getBoolean("software_dvb_422_active",false)){
+        boolean localDvb=prefs.getBoolean("dvb_player_visible",false);
+        boolean softwareDvb=prefs.getBoolean("software_dvb_422_active",false);
+        // Local playback owns the passive InfoBar. An explicit open is
+        // allowed to show the interactive companion over hardware DVB.
+        if(softwareDvb||localDvb&&!expanded&&!syncOnly){
             // A separate DVB player owns InfoBar: discard duplicate bitmap
             // references and ignore stale background poster callbacks.
             if(wasVisible||expanded||busy||channelBitmap!=null||
@@ -81,13 +82,16 @@ public final class SatelliteCompanionService extends Service {
               channelBitmap=null;providerBitmap=null;artwork=null;nextArtwork=null;
               selectedWork=null;nextWork=null;
             }
+            if(softwareDvb){expanded=false;syncOnly=false;prefs.edit().putBoolean("satellite_companion_expanded",false).apply();}
             removeOverlay();wasVisible=false;return;
         }
         if(!Settings.canDrawOverlays(this)){prefs.edit().putString("satellite_companion_error","Display-over-apps permission was revoked").apply();stopSelf();return;}
         String key=eventKey(incoming);boolean changed=!key.equals(identity),priorContext=!identity.isEmpty();
         synchronized(contextLock){state=incoming;if(changed){if(syncOnly){syncOnly=false;removeOverlay();}CaptionClock.text="";CaptionClock.playing=false;identity=key;cancelRequest();selectedWork=null;artwork=null;currentMatches=new ArrayList<>();nextArtwork=null;nextWork=null;nextMatches=new ArrayList<>();nextArtworkKey="";message="";clearWrongCaptions(incoming,priorContext);}}
         if(!changed)clearWrongCaptions(incoming,false);
-        long now=System.currentTimeMillis();boolean visible=!prefs.getBoolean("dvb_tuning",false)&&(prefs.getBoolean("dvb_player_visible",false)||prefs.getBoolean("iptv_player_visible",false)||prefs.getBoolean("satellite_tv_visible",false)||SystemClock.elapsedRealtime()<openGrace);
+        long now=System.currentTimeMillis();
+        boolean opening=expanded&&SystemClock.elapsedRealtime()<openGrace;
+        boolean visible=opening||!prefs.getBoolean("dvb_tuning",false)&&(localDvb||prefs.getBoolean("iptv_player_visible",false)||prefs.getBoolean("satellite_tv_visible",false));
         WeatherRepository.update(this);if(visible&&prefs.getBoolean("sports_ticker",false)&&now-lastSportsUpdate>120000){lastSportsUpdate=now;MatchRepository.get(this).refresh(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Baghdad")),"day",false);}String wantedLogo=incoming.channelId+"|"+prefs.getLong("logo_mapping_changed_at",0)+"|"+normalize(incoming.channelName)+"|"+prefs.getLong("osd_changed_at",0)+"|"+prefs.getLong("providers_changed_at",0)+"|"+prefs.getLong("native_logos_changed_at",0)+"|"+prefs.getString("satellite_logo_id:"+incoming.channelId,"");
         if(!wantedLogo.equals(logoId)){logoId=wantedLogo;logoRetry=0;channelBitmap=null;providerBitmap=null;paintChannelLogo();}
         if(visible&&now>=logoRetry&&!incoming.channelName.isEmpty()){logoRetry=now+60000;final String expected=logoId;LogoRepository.get(this).request(incoming.channelName,incoming.channelId,new LogoRepository.Listener(){public void channel(Bitmap image){if(!destroyed&&expected.equals(logoId)){channelBitmap=image;paintChannelLogo();}}public void provider(String name,Bitmap image){if(!destroyed&&expected.equals(logoId)){providerBitmap=image;paintChannelLogo();}}});}
@@ -123,7 +127,7 @@ public final class SatelliteCompanionService extends Service {
     private void addWindow(WindowManager.LayoutParams params){try{windows.addView(overlay,params);}catch(RuntimeException failure){prefs.edit().putString("satellite_companion_error",safeError(failure)).apply();overlay=null;stopSelf();}}
     private void removeOverlay(){if(banner!=null)prefs.edit().putBoolean("now_next_visible",false).apply();if(overlay!=null)try{windows.removeView(overlay);}catch(RuntimeException ignored){}overlay=null;banner=null;pill=null;channelLogo=null;compactPoster=null;compactProgramme=null;compactStatus=null;channel=null;current=null;next=null;source=null;status=null;query=null;queryNote=null;language=null;output=null;artBox=null;image=null;artCredit=null;seek=null;}
     private void expand(){syncOnly=false;expanded=true;openGrace=SystemClock.elapsedRealtime()+2500;prefs.edit().putBoolean("satellite_companion_expanded",true).apply();rebuild();}
-    private void collapse(){syncOnly=false;bannerTime.show(SystemClock.elapsedRealtime());expanded=false;openGrace=0;prefs.edit().putBoolean("satellite_companion_expanded",false).apply();cancelRequest();if(prefs.getBoolean("satellite_tv_visible",false)||prefs.getBoolean("iptv_player_visible",false))rebuild();else removeOverlay();}
+    private void collapse(){syncOnly=false;bannerTime.show(SystemClock.elapsedRealtime());expanded=false;openGrace=0;prefs.edit().putBoolean("satellite_companion_expanded",false).apply();cancelRequest();if(!prefs.getBoolean("dvb_player_visible",false)&&(prefs.getBoolean("satellite_tv_visible",false)||prefs.getBoolean("iptv_player_visible",false)))rebuild();else removeOverlay();}
     private void updateStateLabels(){paintBanner();SatelliteState now=state;if(compactProgramme!=null&&!now.title.contentEquals(compactProgramme.getText()))compactProgramme.setText(now.title.isEmpty()?tx("بيانات البرنامج غير متاحة","No programme data available"):now.title);if(pill!=null)pill.setText("IRAQhub  ·  "+(now.channelName.isEmpty()?tx("مرافق البث","TV companion"):now.channelName));if(channel==null)return;channel.setText(tx("القناة: ","Channel: ")+(now.channelName.isEmpty()?(now.channelId.isEmpty()?tx("لم تُرصد قناة بعد","No channel observed yet"):now.channelId):now.channelName));current.setText(tx("الآن: ","Now: ")+(now.title.isEmpty()?tx("لا تتوفر بيانات EPG للبرنامج","No current programme EPG available"):now.title+timeRange(now.startMs,now.endMs)));next.setText(tx("التالي: ","Next: ")+(now.nextTitle.isEmpty()?tx("غير متاح من المصدر","Unavailable from source"):now.nextTitle+timeRange(now.nextStartMs,now.nextEndMs)));source.setText(tx("المصدر: ","Source: ")+(now.source.isEmpty()?tx("بانتظار بيانات الرسيفر الفعلية","Waiting for actual receiver data"):now.source));}
     private void updateQueryNote(){if(queryNote!=null&&query!=null)queryNote.setText(normalize(query.getText().toString()).equals(normalize(state.title))?tx("عنوان EPG الحالي؛ تحقق من الفيلم أو الحلقة قبل الاختيار.","Current EPG title; verify the film or episode before choosing."):tx("بحث يدوي: النص المكتوب يختلف عن عنوان EPG الحالي.","Manual search: entered text differs from the current EPG title."));}
     private void setQuery(String value){if(query==null)return;settingQuery=true;query.setText(value);settingQuery=false;updateQueryNote();}

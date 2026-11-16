@@ -84,6 +84,8 @@ public final class ArtworkDiagnosticsActivity extends HubActivity {
    "\nEPG Android TV: "+p.getString("published_epg_status","NOT_TESTED")+
    "\n"+tx("بوستر الآن: ","Now poster: ")+p.getString("osd_now_poster_status","NOT_TESTED")+
    "\n"+tx("بوستر التالي: ","Next poster: ")+p.getString("osd_next_poster_status","NOT_TESTED")+
+   "\nRPDB: "+p.getString("poster_source_result:rpdb","NO_POSTER_REQUEST_YET")+
+   "\nOMDb: "+p.getString("poster_source_result:omdb","NO_POSTER_REQUEST_YET")+
    "\n"+tx("تحديث المصادر: ","Prefetch: ")+p.getString("poster_sync_status","NOT_STARTED")+
    "\n"+tx("الحالة: ","Artwork status: ")+p.getString("osd_poster_status","READY");
   report.setText(result);

@@ -62,9 +62,9 @@ final class Software422Profile {
   options.add("--avcodec-threads="+Math.max(1,Math.min(4,threadCount)));
   // Values 0,1,2 are VLC's documented default/non-ref/B-frame discard levels.
   // Profile 2 skips H.264 B-frame deblocking and can visibly increase
-   // edge/pixelation artefacts. Keep default quality for Balanced/Quality/Stable;
-   // Smooth skips only non-reference frames, never reference/B-frame content.
-   options.add("--avcodec-skiploopfilter="+(SMOOTH.equals(mode)?1:0));
+   // Smooth and Stable relax filtering only on non-reference frames.
+   // Stable still retains every decoded picture and its larger live buffer.
+   options.add("--avcodec-skiploopfilter="+((SMOOTH.equals(mode)||STABLE.equals(mode))?1:0));
   // Skipping reference-dependent/B frames produces jerky motion and A/V drift.
   // Decode all frames; only deblocking is relaxed in Smooth.
   options.add("--avcodec-skip-frame=0");
@@ -73,9 +73,10 @@ final class Software422Profile {
   // ONLY for an explicit Stable diagnostic comparison: disabling VLC's
   // hurry-up can preserve frames but costs more CPU, so Auto/Smooth omit it.
   if(STABLE.equals(mode))options.add("--no-avcodec-hurry-up");
-  // Allow frame dropping only in Smooth; Stable/Quality retain frames
-   // for deinterlaced sports feeds when the CPU can keep up.
-   options.add(SMOOTH.equals(mode)?"--drop-late-frames":"--no-drop-late-frames");
+  // In live Balanced/Smooth playback, discard expired pictures at output
+  // so an overdue queue cannot keep the renderer behind the audio clock.
+  boolean dropLate=SMOOTH.equals(mode)||BALANCED.equals(mode);
+  options.add(dropLate?"--drop-late-frames":"--no-drop-late-frames");
   // Do not use VLC --skip-frames: it causes choppy picture during sports feeds.
   // Bound live latency without forcing LibVLC's file demuxer on an MPEG-TS HTTP stream.
   options.add("--network-caching="+networkCacheMs(mode));

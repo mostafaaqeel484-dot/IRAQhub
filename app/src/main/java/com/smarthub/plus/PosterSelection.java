@@ -4,6 +4,10 @@ import org.json.*;
 import java.util.*;
 /** A verified poster belongs to one precise channel AND broadcast event. */
 final class PosterSelection {
+ static String ageLabel(String value){
+  String label=value.trim().toUpperCase(Locale.ROOT);
+  return label.matches("G|PG|PG-13|R|NC-17|U|12A|TV-(?:Y7(?:-FV)?|Y|G|PG|14|MA|18)|(?:[0-9]|1[0-9]|2[01])\\+?")?label:"";
+ }
  static String key(SatelliteState state,String title){
   return key(state,title,state!=null&&title!=null&&!title.equals(state.title)&&title.equals(state.nextTitle));
  }
@@ -36,7 +40,7 @@ final class PosterSelection {
    Map<String,?> rows=prefs.getAll();
    if(rows.size()>64)for(String old:rows.keySet())edit.remove(old);
    edit.putString(key,new JSONObject().put("id",match.optString("id"))
-     .put("type",match.optString("type")).put("at",System.currentTimeMillis()).toString()).apply();
+     .put("type",match.optString("type")).put("certification",ageLabel(match.optString("certification"))).put("at",System.currentTimeMillis()).toString()).apply();
   }catch(Exception ignored){}
  }
 }
