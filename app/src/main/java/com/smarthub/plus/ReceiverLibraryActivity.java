@@ -716,6 +716,13 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   finish();
  }
  @Override public boolean dispatchKeyEvent(KeyEvent e){int k=e.getKeyCode();
+  // Blue is identical to INFO even when search/list has focus. Never open
+  // the old signal rectangle or programme-details view via this remote key.
+  if(BlueInfoKeyRouting.handles(k)){
+   if(BlueInfoKeyRouting.shouldShow(k,e.getAction(),e.getRepeatCount()))
+    openPlayingInfoBar();
+   return true;
+  }
   int digit=k>=KeyEvent.KEYCODE_0&&k<=KeyEvent.KEYCODE_9?
     k-KeyEvent.KEYCODE_0:
     k>=KeyEvent.KEYCODE_NUMPAD_0&&k<=KeyEvent.KEYCODE_NUMPAD_9?
@@ -766,7 +773,7 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
      pageChannels(directionAction==RemoteDirectionPolicy.LIST_NEXT?1:-1);
    return true;
   }
-  if(k==17||k==237||k==34||k==440||k==KeyEvent.KEYCODE_TV_RADIO_SERVICE||k==170||k==KeyEvent.KEYCODE_CHANNEL_UP||k==KeyEvent.KEYCODE_CHANNEL_DOWN){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){if(k==17||k==237)satellites();else if(k==34||k==440)groups();else if(k==KeyEvent.KEYCODE_TV_RADIO_SERVICE||k==170){type=type==1?0:1;search(true);}else pageChannels(k==KeyEvent.KEYCODE_CHANNEL_UP?1:-1,1);}return true;}if(k==KeyEvent.KEYCODE_PROG_RED||k==KeyEvent.KEYCODE_PROG_GREEN||k==KeyEvent.KEYCODE_PROG_YELLOW||k==KeyEvent.KEYCODE_PROG_BLUE||k==KeyEvent.KEYCODE_INFO){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){if(k==KeyEvent.KEYCODE_PROG_RED)groups();else if(k==KeyEvent.KEYCODE_PROG_GREEN)types();else if(k==KeyEvent.KEYCODE_PROG_YELLOW)showAlphabetIndex();else if(k==KeyEvent.KEYCODE_PROG_BLUE)startActivity(new Intent(this,SignalInformationActivity.class));else openPlayingInfoBar();}return true;}return super.dispatchKeyEvent(e);}
+  if(k==17||k==237||k==34||k==440||k==KeyEvent.KEYCODE_TV_RADIO_SERVICE||k==170||k==KeyEvent.KEYCODE_CHANNEL_UP||k==KeyEvent.KEYCODE_CHANNEL_DOWN){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){if(k==17||k==237)satellites();else if(k==34||k==440)groups();else if(k==KeyEvent.KEYCODE_TV_RADIO_SERVICE||k==170){type=type==1?0:1;search(true);}else pageChannels(k==KeyEvent.KEYCODE_CHANNEL_UP?1:-1,1);}return true;}if(k==KeyEvent.KEYCODE_PROG_RED||k==KeyEvent.KEYCODE_PROG_GREEN||k==KeyEvent.KEYCODE_PROG_YELLOW||k==KeyEvent.KEYCODE_INFO){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){if(k==KeyEvent.KEYCODE_PROG_RED)groups();else if(k==KeyEvent.KEYCODE_PROG_GREEN)types();else if(k==KeyEvent.KEYCODE_PROG_YELLOW)showAlphabetIndex();else openPlayingInfoBar();}return true;}return super.dispatchKeyEvent(e);}
  @Override public void onBackPressed(){
   if(numeric.hasInput()){
    clearNumeric();status.setText(tx("تم إلغاء الرقم","Number cancelled"));return;
