@@ -46,7 +46,7 @@ import org.json.JSONObject;
  * Reads public frequencies / service labels only. No BISS keys are displayed,
  * cached or injected into the tuner. The independent site has no promised API.
  */
-public final class LiveFeedActivity extends HubActivity {
+public class LiveFeedNativeActivity extends HubActivity {
  private static final String HOME="https://live-feed.net/";
  private static final String PUBLIC_LIST=HOME+"?show_off=1";
  private static final int MAX_DOWNLOAD=2_200_000;
