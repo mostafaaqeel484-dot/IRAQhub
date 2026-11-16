@@ -46,4 +46,16 @@ public final class ArtworkCachePrunerTest {
   ArtworkCachePruner.prune(dir,null);
   assertTrue(unrelated.exists());assertTrue(folder.exists());
  }
+ @Test public void recentlyReadPosterSurvivesEvenIfDownloadedEarlier()throws Exception{
+  File dir=temp.newFolder("lru");
+  File first=add(dir,1,100,1000L);
+  for(int id=2;id<=ArtworkCachePruner.MAX_IMAGES+1;id++)
+   add(dir,id,100,1000L+id);
+  ArtworkCachePruner.markRead(first);
+  // Recency must not falsify the CDN freshness timestamp on flash storage.
+  assertEquals(1000L,first.lastModified());
+  ArtworkCachePruner.prune(dir,null);
+  assertTrue(first.exists());
+  assertFalse(new File(dir,String.format(java.util.Locale.ROOT,"%064x",2)).exists());
+ }
 }
