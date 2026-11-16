@@ -38,8 +38,8 @@ android {
   }
   rx6OriginalPreview {
    initWith debug
-   applicationIdSuffix '.rx6api419'
-   versionNameSuffix '-turbo-experience-preview'
+   applicationIdSuffix '.rx6api420'
+   versionNameSuffix '-chmax-info-native-feeds-preview'
    matchingFallbacks = ['debug']
   }
   native422Preview {
@@ -51,7 +51,7 @@ android {
  }
  // This Draft build targets the reported 32-bit Android TV / ARMv7-A ROM.
  // Keep the arm64-v8a dual-ABI application on PR #39 unchanged.
- defaultConfig { ndk { abiFilters 'armeabi-v7a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 66; versionName '4.0.19-rx6-turbo'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
+ defaultConfig { ndk { abiFilters 'armeabi-v7a' }; applicationId 'com.smarthub.plus'; minSdk 26; targetSdk 34; versionCode 67; versionName '4.0.20-rx6-turbo-feeds'; testInstrumentationRunner 'com.smarthub.plus.DeviceProvisionInstrumentation' }
  kotlinOptions { jvmTarget = '11' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
  testOptions { unitTests.returnDefaultValues=true }
