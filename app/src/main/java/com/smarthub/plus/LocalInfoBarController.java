@@ -142,7 +142,21 @@ final class LocalInfoBarController implements AutoCloseable {
   main.postDelayed(tick,600);
  }
 
- /** First INFO opens Tiger ribbon; repeated INFO expands current/next posters. */
+ /** INFO always shows the compact live InfoBar; never the programme dialog
+  * or the expanded details view. Repeated presses reset its hide timer. */
+ void showInfoBar(){
+  if(closed)return;
+  if(!visible){show();return;}
+  if(expanded){
+   expanded=false;
+   bar.setExpanded(false);
+   lastPaintState="";
+   paint();
+  }
+  restartHideTimer();
+ }
+
+ /** Programme synopsis is a separate, explicitly requested BLUE action. */
  void showProgrammeDetails(){
   if(closed)return;
   final SatelliteState snapshot=latest.copy();
