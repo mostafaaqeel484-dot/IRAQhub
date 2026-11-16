@@ -40,7 +40,7 @@ public final class SatelliteAccessibilityService extends AccessibilityService im
         // so the native receiver does not also perform its normal Blue action.
         blueHeld=true;
         try{
-            startForegroundService(new Intent().setClassName(getPackageName(),"com.smarthub.plus.SatelliteCompanionService").setAction("com.smarthub.plus.satellite.OPEN"));
+            startForegroundService(new Intent(this,SatelliteCompanionService.class).setAction(SatelliteCompanionService.ACTION_INFO));
             prefs.edit().putString("satellite_shortcut_error","").apply();
         }catch(RuntimeException failure){prefs.edit().putString("satellite_shortcut_error","Could not open the satellite companion. Check overlay permission and start it from IRAQhub.").apply();}
         return true;
