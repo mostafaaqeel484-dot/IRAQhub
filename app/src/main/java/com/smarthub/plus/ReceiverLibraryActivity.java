@@ -552,22 +552,26 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
     }))
     .setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
+ /** Turbo: avoid repeated TextView layout passes every signal tick. */
+ private static void setTextIfChanged(TextView view,CharSequence value){
+  if(view!=null&&!TextUtils.equals(view.getText(),value))view.setText(value);
+ }
  private void refreshSignal(){
   SatelliteState s=SatelliteState.read(this);
   if(reader!=null)reader.refresh(s);
   ReceiverInfoRepository.Info info=ReceiverInfoRepository.get(this).info(s);
-  liveTitle.setText(s.channelName);
+  setTextIfChanged(liveTitle,s.channelName);
   String liveKey=s.channelId+"|"+s.title+"|"+(System.currentTimeMillis()/30000);
   if(!lastLiveTitle.equals(liveKey)){lastLiveTitle=liveKey;list.invalidateViews();}
   ReceiverCatalog.Channel selected=focusedChannel();
-  rf.setText(selected==null?tx("اختر قناة لعرض التردد","Select a channel to see RF"):
+  setTextIfChanged(rf,selected==null?tx("اختر قناة لعرض التردد","Select a channel to see RF"):
     selected.frequency+" "+selected.pol+" / "+selected.symbolRate+" · "+selected.satName);
   boolean tuned=selected!=null&&s.channelId.equals("DVB:"+selected.physical());
   strength.setVisibility(tuned&&!info.strength.isEmpty()?View.VISIBLE:View.INVISIBLE);
   quality.setVisibility(tuned&&!info.quality.isEmpty()?View.VISIBLE:View.INVISIBLE);
   strength.setProgress(tuned?percent(info.strength):0);
   quality.setProgress(tuned?percent(info.quality):0);
-  signalDetail.setText(tuned?
+  setTextIfChanged(signalDetail,tuned?
      "S: "+(info.strength.isEmpty()?"—":info.strength)+
      "   Q: "+(info.quality.isEmpty()?"—":info.quality)+
      "   "+info.signalDetail():
