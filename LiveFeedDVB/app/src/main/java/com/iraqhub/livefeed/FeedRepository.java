@@ -194,7 +194,8 @@ public final class FeedRepository {
             if (!f.isLive()) continue;
             if (!seen.contains(f.id()) && !initial && announced < 5) {
                 if (p.getBoolean("notify", true)) notifyNew(ctx, f);
-                if (p.getBoolean("overlay", false)) FloatingAlert.show(ctx, f);
+                // Show one overlay per poll rather than rapidly replacing five banners.
+                if (announced == 0 && p.getBoolean("overlay", false)) FloatingAlert.show(ctx, f);
                 announced++;
             }
             seen.add(f.id());
