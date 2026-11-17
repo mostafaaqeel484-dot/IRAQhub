@@ -29,7 +29,7 @@ public final class HubSettingsActivity extends HubActivity {
  private static final String ACTIVE_SECTION="active_section";
  private static final int EXPORT_RECEIVER_BACKUP=8806;
  private static final int VERIFY_RECEIVER_BACKUP=8807;
- private enum Section { VIDEO, CHANNELS, INFOBAR, ANTENNA, ADVANCED }
+ private enum Section { VIDEO, CHANNELS, IMPORT, INFOBAR, API, ANTENNA, ADVANCED }
 
  private final Button[] sectionButtons=new Button[Section.values().length];
  private Section activeSection;
@@ -189,7 +189,9 @@ public final class HubSettingsActivity extends HubActivity {
   switch(section){
    case VIDEO: showVideo(); break;
    case CHANNELS: showChannels(); break;
+    case IMPORT: showImport(); break;
    case INFOBAR: showInfoBar(); break;
+    case API: showApi(); break;
    case ANTENNA: showAntenna(); break;
    case ADVANCED: showAdvanced(); break;
   }
@@ -204,6 +206,8 @@ public final class HubSettingsActivity extends HubActivity {
   switch(section){
    case VIDEO: return tx("الفيديو و4:2:2","Video & 4:2:2");
    case CHANNELS: return tx("القنوات والبحث","Channels & Search");
+   case IMPORT: return tx("استيراد القنوات","Channel Import");
+   case API: return tx("مفاتيح API","API Keys");
    case INFOBAR: return tx("الإنفوبار والصور","InfoBar & Artwork");
    case ANTENNA: return tx("الهوائي والموتور","Antenna & Motor");
    default: return tx("متقدم وتشخيص","Advanced & Diagnostics");
@@ -214,6 +218,8 @@ public final class HubSettingsActivity extends HubActivity {
   switch(section){
    case VIDEO: return tx("محرك العرض والتسجيل والصوت","Playback engine, recording and audio");
    case CHANNELS: return tx("إدارة القنوات، البحث، والنسخ الاحتياطية","Channel management, scans and backups");
+   case IMPORT: return tx("CHL وSQLite وTS والنسخ الاحتياطية","CHL, SQLite, TS and backups");
+   case API: return tx("إعداد مصادر البوسترات والترجمة ومفاتيحها","Poster and subtitles provider credentials");
    case INFOBAR: return tx("الدليل، البوسترات، الشعارات والمظهر","Guide, posters, logos and appearance");
    case ANTENNA: return tx("الأقمار والترددات وتوصيلات الطبق","Satellites, transponders and dish configuration");
    default: return tx("إعدادات الجهاز وحالة الخدمات والريموت","Device settings, service status and remote");
@@ -221,6 +227,10 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showVideo(){
+  link(tx("RX7 · معاينة التلفزيون في الرئيسية","RX7 · Home live TV preview"),
+    tx("صامتة عند التركيز · رابط خاص بالقناة · بدون موالف إضافي",
+      "Muted on focus · channel-bound stream · no extra tuner"),
+    Rx7HomePreviewSettingsActivity.class);
   link(tx("محرك IRAQhub 422 الموحد","Unified IRAQhub 422"),
     tx("دقة العرض، GPU FAST، واختيار محرك الفيديو","Output resolution, GPU FAST and decoder selection"),
     Unified422SettingsActivity.class);
@@ -246,9 +256,6 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showChannels(){
-  link(tx("استيراد قاعدة قنوات الرسيفر (قراءة فقط)","Import receiver channel DB (read-only)"),
-    tx("القمر والتردد والـService ID؛ بدون تعديل بيانات المصنع","Satellite/frequency/SID identity check; no OEM DB edits"),
-    ReceiverDbImportActivity.class);
   link(tx("قائمة القنوات","Channel list"),tx("الأقمار والقنوات والمفضلة","Satellites, channels and favourites"),
     ReceiverChannelsActivity.class);
   link(tx("ترتيب وإدارة القنوات","Sort and manage channels"),"",ChannelManageActivity.class);
@@ -262,6 +269,48 @@ public final class HubSettingsActivity extends HubActivity {
     tx("فحص سلامة النسخة الاحتياطية للقراءة فقط","Read-only backup integrity check"),this::verifyChannelsBackup);
  }
 
+
+ private void showImport(){
+  note(options,tx("الاستيراد الآمن إلى IRAQhub فقط. قاعدة قنوات Aurum ومفاتيحها والمفضلة الأصلية لا تتغير.",
+    "Safe import into IRAQhub only; no factory DB writes or hidden OEM data changes."));
+  link(tx("استيراد قاعدة قنوات SQLite","Import receiver SQLite channel DB"),
+    tx("فهرس قمر وتردد وSID للربط مع CHMAX (قراءة فقط)",
+      "Read-only satellite/transponder/SID channel crosswalk for CHMAX"),
+    ReceiverDbImportActivity.class);
+  link(tx("استيراد خدمات MPEG-TS","Discover services from MPEG-TS recording"),
+    tx("استخراج PAT/PMT/SDT والتحقق قبل حفظ القنوات",
+      "Extract verified PAT/PMT/SDT before any import"),
+    TsServiceImportActivity.class);
+  link(tx("استيراد CHL وفهارس اللوغوات","CHL and logo identity import"),
+    tx("مزامنة الهوية فقط، دون الكتابة على بيانات المصنع",
+      "Identity mapping only; factory records untouched"),
+    LogoSourcesActivity.class);
+  option(tx("حفظ نسخة قنوات ZIP","Export channel backup ZIP"),
+    tx("حفظ نسخة مستقلة من بيانات IRAQhub","Save a separate IRAQhub backup"),
+    this::backupChannels);
+  option(tx("التحقق من نسخة ZIP","Verify a ZIP backup"),
+    tx("فحص سلامة الملف دون تعديل قاعدة القنوات","Integrity verification does not change channels"),
+    this::verifyChannelsBackup);
+  note(options,tx("استعادة ZIP ودمج المفضلة في قاعدة المصنع غير مفعّلين قبل اختبارهما.",
+    "OEM ZIP restore and favourites merge remain disabled until fully verified."));
+ }
+
+ private void showApi(){
+  link(tx("مفاتيح TMDB وRPDB وOPDB وOMDb وTheSportsDB","Poster API keys"),
+    tx("حفظ وتحقق وحذف المفاتيح المشفرة لكل مصدر",
+      "Save, test and remove encrypted credentials per provider"),
+    PosterApiSettingsActivity.class);
+  link(tx("مفاتيح الترجمة وTMDB","Subtitle and metadata API keys"),
+    tx("OpenSubtitles وSubsource وتوثيق TMDB المشفر",
+      "OpenSubtitles, Subsource and encrypted TMDB"),
+    ProviderSetupActivity.class);
+  link(tx("مصادر البوسترات وترتيبها","Poster providers and priorities"),
+    tx("BetterPosters أولاً وEPG المصنع قبل الإنترنت",
+      "BetterPosters first; factory and DVB EPG retained"),
+    ArtworkSourcesActivity.class);
+  note(options,tx("المفاتيح تبقى مشفرة داخل الجهاز ولا تُضمّن في APK أو ملفات المصدر.",
+    "API keys stay encrypted on-device, never embedded in APK/source."));
+ }
  private void showInfoBar(){
   link(tx("مصادر شعارات القنوات: CHMAX والخارجي","Channel logos · CHMAX and external"),
     tx("شغّل المصدرين معاً أو كل واحد منفرداً","Enable both sources or either independently"),
@@ -272,10 +321,6 @@ public final class HubSettingsActivity extends HubActivity {
   link(tx("شعارات 234 مزوداً","All 234 provider artwork"),
     tx("شعارات المزوّدين المؤكدة وأسماؤهم عند غياب الصورة","Verified marks and name-only when unavailable"),
     ProviderLogoCatalogActivity.class);
-  link(tx("مفاتيح API · TMDB / RPDB / OMDb / OpenSubtitles / Anime","API Keys & Services · TMDB / RPDB / OMDb / OpenSubtitles / Anime"), 
-    tx("TMDB وRPDB وOPDB وOMDb وTheSportsDB · مفاتيح مشفّرة",
-       "Encrypted TMDB, RPDB, OPDB, OMDb and TheSportsDB keys"),
-    PosterApiSettingsActivity.class);
   link(tx("مركز الإنفوبار والبوسترات والشعارات","InfoBar, posters and logos"),
     tx("عرض NOW / NEXT ومصادر الصور والدليل","NOW / NEXT display, artwork sources and programme guide"),
     ViewingSettingsActivity.class);
