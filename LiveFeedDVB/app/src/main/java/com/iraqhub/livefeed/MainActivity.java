@@ -18,6 +18,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -63,7 +64,7 @@ public final class MainActivity extends Activity {
     private SharedPreferences preferences;
     private GridLayout cards;
     private ScrollView page;
-    private TextView status, heading, notifyButton;
+    private TextView status, heading, notifyButton, overlayButton;
     private EditText searchBox;
     private String filter = "ALL", satelliteFilter = "", query = "";
     private boolean running, busy;
@@ -93,6 +94,15 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        if (preferences.getBoolean("overlay", false)) {
+            if (Settings.canDrawOverlays(this)) {
+                startOverlayMonitor();
+            } else {
+                preferences.edit().putBoolean("overlay", false).apply();
+                stopService(new Intent(this, FeedMonitorService.class));
+            }
+        }
+        showOverlayState();
         running = true;
         handler.removeCallbacks(poll);
         handler.postDelayed(poll, 90_000);
@@ -101,6 +111,20 @@ public final class MainActivity extends Activity {
         running = false;
         handler.removeCallbacks(poll);
         super.onPause();
+    }
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        String id = intent.getStringExtra("selected_feed");
+        if (id != null && !feeds.isEmpty()) {
+            for (FeedRepository.Feed f : feeds) {
+                if (id.equals(f.id())) {
+                    intent.removeExtra("selected_feed");
+                    details(f);
+                    break;
+                }
+            }
+        }
     }
     @Override protected void onDestroy() {
         handler.removeCallbacks(poll);
@@ -170,6 +194,23 @@ public final class MainActivity extends Activity {
         });
         toolbar.addView(notifyButton, sizeMargin(dp(90), dp(43), 5));
         showNotificationState();
+        overlayButton = button("", this::toggleOverlay);
+        toolbar.addView(overlayButton, sizeMargin(dp(106), dp(43), 5));
+        overlayButton.setOnLongClickListener(v -> {
+            if (!Settings.canDrawOverlays(this)) { toast("فعّل صلاحية الظهور فوق التطبيقات أولاً"); return true; }
+            FeedRepository.Feed example = new FeedRepository.Feed();
+            example.name = "LIVE FEED • تجربة الإشعار";
+            example.satellite = "Eutelsat 7E";
+            example.frequency = "11000";
+            example.polarization = "H";
+            example.symbolRate = "7200";
+            example.status = "ON";
+            example.chroma = "4:2:2";
+            example.imageUrl = "";
+            FloatingAlert.show(this, example);
+            return true;
+        });
+        showOverlayState();
         TextView guide = button("المباريات", () -> openSite("https://live-feed.net/tv-guide"));
         toolbar.addView(guide, sizeMargin(dp(104), dp(43), 5));
         TextView reload = button("⟳ تحديث", () -> refresh(true));
@@ -257,6 +298,57 @@ public final class MainActivity extends Activity {
     private void showNotificationState() {
         if (notifyButton != null) notifyButton.setText(preferences.getBoolean("notify", true) ? "🔔 تنبيه" : "🔕 مطفأ");
     }
+    private void showOverlayState() {
+        if (overlayButton != null) overlayButton.setText(
+                preferences.getBoolean("overlay", false) && Settings.canDrawOverlays(this) ? "▣ عائم ON" : "▣ عائم OFF");
+    }
+    private void toggleOverlay() {
+        if (preferences.getBoolean("overlay", false)) {
+            preferences.edit().putBoolean("overlay", false).apply();
+            stopService(new Intent(this, FeedMonitorService.class));
+            FloatingAlert.hide();
+            showOverlayState();
+            toast("توقفت التنبيهات العائمة");
+            return;
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            try {
+                Intent permission = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(permission, 2391);
+                toast("اسمح بالظهور فوق التطبيقات ثم ارجع للتطبيق");
+            } catch (Exception e) {
+                toast("تعذر فتح إعدادات صلاحية الظهور فوق التطبيقات");
+            }
+        } else {
+            enableOverlay();
+        }
+    }
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 2391) {
+            if (Settings.canDrawOverlays(this)) enableOverlay();
+            else { showOverlayState(); toast("التنبيهات العائمة تحتاج صلاحية الظهور فوق التطبيقات"); }
+        }
+    }
+    private void enableOverlay() {
+        preferences.edit().putBoolean("overlay", true).apply();
+        if (!startOverlayMonitor()) {
+            preferences.edit().putBoolean("overlay", false).apply();
+        }
+        showOverlayState();
+    }
+    private boolean startOverlayMonitor() {
+        try {
+            Intent service = new Intent(this, FeedMonitorService.class);
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(service);
+            else startService(service);
+            return true;
+        } catch (RuntimeException error) {
+            toast("تعذر بدء مراقبة الفيدات: " + error.getClass().getSimpleName());
+            return false;
+        }
+    }
     private void updateFilterStyles() {
         for (TextView v : filterViews) {
             boolean selected = filter.equals(v.getTag());
@@ -298,8 +390,10 @@ public final class MainActivity extends Activity {
             } catch (Exception error) {
                 handler.post(() -> {
                     busy = false;
-                    status.setText(feeds.isEmpty() ? "تعذر قراءة الفيدات من الموقع • تحقق من الاتصال أو تغير صفحة المصدر" :
-                            "تعذر التحديث الأخير • البيانات السابقة ما زالت معروضة");
+                    String why = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+                    if (why.length() > 135) why = why.substring(0, 135);
+                    status.setText(feeds.isEmpty() ? "تعذر قراءة الفيدات: " + why :
+                            "تعذر التحديث الأخير • المعلومات السابقة محفوظة");
                     if (manual) toast("فشل التحديث: " + error.getMessage());
                     if (feeds.isEmpty()) showEmpty();
                 });
