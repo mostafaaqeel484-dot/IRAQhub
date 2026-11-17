@@ -6,6 +6,8 @@ A standalone native Android TV receiver companion (Android 8.0–14+; no NDK; wo
 - Satellite / frequency / polarization / symbol rate / codec / chroma information collected from https://live-feed.net/?show_off=1
 - Feed snapshots are fetched from source image URLs when available and cached on disk
 - New-feed notifications (in-app 90s polling; Android JobScheduler background *at least* 15 minutes, subject to system scheduling)
+- Opt-in floating TV alert banner with image, satellite and transponder: enable **▣ عائم** and grant **Display over other apps**. A foreground service polls every 75s, with a persistent notification and a Stop action; long-press the toggle for an example banner. Android/OEM restrictions may block overlays on secure video surfaces.
+- Root-cause fixed: timestamp regex extraction previously threw IndexOutOfBoundsException for every card. Site fetch now falls back to the active list and failure messages show useful details.
 - Cold start sets a notification baseline to avoid false floods
 - Can copy a transponder and launch IRAQhub for manual DVB tuning; **does not** control tuner or auto-tune
 - No BISS keys are stored or included
