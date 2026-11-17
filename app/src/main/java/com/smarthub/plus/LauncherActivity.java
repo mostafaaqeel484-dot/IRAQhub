@@ -17,20 +17,25 @@ import java.util.concurrent.*;
 public class LauncherActivity extends HubActivity {
  private final Handler main=new Handler(Looper.getMainLooper());
  private final ExecutorService io=Executors.newFixedThreadPool(2);
+ private final ExecutorService posterIo=Executors.newSingleThreadExecutor();
  private final android.util.LruCache<String,Bitmap> icons=new android.util.LruCache<String,Bitmap>(2*1024*1024){protected int sizeOf(String k,Bitmap b){return b.getAllocationByteCount();}};
  private TextView clock,date,connection,channel,programme,weather;
  private Button usbAdbButton;
  private RxMotionWallpaper motionWallpaper;
  private boolean usbAdbStartupShown;
- private ImageView channelLogo;private LinearLayout appsGrid;
+ private ImageView channelLogo,programmePoster;private TextView liveBadge;
+ private Rx7HomeVideoPreview livePreview;
+ private LinearLayout appsGrid;
  private View firstTile;private boolean resumed,loading,compact,light;
  private String savedFocus;
- private long nextReceiverRefresh;private volatile boolean destroyed;private int render,accent;private String logoKey="";
+ private long nextReceiverRefresh,nextPosterRetry;private volatile boolean destroyed;
+ private int render,accent;private String logoKey="",posterKey="";
  private List<AppCatalogue.App> catalogue=Collections.emptyList();
  private final Runnable tick=new Runnable(){public void run(){update();if(resumed)main.postDelayed(this,1000);}};
  @Override public void onCreate(Bundle s){PlaybackResourceMode.clearStaleOnLauncherStart(this);IraqHubSyncScheduler.ensure(this);if(!prefs().getBoolean("launcher_reference_v34",false))prefs().edit().putBoolean("launcher_reference_v34",true).putInt("launcher_theme",0).putString("osd_accent","#E84C58").putLong("osd_changed_at",System.currentTimeMillis()).apply();super.onCreate(s);savedFocus=s==null?null:s.getString("rx_focus");build();io.execute(()->{List<AppCatalogue.App> found=AppCatalogue.load(this);main.post(()->{if(!destroyed){catalogue=found;paintApps();}});});}
  private void build(){
-  render++;logoKey="";
+  if(livePreview!=null){livePreview.destroy();livePreview=null;}
+  render++;logoKey="";posterKey="";nextPosterRetry=0;
   compact=getResources().getDisplayMetrics().heightPixels/
     getResources().getDisplayMetrics().density<620;
   accent=RxSkin.accent(this);
@@ -119,9 +124,40 @@ public class LauncherActivity extends HubActivity {
    main.post(()->{if(!destroyed&&stamp==render&&art!=null)rxArt.setImageDrawable(art);});
   });
   live.addView(rxArt,new FrameLayout.LayoutParams(-1,-1));
+  // A muted video texture is shown only after a verified first frame.
+  // Otherwise the original RX artwork remains visible, without black flashes.
+  livePreview=new Rx7HomeVideoPreview(this,live,showing->{
+   if(liveBadge!=null)liveBadge.setText(showing?"● LIVE":
+     tx("● آخر قناة","● Last channel"));
+   syncMotionWallpaper();
+  });
+  View.OnFocusChangeListener normalFocus=live.getOnFocusChangeListener();
+  live.setOnFocusChangeListener((view,focused)->{
+   if(normalFocus!=null)normalFocus.onFocusChange(view,focused);
+   if(livePreview!=null)livePreview.focus(focused);
+   syncMotionWallpaper();
+  });
   View artShade=new View(this);artShade.setBackground(new GradientDrawable(
     GradientDrawable.Orientation.BOTTOM_TOP,new int[]{0xef000000,0x8a000000,0x09000000}));
   live.addView(artShade,new FrameLayout.LayoutParams(-1,-1));
+  // The current programme poster belongs at the physical TOP-LEFT,
+  // independent of the launcher RTL text direction.
+  programmePoster=new ImageView(this);
+  programmePoster.setScaleType(ImageView.ScaleType.CENTER_CROP);
+  programmePoster.setBackground(shape(0xff152233,8));
+  programmePoster.setClipToOutline(true);
+  programmePoster.setVisibility(View.GONE);
+  FrameLayout.LayoutParams posterBox=new FrameLayout.LayoutParams(
+    dp(compact?63:86),dp(compact?90:123),Gravity.TOP|Gravity.LEFT);
+  posterBox.leftMargin=dp(13);posterBox.topMargin=dp(12);
+  live.addView(programmePoster,posterBox);
+  liveBadge=text(tx("● آخر قناة","● Last channel"),compact?11:13,true);
+  liveBadge.setTextColor(0xffffca61);
+  liveBadge.setPadding(dp(9),dp(5),dp(9),dp(5));
+  liveBadge.setBackground(shape(0xe80a1420,9));
+  FrameLayout.LayoutParams badgeBox=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.RIGHT);
+  badgeBox.rightMargin=dp(14);badgeBox.topMargin=dp(13);
+  live.addView(liveBadge,badgeBox);
   LinearLayout liveInfo=col();liveInfo.setGravity(Gravity.BOTTOM);
   liveInfo.setPadding(dp(18),dp(14),dp(17),dp(17));
   FrameLayout.LayoutParams infoPosition=new FrameLayout.LayoutParams(-1,-1,Gravity.BOTTOM);
@@ -130,7 +166,7 @@ public class LauncherActivity extends HubActivity {
   liveTitle.setTextColor(0xffffffff);liveInfo.addView(liveTitle);
   LinearLayout currentChannel=row();
   channelLogo=new ImageView(this);channelLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  currentChannel.addView(channelLogo,new LinearLayout.LayoutParams(dp(40),dp(28)));
+  currentChannel.addView(channelLogo,new LinearLayout.LayoutParams(dp(compact?42:57),dp(compact?31:42)));
   channel=text("",compact?12:15,true);
   channel.setTextColor(0xfff1f1f5);channel.setSingleLine(true);
   channel.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -323,6 +359,7 @@ public class LauncherActivity extends HubActivity {
  }
  @Override public void onWindowFocusChanged(boolean focused){
   super.onWindowFocusChanged(focused);
+  if(livePreview!=null)livePreview.foreground(resumed&&focused);
   syncMotionWallpaper();
  }
  private boolean restoreFocus(String tag){
@@ -377,7 +414,38 @@ public class LauncherActivity extends HubActivity {
     if(destroyed||stamp!=render)return;
     channel.setText(state.channelName.isEmpty()?tx("قنواتك الفضائية بلمسة واحدة","Your satellite channels in one click"):
      tx("آخر قناة · ","Last channel · ")+state.channelName);
-    programme.setText(state.title);
+    programme.setText(state.title.isEmpty()?
+      tx("معلومات البرنامج غير متاحة","Programme EPG unavailable"):state.title);
+    if(livePreview!=null)livePreview.bind(state.channelId);
+    String artworkKey=state.channelId+"|"+state.title+"|"+state.startMs+
+      "|"+state.image+"|"+prefs().getLong("epg_art_changed_at",0);
+    long now=SystemClock.elapsedRealtime();
+    if(!artworkKey.equals(posterKey)||now>=nextPosterRetry){
+     posterKey=artworkKey;
+     nextPosterRetry=now+90000;
+     programmePoster.setVisibility(View.GONE);
+     programmePoster.setImageDrawable(null);
+     if(!state.channelName.isEmpty()&&!state.title.trim().isEmpty()){
+      final SatelliteState posterState=state.copy();
+      final String expectedArtwork=artworkKey;
+      posterIo.execute(()->{
+       Bitmap poster=null;
+       try{
+        poster=EpgArtwork.loadInfobarCached(this,posterState,posterState.title,false);
+        if(poster==null&&!PlaybackResourceMode.active())
+         poster=EpgArtwork.loadInfobarBroadcast(this,posterState,posterState.title,false);
+       }catch(Exception ignored){}
+       final Bitmap result=poster;
+       main.post(()->{
+        if(destroyed||render!=stamp||!expectedArtwork.equals(posterKey))return;
+        if(result!=null){
+         programmePoster.setImageBitmap(result);
+         programmePoster.setVisibility(View.VISIBLE);
+        }
+       });
+      });
+     }
+    }
     String key=state.channelId+"|"+state.channelName+"|"+prefs().getLong("logo_mapping_changed_at",0)+"|"+
      prefs().getLong("native_logos_changed_at",0);
     if(logoKey.equals(key))return;
@@ -395,6 +463,8 @@ public class LauncherActivity extends HubActivity {
  }
  @Override protected void onResume(){
   super.onResume();resumed=true;nextReceiverRefresh=0;main.post(tick);
+  if(livePreview!=null){livePreview.foreground(true);
+   livePreview.focus(firstTile!=null&&firstTile.hasFocus());}
   WeatherRepository.update(this);
   AdbIpConnection.checkOnLauncherStart(this); // opt-in; no UI/network blocking
   if(usbAdbButton!=null){
@@ -415,7 +485,17 @@ public class LauncherActivity extends HubActivity {
       !UsbAdbSetup.enabled(this))UsbAdbSetup.show(this);
    },400);
   }
- }@Override protected void onPause(){resumed=false;syncMotionWallpaper();main.removeCallbacks(tick);super.onPause();}
+ }@Override protected void onPause(){
+  resumed=false;
+  if(livePreview!=null)livePreview.foreground(false);
+  syncMotionWallpaper();main.removeCallbacks(tick);super.onPause();
+ }
  @Override public void onBackPressed(){/* HOME remains IRAQhub. */}
- @Override protected void onDestroy(){destroyed=true;resumed=false;main.removeCallbacksAndMessages(null);io.shutdownNow();icons.evictAll();super.onDestroy();}
+ @Override protected void onDestroy(){
+  destroyed=true;resumed=false;
+  if(livePreview!=null){livePreview.destroy();livePreview=null;}
+  main.removeCallbacksAndMessages(null);
+  io.shutdownNow();posterIo.shutdownNow();icons.evictAll();
+  super.onDestroy();
+ }
 }
