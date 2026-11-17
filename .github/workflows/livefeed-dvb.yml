@@ -41,7 +41,7 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Build independent LiveFeed DVB APK
-        run: gradle -p LiveFeedDVB :app:assembleDebug --no-daemon --stacktrace
+        run: gradle -p LiveFeedDVB :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
       - name: Validate APK signing and TV package
         run: |
           set -euxo pipefail
