@@ -169,7 +169,7 @@ public final class FeedRepository {
         String[] attrs = {"data-src", "data-original", "data-lazy-src", "src"};
         for (String a : attrs) {
             String value = img.attr(a);
-            if (TextUtils.isEmpty(value) || value.startsWith("data:") || value.startsWith("blob:")) continue;
+            if (value == null || value.isEmpty() || value.startsWith("data:") || value.startsWith("blob:")) continue;
             try {
                 URI uri = URI.create(SITE).resolve(value);
                 if ("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null) return uri.toString();
