@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
 
 /**
  * User-enabled foreground monitor. Android 14 requires the specialUse FGS type.
- * It has an ongoing notification and uses modest 75s polling; JobScheduler remains
+ * It has an ongoing notification and uses 20s polling while the user-enabled foreground service is running; JobScheduler remains
  * the OS-managed fallback for ordinary notifications if this service stops.
  */
 public final class FeedMonitorService extends Service {
@@ -43,7 +43,7 @@ public final class FeedMonitorService extends Service {
                     }
                 });
             }
-            main.postDelayed(this, 75_000L);
+            main.postDelayed(this, 20_000L);
         }
     };
 
@@ -78,7 +78,7 @@ public final class FeedMonitorService extends Service {
         Notification n = new Notification.Builder(this, MONITOR_CHANNEL)
                 .setSmallIcon(R.drawable.ic_satellite)
                 .setContentTitle("LiveFeed DVB • التنبيهات العائمة تعمل")
-                .setContentText("مراقبة الفيدات أثناء مشاهدة القنوات")
+                .setContentText("فحص الفيدات كل 20 ثانية أثناء مشاهدة القنوات")
                 .setOngoing(true)
                 .setContentIntent(open)
                 .addAction(new Notification.Action.Builder(null, "إيقاف المراقبة", stop).build())
