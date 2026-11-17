@@ -1,0 +1,122 @@
+name: IRAQhub RX7 7.0.1 - Visible Live Home X5M APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'fix/rx7-701-visible-home-artwork-20261117'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rx7-visible-701-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify correct SOURCE ZIP snapshot, not older RX6 branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "versionName '7.0.1-rx7'" app/build.gradle
+          grep -Fq "versionCode 70" app/build.gradle
+          test -s app/src/main/java/com/smarthub/plus/LiveFeedActivity.java
+          test -s app/src/main/java/com/smarthub/plus/RemoteDirectionPolicy.java
+          test -s app/src/main/java/com/smarthub/plus/ArtworkCachePruner.java
+          test -s app/src/main/java/com/smarthub/plus/ChannelLogoCache.kt
+          python3 scripts/verify_rx7_701_source.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Install exact SDK / build-tools / NDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - name: Run all local Android JVM regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/rx7-test-${attempt}.log"
+            if gradle :app:testDebugUnitTest --no-daemon --stacktrace --max-workers=2 2>&1 | tee "$log"; then
+              echo "RX7 tests passed on attempt $attempt"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]] || ! grep -Eiq 'status code 429|Too Many Requests|HTTP 429|Connection reset|Read timed out' "$log"; then
+              echo "RX7 tests failed for a non-transient reason"
+              exit 1
+            fi
+            echo "Maven transient throttling: retrying dependency resolution"
+            sleep "$((attempt*20))"
+          done
+      - name: Assemble side-by-side X5M preview (ARMv7 only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/rx7-apk-${attempt}.log"
+            if gradle :app:assembleRx6OriginalPreview --no-daemon --stacktrace --max-workers=2 2>&1 | tee "$log"; then
+              echo "RX7 APK assembled on attempt $attempt"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]] || ! grep -Eiq 'status code 429|Too Many Requests|HTTP 429|Connection reset|Read timed out' "$log"; then
+              echo "RX7 APK compilation failed for a non-transient reason"
+              exit 1
+            fi
+            sleep "$((attempt*20))"
+          done
+      - name: Verify exact final APK contents, signature and Android 14 compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/rx6OriginalPreview/app-rx6OriginalPreview.apk
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          test -s "$APK"
+          unzip -tq "$APK"
+          "$BT/zipalign" -c -v 4 "$APK"
+          "$BT/apksigner" verify --min-sdk-version 34 --verbose --print-certs "$APK"
+          "$BT/aapt" dump badging "$APK" | tee "$RUNNER_TEMP/iraqhub-badging.txt"
+          grep -F "package: name='com.smarthub.plus.rx7vis701'" "$RUNNER_TEMP/iraqhub-badging.txt"
+          grep -F "native-code: 'armeabi-v7a'" "$RUNNER_TEMP/iraqhub-badging.txt"
+          python3 - "$APK" <<'PY'
+          import sys,zipfile
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              files=set(apk.namelist())
+              assert any(name.startswith('classes') and name.endswith('.dex') for name in files)
+              so=[name for name in files if name.startswith('lib/') and name.endswith('.so')]
+              assert so and all(name.startswith('lib/armeabi-v7a/') for name in so),so
+              assert 'lib/armeabi-v7a/libc++_shared.so' in files
+              print('Verified 32-bit ARMv7 APK libraries:',len(so))
+          PY
+          mkdir -p dist
+          cp "$APK" dist/IRAQhub_RX7_7.0.1_VisibleHome_X5M_Debug.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
+      - name: Store signed preview in a draft pre-release (do not publish as stable)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="iraqhub-rx7-visible-home-701-${GITHUB_RUN_ID}"
+          gh release create "$TAG" \
+            dist/IRAQhub_RX7_7.0.1_VisibleHome_X5M_Debug.apk \
+            dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --draft --prerelease \
+            --title "IRAQhub RX7 7.0.1 · Visible Home Artwork Hotfix · X5M Preview" \
+            --notes "RX7 7.0.1 addresses invisible Home poster/logo slots, explicit no-EPG fallback, and avoids blanking artwork during refresh. Previous RX7 was installed as a separate app with separate local cache; no automatic migration is possible. Native DVB-in-tile preview is still NOT available without a shared OEM decoder surface; optional user-supplied, channel-bound network preview only. CI unit tests, ARMv7 package, zip alignment and Android 14 signature checked. This is a side-by-side, temporary DEBUG-signed APK (com.smarthub.plus.rx7vis701). Live DVB scan, 4:2:2, EPG, feed website parsing and remote controls remain unverified on the physical X5M. Do not replace production or treat as stable."
+          mkdir -p "$RUNNER_TEMP/apk-verify"
+          gh release download "$TAG" -D "$RUNNER_TEMP/apk-verify" -p '*.apk' -p SHA256SUMS.txt
+          (cd "$RUNNER_TEMP/apk-verify" && sha256sum -c SHA256SUMS.txt)
+          cmp "dist/IRAQhub_RX7_7.0.1_VisibleHome_X5M_Debug.apk" \
+            "$RUNNER_TEMP/apk-verify/IRAQhub_RX7_7.0.1_VisibleHome_X5M_Debug.apk"
+          echo "Verified draft: https://github.com/${GH_REPO}/releases/tag/${TAG}"
