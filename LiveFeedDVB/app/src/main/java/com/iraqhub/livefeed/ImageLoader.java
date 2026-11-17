@@ -1,6 +1,8 @@
 package com.iraqhub.livefeed;
 
-import android.app.Activity;
+import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.widget.ImageView;
@@ -17,13 +19,14 @@ import java.util.concurrent.Executors;
 
 public final class ImageLoader {
     private static final ExecutorService POOL = Executors.newFixedThreadPool(3);
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private ImageLoader() {}
-    public static void load(Activity activity, ImageView view, String source) {
+    public static void load(Context context, ImageView view, String source) {
         if (source == null || !source.startsWith("https://")) return;
         view.setTag(source);
         POOL.execute(() -> {
             try {
-                File dir = new File(activity.getCacheDir(), "feed_snapshots");
+                File dir = new File(context.getCacheDir(), "feed_snapshots");
                 if (!dir.exists() && !dir.mkdirs()) return;
                 File image = new File(dir, sha(source) + ".img");
                 if (!image.isFile() || image.length() == 0) {
@@ -60,7 +63,7 @@ public final class ImageLoader {
                 if (bitmap == null) { image.delete(); return; }
                 image.setLastModified(System.currentTimeMillis());
                 trim(dir);
-                activity.runOnUiThread(() -> {
+                MAIN.post(() -> {
                     if (source.equals(view.getTag())) view.setImageBitmap(bitmap);
                 });
             } catch (Exception ignored) { }
