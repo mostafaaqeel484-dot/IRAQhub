@@ -432,7 +432,7 @@ public class LauncherActivity extends HubActivity {
    main.post(()->{
     loading=false;
     if(destroyed||stamp!=render)return;
-    channel.setText(state.channelName.isEmpty()?tx("قنواتك الفضائية بلمسة واحدة","Your satellite channels in one click"):
+    channel.setText(state.channelName.isEmpty()?tx("شغّل قناة من RX7 لعرض لوغوها وEPG","Open a channel in RX7 to show logo & EPG"):
      tx("آخر قناة · ","Last channel · ")+state.channelName);
     programme.setText(state.title.isEmpty()?
       tx("معلومات البرنامج غير متاحة","Programme EPG unavailable"):state.title);
@@ -440,8 +440,8 @@ public class LauncherActivity extends HubActivity {
     String artworkKey=state.channelId+"|"+state.title+"|"+state.startMs+
       "|"+state.image+"|"+prefs().getLong("epg_art_changed_at",0);
     long posterClock=SystemClock.elapsedRealtime();
-    if(!artworkKey.equals(posterKey)||posterClock>=nextPosterRetry){
-     boolean changed=!artworkKey.equals(posterKey);
+    if(Rx7HeroArtworkPolicy.shouldRefresh(posterKey,artworkKey,posterClock,nextPosterRetry)){
+     boolean changed=Rx7HeroArtworkPolicy.eventChanged(posterKey,artworkKey);
      posterKey=artworkKey;
      nextPosterRetry=posterClock+45000;
      // A retry for the same programme must not blank a good poster.
@@ -452,7 +452,7 @@ public class LauncherActivity extends HubActivity {
      }
      posterPlaceholder.setText(state.title.trim().isEmpty()?
       tx("لا يوجد EPG","No EPG"):tx("لا يوجد بوستر","No poster"));
-     if(!state.channelName.isEmpty()&&!state.title.trim().isEmpty()){
+     if(Rx7HeroArtworkPolicy.canLoadPoster(state.channelName,state.title)){
       final SatelliteState posterState=state.copy();
       final String expectedArtwork=artworkKey;
       posterIo.execute(()->{
