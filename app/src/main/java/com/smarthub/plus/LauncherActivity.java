@@ -23,19 +23,20 @@ public class LauncherActivity extends HubActivity {
  private Button usbAdbButton;
  private RxMotionWallpaper motionWallpaper;
  private boolean usbAdbStartupShown;
- private ImageView channelLogo,programmePoster;private TextView liveBadge;
+ private ImageView channelLogo,programmePoster;
+ private TextView liveBadge,posterPlaceholder,channelLogoPlaceholder;
  private Rx7HomeVideoPreview livePreview;
  private LinearLayout appsGrid;
  private View firstTile;private boolean resumed,loading,compact,light;
  private String savedFocus;
- private long nextReceiverRefresh,nextPosterRetry;private volatile boolean destroyed;
+ private long nextReceiverRefresh,nextPosterRetry,nextLogoRetry;private volatile boolean destroyed;
  private int render,accent;private String logoKey="",posterKey="";
  private List<AppCatalogue.App> catalogue=Collections.emptyList();
  private final Runnable tick=new Runnable(){public void run(){update();if(resumed)main.postDelayed(this,1000);}};
  @Override public void onCreate(Bundle s){PlaybackResourceMode.clearStaleOnLauncherStart(this);IraqHubSyncScheduler.ensure(this);if(!prefs().getBoolean("launcher_reference_v34",false))prefs().edit().putBoolean("launcher_reference_v34",true).putInt("launcher_theme",0).putString("osd_accent","#E84C58").putLong("osd_changed_at",System.currentTimeMillis()).apply();super.onCreate(s);savedFocus=s==null?null:s.getString("rx_focus");build();io.execute(()->{List<AppCatalogue.App> found=AppCatalogue.load(this);main.post(()->{if(!destroyed){catalogue=found;paintApps();}});});}
  private void build(){
   if(livePreview!=null){livePreview.destroy();livePreview=null;}
-  render++;logoKey="";posterKey="";nextPosterRetry=0;
+  render++;logoKey="";posterKey="";nextPosterRetry=0;nextLogoRetry=0;
   compact=getResources().getDisplayMetrics().heightPixels/
     getResources().getDisplayMetrics().density<620;
   accent=RxSkin.accent(this);
@@ -142,15 +143,24 @@ public class LauncherActivity extends HubActivity {
   live.addView(artShade,new FrameLayout.LayoutParams(-1,-1));
   // The current programme poster belongs at the physical TOP-LEFT,
   // independent of the launcher RTL text direction.
+  // Explicit frame stays visible even without an exact programme artwork.
+  FrameLayout posterHolder=new FrameLayout(this);
+  GradientDrawable posterOutline=shape(0xee142033,8);
+  posterOutline.setStroke(dp(1),0xffd3ac5d);
+  posterHolder.setBackground(posterOutline);
+  posterHolder.setClipToOutline(true);
+  FrameLayout.LayoutParams posterBox=new FrameLayout.LayoutParams(
+    dp(compact?68:91),dp(compact?92:125),Gravity.TOP|Gravity.LEFT);
+  posterBox.leftMargin=dp(13);posterBox.topMargin=dp(12);
+  live.addView(posterHolder,posterBox);
+  posterPlaceholder=text(tx("لا يوجد بوستر","No poster"),compact?10:12,true);
+  posterPlaceholder.setTextColor(0xffe6d5b2);
+  posterPlaceholder.setGravity(Gravity.CENTER);
+  posterHolder.addView(posterPlaceholder,new FrameLayout.LayoutParams(-1,-1));
   programmePoster=new ImageView(this);
   programmePoster.setScaleType(ImageView.ScaleType.CENTER_CROP);
-  programmePoster.setBackground(shape(0xff152233,8));
-  programmePoster.setClipToOutline(true);
   programmePoster.setVisibility(View.GONE);
-  FrameLayout.LayoutParams posterBox=new FrameLayout.LayoutParams(
-    dp(compact?63:86),dp(compact?90:123),Gravity.TOP|Gravity.LEFT);
-  posterBox.leftMargin=dp(13);posterBox.topMargin=dp(12);
-  live.addView(programmePoster,posterBox);
+  posterHolder.addView(programmePoster,new FrameLayout.LayoutParams(-1,-1));
   liveBadge=text(tx("● آخر قناة","● Last channel"),compact?11:13,true);
   liveBadge.setTextColor(0xffffca61);
   liveBadge.setPadding(dp(9),dp(5),dp(9),dp(5));
@@ -162,11 +172,21 @@ public class LauncherActivity extends HubActivity {
   liveInfo.setPadding(dp(18),dp(14),dp(17),dp(17));
   FrameLayout.LayoutParams infoPosition=new FrameLayout.LayoutParams(-1,-1,Gravity.BOTTOM);
   live.addView(liveInfo,infoPosition);
-  TextView liveTitle=text(tx("التلفزيون المباشر","Live TV"),compact?24:31,true);
+  TextView liveTitle=text(tx("RX7 · التلفزيون المباشر","RX7 · Live TV"),compact?22:27,true);
   liveTitle.setTextColor(0xffffffff);liveInfo.addView(liveTitle);
   LinearLayout currentChannel=row();
-  channelLogo=new ImageView(this);channelLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-  currentChannel.addView(channelLogo,new LinearLayout.LayoutParams(dp(compact?42:57),dp(compact?31:42)));
+  FrameLayout logoHolder=new FrameLayout(this);
+  logoHolder.setBackground(shape(0xdd111c2d,7));
+  currentChannel.addView(logoHolder,new LinearLayout.LayoutParams(dp(compact?46:61),dp(compact?34:43)));
+  channelLogoPlaceholder=text("TV",compact?12:14,true);
+  channelLogoPlaceholder.setTextColor(0xffffd77f);
+  channelLogoPlaceholder.setGravity(Gravity.CENTER);
+  logoHolder.addView(channelLogoPlaceholder,new FrameLayout.LayoutParams(-1,-1));
+  channelLogo=new ImageView(this);
+  channelLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+  channelLogo.setPadding(dp(3),dp(2),dp(3),dp(2));
+  channelLogo.setVisibility(View.GONE);
+  logoHolder.addView(channelLogo,new FrameLayout.LayoutParams(-1,-1));
   channel=text("",compact?12:15,true);
   channel.setTextColor(0xfff1f1f5);channel.setSingleLine(true);
   channel.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -421,10 +441,17 @@ public class LauncherActivity extends HubActivity {
       "|"+state.image+"|"+prefs().getLong("epg_art_changed_at",0);
     long posterClock=SystemClock.elapsedRealtime();
     if(!artworkKey.equals(posterKey)||posterClock>=nextPosterRetry){
+     boolean changed=!artworkKey.equals(posterKey);
      posterKey=artworkKey;
-     nextPosterRetry=posterClock+90000;
-     programmePoster.setVisibility(View.GONE);
-     programmePoster.setImageDrawable(null);
+     nextPosterRetry=posterClock+45000;
+     // A retry for the same programme must not blank a good poster.
+     if(changed){
+      programmePoster.setVisibility(View.GONE);
+      programmePoster.setImageDrawable(null);
+      posterPlaceholder.setVisibility(View.VISIBLE);
+     }
+     posterPlaceholder.setText(state.title.trim().isEmpty()?
+      tx("لا يوجد EPG","No EPG"):tx("لا يوجد بوستر","No poster"));
      if(!state.channelName.isEmpty()&&!state.title.trim().isEmpty()){
       final SatelliteState posterState=state.copy();
       final String expectedArtwork=artworkKey;
@@ -441,6 +468,7 @@ public class LauncherActivity extends HubActivity {
         if(result!=null){
          programmePoster.setImageBitmap(result);
          programmePoster.setVisibility(View.VISIBLE);
+         posterPlaceholder.setVisibility(View.GONE);
         }
        });
       });
@@ -448,13 +476,24 @@ public class LauncherActivity extends HubActivity {
     }
     String key=state.channelId+"|"+state.channelName+"|"+prefs().getLong("logo_mapping_changed_at",0)+"|"+
      prefs().getLong("native_logos_changed_at",0);
-    if(logoKey.equals(key))return;
-    logoKey=key;
-    channelLogo.setImageResource(R.drawable.channel_placeholder);
+    long logoClock=SystemClock.elapsedRealtime();
+    boolean changedLogo=!logoKey.equals(key);
+    if(changedLogo){
+     logoKey=key;
+     channelLogo.setVisibility(View.GONE);
+     channelLogo.setImageDrawable(null);
+     channelLogoPlaceholder.setVisibility(View.VISIBLE);
+    }
+    if(!changedLogo&&logoClock<nextLogoRetry)return;
+    nextLogoRetry=logoClock+60000;
     if(state.channelName.isEmpty())return;
     LogoRepository.get(this).request(state.channelName,state.channelId,new LogoRepository.Listener(){
      public void channel(Bitmap bitmap){
-      if(!destroyed&&stamp==render&&logoKey.equals(key)&&bitmap!=null)channelLogo.setImageBitmap(bitmap);
+      if(!destroyed&&stamp==render&&logoKey.equals(key)&&bitmap!=null){
+       channelLogo.setImageBitmap(bitmap);
+       channelLogo.setVisibility(View.VISIBLE);
+       channelLogoPlaceholder.setVisibility(View.GONE);
+      }
      }
      public void provider(String name,Bitmap bitmap){}
     });
