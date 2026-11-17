@@ -57,10 +57,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
-          TAG="livefeed-dvb-tv-1.0.0-${GITHUB_SHA:0:7}"
+          TAG="livefeed-dvb-tv-1.0.1-${GITHUB_SHA:0:7}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
-              --title "LiveFeed DVB TV 1.0.0 • experimental Android APK" \
-              --notes "Unofficial Android TV app. Data/screenshots: live-feed.net. Background notifications may be delayed by Android restrictions. APK built by GitHub Actions; not yet validated on Amlogic hardware."
+              --title "LiveFeed DVB TV 1.0.1 • experimental Android APK" \
+              --notes "Unofficial Android TV app. Data/screenshots: live-feed.net. 20s polling runs only while the user-enabled foreground monitor is active. Overlays last 8s; OEM restrictions and site rate limits may delay alerts. APK built by GitHub Actions; not yet validated on Amlogic hardware."
           fi
-          gh release upload "$TAG" LiveFeedDVB/app/build/outputs/apk/debug/app-debug.apk#LiveFeedDVB-TV-1.0.0-debug.apk --clobber
+          gh release upload "$TAG" LiveFeedDVB/app/build/outputs/apk/debug/app-debug.apk#LiveFeedDVB-TV-1.0.1-debug.apk --clobber
