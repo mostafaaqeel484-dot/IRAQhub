@@ -73,7 +73,7 @@ public final class MainActivity extends Activity {
         @Override public void run() {
             if (running) {
                 refresh(false);
-                handler.postDelayed(this, 90_000);
+                handler.postDelayed(this, 20_000);
             }
         }
     };
@@ -105,7 +105,7 @@ public final class MainActivity extends Activity {
         showOverlayState();
         running = true;
         handler.removeCallbacks(poll);
-        handler.postDelayed(poll, 90_000);
+        handler.postDelayed(poll, 20_000);
     }
     @Override protected void onPause() {
         running = false;
@@ -265,7 +265,7 @@ public final class MainActivity extends Activity {
         cards.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
         page.addView(cards, new ScrollView.LayoutParams(-1, -2));
 
-        TextView footer = text("المصدر: Live-Feed.net  •  المعلومات للترددات فقط  •  التحديث داخل التطبيق كل 90 ثانية", 11, MUTED, false);
+        TextView footer = text("المصدر: Live-Feed.net  •  المعلومات للترددات فقط  •  التحديث داخل التطبيق كل 20 ثانية", 11, MUTED, false);
         footer.setGravity(Gravity.CENTER);
         root.addView(footer, new LinearLayout.LayoutParams(-1, dp(25)));
         updateFilterStyles();
@@ -368,7 +368,7 @@ public final class MainActivity extends Activity {
         if (status != null) status.setText("⟳  جارِ تحديث الفيدات من الموقع…");
         executor.execute(() -> {
             try {
-                List<FeedRepository.Feed> fetched = FeedRepository.fetch();
+                List<FeedRepository.Feed> fetched = FeedRepository.fetch(manual);
                 FeedRepository.processNew(getApplicationContext(), fetched);
                 handler.post(() -> {
                     feeds.clear();
