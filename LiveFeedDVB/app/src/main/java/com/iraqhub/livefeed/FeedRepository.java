@@ -135,16 +135,21 @@ public final class FeedRepository {
                 String text = parent.text();
                 if (text.length() > 1650) break;
                 Matcher m = BLOCK.matcher(text);
-                if (m.find() && !m.find()) {
+                if (m.find()) {
                     String k = key(m.group(2), m.group(3), m.group(4));
-                    result.putIfAbsent(k, src);
-                    break;
+                    if (!m.find()) {
+                        result.putIfAbsent(k, src);
+                        break;
+                    }
                 }
                 // Some cards omit the satellite label and only show a bare transponder.
                 Matcher bare = Pattern.compile("(\\d{4,5})\\s+([HVLR])\\s+(\\d{3,6})").matcher(text);
-                if (bare.find() && !bare.find() && text.length() < 600) {
-                    result.putIfAbsent(key(bare.group(1), bare.group(2), bare.group(3)), src);
-                    break;
+                if (bare.find()) {
+                    String k = key(bare.group(1), bare.group(2), bare.group(3));
+                    if (!bare.find() && text.length() < 600) {
+                        result.putIfAbsent(k, src);
+                        break;
+                    }
                 }
             }
         }
