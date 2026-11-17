@@ -50,8 +50,8 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -35
       # This repository previously ran out of Actions artifact storage.
-      # Save an owner-accessible draft release instead of an upload-artifact.
-      - name: Upload verified APK to GitHub draft release
+      # Save a clearly labeled public prerelease because Actions artifact storage is exhausted.
+      - name: Upload verified APK to downloadable GitHub prerelease
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,7 +59,7 @@ jobs:
           set -euxo pipefail
           TAG="livefeed-dvb-tv-1.0.0-${GITHUB_SHA:0:7}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+            gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
               --title "LiveFeed DVB TV 1.0.0 • experimental Android APK" \
               --notes "Unofficial Android TV app. Data/screenshots: live-feed.net. Background notifications may be delayed by Android restrictions. APK built by GitHub Actions; not yet validated on Amlogic hardware."
           fi
