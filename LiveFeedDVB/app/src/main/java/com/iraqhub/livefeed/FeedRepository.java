@@ -63,8 +63,22 @@ public final class FeedRepository {
         }
     }
 
-    public static List<Feed> fetch() throws IOException {
-        // The site server-renders cards. Fetch the complete list; fall back to the active-feed homepage.
+    // One process-level cache prevents concurrent activity/foreground-service HTML requests.
+    private static List<Feed> latest = Collections.emptyList();
+    private static long lastFetchElapsedMs = -1L;
+    private static final long MIN_REUSE_WINDOW_MS = 18_000L;
+
+    public static synchronized List<Feed> fetch() throws IOException {
+        return fetch(false);
+    }
+
+    public static synchronized List<Feed> fetch(boolean force) throws IOException {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (!force && !latest.isEmpty() && lastFetchElapsedMs >= 0
+                && now - lastFetchElapsedMs < MIN_REUSE_WINDOW_MS) {
+            return new ArrayList<>(latest);
+        }
+        // The site server-renders cards. Fetch the complete list; fall back to active feeds.
         IOException last = null;
         for (String url : new String[]{FEED_URL, SITE}) {
             try {
@@ -74,7 +88,11 @@ public final class FeedRepository {
                         .header("Accept", "text/html,application/xhtml+xml")
                         .timeout(18000).maxBodySize(10_000_000).get().outerHtml();
                 List<Feed> feeds = parse(html);
-                if (!feeds.isEmpty()) return feeds;
+                if (!feeds.isEmpty()) {
+                    latest = new ArrayList<>(feeds);
+                    lastFetchElapsedMs = android.os.SystemClock.elapsedRealtime();
+                    return new ArrayList<>(latest);
+                }
                 last = new IOException("موقع المصدر استجاب، لكن لم توجد حقول تردد DVB بصفحة HTML");
             } catch (IOException error) { last = error; }
         }
