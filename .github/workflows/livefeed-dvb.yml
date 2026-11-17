@@ -1,0 +1,66 @@
+name: LiveFeed DVB Android TV APK
+on:
+  push:
+    branches:
+      - feature/livefeed-dvb-android-tv-20261117
+    paths:
+      - 'LiveFeedDVB/**'
+      - '.github/workflows/livefeed-dvb.yml'
+  pull_request:
+    paths:
+      - 'LiveFeedDVB/**'
+      - '.github/workflows/livefeed-dvb.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: livefeed-dvb-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Configure Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build independent LiveFeed DVB APK
+        run: gradle -p LiveFeedDVB :app:assembleDebug --no-daemon --stacktrace
+      - name: Validate APK signing and TV package
+        run: |
+          set -euxo pipefail
+          APK=LiveFeedDVB/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -35
+      # This repository previously ran out of Actions artifact storage.
+      # Save an owner-accessible draft release instead of an upload-artifact.
+      - name: Upload verified APK to GitHub draft release
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          TAG="livefeed-dvb-tv-1.0.0-${GITHUB_SHA:0:7}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --prerelease --target "$GITHUB_SHA" \
+              --title "LiveFeed DVB TV 1.0.0 • experimental Android APK" \
+              --notes "Unofficial Android TV app. Data/screenshots: live-feed.net. Background notifications may be delayed by Android restrictions. APK built by GitHub Actions; not yet validated on Amlogic hardware."
+          fi
+          gh release upload "$TAG" LiveFeedDVB/app/build/outputs/apk/debug/app-debug.apk#LiveFeedDVB-TV-1.0.0-debug.apk --clobber
