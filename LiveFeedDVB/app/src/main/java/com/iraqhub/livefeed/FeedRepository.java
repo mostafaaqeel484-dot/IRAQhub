@@ -64,12 +64,21 @@ public final class FeedRepository {
     }
 
     public static List<Feed> fetch() throws IOException {
-        String html = Jsoup.connect(FEED_URL)
-                .userAgent("Mozilla/5.0 (Linux; Android 14; Android TV) AppleWebKit/537.36 Chrome/120.0 Safari/537.36")
-                .timeout(20000).maxBodySize(7_000_000).get().outerHtml();
-        List<Feed> feeds = parse(html);
-        if (feeds.isEmpty()) throw new IOException("No DVB feed entries parsed from source HTML");
-        return feeds;
+        // The site server-renders cards. Fetch the complete list; fall back to the active-feed homepage.
+        IOException last = null;
+        for (String url : new String[]{FEED_URL, SITE}) {
+            try {
+                String html = Jsoup.connect(url)
+                        .userAgent("Mozilla/5.0 (Linux; Android 14; Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                        .header("Accept-Language", "en-US,en;q=0.9,ar;q=0.8")
+                        .header("Accept", "text/html,application/xhtml+xml")
+                        .timeout(18000).maxBodySize(10_000_000).get().outerHtml();
+                List<Feed> feeds = parse(html);
+                if (!feeds.isEmpty()) return feeds;
+                last = new IOException("موقع المصدر استجاب، لكن لم توجد حقول تردد DVB بصفحة HTML");
+            } catch (IOException error) { last = error; }
+        }
+        throw last == null ? new IOException("تعذر جلب البيانات") : last;
     }
 
     public static List<Feed> parse(String html) {
@@ -115,7 +124,8 @@ public final class FeedRepository {
 
     private static String first(Pattern p, String s, String fallback) {
         Matcher m = p.matcher(s);
-        return m.find() ? m.group(1) : fallback;
+        // TIME has no capturing groups; asking for group(1) used to crash the entire parser.
+        return m.find() ? m.group(m.groupCount() > 0 ? 1 : 0) : fallback;
     }
     private static String lastStatus(String s) {
         Matcher m = STATUS.matcher(s);
@@ -174,7 +184,7 @@ public final class FeedRepository {
                 CHANNEL, "الفيدات الجديدة", NotificationManager.IMPORTANCE_DEFAULT));
     }
 
-    public static void processNew(Context ctx, List<Feed> feeds) {
+    public static synchronized void processNew(Context ctx, List<Feed> feeds) {
         SharedPreferences p = ctx.getSharedPreferences("livefeed_settings", Context.MODE_PRIVATE);
         Set<String> old = p.getStringSet("seen_live_feeds", null);
         Set<String> seen = old == null ? new HashSet<>() : new HashSet<>(old);
@@ -182,9 +192,9 @@ public final class FeedRepository {
         int announced = 0;
         for (Feed f : feeds) {
             if (!f.isLive()) continue;
-            if (!seen.contains(f.id()) && !initial && announced < 5
-                    && p.getBoolean("notify", true)) {
-                notifyNew(ctx, f);
+            if (!seen.contains(f.id()) && !initial && announced < 5) {
+                if (p.getBoolean("notify", true)) notifyNew(ctx, f);
+                if (p.getBoolean("overlay", false)) FloatingAlert.show(ctx, f);
                 announced++;
             }
             seen.add(f.id());
