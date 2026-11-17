@@ -419,10 +419,10 @@ public class LauncherActivity extends HubActivity {
     if(livePreview!=null)livePreview.bind(state.channelId);
     String artworkKey=state.channelId+"|"+state.title+"|"+state.startMs+
       "|"+state.image+"|"+prefs().getLong("epg_art_changed_at",0);
-    long now=SystemClock.elapsedRealtime();
-    if(!artworkKey.equals(posterKey)||now>=nextPosterRetry){
+    long posterClock=SystemClock.elapsedRealtime();
+    if(!artworkKey.equals(posterKey)||posterClock>=nextPosterRetry){
      posterKey=artworkKey;
-     nextPosterRetry=now+90000;
+     nextPosterRetry=posterClock+90000;
      programmePoster.setVisibility(View.GONE);
      programmePoster.setImageDrawable(null);
      if(!state.channelName.isEmpty()&&!state.title.trim().isEmpty()){
