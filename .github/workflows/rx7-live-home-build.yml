@@ -40,10 +40,40 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
+          cache-read-only: false
       - name: Run all local Android JVM regression tests
-        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/rx7-test-${attempt}.log"
+            if gradle :app:testDebugUnitTest --no-daemon --stacktrace --max-workers=2 2>&1 | tee "$log"; then
+              echo "RX7 tests passed on attempt $attempt"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]] || ! grep -Eiq 'status code 429|Too Many Requests|HTTP 429|Connection reset|Read timed out' "$log"; then
+              echo "RX7 tests failed for a non-transient reason"
+              exit 1
+            fi
+            echo "Maven transient throttling: retrying dependency resolution"
+            sleep "$((attempt*20))"
+          done
       - name: Assemble side-by-side X5M preview (ARMv7 only)
-        run: gradle :app:assembleRx6OriginalPreview --no-daemon --stacktrace
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/rx7-apk-${attempt}.log"
+            if gradle :app:assembleRx6OriginalPreview --no-daemon --stacktrace --max-workers=2 2>&1 | tee "$log"; then
+              echo "RX7 APK assembled on attempt $attempt"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]] || ! grep -Eiq 'status code 429|Too Many Requests|HTTP 429|Connection reset|Read timed out' "$log"; then
+              echo "RX7 APK compilation failed for a non-transient reason"
+              exit 1
+            fi
+            sleep "$((attempt*20))"
+          done
       - name: Verify exact final APK contents, signature and Android 14 compatibility
         shell: bash
         run: |
