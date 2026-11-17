@@ -119,7 +119,7 @@ public final class FloatingAlert {
             manager = wm;
             current = banner;
             pendingHide = FloatingAlert::hideOnMain;
-            MAIN.postDelayed(pendingHide, 12_000);
+            MAIN.postDelayed(pendingHide, 8_000);
         } catch (RuntimeException ignored) {
             current = null;
             manager = null;
