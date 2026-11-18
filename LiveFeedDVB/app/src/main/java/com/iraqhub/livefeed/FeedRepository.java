@@ -216,16 +216,21 @@ public final class FeedRepository {
         // A newly enabled Telegram source must baseline its existing posts
         // before announcing subsequent new posts.
         boolean telegramBaselineDone = p.getBoolean("telegram_baseline_done", false);
+        boolean bridgeBaselineDone = p.getBoolean("bridge_baseline_done", false);
+        boolean hasBridge = false;
         boolean hasTelegram = false;
         List<Feed> newFeeds = new ArrayList<>();
         for (Feed f : feeds) {
             if (!f.isLive() && !f.isReported()) continue;
             String key = MultiSourceFeeds.transponderKey(f);
             boolean telegramOnly = TelegramFeedSource.SOURCE_NAME.equals(f.source);
+            boolean bridgeOnly = BridgeSource.SOURCE_NAME.equals(f.source);
+            if (bridgeOnly) hasBridge = true;
             if (telegramOnly) hasTelegram = true;
             boolean isNew = !seen.contains(key);
             if (isNew && !initial && newFeeds.size() < 12
-                    && (!telegramOnly || telegramBaselineDone)) {
+                    && (!telegramOnly || telegramBaselineDone)
+                    && (!bridgeOnly || bridgeBaselineDone)) {
                 newFeeds.add(f);
             }
             seen.add(key);
@@ -238,6 +243,7 @@ public final class FeedRepository {
         }
         SharedPreferences.Editor editor = p.edit().putStringSet("seen_transponders_v1", seen);
         if (hasTelegram) editor.putBoolean("telegram_baseline_done", true);
+        if (hasBridge) editor.putBoolean("bridge_baseline_done", true);
         editor.apply();
 
         if (!newFeeds.isEmpty()) {
