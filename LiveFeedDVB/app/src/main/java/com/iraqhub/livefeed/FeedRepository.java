@@ -69,7 +69,7 @@ public final class FeedRepository {
     // One process-level cache prevents concurrent activity/foreground-service HTML requests.
     private static List<Feed> latest = Collections.emptyList();
     private static long lastFetchElapsedMs = -1L;
-    private static final long MIN_REUSE_WINDOW_MS = 18_000L;
+    private static final long MIN_REUSE_WINDOW_MS = 4_000L;
 
     public static synchronized List<Feed> fetch() throws IOException {
         return fetch(false);
@@ -210,31 +210,45 @@ public final class FeedRepository {
 
     public static synchronized void processNew(Context ctx, List<Feed> feeds) {
         SharedPreferences p = ctx.getSharedPreferences("livefeed_settings", Context.MODE_PRIVATE);
-        // A new dedupe namespace intentionally makes the first multi-source poll
-        // a baseline, avoiding false notifications after the migration.
         Set<String> old = p.getStringSet("seen_transponders_v1", null);
         Set<String> seen = old == null ? new HashSet<>() : new HashSet<>(old);
         boolean initial = old == null;
-        int announced = 0;
+        // A newly enabled Telegram source must baseline its existing posts
+        // before announcing subsequent new posts.
+        boolean telegramBaselineDone = p.getBoolean("telegram_baseline_done", false);
+        boolean hasTelegram = false;
+        List<Feed> newFeeds = new ArrayList<>();
         for (Feed f : feeds) {
             if (!f.isLive() && !f.isReported()) continue;
             String key = MultiSourceFeeds.transponderKey(f);
-            if (!seen.contains(key) && !initial && announced < 5) {
-                if (p.getBoolean("notify", true)) notifyNew(ctx, f);
-                // Show one overlay per poll rather than rapidly replacing five banners.
-                if (announced == 0 && p.getBoolean("overlay", false)) FloatingAlert.show(ctx, f);
-                announced++;
+            boolean telegramOnly = TelegramFeedSource.SOURCE_NAME.equals(f.source);
+            if (telegramOnly) hasTelegram = true;
+            boolean isNew = !seen.contains(key);
+            if (isNew && !initial && newFeeds.size() < 12
+                    && (!telegramOnly || telegramBaselineDone)) {
+                newFeeds.add(f);
             }
             seen.add(key);
         }
-        // Preserve the newest entries without growing the preference indefinitely.
         if (seen.size() > 1500) {
             Set<String> current = new HashSet<>();
             for (Feed f : feeds) if (f.isLive() || f.isReported())
                 current.add(MultiSourceFeeds.transponderKey(f));
             seen = current;
         }
-        p.edit().putStringSet("seen_transponders_v1", seen).apply();
+        SharedPreferences.Editor editor = p.edit().putStringSet("seen_transponders_v1", seen);
+        if (hasTelegram) editor.putBoolean("telegram_baseline_done", true);
+        editor.apply();
+
+        if (!newFeeds.isEmpty()) {
+            if (p.getBoolean("notify", true)) {
+                for (int i = 0; i < Math.min(5, newFeeds.size()); i++)
+                    notifyNew(ctx, newFeeds.get(i));
+            }
+            // Queue pairs; show two distinct overlay windows (top and bottom)
+            // for 10 seconds, then show the remaining queued pairs.
+            if (p.getBoolean("overlay", false)) FloatingAlert.showBatch(ctx, newFeeds);
+        }
     }
 
     private static void notifyNew(Context ctx, Feed f) {
