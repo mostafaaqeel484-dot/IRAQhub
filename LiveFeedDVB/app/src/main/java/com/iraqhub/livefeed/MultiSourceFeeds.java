@@ -14,17 +14,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * LiveFeed + Satelliweb aggregation. Only sources with verifiable public live-feed
- * pages are included; ordinary transponder-directory entries are NOT treated as live.
+ * LiveFeed, Satelliweb and (if publicly accessible) Ben 10 Telegram channel.
+ * Human reports are labelled REPORTED, not confirmed current tuner locks.
  */
 public final class MultiSourceFeeds {
     public static final String SATELLIWEB = "https://www.satelliweb.com/live-feeds-en.html";
     public static final String PRIMARY = "Live-Feed.net";
     public static final String SECONDARY = "Satelliweb";
 
-    private static final long SECONDARY_REFRESH_MS = 120_000L;
+    private static final long SECONDARY_REFRESH_MS = 60_000L;
+    private static final long TELEGRAM_REFRESH_MS = 15_000L;
     private static long lastSecondaryAttempt = -1L;
+    private static long lastTelegramAttempt = -1L;
     private static List<FeedRepository.Feed> cachedSecondary = Collections.emptyList();
+    private static List<FeedRepository.Feed> cachedTelegram = Collections.emptyList();
     private static final Pattern FREQUENCY = Pattern.compile(
             "Frequency\\s*:\\s*(\\d{4,5})\\s*-?\\s*Pol\\s*:\\s*([HVLR])\\s*-?\\s*SR\\s*:\\s*(\\d{3,6})",
             Pattern.CASE_INSENSITIVE);
@@ -55,7 +58,7 @@ public final class MultiSourceFeeds {
                 || now - lastSecondaryAttempt >= SECONDARY_REFRESH_MS;
         if (shouldFetchSecondary) {
             // The secondary website publishes human-reported sightings. Respect its
-            // lower fetch cadence while the main source remains on the 20s cycle.
+            // lower fetch cadence while the main source runs on the 5s cycle.
             lastSecondaryAttempt = now;
             try {
                 String page = Jsoup.connect(SATELLIWEB)
@@ -69,10 +72,21 @@ public final class MultiSourceFeeds {
                 // Keep the last valid secondary response rather than erase its data.
             }
         }
-        if (primary.isEmpty() && cachedSecondary.isEmpty() && primaryFailure != null) {
-            throw primaryFailure;
+        // Telegram's public preview is unofficial best-effort access, may return
+        // no posts, and can be rate-limited. Never block the other two sources.
+        if (lastTelegramAttempt < 0 || now - lastTelegramAttempt >= TELEGRAM_REFRESH_MS) {
+            lastTelegramAttempt = now;
+            try {
+                List<FeedRepository.Feed> reported = TelegramFeedSource.fetch();
+                if (!reported.isEmpty()) cachedTelegram = reported;
+            } catch (Exception ignored) {
+                // A private/restricted Telegram preview requires an authorized
+                // official integration; we do not bypass its access controls.
+            }
         }
-        return merge(primary, cachedSecondary);
+        if (primary.isEmpty() && cachedSecondary.isEmpty()
+                && cachedTelegram.isEmpty() && primaryFailure != null) throw primaryFailure;
+        return merge(primary, cachedSecondary, cachedTelegram);
     }
 
     /**
@@ -173,9 +187,16 @@ public final class MultiSourceFeeds {
      */
     public static List<FeedRepository.Feed> merge(List<FeedRepository.Feed> primary,
                                                   List<FeedRepository.Feed> secondary) {
+        return merge(primary, secondary, Collections.emptyList());
+    }
+
+    public static List<FeedRepository.Feed> merge(List<FeedRepository.Feed> primary,
+                                                  List<FeedRepository.Feed> secondary,
+                                                  List<FeedRepository.Feed> telegram) {
         Map<String, List<FeedRepository.Feed>> groups = new LinkedHashMap<>();
         if (primary != null) for (FeedRepository.Feed f : primary) accept(groups, f);
         if (secondary != null) for (FeedRepository.Feed f : secondary) accept(groups, f);
+        if (telegram != null) for (FeedRepository.Feed f : telegram) accept(groups, f);
         List<FeedRepository.Feed> unique = new ArrayList<>();
         for (List<FeedRepository.Feed> group : groups.values()) unique.addAll(group);
         return unique;
