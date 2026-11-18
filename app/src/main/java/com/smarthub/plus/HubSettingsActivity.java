@@ -138,8 +138,8 @@ public final class HubSettingsActivity extends HubActivity {
    LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(-1,-2);
    size.bottomMargin=dp(7);
    rail.addView(entry,size);
-   if(section==Section.API||section==Section.ADVANCED)
-    entry.setVisibility(additionalVisible?View.VISIBLE:View.GONE);
+   if(Rx7SimpleUiPolicy.isAdvancedCategory(section.name()))
+    entry.setVisibility(Rx7SimpleUiPolicy.showCategory(section.name(),additionalVisible)?View.VISIBLE:View.GONE);
   }
   moreButton=settingButton(tx("المزيد: مفاتيح API وأدوات متقدمة","More: API keys & advanced tools"));
   moreButton.setOnClickListener(v->{
