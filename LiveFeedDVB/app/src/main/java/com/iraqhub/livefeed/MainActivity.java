@@ -215,6 +215,8 @@ public final class MainActivity extends Activity {
         toolbar.addView(guide, sizeMargin(dp(104), dp(43), 5));
         TextView reload = button("⟳ تحديث", () -> refresh(true));
         toolbar.addView(reload, sizeMargin(dp(106), dp(43), 5));
+        TextView sourcesButton = button("المصادر", this::showSourceDiagnostics);
+        toolbar.addView(sourcesButton, sizeMargin(dp(95), dp(43), 5));
 
         LinearLayout tools = new LinearLayout(this);
         tools.setOrientation(LinearLayout.HORIZONTAL);
@@ -295,6 +297,17 @@ public final class MainActivity extends Activity {
         row.addView(v, sizeMargin(-2, dp(41), 5));
         filterViews.add(v);
     }
+    private void showSourceDiagnostics() {
+        new AlertDialog.Builder(this)
+                .setTitle("تشخيص مصادر الفيدات")
+                .setMessage(MultiSourceFeeds.diagnostics())
+                .setPositiveButton("فحص الآن", (dialog, which) -> refresh(true))
+                .setNeutralButton("فتح قناة تيليگرام", (dialog, which) ->
+                        openSite(TelegramFeedSource.CHANNEL_URL))
+                .setNegativeButton("إغلاق", null)
+                .show();
+    }
+
     private void showNotificationState() {
         if (notifyButton != null) notifyButton.setText(preferences.getBoolean("notify", true) ? "🔔 تنبيه" : "🔕 مطفأ");
     }
