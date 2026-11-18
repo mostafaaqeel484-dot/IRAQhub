@@ -32,6 +32,8 @@ public final class HubSettingsActivity extends HubActivity {
  private enum Section { VIDEO, CHANNELS, IMPORT, INFOBAR, API, ANTENNA, ADVANCED }
 
  private final Button[] sectionButtons=new Button[Section.values().length];
+ private boolean additionalVisible;
+ private Button moreButton;
  private Section activeSection;
  private LinearLayout options;
  private ScrollView optionsScroll;
@@ -99,7 +101,7 @@ public final class HubSettingsActivity extends HubActivity {
   edition.setTextColor(GOLD);
   edition.setLetterSpacing(.09f);
   heading.addView(edition);
-  heading.addView(text(tx("الإعدادات","Settings"),28,true));
+  heading.addView(text(tx("الإعدادات · بسيطة وواضحة","Settings · Simple & clear"),27,true));
   header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
   Button back=settingButton(tx("رجوع","Back"));
   back.setOnClickListener(view->finish());
@@ -122,6 +124,7 @@ public final class HubSettingsActivity extends HubActivity {
   LinearLayout.LayoutParams railSize=new LinearLayout.LayoutParams(dp(railWidth),-1);
   railSize.setMarginEnd(dp(14));
   panels.addView(railScroll,railSize);
+  additionalVisible=prefs().getBoolean("rx7_show_more_settings",false);
   for(Section section:Section.values()){
    Button entry=settingButton(title(section));
    sectionButtons[section.ordinal()]=entry;
@@ -135,7 +138,27 @@ public final class HubSettingsActivity extends HubActivity {
    LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(-1,-2);
    size.bottomMargin=dp(7);
    rail.addView(entry,size);
+   if(section==Section.API||section==Section.ADVANCED)
+    entry.setVisibility(additionalVisible?View.VISIBLE:View.GONE);
   }
+  moreButton=settingButton(tx("المزيد: مفاتيح API وأدوات متقدمة","More: API keys & advanced tools"));
+  moreButton.setOnClickListener(v->{
+   additionalVisible=!additionalVisible;
+   prefs().edit().putBoolean("rx7_show_more_settings",additionalVisible).apply();
+   sectionButtons[Section.API.ordinal()].setVisibility(additionalVisible?View.VISIBLE:View.GONE);
+   sectionButtons[Section.ADVANCED.ordinal()].setVisibility(additionalVisible?View.VISIBLE:View.GONE);
+   moreButton.setText(additionalVisible?
+      tx("إخفاء الخيارات المتقدمة","Hide advanced options"):
+      tx("المزيد: مفاتيح API وأدوات متقدمة","More: API keys & advanced tools"));
+   if(!additionalVisible&&(activeSection==Section.API||activeSection==Section.ADVANCED))
+    showSection(Section.VIDEO);
+  });
+  moreButton.setText(additionalVisible?
+     tx("إخفاء الخيارات المتقدمة","Hide advanced options"):
+     tx("المزيد: مفاتيح API وأدوات متقدمة","More: API keys & advanced tools"));
+  LinearLayout.LayoutParams moreSize=new LinearLayout.LayoutParams(-1,-2);
+  moreSize.topMargin=dp(8);
+  rail.addView(moreButton,moreSize);
   sectionButtons[0].setNextFocusUpId(back.getId());
   back.setNextFocusDownId(sectionButtons[0].getId());
 
@@ -163,6 +186,8 @@ public final class HubSettingsActivity extends HubActivity {
 
   int ordinal=state==null?0:state.getInt(ACTIVE_SECTION,0);
   Section initial=Section.values()[Math.max(0,Math.min(Section.values().length-1,ordinal))];
+  if(!additionalVisible&&(initial==Section.API||initial==Section.ADVANCED))
+   initial=Section.VIDEO;
   showSection(initial);
   setContentView(root);
   sectionButtons[initial.ordinal()].requestFocus();
@@ -204,71 +229,55 @@ public final class HubSettingsActivity extends HubActivity {
 
  private String title(Section section){
   switch(section){
-   case VIDEO: return tx("الفيديو و4:2:2","Video & 4:2:2");
-   case CHANNELS: return tx("القنوات والبحث","Channels & Search");
-   case IMPORT: return tx("استيراد القنوات","Channel Import");
-   case API: return tx("مفاتيح API","API Keys");
-   case INFOBAR: return tx("الإنفوبار والصور","InfoBar & Artwork");
-   case ANTENNA: return tx("الهوائي والموتور","Antenna & Motor");
-   default: return tx("متقدم وتشخيص","Advanced & Diagnostics");
+   case VIDEO: return tx("المشاهدة","Watching TV");
+   case CHANNELS: return tx("القنوات","Channels");
+   case IMPORT: return tx("استيراد ونسخ","Import & backups");
+   case API: return tx("مفاتيح الخدمات","Service API keys");
+   case INFOBAR: return tx("الدليل والصور","Guide & posters");
+   case ANTENNA: return tx("الطبق والإشارة","Dish & signal");
+   default: return tx("أدوات متقدمة","Advanced tools");
   }
  }
 
  private String subtitle(Section section){
   switch(section){
-   case VIDEO: return tx("محرك العرض والتسجيل والصوت","Playback engine, recording and audio");
-   case CHANNELS: return tx("إدارة القنوات، البحث، والنسخ الاحتياطية","Channel management, scans and backups");
-   case IMPORT: return tx("CHL وSQLite وTS والنسخ الاحتياطية","CHL, SQLite, TS and backups");
+   case VIDEO: return tx("المشاهدة، التسجيل، والصوت","Watch, record and listen");
+   case CHANNELS: return tx("اختيار القنوات والبحث عنها","Browse and scan channels");
+   case IMPORT: return tx("إضافة القنوات والاحتفاظ بنسخة احتياطية","Add channels and keep a backup");
    case API: return tx("إعداد مصادر البوسترات والترجمة ومفاتيحها","Poster and subtitles provider credentials");
-   case INFOBAR: return tx("الدليل، البوسترات، الشعارات والمظهر","Guide, posters, logos and appearance");
+   case INFOBAR: return tx("ما يظهر أثناء المشاهدة","What you see while watching");
    case ANTENNA: return tx("الأقمار والترددات وتوصيلات الطبق","Satellites, transponders and dish configuration");
    default: return tx("إعدادات الجهاز وحالة الخدمات والريموت","Device settings, service status and remote");
   }
  }
 
  private void showVideo(){
-  link(tx("RX7 · معاينة التلفزيون في الرئيسية","RX7 · Home live TV preview"),
-    tx("صامتة عند التركيز · رابط خاص بالقناة · بدون موالف إضافي",
-      "Muted on focus · channel-bound stream · no extra tuner"),
-    Rx7HomePreviewSettingsActivity.class);
-  link(tx("محرك IRAQhub 422 الموحد","Unified IRAQhub 422"),
-    tx("دقة العرض، GPU FAST، واختيار محرك الفيديو","Output resolution, GPU FAST and decoder selection"),
-    Unified422SettingsActivity.class);
-  link(tx("تشغيل وفحص 4:2:2","4:2:2 playback and testing"),
-    tx("اختبار قناة DVB أو رابط مصرح به","Test a DVB channel or authorised stream"),Software422CenterActivity.class);
-  CheckBox safe=check(options,tx("الوضع الآمن · مشغّل DVB العادي","Safe mode · normal DVB player"),
-    SafePlaybackMode.enabled(this));
-  safe.setPadding(dp(10),dp(9),dp(10),dp(9));
-  safe.setButtonTintList(android.content.res.ColorStateList.valueOf(GOLD));
-  safe.setBackground(focusBackground());
-  LinearLayout.LayoutParams safeSize=new LinearLayout.LayoutParams(-1,-2);
-  safeSize.bottomMargin=dp(7);
-  safe.setLayoutParams(safeSize);
-  connectToRail(safe);
-  safe.setOnCheckedChangeListener((button,on)->{
-   SafePlaybackMode.set(this,on);
-   toast(on?tx("الوضع الآمن مفعل. افتح القناة مجدداً.","Safe mode on. Reopen the channel."):
-    tx("المحركات التجريبية متاحة","Experimental players available"));
-  });
-  link(tx("تسجيل PVR","PVR recording"),tx("تسجيل القنوات داخل IRAQhub","Record channels in IRAQhub"),
+  link(tx("شاهد التلفزيون","Watch live TV"),
+    tx("ارجع لآخر قناة مباشرة","Continue your last channel"),
+    DvbPlaybackActivity.class);
+  link(tx("التسجيل","Record TV"),tx("سجل القناة على USB","Record to USB"),
     PvrRecordingActivity.class);
-  link(tx("صوت الإنترنت للقناة","Channel Internet Audio"),"",IPAudioActivity.class);
+  link(tx("الصوت والترجمة","Audio & subtitles"),
+    tx("اختر صوت القناة أو الترجمة","Choose channel audio or subtitles"),
+    SatelliteActivity.class);
+  note(options,tx("ضبط محرك 4:2:2 والمعاينة الخاصة موجود في «المزيد».",
+    "Special 4:2:2 engines and preview links are in More."));
  }
 
  private void showChannels(){
-  link(tx("قائمة القنوات","Channel list"),tx("الأقمار والقنوات والمفضلة","Satellites, channels and favourites"),
+  link(tx("كل القنوات","All channels"),
+    tx("القنوات والأقمار والمفضلة","Channels, satellites and favourites"),
     ReceiverChannelsActivity.class);
-  link(tx("ترتيب وإدارة القنوات","Sort and manage channels"),"",ChannelManageActivity.class);
-  link(tx("البحث اليدوي","Manual search"),tx("التردد والاستقطاب والترميز","Frequency, polarity and symbol rate"),
+  link(tx("ترتيب القنوات","Organise channels"),
+    tx("نقل، حذف، مفضلة وترتيب","Move, delete and favourite"),
+    ChannelManageActivity.class);
+  link(tx("بحث عن قناة","Find new channels"),
+    tx("أدخل تردد القناة للبحث اليدوي","Enter a frequency to scan"),
     ManualTransponderActivity.class);
-  link(tx("خيارات البحث السريع","Fast search options"),tx("بحث Aurum وفحص ترددات IRAQhub","Aurum scan and IRAQhub TP sweep"),
+  link(tx("بحث سريع","Quick scan"),
+    tx("ابحث عن قنوات جديدة","Scan for channels"),
     ReceiverFastScanMenuActivity.class);
-  option(tx("حفظ نسخة قنوات ZIP","Export channel backup ZIP"),
-    tx("اختر مكان حفظ نسخة قاعدة القنوات","Choose where to save your channel database backup"),this::backupChannels);
-  option(tx("تحقق من نسخة قنوات ZIP","Verify channel backup ZIP"),
-    tx("فحص سلامة النسخة الاحتياطية للقراءة فقط","Read-only backup integrity check"),this::verifyChannelsBackup);
  }
-
 
  private void showImport(){
   note(options,tx("الاستيراد الآمن إلى IRAQhub فقط. قاعدة قنوات Aurum ومفاتيحها والمفضلة الأصلية لا تتغير.",
@@ -312,38 +321,34 @@ public final class HubSettingsActivity extends HubActivity {
     "API keys stay encrypted on-device, never embedded in APK/source."));
  }
  private void showInfoBar(){
-  link(tx("مصادر شعارات القنوات: CHMAX والخارجي","Channel logos · CHMAX and external"),
-    tx("شغّل المصدرين معاً أو كل واحد منفرداً","Enable both sources or either independently"),
-    LogoSourcesActivity.class);
-  link(tx("إضافة مزوّد وشعاره يدوياً","Add a provider and logo"),
-    tx("مستقل تماماً عن شعارات القنوات","Independent of all channel logo sources"),
-    ProviderLogoEditorActivity.class);
-  link(tx("شعارات 234 مزوداً","All 234 provider artwork"),
-    tx("شعارات المزوّدين المؤكدة وأسماؤهم عند غياب الصورة","Verified marks and name-only when unavailable"),
-    ProviderLogoCatalogActivity.class);
-  link(tx("مركز الإنفوبار والبوسترات والشعارات","InfoBar, posters and logos"),
-    tx("عرض NOW / NEXT ومصادر الصور والدليل","NOW / NEXT display, artwork sources and programme guide"),
+  link(tx("معلومات القناة والبوسترات","Channel info & posters"),
+    tx("شكل الـInfoBar وصور البرامج","InfoBar and programme artwork"),
     ViewingSettingsActivity.class);
-  link(tx("جلب EPG خارجي يدوياً للقناة الحالية","Manual external EPG for current channel"),
-    tx("EPG Pro وDVB أولاً. EPGShare أو XMLTV عند اختيارك فقط.",
-      "Factory and DVB first. EPGShare/XMLTV only on your request."),
-    ManualEpgActivity.class);
-  link(tx("الخلفيات والثيمات · RX","RX wallpapers and themes"),"",RxAppearanceActivity.class);
-  link(tx("الترجمة ومزامنتها","Subtitles and synchronization"),"",SatelliteActivity.class);
-  link(tx("DVB / TXT والترجمة الفورية","DVB / TXT live translation"),"",LiveTranslationActivity.class);
+  link(tx("شعارات القنوات","Channel logos"),
+    tx("تحميل وتفعيل الشعارات","Fetch and enable channel logos"),
+    LogoSourcesActivity.class);
+  link(tx("شكل الرئيسية","Home appearance"),
+    tx("الألوان والخلفيات","Colours and wallpapers"),
+    RxAppearanceActivity.class);
+  CheckBox extras=check(options,
+    tx("عرض الطقس والصلاة والمباريات والاختصارات الإضافية بالرئيسية",
+       "Show weather, prayer, matches and extra shortcuts on Home"),
+    prefs().getBoolean("rx7_home_show_extras",false));
+  extras.setPadding(dp(10),dp(10),dp(10),dp(10));
+  extras.setBackground(focusBackground());
+  connectToRail(extras);
+  extras.setOnCheckedChangeListener((button,on)->{
+   prefs().edit().putBoolean("rx7_home_show_extras",on).apply();
+   toast(tx("يتغير شكل الرئيسية عند الرجوع إليها","Home will update when you return"));
+  });
   long lastSync=prefs().getLong("online_epg_sync_at",0);
   String last=lastSync>0?DateFormat.getDateTimeInstance().format(new Date(lastSync)):
     tx("لم يحدث بعد","Not yet");
-  option(tx("تحديث DVB والبوسترات وCHMAX فقط","Sync DVB, posters and CHMAX only"),
-    tx("آخر تحديث: ","Last sync: ")+last,()->{
+  option(tx("تحديث الصور والدليل الآن","Refresh guide & pictures"),
+    tx("آخر تحديث: ","Last updated: ")+last,()->{
      IraqHubSyncScheduler.runNow(this);
-     toast(tx("تمت إضافة المزامنة إلى الخلفية","Sync queued in the background"));
+     toast(tx("جارٍ التحديث في الخلفية","Updating in the background"));
     });
-  note(options,tx("EPG الخارجي: يدوي فقط. المصنع وDVB هما المصدران التلقائيان.\n",
-      "External EPG: manual only. Factory and DVB are the automatic sources.\n")+
-    tx("حالة BetterPosters: ","BetterPosters status: ")+
-    getSharedPreferences("poster_sources",0).getString("betterposters_manifest_status",
-      tx("لم يفحص","Not checked")));
  }
 
  private void showAntenna(){
@@ -359,15 +364,32 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showAdvanced(){
-  link(tx("إعدادات النظام والتطبيق","App and system settings"),
-    tx("اللغة وحجم الخط وHOME والشبكة وخدمة القنوات","Language, text size, HOME, network and channel bridge"),
-    AdvancedSettingsActivity.class);
-  link(tx("تقرير التوافق ومصادر البيانات","Compatibility and data sources"),"",CompatibilityActivity.class);
-  link(tx("تشخيص DVB ورصد البحث الأصلي","DVB diagnostics and OEM scan observation"),"",
-    ReceiverDeveloperMenuActivity.class);
-  link(tx("ربط جهاز X5M","X5M hardware connection"),
-    tx("تصحيح USB ولوحة الرسيفر","USB ADB and receiver front panel"),ReceiverHardwareBridgeActivity.class);
-  link(tx("اختصارات الريموت","Remote control shortcuts"),"",RemoteHelpActivity.class);
+  note(options,tx("هذه الأدوات للتركيب وحل المشاكل فقط. لا تحتاجها للمشاهدة اليومية.",
+    "These tools are for setup and troubleshooting, not daily TV use."));
+  link(tx("إعدادات 4:2:2 والمحركات","4:2:2 & decoders"),"",
+    Unified422SettingsActivity.class);
+  link(tx("اختبار تشغيل 4:2:2","Test 4:2:2 playback"),"",
+    Software422CenterActivity.class);
+  link(tx("معاينة الفيديو في الرئيسية","Home video preview"),
+    tx("اختياري ويحتاج رابط بث منفصل","Optional, requires a separate stream URL"),
+    Rx7HomePreviewSettingsActivity.class);
+  CheckBox safe=check(options,tx("المشغل الآمن","Safe playback"),SafePlaybackMode.enabled(this));
+  safe.setBackground(focusBackground());
+  connectToRail(safe);
+  safe.setOnCheckedChangeListener((button,on)->{
+   SafePlaybackMode.set(this,on);
+   toast(tx("افتح القناة مجدداً لتطبيق التغيير","Reopen the channel to apply"));
+  });
+  link(tx("صوت إنترنت للقناة","Internet audio for a channel"),"",IPAudioActivity.class);
+  link(tx("إعدادات التطبيق والجهاز","App & system settings"),"",AdvancedSettingsActivity.class);
+  link(tx("إعداد الدليل الخارجي يدوياً","Manual external EPG"),"",ManualEpgActivity.class);
+  link(tx("الترجمة الفورية","Live translation"),"",LiveTranslationActivity.class);
+  link(tx("شعارات مزودي القنوات","Provider logos"),"",ProviderLogoCatalogActivity.class);
+  link(tx("إضافة شعار مزود","Add a provider logo"),"",ProviderLogoEditorActivity.class);
+  link(tx("التوافق ومصادر البيانات","Compatibility and data sources"),"",CompatibilityActivity.class);
+  link(tx("تشخيص DVB","DVB diagnostics"),"",ReceiverDeveloperMenuActivity.class);
+  link(tx("اتصال ADB ولوحة الجهاز","ADB & front panel"),"",ReceiverHardwareBridgeActivity.class);
+  link(tx("اختصارات الريموت","Remote controls"),"",RemoteHelpActivity.class);
  }
 
  private void link(String title,String description,Class<?> destination){
