@@ -20,6 +20,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.DisplayMetrics;
@@ -302,8 +303,7 @@ public final class MainActivity extends Activity {
                 .setTitle("تشخيص مصادر الفيدات")
                 .setMessage(MultiSourceFeeds.diagnostics())
                 .setPositiveButton("فحص الآن", (dialog, which) -> refresh(true))
-                .setNeutralButton("فتح قناة تيليگرام", (dialog, which) ->
-                        openSite(TelegramFeedSource.CHANNEL_URL))
+                .setNeutralButton("ربط Telegram Client API", (dialog, which) -> showBridgeSettings())
                 .setNegativeButton("إغلاق", null)
                 .show();
     }
@@ -381,7 +381,7 @@ public final class MainActivity extends Activity {
         if (status != null) status.setText("⟳  جارِ تحديث الفيدات من الموقع…");
         executor.execute(() -> {
             try {
-                List<FeedRepository.Feed> fetched = MultiSourceFeeds.fetch(manual);
+                List<FeedRepository.Feed> fetched = MultiSourceFeeds.fetch(getApplicationContext(), manual);
                 FeedRepository.processNew(getApplicationContext(), fetched);
                 handler.post(() -> {
                     feeds.clear();
