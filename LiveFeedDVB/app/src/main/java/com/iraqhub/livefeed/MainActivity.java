@@ -73,7 +73,7 @@ public final class MainActivity extends Activity {
         @Override public void run() {
             if (running) {
                 refresh(false);
-                handler.postDelayed(this, 20_000);
+                handler.postDelayed(this, 5_000);
             }
         }
     };
@@ -105,7 +105,7 @@ public final class MainActivity extends Activity {
         showOverlayState();
         running = true;
         handler.removeCallbacks(poll);
-        handler.postDelayed(poll, 20_000);
+        handler.postDelayed(poll, 5_000);
     }
     @Override protected void onPause() {
         running = false;
@@ -265,7 +265,7 @@ public final class MainActivity extends Activity {
         cards.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
         page.addView(cards, new ScrollView.LayoutParams(-1, -2));
 
-        TextView footer = text("المصادر: Live-Feed.net + Satelliweb  •  ترددات فريدة بدون تكرار  •  فحص أساسي 20 ثانية", 11, MUTED, false);
+        TextView footer = text("المصادر: Live-Feed.net + Satelliweb  •  ترددات فريدة بدون تكرار  •  فحص أساسي 5 ثوانٍ", 11, MUTED, false);
         footer.setGravity(Gravity.CENTER);
         root.addView(footer, new LinearLayout.LayoutParams(-1, dp(25)));
         updateFilterStyles();
@@ -383,7 +383,7 @@ public final class MainActivity extends Activity {
                         if (f.is422()) mode422++;
                     }
                     status.setText("🟢 " + on + " مباشر   •   " + reported + " بلاغ رصد   •   "
-                            + feeds.size() + " فيد غير مكرر   •   " + mode422 + " 4:2:2   •   مصدران");
+                            + feeds.size() + " فيد غير مكرر   •   " + mode422 + " 4:2:2   •   3 مصادر مهيّأة");
                     busy = false;
                     render();
                     if (manual) toast("تم تحديث المعلومات");
