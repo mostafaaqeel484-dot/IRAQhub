@@ -34,7 +34,7 @@ public final class FeedMonitorService extends Service {
                 fetching = true;
                 worker.execute(() -> {
                     try {
-                        List<FeedRepository.Feed> feeds = MultiSourceFeeds.fetch();
+                        List<FeedRepository.Feed> feeds = MultiSourceFeeds.fetch(getApplicationContext(), false);
                         FeedRepository.processNew(getApplicationContext(), feeds);
                     } catch (Exception ignored) {
                         // Ignore transient outages; never wipe seen-feed IDs.
