@@ -53,7 +53,7 @@ public final class TelegramFeedSource {
             if (msg == null) continue;
             Element body = msg.selectFirst(".tgme_widget_message_text");
             if (body == null) continue;
-            String message = body.text().replace('\\u00a0', ' ').replaceAll("\\s+", " ").trim();
+            String message = body.text().replace((char) 160, ' ').replaceAll("\\s+", " ").trim();
             if (!message.toLowerCase(Locale.ROOT).contains("satellite")
                     || !message.toLowerCase(Locale.ROOT).contains("frequency")) continue;
             Matcher tp = FREQUENCY.matcher(message);
