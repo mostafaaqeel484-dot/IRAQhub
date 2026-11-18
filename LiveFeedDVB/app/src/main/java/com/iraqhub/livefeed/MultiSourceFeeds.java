@@ -24,16 +24,21 @@ public final class MultiSourceFeeds {
 
     private static final long SECONDARY_REFRESH_MS = 60_000L;
     private static final long TELEGRAM_REFRESH_MS = 15_000L;
+    private static final long BRIDGE_REFRESH_MS = 10_000L;
     private static long lastSecondaryAttempt = -1L;
     private static long lastTelegramAttempt = -1L;
+    private static long lastBridgeAttempt = -1L;
     private static List<FeedRepository.Feed> cachedSecondary = Collections.emptyList();
     private static List<FeedRepository.Feed> cachedTelegram = Collections.emptyList();
+    private static List<FeedRepository.Feed> cachedBridge = Collections.emptyList();
+    private static String cachedBridgeUrl = "";
     private static volatile String primaryStatus = "لم يُفحص";
     private static volatile String secondaryStatus = "لم يُفحص";
     public static String diagnostics() {
         return "Live-Feed.net: " + primaryStatus
                 + "\n\nSatelliweb: " + secondaryStatus
                 + "\n\nBen 10 feeds (Telegram): " + TelegramFeedSource.diagnostic()
+                + "\\n\\nBen 10 feeds (Client API): " + BridgeSource.diagnostic()
                 + "\n\nالبيانات المنشورة بتيليگرام بلاغات ولا تؤكد أن البث يعمل حالياً.";
     }
     private static final Pattern FREQUENCY = Pattern.compile(
@@ -49,10 +54,20 @@ public final class MultiSourceFeeds {
     private MultiSourceFeeds() {}
 
     public static synchronized List<FeedRepository.Feed> fetch() throws IOException {
-        return fetch(false);
+        return fetchInternal(null, false);
     }
 
     public static synchronized List<FeedRepository.Feed> fetch(boolean force) throws IOException {
+        return fetchInternal(null, force);
+    }
+
+    public static synchronized List<FeedRepository.Feed> fetch(
+            android.content.Context context, boolean force) throws IOException {
+        return fetchInternal(context, force);
+    }
+
+    private static List<FeedRepository.Feed> fetchInternal(
+            android.content.Context context, boolean force) throws IOException {
         IOException primaryFailure = null;
         List<FeedRepository.Feed> primary = Collections.emptyList();
         try {
@@ -88,7 +103,9 @@ public final class MultiSourceFeeds {
         }
         // Telegram's public preview is unofficial best-effort access, may return
         // no posts, and can be rate-limited. Never block the other two sources.
-        if (force || lastTelegramAttempt < 0 || now - lastTelegramAttempt >= TELEGRAM_REFRESH_MS) {
+        boolean bridgeEnabled = context != null && BridgeSource.isConfigured(context);
+        if (!bridgeEnabled && (force || lastTelegramAttempt < 0
+                || now - lastTelegramAttempt >= TELEGRAM_REFRESH_MS)) {
             lastTelegramAttempt = now;
             try {
                 List<FeedRepository.Feed> reported = TelegramFeedSource.fetch();
@@ -98,9 +115,30 @@ public final class MultiSourceFeeds {
                 // official integration; we do not bypass its access controls.
             }
         }
-        if (primary.isEmpty() && cachedSecondary.isEmpty()
-                && cachedTelegram.isEmpty() && primaryFailure != null) throw primaryFailure;
-        return merge(primary, cachedSecondary, cachedTelegram);
+        if (bridgeEnabled) {
+            String endpoint = BridgeSource.url(context);
+            if (!endpoint.equals(cachedBridgeUrl)) {
+                cachedBridgeUrl = endpoint;
+                cachedBridge = Collections.emptyList();
+                lastBridgeAttempt = -1L;
+            }
+            cachedTelegram = Collections.emptyList(); // Avoid HTML scraping when the authorized bridge is configured.
+            if (force || lastBridgeAttempt < 0 || now - lastBridgeAttempt >= BRIDGE_REFRESH_MS) {
+                lastBridgeAttempt = now;
+                try {
+                    cachedBridge = BridgeSource.fetch(context);
+                } catch (IOException ignored) {
+                    // Keep last successful bridge data; errors appear in source diagnostics.
+                }
+            }
+        } else {
+            cachedBridge = Collections.emptyList();
+            cachedBridgeUrl = "";
+            lastBridgeAttempt = -1L;
+        }
+        if (primary.isEmpty() && cachedSecondary.isEmpty() && cachedTelegram.isEmpty()
+                && cachedBridge.isEmpty() && primaryFailure != null) throw primaryFailure;
+        return merge(primary, cachedSecondary, cachedTelegram, cachedBridge);
     }
 
     /**
@@ -207,10 +245,18 @@ public final class MultiSourceFeeds {
     public static List<FeedRepository.Feed> merge(List<FeedRepository.Feed> primary,
                                                   List<FeedRepository.Feed> secondary,
                                                   List<FeedRepository.Feed> telegram) {
+        return merge(primary, secondary, telegram, Collections.emptyList());
+    }
+
+    public static List<FeedRepository.Feed> merge(List<FeedRepository.Feed> primary,
+                                                  List<FeedRepository.Feed> secondary,
+                                                  List<FeedRepository.Feed> telegram,
+                                                  List<FeedRepository.Feed> bridge) {
         Map<String, List<FeedRepository.Feed>> groups = new LinkedHashMap<>();
         if (primary != null) for (FeedRepository.Feed f : primary) accept(groups, f);
         if (secondary != null) for (FeedRepository.Feed f : secondary) accept(groups, f);
         if (telegram != null) for (FeedRepository.Feed f : telegram) accept(groups, f);
+        if (bridge != null) for (FeedRepository.Feed f : bridge) accept(groups, f);
         List<FeedRepository.Feed> unique = new ArrayList<>();
         for (List<FeedRepository.Feed> group : groups.values()) unique.addAll(group);
         return unique;
