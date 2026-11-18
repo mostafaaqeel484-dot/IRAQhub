@@ -111,6 +111,20 @@ def require_auth(header: str | None) -> None:
 @app.get("/v1/feeds")
 async def feeds(authorization: str | None = Header(default=None)):
     require_auth(authorization)
+    return await current_feed_data()
+
+
+@app.get("/v1/public-feeds")
+async def public_feeds():
+    """Public read-only DVB metadata for end users of distributed APKs.
+
+    No Telegram credentials, account info, raw messages or bearer tokens returned.
+    Deploy behind HTTPS with CDN/rate limiting before making this publicly reachable.
+    """
+    return await current_feed_data()
+
+
+async def current_feed_data():
     async with app.state.lock:
         now = time.monotonic()
         if now - app.state.last_refresh >= CACHE_SECONDS or not app.state.last_refresh:
