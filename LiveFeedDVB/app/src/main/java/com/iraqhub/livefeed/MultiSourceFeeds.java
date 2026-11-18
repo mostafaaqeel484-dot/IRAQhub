@@ -106,6 +106,7 @@ public final class MultiSourceFeeds {
             sat = sat.replaceFirst("(?is)^.*?\\bcomment(?:s)?\\b", "");
             sat = sat.replaceAll("(?i)\\bImage\\b", "").replaceAll("(?i)\\bcomment\\b", "");
             sat = sat.replaceAll("\\s+", " ").trim();
+            sat = sat.replaceAll("[(@\\s]+$", "").trim();
             if (sat.length() > 100) sat = sat.substring(sat.length() - 100);
             if (sat.isEmpty()) sat = "Satellite";
             String tail = report.substring(frequency.end());
