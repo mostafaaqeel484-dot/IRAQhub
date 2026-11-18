@@ -1,0 +1,213 @@
+package com.iraqhub.livefeed;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * LiveFeed + Satelliweb aggregation. Only sources with verifiable public live-feed
+ * pages are included; ordinary transponder-directory entries are NOT treated as live.
+ */
+public final class MultiSourceFeeds {
+    public static final String SATELLIWEB = "https://www.satelliweb.com/live-feeds-en.html";
+    public static final String PRIMARY = "Live-Feed.net";
+    public static final String SECONDARY = "Satelliweb";
+
+    private static final long SECONDARY_REFRESH_MS = 120_000L;
+    private static long lastSecondaryAttempt = -1L;
+    private static List<FeedRepository.Feed> cachedSecondary = Collections.emptyList();
+    private static final Pattern FREQUENCY = Pattern.compile(
+            "Frequency\\s*:\\s*(\\d{4,5})\\s*-?\\s*Pol\\s*:\\s*([HVLR])\\s*-?\\s*SR\\s*:\\s*(\\d{3,6})",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern ORBIT = Pattern.compile(
+            "(\\d{1,3}(?:\\.\\d+)?)\\s*°?\\s*([EW])", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CODEC = Pattern.compile("Transmitted in\\s*:\\s*(.*?)(?=\\s*ℹ|$)",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern CATEGORY = Pattern.compile("Category\\s*:\\s*(.*?)(?=\\s*Transmitted in|$)",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    private MultiSourceFeeds() {}
+
+    public static synchronized List<FeedRepository.Feed> fetch() throws IOException {
+        return fetch(false);
+    }
+
+    public static synchronized List<FeedRepository.Feed> fetch(boolean force) throws IOException {
+        IOException primaryFailure = null;
+        List<FeedRepository.Feed> primary = Collections.emptyList();
+        try {
+            primary = FeedRepository.fetch(force);
+        } catch (IOException e) {
+            primaryFailure = e;
+        }
+
+        long now = android.os.SystemClock.elapsedRealtime();
+        boolean shouldFetchSecondary = lastSecondaryAttempt < 0
+                || now - lastSecondaryAttempt >= SECONDARY_REFRESH_MS;
+        if (shouldFetchSecondary) {
+            // The secondary website publishes human-reported sightings. Respect its
+            // lower fetch cadence while the main source remains on the 20s cycle.
+            lastSecondaryAttempt = now;
+            try {
+                String page = Jsoup.connect(SATELLIWEB)
+                        .userAgent("Mozilla/5.0 (Linux; Android 14; Android TV) AppleWebKit/537.36 Chrome/120.0 Safari/537.36")
+                        .header("Accept-Language", "en-US,en;q=0.9")
+                        .timeout(16000).maxBodySize(4_000_000)
+                        .get().outerHtml();
+                List<FeedRepository.Feed> parsed = parseSatelliweb(page);
+                if (!parsed.isEmpty()) cachedSecondary = parsed;
+            } catch (Exception ignored) {
+                // Keep the last valid secondary response rather than erase its data.
+            }
+        }
+        if (primary.isEmpty() && cachedSecondary.isEmpty() && primaryFailure != null) {
+            throw primaryFailure;
+        }
+        return merge(primary, cachedSecondary);
+    }
+
+    /**
+     * Parse the real public Satelliweb "Live feeds" structure:
+     * Reported by ...; Eutelsat 16A (16.0°E); Frequency: 11051 - Pol: H
+     * - SR: 3200; Category: Newsfeed; Transmitted in: MPEG-4 4:2:2; ℹ event.
+     * These are reports, not verified tuner lock states.
+     */
+    public static List<FeedRepository.Feed> parseSatelliweb(String html) {
+        Document doc = Jsoup.parse(html, SATELLIWEB);
+        doc.select("script, style, noscript, nav, footer").remove();
+        if (doc.body() == null) return Collections.emptyList();
+        String page = doc.body().text().replace('\u00a0', ' ');
+        String[] reports = page.split("(?i)(?=Reported by\\s)");
+        List<FeedRepository.Feed> out = new ArrayList<>();
+        for (String report : reports) {
+            if (out.size() >= 200) break;
+            Matcher frequency = FREQUENCY.matcher(report);
+            if (!frequency.find()) continue;
+            String beforeFreq = report.substring(0, frequency.start());
+            Matcher orbit = ORBIT.matcher(beforeFreq);
+            String position = "";
+            int orbitStart = -1;
+            while (orbit.find()) {
+                position = orbit.group(1) + "°" + orbit.group(2).toUpperCase(Locale.ROOT);
+                orbitStart = orbit.start();
+            }
+            if (position.isEmpty() || orbitStart < 0) continue;
+            String sat = beforeFreq.substring(0, orbitStart);
+            // Remove the reporter, comment counter and image alt labels.
+            sat = sat.replaceFirst("(?is)^.*?\\bcomment(?:s)?\\b", "");
+            sat = sat.replaceAll("(?i)\\bImage\\b", "").replaceAll("(?i)\\bcomment\\b", "");
+            sat = sat.replaceAll("\\s+", " ").trim();
+            if (sat.length() > 100) sat = sat.substring(sat.length() - 100);
+            if (sat.isEmpty()) sat = "Satellite";
+            String tail = report.substring(frequency.end());
+            FeedRepository.Feed f = new FeedRepository.Feed();
+            f.satellite = sat + " (" + position + ")";
+            f.frequency = frequency.group(1);
+            f.polarization = frequency.group(2).toUpperCase(Locale.ROOT);
+            f.symbolRate = frequency.group(3);
+            f.status = "REPORTED";
+            f.source = SECONDARY;
+            f.sources = SECONDARY;
+            f.sourceUrl = SATELLIWEB;
+            f.imageUrl = "";
+            String codec = capture(CODEC, tail, "Unknown");
+            f.codec = codec.length() > 80 ? codec.substring(0, 80) : codec;
+            f.chroma = codec.contains("4:2:2") ? "4:2:2" :
+                    codec.contains("4:2:0") ? "4:2:0" : "—";
+            f.bitrate = "";
+            String category = capture(CATEGORY, tail, "");
+            f.category = category;
+            int marker = tail.indexOf('ℹ');
+            f.name = marker >= 0 ? tail.substring(marker + 1).trim() : category;
+            if (f.name.isEmpty()) f.name = "Feed " + f.frequency;
+            if (f.name.length() > 100) f.name = f.name.substring(0, 100);
+            f.updated = "";
+            out.add(f);
+        }
+        return out;
+    }
+
+    private static String capture(Pattern pattern, String text, String fallback) {
+        Matcher matcher = pattern.matcher(text);
+        return matcher.find() ? matcher.group(1).trim() : fallback;
+    }
+
+    /** Normalizes position (E/W), transponder frequency, polarization, and SR. */
+    public static String transponderKey(FeedRepository.Feed f) {
+        if (f == null) return "";
+        String satellite = f.satellite == null ? "" : f.satellite;
+        Matcher orbit = ORBIT.matcher(satellite);
+        String orbital = null;
+        while (orbit.find()) {
+            try {
+                int tenths = Math.round(Float.parseFloat(orbit.group(1)) * 10);
+                orbital = (orbit.group(2).equalsIgnoreCase("W") ? "-" : "+") + tenths;
+            } catch (NumberFormatException ignored) {}
+        }
+        if (orbital == null) {
+            orbital = satellite.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        }
+        String pol = f.polarization == null ? "?" : f.polarization.toUpperCase(Locale.ROOT);
+        return orbital + "|" + number(f.frequency) + "|" + pol + "|" + number(f.symbolRate);
+    }
+
+    private static String number(String text) {
+        try { return Integer.toString(Integer.parseInt(text.trim())); }
+        catch (Exception error) { return text == null ? "" : text.trim(); }
+    }
+
+    /**
+     * Merge cross-site duplicates, keeping the photo/video metadata from
+     * Live-Feed.net and appending provenance from other providers. Never
+     * discard a live record in favour of a human-reported-only record.
+     */
+    public static List<FeedRepository.Feed> merge(List<FeedRepository.Feed> primary,
+                                                  List<FeedRepository.Feed> secondary) {
+        Map<String, FeedRepository.Feed> found = new LinkedHashMap<>();
+        if (primary != null) for (FeedRepository.Feed f : primary) accept(found, f);
+        if (secondary != null) for (FeedRepository.Feed f : secondary) accept(found, f);
+        return new ArrayList<>(found.values());
+    }
+
+    private static void accept(Map<String, FeedRepository.Feed> found, FeedRepository.Feed incoming) {
+        if (incoming == null || incoming.frequency == null
+                || incoming.symbolRate == null || incoming.polarization == null) return;
+        String key = transponderKey(incoming);
+        FeedRepository.Feed existing = found.get(key);
+        if (existing == null) {
+            found.put(key, incoming);
+            if (incoming.sources == null || incoming.sources.isEmpty())
+                incoming.sources = incoming.source == null ? PRIMARY : incoming.source;
+            return;
+        }
+        // If a primary service is available, its live state and screenshot win.
+        String a = existing.sources == null ? "" : existing.sources;
+        String b = incoming.sources == null ? incoming.source : incoming.sources;
+        if (b != null && !b.isEmpty() && !a.contains(b)) {
+            existing.sources = a.isEmpty() ? b : a + " + " + b;
+        }
+        if ((existing.imageUrl == null || existing.imageUrl.isEmpty())
+                && incoming.imageUrl != null && !incoming.imageUrl.isEmpty())
+            existing.imageUrl = incoming.imageUrl;
+        if ((existing.name == null || existing.name.startsWith("FEED ") || existing.name.startsWith("Feed "))
+                && incoming.name != null && !incoming.name.isEmpty())
+            existing.name = incoming.name;
+        if ((existing.chroma == null || "—".equals(existing.chroma))
+                && incoming.chroma != null && !"—".equals(incoming.chroma))
+            existing.chroma = incoming.chroma;
+        if ((existing.category == null || existing.category.isEmpty())
+                && incoming.category != null) existing.category = incoming.category;
+        if ((existing.codec == null || "Unknown".equals(existing.codec))
+                && incoming.codec != null) existing.codec = incoming.codec;
+        if (!existing.isLive() && incoming.isLive()) existing.status = "ON";
+    }
+}
