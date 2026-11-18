@@ -84,7 +84,11 @@ public final class BridgeSource {
 
     private static SecretKey key() throws GeneralSecurityException {
         KeyStore store = KeyStore.getInstance("AndroidKeyStore");
-        store.load(null);
+        try {
+            store.load(null);
+        } catch (IOException error) {
+            throw new GeneralSecurityException("Keystore unavailable", error);
+        }
         KeyStore.Entry entry = store.getEntry(KEY_ALIAS, null);
         if (entry instanceof KeyStore.SecretKeyEntry)
             return ((KeyStore.SecretKeyEntry) entry).getSecretKey();
