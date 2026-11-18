@@ -1,105 +1,142 @@
-# Telegram Client API bridge for publicly distributed LiveFeed DVB
+# LiveFeed DVB – Telegram Client API on Render Free (no credit card)
 
-**Status: infrastructure template, NOT deployed.** End users do not need Telegram,
-API keys, a login, or server configuration. Telegram feeds become available
-automatically to already installed APKs once the application maintainer
-deploys the bridge and enables the repository-controlled public configuration.
+**Prepared for deployment. NOT yet online.** End users of LiveFeed DVB do not
+need a Telegram login or any API credential. The developer authorizes a
+Telegram account once, and the Android app gets read-only DVB metadata from
+the public HTTPS service. Only access channels and republish data when permitted.
 
-## How it works
+## Important Render Free limitations
 
-Android app → reads a tiny public config file from this GitHub repository
-(every ~5 minutes) → connects via HTTPS to `/v1/public-feeds`
-(every ~10 seconds while monitoring is active) → merges DVB metadata with
-Live-Feed.net and Satelliweb → sends deduplicated TV notifications.
+- Render offers a **free Python Web Service without a credit card** for eligible accounts.
+- A Free service **spins down after 15 minutes without inbound requests** and
+  starts again when called; startup can take about one minute.
+- Its local filesystem is **ephemeral**, so a Telethon SQLite `.session`
+  is **not safe for persistence**. Use `TG_STRING_SESSION` stored in the Render
+  private Environment UI instead. Render encrypts environment variables at
+  rest, but operators with project access can still see/use them.
+- Free isn't guaranteed for high-volume public production traffic or real-time
+  five-second delivery. The TV foreground loop runs every 5s; the server caches
+  Telegram posts for 15s. Expect delay from sleep, networking and Telegram limits.
+- Avoid keep-awake pingers designed to bypass Free plan limitations.
 
-The **5-second** app monitoring loop and **10-second** top/bottom notification
-duration remain unchanged. Telegram server cache is **15 seconds**, so
-Telegram posts are not guaranteed to arrive within five seconds.
+## A. Generate authorized Telegram credentials (only the app publisher)
 
-## What the publisher (one time) must do
+1. Log into **https://my.telegram.org** and open **API development tools**.
+   Create your own Telegram application and obtain **api_id** and **api_hash**.
+2. Install Termux from a trusted source on your own Android phone, then run:
 
-1. Obtain `api_id` and `api_hash` for their own Telegram developer application
-   at <https://my.telegram.org> (see
-   <https://core.telegram.org/api/obtaining_api_id>).
-2. Set up a persistent Linux VPS / hosted server with Python 3.11+, outgoing
-   Telegram access, and a domain with valid HTTPS. The account must have lawful
-   permission to see `@livefeeds1`. Consider permission from the channel owner
-   before redistributing posts to an unlimited public audience.
-3. Create the Python virtual environment and install dependencies:
-
-   ```sh
-   cd LiveFeedDVB/telegram-bridge
-   python3 -m venv .venv
-   . .venv/bin/activate
-   python -m pip install -r requirements.txt
-   cp .env.example .env
-   chmod 600 .env
-   python3 -c 'import secrets; print(secrets.token_urlsafe(40))'
-   ```
-
-   Set `TG_API_ID`, `TG_API_HASH`, `BRIDGE_READ_TOKEN`, and the
-   `TG_SESSION_FILE` location in **local .env**. Never commit these secrets.
-   The read token is an admin-only token, **not used by public Android users**.
-4. Run the one-time Telegram authorization **locally**:
-
-   ```sh
-   set -a
-   . ./.env
-   set +a
+   ```bash
+   pkg update -y
+   pkg install python curl -y
+   python -m pip install telethon==1.45.0
+   curl -fsSL "https://raw.githubusercontent.com/mostafaaqeel484-dot/IRAQhub/feature/livefeed-dvb-android-tv-20261117/LiveFeedDVB/telegram-bridge/login.py" -o login.py
    python login.py
    ```
 
-   Enter code/2FA only on your own trusted server, never in APK, public
-   GitHub files, or this chat. Treat `*.session` as a password.
-5. Start backend loopback-only:
+   Or run `login.py` locally on your own PC with Python and Telethon installed.
+3. At the private Termux prompts, enter your **api_id**, **api_hash**, your own
+   phone number, and the Telegram login code / 2FA, if prompted.
+   The script verifies you can access `@livefeeds1`.
+4. It prints **TG_STRING_SESSION** once to the *local terminal*. Copy this
+   secret **only** to Render's private Environment field. Do not send the
+   secret, login code, 2FA password, api_hash or full terminal screenshots
+   to a chat or GitHub. The StringSession itself is effectively an active
+   account login; if exposed, revoke that session in Telegram active devices.
+5. If Telegram itself is unavailable from the phone/network, the login
+   cannot complete on that connection; use another authorized network.
 
-   ```sh
-   uvicorn server:app --host 127.0.0.1 --port 8090
+## B. Create your free Render Web Service
+
+1. Visit **https://dashboard.render.com/register** and sign up (GitHub login
+   is convenient).
+2. From your Render dashboard, choose **New → Blueprint**, connect the GitHub
+   repo `mostafaaqeel484-dot/IRAQhub` and select branch
+   `feature/livefeed-dvb-android-tv-20261117`. Render reads `render.yaml`
+   at the repository root.
+3. Review Blueprint service:
+   - Name: `livefeed-dvb-telegram`
+   - Runtime: `python`
+   - Plan: **Free**
+   - Root directory: `LiveFeedDVB/telegram-bridge`
+   - Build command: `pip install -r requirements.txt`
+   - Start command: `uvicorn server:app --host 0.0.0.0 --port $PORT`
+   - Health check: `/ready`
+4. The Blueprint asks for **secret Environment values** (do not enter them in
+   your repository):
+   - `TG_API_ID` → developer app number
+   - `TG_API_HASH` → developer API hash
+   - `TG_STRING_SESSION` → authorized session copied from your private
+     Termux `python login.py`
+   - `BRIDGE_READ_TOKEN` is **auto-generated by Render**, for the private
+     admin-only endpoints and is never included in public APKs.
+   - `TG_CHANNEL=livefeeds1` is already set in Blueprint.
+5. Deploy. In Render, the live public HTTPS address should look like
+   `https://livefeed-dvb-telegram.onrender.com`, but **use your actual Render
+   service URL** shown on the dashboard, not this example.
+6. Confirm the public metadata endpoint opens as JSON:
+
+   ```text
+   https://YOUR-ACTUAL-RENDER-ADDRESS.onrender.com/v1/public-feeds
    ```
 
-   Put a reverse proxy with valid TLS (Nginx, Caddy, etc.) in front of it.
-   Protect the public `/v1/public-feeds` endpoint with CDN caching and
-   per-IP rate limiting for public distribution. Restrict `/health` and
-   `/v1/feeds` to authorized administrative clients. Never expose port 8090.
-6. Verify the public endpoint before activating the app:
+   The response should include `"ok": true` and `"feeds": [...]`.
+   Empty `feeds` can mean no DVB posts within the configured last 24 hours,
+   not necessarily a login error. See Render's runtime logs for startup errors.
 
-   ```sh
-   curl -f https://feeds.example.com/v1/public-feeds
-   ```
+### Manual Render Web Service alternative
 
-   A valid JSON response must contain `ok: true` and a `feeds` array.
-7. Update **only** `LiveFeedDVB/telegram-bridge/public-config.json` in this
-   repository branch, e.g.:
+If **New → Blueprint** is unavailable, use **New → Web Service** and connect
+the same GitHub repo + branch. Set **Root Directory** and both commands above,
+choose the Free plan, and add the same private variables manually in
+**Environment**. Set **Health Check Path** to `/ready`.
 
-   ```json
-   {
-     "version": 1,
-     "enabled": true,
-     "url": "https://feeds.example.com"
-   }
-   ```
+## C. Enable Telegram automatically for ALL installed APK users
 
-   `feeds.example.com` is an **example**, not a deployed hostname. Do not
-   enable the config until an actual HTTPS server is accessible. APKs
-   distributed from this branch will discover the updated endpoint without
-   the end user entering anything.
+The Android app already reads a non-secret configuration file from GitHub:
 
-## Safety / behavior
+`LiveFeedDVB/telegram-bridge/public-config.json`
 
-- Only DVB fields from authorized channel posts are published; user/account
-  credentials and MTProto session never leave the server.
-- The public feed endpoint is **anonymous read-only**, so it must be rate limited
-  at the reverse proxy. Telegram's account-wide rate limits still apply.
-- A server failure appears in the APK's Sources diagnostics; other feed
-  providers continue operating.
-- Telegram post data is marked **REPORTED** (not verified ON AIR).
-- If the publisher has not set up an authorized server, Telegram will remain
-  **unavailable**. No APK can safely bypass this requirement by embedding the
-  developer's Telegram session.
-- Telegram's terms and third-party channel content permissions still apply.
+At present it contains:
 
-## Bridge server private endpoints
+```json
+{"version":1,"enabled":false,"url":""}
+```
 
-`GET /v1/feeds` and `GET /health` require
-`Authorization: Bearer <BRIDGE_READ_TOKEN>` and are for operator diagnostics.
-The public client uses only `GET /v1/public-feeds`.
+**After** you have confirmed `/v1/public-feeds` works, set its `url` to the
+**actual public Render HTTPS address** and change `enabled` to `true`
+on the feature branch.
+
+Example (**not a deployed URL**):
+
+```json
+{
+  "version": 1,
+  "enabled": true,
+  "url": "https://your-real-service.onrender.com"
+}
+```
+
+Devices with LiveFeed DVB v1.3.0+ will read this configuration on their next
+config refresh (about five minutes when running). They do not need to sign in,
+enter API keys, or install a new APK merely because you enabled a server.
+
+## Security and operational notes
+
+- Keep `TG_API_HASH`, `TG_STRING_SESSION` and
+  `BRIDGE_READ_TOKEN` in Render Environment **only**. Never commit `.env`,
+  screenshot credentials, put the session in a URL, or ship it in Android APK.
+- Render stores environment variables encrypted at rest, **but the session
+  string is not separately encrypted by our application**; the server needs
+  plaintext in RAM to access Telegram. Limit Render dashboard access and use
+  Telegram account two-step verification.
+- This bridge publishes only selected DVB feed metadata and channel-post
+  links; it does not serve login codes or the Telegram API secrets.
+- Public `/v1/public-feeds` is unauthenticated, so a popular public app
+  should use a caching layer / CDN and rate limits before heavy distribution.
+- Private admin `/v1/feeds` and `/health` require a bearer token. Public
+  `/ready` exposes no account credentials.
+- Source records are labeled **REPORTED**, not confirmed active transponders.
+- If the Render service sleeps, the APK's other DVB sources remain available.
+- Do not redistribute the channel operator's copyrighted images or large
+  portions of posts without permission. Seek approval for substantial
+  redistribution of third-party channel content.
