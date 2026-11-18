@@ -524,6 +524,11 @@ public final class MainActivity extends Activity {
         info.setSingleLine(true);
         info.setEllipsize(TextUtils.TruncateAt.END);
         c.addView(info, new LinearLayout.LayoutParams(-1, dp(23)));
+        String source = f.sources == null || f.sources.isEmpty() ? "Live-Feed.net" : f.sources;
+        TextView providers = text("🌐 " + source, 11, 0xff9bb9d2, false);
+        providers.setSingleLine(true);
+        providers.setEllipsize(TextUtils.TruncateAt.END);
+        c.addView(providers, new LinearLayout.LayoutParams(-1, dp(23)));
         return c;
     }
 
