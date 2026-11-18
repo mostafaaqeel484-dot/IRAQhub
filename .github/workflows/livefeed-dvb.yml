@@ -30,6 +30,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Validate Telegram Client API bridge
+        run: |
+          python3 -m pip install --user -r LiveFeedDVB/telegram-bridge/requirements.txt
+          PYTHONPATH=LiveFeedDVB/telegram-bridge python3 -m unittest discover -s LiveFeedDVB/telegram-bridge -p 'test_*.py' -v
       - name: Configure Android SDK
         uses: android-actions/setup-android@v4
       - name: Install Android SDK 35
@@ -57,10 +61,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
-          TAG="livefeed-dvb-tv-1.2.1-${GITHUB_SHA:0:7}"
+          TAG="livefeed-dvb-tv-1.3.0-${GITHUB_SHA:0:7}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
-              --title "LiveFeed DVB TV 1.2.1 • experimental Android APK" \
-              --notes "Unofficial Android TV app. Data/screenshots: live-feed.net. 5s polling runs only while the user-enabled foreground monitor is active. Paired overlays last 10s; OEM restrictions and site rate limits may delay alerts. APK built by GitHub Actions; not yet validated on Amlogic hardware."
+              --title "LiveFeed DVB TV 1.3.0 • experimental Android APK" \
+              --notes "Unofficial Android TV app with optional secure Telegram Client API bridge (requires separately authorized server configuration). Data/screenshots: live-feed.net. 5s polling runs only while the user-enabled foreground monitor is active. Paired overlays last 10s; OEM restrictions and site rate limits may delay alerts. APK built by GitHub Actions; not yet validated on Amlogic hardware."
           fi
-          gh release upload "$TAG" LiveFeedDVB/app/build/outputs/apk/debug/app-debug.apk#LiveFeedDVB-TV-1.2.1-debug.apk --clobber
+          gh release upload "$TAG" LiveFeedDVB/app/build/outputs/apk/debug/app-debug.apk#LiveFeedDVB-TV-1.3.0-debug.apk --clobber
