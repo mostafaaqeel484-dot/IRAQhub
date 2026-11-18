@@ -246,7 +246,7 @@ public final class FeedRepository {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification n = new Notification.Builder(ctx, CHANNEL)
                 .setSmallIcon(R.drawable.ic_satellite)
-                .setContentTitle("📡 فيد جديد: " + f.name)
+                .setContentTitle((f.isReported() ? "📡 بلاغ عن فيد: " : "📡 فيد جديد: ") + f.name)
                 .setContentText(f.summary())
                 .setStyle(new Notification.BigTextStyle().bigText(f.summary() + " • " + f.chroma))
                 .setContentIntent(pi).setAutoCancel(true).build();
