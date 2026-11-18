@@ -1,0 +1,26 @@
+# Render Blueprint for LiveFeed DVB Telegram Client API Bridge.
+# Select this repository's feature/livefeed-dvb-android-tv-20261117 branch.
+# Values for the secret variables are entered ONLY in Render's Dashboard.
+services:
+  - type: web
+    name: livefeed-dvb-telegram
+    runtime: python
+    plan: free
+    branch: feature/livefeed-dvb-android-tv-20261117
+    rootDir: LiveFeedDVB/telegram-bridge
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /ready
+    envVars:
+      - key: TG_API_ID
+        sync: false
+      - key: TG_API_HASH
+        sync: false
+      - key: TG_STRING_SESSION
+        sync: false
+      - key: BRIDGE_READ_TOKEN
+        generateValue: true
+      - key: TG_CHANNEL
+        value: livefeeds1
+      - key: BRIDGE_MAX_AGE_HOURS
+        value: "24"
