@@ -28,7 +28,8 @@ public class HubActivity extends Activity {
  PANEL=AppearancePalette.panel(theme);
  TILE=AppearancePalette.tile(theme);
  ACCENT=RxSkin.accent(this);MUTED=0xffb1c3d1;WHITE=0xfff1f1f5;AMBER=ACCENT;appliedAppearance=appearance();getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN); }
- private String appearance(){return RxSkin.selected(this)+"/"+prefs().getString(RxSkin.LAYOUT,"horizon")+"/"+prefs().getLong("rx_original_art_updated_at",0)+"/"+prefs().getInt("launcher_theme",0)+"/"+prefs().getBoolean("rx_glass_effect",true)+"/"+prefs().getInt("ui_font_percent",100)+"/"+prefs().getBoolean("arabic",true);}
+ private String appearance(){return RxSkin.selected(this)+"/"+prefs().getString(RxSkin.LAYOUT,"horizon")+"/"+prefs().getLong("rx_original_art_updated_at",0)+"/"+prefs().getInt("launcher_theme",0)+"/"+prefs().getBoolean("rx_glass_effect",true)+"/"+prefs().getInt("ui_font_percent",100)+"/"+prefs().getBoolean("arabic",true)+"/"+
+   prefs().getBoolean("rx7_home_show_extras",false);}
  @Override protected void onResume(){super.onResume();if(!appearance().equals(appliedAppearance))recreate();}
  protected float font(int sp){return sp*Math.max(85,Math.min(125,prefs().getInt("ui_font_percent",100)))/100f;}
  protected SharedPreferences prefs() { return getSharedPreferences("smarthub",MODE_PRIVATE); }
