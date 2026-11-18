@@ -33,6 +33,21 @@ public final class TelegramFeedSourceTest {
         assertEquals("2026-11-18T09:04:00+00:00", f.updated);
     }
 
+    @Test public void readsTelegramWidgetWithoutOuterWrapper() {
+        String html = "<html><body>"
+                + "<div class='tgme_widget_message' data-post='livefeeds1/301'>"
+                + "<div class='tgme_widget_message_text'>"
+                + "📡 Satellite Feed 🛰 Satellite: Hellas Sat 3 - 4 (39.0°E)"
+                + " 📶 Frequency: 11490 V 1800 Transmission: MPEG-4"
+                + " Event: Beirut skyline Posted: 2026-11-18 05:05 am"
+                + "</div></div></body></html>";
+        List<FeedRepository.Feed> feeds = TelegramFeedSource.parse(html);
+        assertEquals(1, feeds.size());
+        assertEquals("11490 V 1800", feeds.get(0).frequencyText());
+        assertEquals("Beirut skyline", feeds.get(0).name);
+        assertEquals("Hellas Sat 3 - 4 (39.0°E)", feeds.get(0).satellite);
+    }
+
     @Test public void ignoresNonFeedTelegramPosts() {
         String html = "<div class='tgme_widget_message_wrap'>" +
                 "<div class='tgme_widget_message' data-post='livefeeds1/240'>" +
