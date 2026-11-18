@@ -34,7 +34,9 @@ public final class ImageLoader {
                     c.setConnectTimeout(8000);
                     c.setReadTimeout(12000);
                     c.setInstanceFollowRedirects(true);
-                    c.setRequestProperty("Referer", FeedRepository.SITE);
+                    // Only set the matching Referer for the source that requires it.
+                    if (source.contains("live-feed.net"))
+                        c.setRequestProperty("Referer", FeedRepository.SITE);
                     c.setRequestProperty("User-Agent", "Mozilla/5.0 (Android TV)");
                     try {
                         c.connect();
