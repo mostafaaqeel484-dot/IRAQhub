@@ -43,12 +43,15 @@ public final class FeedRepository {
 
     public static final class Feed {
         public String satellite, frequency, polarization, symbolRate, name, codec, chroma, bitrate, imageUrl, updated, status;
+        public String source = "Live-Feed.net", sources = "Live-Feed.net";
+        public String sourceUrl = SITE, category = "";
         public String id() {
             return (satellite + "|" + frequency + "|" + polarization + "|" + symbolRate + "|" + name)
                     .toLowerCase(Locale.ROOT);
         }
         public String frequencyText() { return frequency + " " + polarization + " " + symbolRate; }
         public boolean isLive() { return "ON".equals(status); }
+        public boolean isReported() { return "REPORTED".equals(status); }
         public boolean is422() { return "4:2:2".equals(chroma); }
         public String summary() { return satellite + "  •  " + frequencyText(); }
     }
@@ -123,6 +126,9 @@ public final class FeedRepository {
             f.polarization = s.polarization;
             f.symbolRate = s.symbolRate;
             f.status = lastStatus(previous);
+            f.source = "Live-Feed.net";
+            f.sources = "Live-Feed.net";
+            f.sourceUrl = SITE;
             f.name = first(NAME, tail, "").replaceAll("\\s+", " ").trim();
             if (f.name.isEmpty()) f.name = "FEED " + f.frequency;
             if (f.name.length() > 100) f.name = f.name.substring(0, 100);
@@ -204,27 +210,31 @@ public final class FeedRepository {
 
     public static synchronized void processNew(Context ctx, List<Feed> feeds) {
         SharedPreferences p = ctx.getSharedPreferences("livefeed_settings", Context.MODE_PRIVATE);
-        Set<String> old = p.getStringSet("seen_live_feeds", null);
+        // A new dedupe namespace intentionally makes the first multi-source poll
+        // a baseline, avoiding false notifications after the migration.
+        Set<String> old = p.getStringSet("seen_transponders_v1", null);
         Set<String> seen = old == null ? new HashSet<>() : new HashSet<>(old);
         boolean initial = old == null;
         int announced = 0;
         for (Feed f : feeds) {
-            if (!f.isLive()) continue;
-            if (!seen.contains(f.id()) && !initial && announced < 5) {
+            if (!f.isLive() && !f.isReported()) continue;
+            String key = MultiSourceFeeds.transponderKey(f);
+            if (!seen.contains(key) && !initial && announced < 5) {
                 if (p.getBoolean("notify", true)) notifyNew(ctx, f);
                 // Show one overlay per poll rather than rapidly replacing five banners.
                 if (announced == 0 && p.getBoolean("overlay", false)) FloatingAlert.show(ctx, f);
                 announced++;
             }
-            seen.add(f.id());
+            seen.add(key);
         }
         // Preserve the newest entries without growing the preference indefinitely.
         if (seen.size() > 1500) {
             Set<String> current = new HashSet<>();
-            for (Feed f : feeds) if (f.isLive()) current.add(f.id());
+            for (Feed f : feeds) if (f.isLive() || f.isReported())
+                current.add(MultiSourceFeeds.transponderKey(f));
             seen = current;
         }
-        p.edit().putStringSet("seen_live_feeds", seen).apply();
+        p.edit().putStringSet("seen_transponders_v1", seen).apply();
     }
 
     private static void notifyNew(Context ctx, Feed f) {
