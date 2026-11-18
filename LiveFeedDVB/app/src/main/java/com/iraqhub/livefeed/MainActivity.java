@@ -308,6 +308,66 @@ public final class MainActivity extends Activity {
                 .show();
     }
 
+    private void showBridgeSettings() {
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(23), dp(12), dp(23), dp(5));
+
+        TextView instructions = text(
+                "الربط يستخدم خادماً HTTPS يعمل عليه Telegram Client API بحسابك المصرح. "
+                        + "لا تدخل رقم هاتفك أو كود تيليگرام أو API hash هنا. "
+                        + "اترك رمز الوصول فارغاً للاحتفاظ بالرمز المحفوظ سابقاً.",
+                13, MUTED, false);
+        instructions.setMaxLines(6);
+        body.addView(instructions, new LinearLayout.LayoutParams(-1, dp(125)));
+
+        TextView addressLabel = text("رابط الخادم (HTTPS)", 14, LIGHT, true);
+        body.addView(addressLabel, new LinearLayout.LayoutParams(-1, dp(31)));
+        EditText address = new EditText(this);
+        address.setSingleLine(true);
+        address.setTextSize(13);
+        address.setHint("https://your-bridge.example");
+        address.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        address.setTextColor(LIGHT);
+        address.setHintTextColor(MUTED);
+        address.setText(BridgeSource.url(this));
+        body.addView(address, new LinearLayout.LayoutParams(-1, dp(52)));
+
+        TextView tokenLabel = text("رمز الوصول للخادم (ليس رمز تسجيل دخول تيليگرام)", 14, LIGHT, true);
+        body.addView(tokenLabel, new LinearLayout.LayoutParams(-1, dp(37)));
+        EditText secret = new EditText(this);
+        secret.setSingleLine(true);
+        secret.setTextSize(13);
+        secret.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        secret.setHint(BridgeSource.isConfigured(this) ? "رمز محفوظ • اتركه فارغاً" : "Bearer token • 32 حرفاً أو أكثر");
+        secret.setTextColor(LIGHT);
+        secret.setHintTextColor(MUTED);
+        body.addView(secret, new LinearLayout.LayoutParams(-1, dp(53)));
+
+        new AlertDialog.Builder(this)
+                .setTitle("ربط Ben 10 • Telegram Client API")
+                .setView(body)
+                .setPositiveButton("حفظ وفحص", (dialog, which) -> {
+                    try {
+                        BridgeSource.save(this, address.getText().toString(),
+                                secret.getText().toString());
+                        toast("تم حفظ الاتصال المشفر، جارِ الفحص");
+                        refresh(true);
+                    } catch (Exception error) {
+                        String reason = error.getMessage() == null ?
+                                error.getClass().getSimpleName() : error.getMessage();
+                        toast("تعذر حفظ الربط: " + reason);
+                    }
+                })
+                .setNeutralButton("حذف الربط", (dialog, which) -> {
+                    BridgeSource.clear(this);
+                    toast("تم مسح بيانات الخادم؛ ستعود محاولة القراءة العامة");
+                    refresh(true);
+                })
+                .setNegativeButton("إلغاء", null)
+                .show();
+    }
+
     private void showNotificationState() {
         if (notifyButton != null) notifyButton.setText(preferences.getBoolean("notify", true) ? "🔔 تنبيه" : "🔕 مطفأ");
     }
