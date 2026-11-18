@@ -34,23 +34,56 @@ public final class TelegramFeedSource {
             "(?is)Category\\s*:\\s*(.+?)(?=\\s*(?:Transmission\\s*:|Event\\s*:|Posted\\s*:|$))");
     private static final Pattern PHOTO = Pattern.compile("(?is)url\\(\\s*['\\\"]?([^'\\\"\\)]+)");
 
+    private static volatile String lastDiagnostic = "لم يتم فحص قناة تيليگرام بعد";
+    private static volatile int lastCount = 0;
+    public static String diagnostic() { return lastDiagnostic; }
+    public static int lastCount() { return lastCount; }
     private TelegramFeedSource() {}
 
     public static List<FeedRepository.Feed> fetch() throws IOException {
-        String html = Jsoup.connect(PUBLIC_PREVIEW)
-                .userAgent("Mozilla/5.0 (Linux; Android 14; Android TV) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36")
-                .header("Accept", "text/html,application/xhtml+xml")
-                .timeout(9500).maxBodySize(5_000_000).get().outerHtml();
-        return parse(html);
+        try {
+            org.jsoup.Connection.Response response = Jsoup.connect(PUBLIC_PREVIEW)
+                    .userAgent("Mozilla/5.0 (Linux; Android 14; Android TV) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36")
+                    .header("Accept", "text/html,application/xhtml+xml")
+                    .header("Accept-Language", "en-US,en;q=0.9")
+                    .followRedirects(true).timeout(9500).maxBodySize(5_000_000)
+                    .execute();
+            Document page = response.parse();
+            List<FeedRepository.Feed> feeds = parse(page.outerHtml());
+            int posts = page.select(".tgme_widget_message").size();
+            lastCount = feeds.size();
+            String location = response.url().getPath();
+            if (posts == 0) {
+                lastDiagnostic = "HTTP " + response.statusCode()
+                        + " — صفحة تيليگرام لا تحتوي منشورات عامة قابلة للقراءة"
+                        + " (المسار: " + location + ")";
+            } else if (feeds.isEmpty()) {
+                lastDiagnostic = "HTTP " + response.statusCode() + " — " + posts
+                        + " منشور ظاهر، لكن لم يُستخرج منها فيد DVB؛ تحتاج مراجعة التنسيق";
+            } else {
+                lastDiagnostic = "HTTP " + response.statusCode() + " — نجح استخراج "
+                        + feeds.size() + " فيد من " + posts + " منشور";
+            }
+            return feeds;
+        } catch (IOException error) {
+            lastCount = 0;
+            lastDiagnostic = "فشل الوصول: " + error.getClass().getSimpleName() + " — "
+                    + (error.getMessage() == null ? "غير معروف" :
+                    error.getMessage().substring(0, Math.min(error.getMessage().length(), 130)));
+            throw error;
+        } catch (RuntimeException error) {
+            lastCount = 0;
+            lastDiagnostic = "فشل تحليل تيليگرام: " + error.getClass().getSimpleName();
+            throw new IOException(lastDiagnostic, error);
+        }
     }
 
     public static List<FeedRepository.Feed> parse(String html) {
         if (html == null || html.isEmpty()) return Collections.emptyList();
         Document page = Jsoup.parse(html, PUBLIC_PREVIEW);
         List<FeedRepository.Feed> result = new ArrayList<>();
-        for (Element wrapper : page.select(".tgme_widget_message_wrap")) {
-            Element msg = wrapper.selectFirst(".tgme_widget_message");
-            if (msg == null) continue;
+        // Some Telegram preview layouts omit the outer message wrapper.
+        for (Element msg : page.select(".tgme_widget_message[data-post]")) {
             Element body = msg.selectFirst(".tgme_widget_message_text");
             if (body == null) continue;
             String message = body.text().replace((char) 160, ' ')
