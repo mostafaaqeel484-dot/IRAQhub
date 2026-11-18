@@ -265,7 +265,7 @@ public final class MainActivity extends Activity {
         cards.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
         page.addView(cards, new ScrollView.LayoutParams(-1, -2));
 
-        TextView footer = text("المصدر: Live-Feed.net  •  المعلومات للترددات فقط  •  التحديث داخل التطبيق كل 20 ثانية", 11, MUTED, false);
+        TextView footer = text("المصادر: Live-Feed.net + Satelliweb  •  ترددات فريدة بدون تكرار  •  فحص أساسي 20 ثانية", 11, MUTED, false);
         footer.setGravity(Gravity.CENTER);
         root.addView(footer, new LinearLayout.LayoutParams(-1, dp(25)));
         updateFilterStyles();
@@ -368,16 +368,22 @@ public final class MainActivity extends Activity {
         if (status != null) status.setText("⟳  جارِ تحديث الفيدات من الموقع…");
         executor.execute(() -> {
             try {
-                List<FeedRepository.Feed> fetched = FeedRepository.fetch(manual);
+                List<FeedRepository.Feed> fetched = MultiSourceFeeds.fetch(manual);
                 FeedRepository.processNew(getApplicationContext(), fetched);
                 handler.post(() -> {
                     feeds.clear();
                     feeds.addAll(fetched);
-                    Collections.sort(feeds, Comparator.comparing(FeedRepository.Feed::isLive).reversed()
+                    Collections.sort(feeds, Comparator.comparingInt((FeedRepository.Feed f) ->
+                                    f.isLive() ? 0 : (f.isReported() ? 1 : 2))
                             .thenComparing(f -> f.satellite).thenComparing(f -> f.frequency));
-                    int on = 0, mode422 = 0;
-                    for (FeedRepository.Feed f : feeds) { if (f.isLive()) on++; if (f.is422()) mode422++; }
-                    status.setText("🟢 " + on + " مباشر     •     " + feeds.size() + " فيد     •     " + mode422 + " بث 4:2:2     •     المصدر: Live-Feed.net");
+                    int on = 0, reported = 0, mode422 = 0;
+                    for (FeedRepository.Feed f : feeds) {
+                        if (f.isLive()) on++;
+                        if (f.isReported()) reported++;
+                        if (f.is422()) mode422++;
+                    }
+                    status.setText("🟢 " + on + " مباشر   •   " + reported + " بلاغ نشط   •   "
+                            + feeds.size() + " تردد فريد   •   " + mode422 + " 4:2:2   •   مصدران");
                     busy = false;
                     render();
                     if (manual) toast("تم تحديث المعلومات");
@@ -482,7 +488,7 @@ public final class MainActivity extends Activity {
             missing.setGravity(Gravity.CENTER);
             artwork.addView(missing, new FrameLayout.LayoutParams(-1, -1));
         }
-        TextView on = text(f.isLive() ? "●  ON AIR" : "○  OFF", 11,
+        TextView on = text(f.isLive() ? "●  ON AIR" : (f.isReported() ? "◉  رُصد" : "○  OFF"), 11,
                 f.isLive() ? 0xff0b2620 : LIGHT, true);
         on.setGravity(Gravity.CENTER);
         on.setPadding(dp(9), dp(3), dp(9), dp(3));
@@ -548,7 +554,9 @@ public final class MainActivity extends Activity {
             panel.addView(snapshot, new LinearLayout.LayoutParams(-1, dp(190)));
             ImageLoader.load(this, snapshot, f.imageUrl);
         }
-        line(panel, "الحالة", f.isLive() ? "🟢 مباشر" : f.status);
+        line(panel, "الحالة", f.isLive() ? "🟢 مباشر" :
+                (f.isReported() ? "بلاغ من هواة التقاط الفيدات (غير مؤكد حالياً)" : f.status));
+        line(panel, "المصادر", f.sources == null ? "غير معروف" : f.sources);
         line(panel, "القمر", f.satellite);
         line(panel, "التردد / الاستقطاب / SR", f.frequencyText());
         line(panel, "الفيديو", f.codec);
@@ -579,7 +587,8 @@ public final class MainActivity extends Activity {
             else toast("IRAQhub غير مثبت أو غير ظاهر للنظام");
         });
         panel.addView(launch, new LinearLayout.LayoutParams(-1, dp(47)));
-        TextView source = button("عرض المصدر على Live-Feed.net", () -> openSite(FeedRepository.SITE));
+        TextView source = button("عرض المصدر الأصلي", () -> openSite(
+                f.sourceUrl == null ? FeedRepository.SITE : f.sourceUrl));
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, dp(45));
         sp.topMargin = dp(7);
         panel.addView(source, sp);
