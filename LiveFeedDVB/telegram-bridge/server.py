@@ -17,11 +17,15 @@ from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, status
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 
 API_ID = int(os.environ["TG_API_ID"])
 API_HASH = os.environ["TG_API_HASH"]
 CHANNEL = os.environ.get("TG_CHANNEL", "livefeeds1")
-SESSION = os.environ.get("TG_SESSION_FILE", "./private/telegram.session")
+# StringSession is the preferred Render-compatible option: environment variables
+# survive restarts; Render Free's filesystem does not.
+SESSION_STRING = os.environ.get("TG_STRING_SESSION", "").strip()
+SESSION_FILE = os.environ.get("TG_SESSION_FILE", "./private/telegram.session")
 READ_TOKEN = os.environ["BRIDGE_READ_TOKEN"]
 MAX_AGE_HOURS = max(1, min(72, int(os.environ.get("BRIDGE_MAX_AGE_HOURS", "24"))))
 CACHE_SECONDS = 15.0
@@ -75,7 +79,10 @@ def decode_post(message: Any) -> dict[str, Any] | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    client = TelegramClient(SESSION, API_ID, API_HASH, request_retries=2, connection_retries=2)
+    if not SESSION_STRING and os.environ.get("RENDER") == "true":
+        raise RuntimeError("Set TG_STRING_SESSION in Render Environment; do not upload .session files")
+    session = StringSession(SESSION_STRING) if SESSION_STRING else SESSION_FILE
+    client = TelegramClient(session, API_ID, API_HASH, request_retries=2, connection_retries=2)
     await client.connect()
     if not await client.is_user_authorized():
         await client.disconnect()
@@ -157,6 +164,12 @@ async def current_feed_data():
             "warning": app.state.last_error,
             "reportedNotVerifiedOnAir": True,
         }
+
+
+@app.get("/ready")
+async def ready():
+    """No secrets: safe for Render to probe only after authorized startup."""
+    return {"ok": True}
 
 
 @app.get("/health")
