@@ -27,7 +27,7 @@ public final class FeedJobService extends JobService {
         cancelled = false;
         new Thread(() -> {
             try {
-                List<FeedRepository.Feed> feeds = MultiSourceFeeds.fetch();
+                List<FeedRepository.Feed> feeds = MultiSourceFeeds.fetch(getApplicationContext(), false);
                 if (!cancelled) FeedRepository.processNew(getApplicationContext(), feeds);
             } catch (Exception ignored) {
                 // Network failures must not reset the notification baseline.
