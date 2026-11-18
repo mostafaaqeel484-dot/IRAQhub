@@ -28,6 +28,14 @@ public final class MultiSourceFeeds {
     private static long lastTelegramAttempt = -1L;
     private static List<FeedRepository.Feed> cachedSecondary = Collections.emptyList();
     private static List<FeedRepository.Feed> cachedTelegram = Collections.emptyList();
+    private static volatile String primaryStatus = "لم يُفحص";
+    private static volatile String secondaryStatus = "لم يُفحص";
+    public static String diagnostics() {
+        return "Live-Feed.net: " + primaryStatus
+                + "\n\nSatelliweb: " + secondaryStatus
+                + "\n\nBen 10 feeds (Telegram): " + TelegramFeedSource.diagnostic()
+                + "\n\nالبيانات المنشورة بتيليگرام بلاغات ولا تؤكد أن البث يعمل حالياً.";
+    }
     private static final Pattern FREQUENCY = Pattern.compile(
             "Frequency\\s*:\\s*(\\d{4,5})\\s*-?\\s*Pol\\s*:\\s*([HVLR])\\s*-?\\s*SR\\s*:\\s*(\\d{3,6})",
             Pattern.CASE_INSENSITIVE);
@@ -49,12 +57,14 @@ public final class MultiSourceFeeds {
         List<FeedRepository.Feed> primary = Collections.emptyList();
         try {
             primary = FeedRepository.fetch(force);
+            primaryStatus = "تمت القراءة: " + primary.size() + " فيد";
         } catch (IOException e) {
             primaryFailure = e;
+            primaryStatus = "فشل الاتصال: " + e.getClass().getSimpleName();
         }
 
         long now = android.os.SystemClock.elapsedRealtime();
-        boolean shouldFetchSecondary = lastSecondaryAttempt < 0
+        boolean shouldFetchSecondary = force || lastSecondaryAttempt < 0
                 || now - lastSecondaryAttempt >= SECONDARY_REFRESH_MS;
         if (shouldFetchSecondary) {
             // The secondary website publishes human-reported sightings. Respect its
@@ -68,13 +78,17 @@ public final class MultiSourceFeeds {
                         .get().outerHtml();
                 List<FeedRepository.Feed> parsed = parseSatelliweb(page);
                 if (!parsed.isEmpty()) cachedSecondary = parsed;
-            } catch (Exception ignored) {
+                secondaryStatus = parsed.isEmpty() ?
+                        "الصفحة متاحة لكن لم تُستخرج بلاغات" :
+                        "تمت القراءة: " + parsed.size() + " بلاغ";
+            } catch (Exception error) {
+                secondaryStatus = "فشل الاتصال: " + error.getClass().getSimpleName();
                 // Keep the last valid secondary response rather than erase its data.
             }
         }
         // Telegram's public preview is unofficial best-effort access, may return
         // no posts, and can be rate-limited. Never block the other two sources.
-        if (lastTelegramAttempt < 0 || now - lastTelegramAttempt >= TELEGRAM_REFRESH_MS) {
+        if (force || lastTelegramAttempt < 0 || now - lastTelegramAttempt >= TELEGRAM_REFRESH_MS) {
             lastTelegramAttempt = now;
             try {
                 List<FeedRepository.Feed> reported = TelegramFeedSource.fetch();
