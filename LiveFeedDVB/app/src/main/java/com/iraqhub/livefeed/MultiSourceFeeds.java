@@ -172,24 +172,60 @@ public final class MultiSourceFeeds {
      */
     public static List<FeedRepository.Feed> merge(List<FeedRepository.Feed> primary,
                                                   List<FeedRepository.Feed> secondary) {
-        Map<String, FeedRepository.Feed> found = new LinkedHashMap<>();
-        if (primary != null) for (FeedRepository.Feed f : primary) accept(found, f);
-        if (secondary != null) for (FeedRepository.Feed f : secondary) accept(found, f);
-        return new ArrayList<>(found.values());
+        Map<String, List<FeedRepository.Feed>> groups = new LinkedHashMap<>();
+        if (primary != null) for (FeedRepository.Feed f : primary) accept(groups, f);
+        if (secondary != null) for (FeedRepository.Feed f : secondary) accept(groups, f);
+        List<FeedRepository.Feed> unique = new ArrayList<>();
+        for (List<FeedRepository.Feed> group : groups.values()) unique.addAll(group);
+        return unique;
     }
 
-    private static void accept(Map<String, FeedRepository.Feed> found, FeedRepository.Feed incoming) {
-        if (incoming == null || incoming.frequency == null
-                || incoming.symbolRate == null || incoming.polarization == null) return;
+    private static String comparableName(String text) {
+        return text == null ? "" : text.toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
+    private static void accept(Map<String, List<FeedRepository.Feed>> groups,
+                               FeedRepository.Feed incoming) {
+        if (incoming == null || incoming.frequency == null ||
+                incoming.symbolRate == null || incoming.polarization == null) return;
         String key = transponderKey(incoming);
-        FeedRepository.Feed existing = found.get(key);
-        if (existing == null) {
-            found.put(key, incoming);
-            if (incoming.sources == null || incoming.sources.isEmpty())
-                incoming.sources = incoming.source == null ? PRIMARY : incoming.source;
+        List<FeedRepository.Feed> group = groups.get(key);
+        if (group == null) {
+            group = new ArrayList<>();
+            groups.put(key, group);
+        }
+        if (group.isEmpty()) {
+            group.add(incoming);
             return;
         }
-        // If a primary service is available, its live state and screenshot win.
+
+        // A transponder can contain multiple independent video services.
+        // Preserve distinct names from the same site rather than conflating them.
+        String candidateName = comparableName(incoming.name);
+        FeedRepository.Feed match = null;
+        for (FeedRepository.Feed existing : group) {
+            if (!candidateName.isEmpty() && candidateName.equals(comparableName(existing.name))) {
+                match = existing;
+                break;
+            }
+        }
+        if (match == null && group.size() == 1 &&
+                incoming.source != null && !incoming.source.equals(group.get(0).source)) {
+            // The sources use different labels for the same frequency.
+            match = group.get(0);
+        }
+        if (match == null) {
+            // Avoid destructive guessing when two independent services share the
+            // same transponder; keep both cards rather than lose a real feed.
+            group.add(incoming);
+            return;
+        }
+        mergeInto(match, incoming);
+    }
+
+    private static void mergeInto(FeedRepository.Feed existing,
+                                  FeedRepository.Feed incoming) {
         String a = existing.sources == null ? "" : existing.sources;
         String b = incoming.sources == null ? incoming.source : incoming.sources;
         if (b != null && !b.isEmpty() && !a.contains(b)) {
@@ -198,11 +234,12 @@ public final class MultiSourceFeeds {
         if ((existing.imageUrl == null || existing.imageUrl.isEmpty())
                 && incoming.imageUrl != null && !incoming.imageUrl.isEmpty())
             existing.imageUrl = incoming.imageUrl;
-        if ((existing.name == null || existing.name.startsWith("FEED ") || existing.name.startsWith("Feed "))
-                && incoming.name != null && !incoming.name.isEmpty())
+        if ((existing.name == null || existing.name.startsWith("FEED ") ||
+                existing.name.startsWith("Feed ")) &&
+                incoming.name != null && !incoming.name.isEmpty())
             existing.name = incoming.name;
-        if ((existing.chroma == null || "—".equals(existing.chroma))
-                && incoming.chroma != null && !"—".equals(incoming.chroma))
+        if ((existing.chroma == null || "—".equals(existing.chroma)) &&
+                incoming.chroma != null && !"—".equals(incoming.chroma))
             existing.chroma = incoming.chroma;
         if ((existing.category == null || existing.category.isEmpty())
                 && incoming.category != null) existing.category = incoming.category;
