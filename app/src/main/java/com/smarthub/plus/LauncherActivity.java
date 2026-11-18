@@ -78,15 +78,9 @@ public class LauncherActivity extends HubActivity {
   header.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
   connection=text("",12,false);connection.setPadding(dp(9),0,dp(9),0);
   header.addView(connection);
-  usbAdbButton=button("USB ADB");
-  usbAdbButton.setTextSize(11);
-  usbAdbButton.setContentDescription(tx("تصحيح USB · إعدادات المطور",
-    "USB ADB debugging · developer options"));
-  usbAdbButton.setOnClickListener(v->startActivity(new android.content.Intent(this,ReceiverHardwareBridgeActivity.class)));
-  header.addView(usbAdbButton,new LinearLayout.LayoutParams(dp(compact?86:105),dp(39)));
-  Button appearance=button(tx("المظهر","Appearance"));
-  appearance.setTextSize(12);appearance.setOnClickListener(v->themes());
-  header.addView(appearance,new LinearLayout.LayoutParams(dp(compact?92:110),dp(39)));
+  // Keep the Home header uncluttered; ADB and wallpaper are available
+  // from Settings -> More and Appearance respectively.
+  usbAdbButton=null;
   LinearLayout time=col();time.setGravity(Gravity.CENTER);
   time.setPadding(dp(12),0,dp(12),0);
   clock=text("",compact?23:28,true);clock.setGravity(Gravity.CENTER);
@@ -103,10 +97,9 @@ public class LauncherActivity extends HubActivity {
 
   if(classic)receiverRow(body);
   if(!classic){
-  TextView welcome=text(tx("مساحتك الترفيهية","Your entertainment space"),compact?24:34,true);
+  TextView welcome=text(tx("شنو تحب تشاهد؟","What would you like to watch?"),compact?24:32,true);
   welcome.setTextColor(homeInk());body.addView(welcome);
-  TextView subtitle=text(tx("التلفزيون والتطبيقات والمباريات في مكان واحد",
-    "Live television, apps and sports in one place"),compact?12:16,false);
+  TextView subtitle=text(tx("اختر التلفزيون أو التطبيق واضغط OK","Choose TV or an app, then press OK"),compact?12:15,false);
   subtitle.setTextColor(homeMuted());
   LinearLayout.LayoutParams subParams=new LinearLayout.LayoutParams(-1,-2);
   subParams.topMargin=dp(2);subParams.bottomMargin=dp(compact?14:22);
@@ -205,17 +198,22 @@ public class LauncherActivity extends HubActivity {
     tx("القنوات والمظهر","Channels & appearance"),
     HomeIcon.SETTINGS,this::settings,1f);
 
-  LinearLayout smallCards=row();smallCards.setClipChildren(false);
-  LinearLayout.LayoutParams smallPos=new LinearLayout.LayoutParams(-1,dp(compact?80:105));
-  smallPos.topMargin=dp(compact?10:16);body.addView(smallCards,smallPos);
-  weather=rxFeature(smallCards,"weather-card",tx("الطقس","Weather"),
-    weatherSummary(),HomeIcon.WIFI,this::showWeather,1f);
-  rxFeature(smallCards,"prayer-card",tx("الصلاة","Prayer"),
-    tx("المواقيت والتنبيهات","Prayer times and reminders"),HomeIcon.GUIDE,
-    ()->open(PrayerActivity.class),1f);
-  rxFeature(smallCards,"sport-card",tx("المباريات","Matches"),
-    tx("النتائج والمواعيد","Scores and schedule"),HomeIcon.SPORT,
-    ()->open(SportsCenterActivity.class),1f);
+  // Daily essentials first. Optional widgets are one toggle away in
+  // Settings -> Guide & posters; do not crowd the first-run Home screen.
+  boolean showExtras=prefs().getBoolean("rx7_home_show_extras",false);
+  if(showExtras){
+   LinearLayout smallCards=row();smallCards.setClipChildren(false);
+   LinearLayout.LayoutParams smallPos=new LinearLayout.LayoutParams(-1,dp(compact?80:105));
+   smallPos.topMargin=dp(compact?10:16);body.addView(smallCards,smallPos);
+   weather=rxFeature(smallCards,"weather-card",tx("الطقس","Weather"),
+     weatherSummary(),HomeIcon.WIFI,this::showWeather,1f);
+   rxFeature(smallCards,"prayer-card",tx("الصلاة","Prayer"),
+     tx("المواقيت والتنبيهات","Prayer times and reminders"),HomeIcon.GUIDE,
+     ()->open(PrayerActivity.class),1f);
+   rxFeature(smallCards,"sport-card",tx("المباريات","Matches"),
+     tx("النتائج والمواعيد","Scores and schedule"),HomeIcon.SPORT,
+     ()->open(SportsCenterActivity.class),1f);
+  }
   if(!classic)receiverRow(body);
 
   section(body,tx("تطبيقاتي","MY APPLICATIONS"));
@@ -230,7 +228,8 @@ public class LauncherActivity extends HubActivity {
   body.addView(appsGrid,new LinearLayout.LayoutParams(-1,dp(compact?132:180)));
   paintApps();
 
-  section(body,tx("المفضلة والمشاهدة","YOUR SHORTCUTS"));
+  if(showExtras){
+  section(body,tx("اختصارات إضافية","Extra shortcuts"));
   LinearLayout favourites=row();
   body.addView(favourites,new LinearLayout.LayoutParams(-1,dp(compact?46:55)));
   dock(favourites,tx("المفضلة","Favourites"),HomeIcon.CHANNELS,
@@ -244,9 +243,10 @@ public class LauncherActivity extends HubActivity {
   dock(favourites,tx("البحث","Search"),HomeIcon.GUIDE,
     ()->open(HubSearchActivity.class));
   dock(favourites,tx("المظهر","Appearance"),HomeIcon.THEME,this::themes);
+  }
 
-  TextView hint=text(tx("الأسهم للتنقل  •  OK للفتح  •  زر الرجوع يحفظ الرئيسية",
-    "Arrows navigate  •  OK opens  •  Back keeps Home"),11,false);
+  TextView hint=text(tx("الأسهم للتنقل  •  OK للفتح  •  رجوع للخلف",
+    "Arrows to move  •  OK to open  •  Back to return"),11,false);
   hint.setTextColor(homeMuted());hint.setGravity(Gravity.CENTER);
   hint.setPadding(0,dp(9),0,0);body.addView(hint);
   root.post(()->{
@@ -300,12 +300,10 @@ public class LauncherActivity extends HubActivity {
   LinearLayout nav=row();
   nav.setClipChildren(false);
   body.addView(nav);
-  nav(nav,"channels",tx("القنوات","Channels"),HomeIcon.CHANNELS,()->open(ReceiverChannelsActivity.class));
-  nav(nav,"receiver",tx("التركيب","Installation"),HomeIcon.SATELLITE,()->open(ReceiverToolsActivity.class));
-  nav(nav,"guide",tx("دليل البرامج","EPG"),HomeIcon.GUIDE,()->open(SatelliteGuideActivity.class));
-  nav(nav,"signal",tx("الإشارة","Signal"),HomeIcon.WIFI,()->open(SignalInformationActivity.class));
-  nav(nav,"other",tx("الأدوات","Tools"),HomeIcon.APPS,()->open(ToolsActivity.class));
-  nav(nav,"live-feed",tx("الفيدات","Live Feed"),HomeIcon.SATELLITE,()->open(LiveFeedActivity.class));
+  nav(nav,"channels",tx("قائمة القنوات","Channels"),HomeIcon.CHANNELS,()->open(ReceiverChannelsActivity.class));
+  nav(nav,"guide",tx("دليل البرامج","TV Guide"),HomeIcon.GUIDE,()->open(SatelliteGuideActivity.class));
+  nav(nav,"search",tx("بحث","Search"),HomeIcon.GUIDE,()->open(HubSearchActivity.class));
+  nav(nav,"live-feed",tx("الفيدات","Feeds"),HomeIcon.SATELLITE,()->open(LiveFeedActivity.class));
  }
  private int homeInk(){return light?0xff202024:0xfff1f1f5;}
  private int homeMuted(){return light?0xff494952:0xffc5c5cc;}
@@ -515,7 +513,9 @@ public class LauncherActivity extends HubActivity {
    usbAdbButton.setContentDescription(UsbAdbSetup.status(this)+
      " · "+prefs().getString("adb_ip_status","ADB_IP_UNTESTED"));
   }
-  boolean shouldOffer=UsbAdbSetup.shouldPrompt(UsbAdbSetup.enabled(this),
+  // First-run ADB popups are expert-only and OFF by default in RX7.
+  boolean shouldOffer=prefs().getBoolean("rx7_offer_adb_on_home",false)&&
+   UsbAdbSetup.shouldPrompt(UsbAdbSetup.enabled(this),
     UsbAdbSetup.promptEnabled(this),usbAdbStartupShown);
   if(shouldOffer){
    usbAdbStartupShown=true;
