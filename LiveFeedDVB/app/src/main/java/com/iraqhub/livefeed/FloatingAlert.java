@@ -73,7 +73,7 @@ public final class FloatingAlert {
         words.setOrientation(LinearLayout.VERTICAL);
         banner.addView(words, new LinearLayout.LayoutParams(0, -2, 1f));
 
-        TextView newFeed = line(context, "●  فيد جديد  •  NEW FEED", 14, 0xff36e0b8, true);
+        TextView newFeed = line(context, f.isReported() ? "◉  بلاغ عن فيد  •  REPORTED" : "●  فيد جديد  •  NEW FEED", 14, 0xff36e0b8, true);
         words.addView(newFeed);
         TextView name = line(context, f.name, 17, Color.WHITE, true);
         name.setSingleLine(true);
