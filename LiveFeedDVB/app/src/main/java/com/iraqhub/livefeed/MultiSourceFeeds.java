@@ -38,7 +38,8 @@ public final class MultiSourceFeeds {
         return "Live-Feed.net: " + primaryStatus
                 + "\n\nSatelliweb: " + secondaryStatus
                 + "\n\nBen 10 feeds (Telegram): " + TelegramFeedSource.diagnostic()
-                + "\\n\\nBen 10 feeds (Client API): " + BridgeSource.diagnostic()
+                + "\n\nTelegram تلقائي (Client API): " + PublicTelegramBridge.diagnostic()
+                + "\n\nخادم خاص للاختبار: " + BridgeSource.diagnostic()
                 + "\n\nالبيانات المنشورة بتيليگرام بلاغات ولا تؤكد أن البث يعمل حالياً.";
     }
     private static final Pattern FREQUENCY = Pattern.compile(
@@ -101,40 +102,39 @@ public final class MultiSourceFeeds {
                 // Keep the last valid secondary response rather than erase its data.
             }
         }
-        // Telegram's public preview is unofficial best-effort access, may return
-        // no posts, and can be rate-limited. Never block the other two sources.
-        boolean bridgeEnabled = context != null && BridgeSource.isConfigured(context);
-        if (!bridgeEnabled && (force || lastTelegramAttempt < 0
-                || now - lastTelegramAttempt >= TELEGRAM_REFRESH_MS)) {
-            lastTelegramAttempt = now;
-            try {
-                List<FeedRepository.Feed> reported = TelegramFeedSource.fetch();
-                if (!reported.isEmpty()) cachedTelegram = reported;
-            } catch (Exception ignored) {
-                // A private/restricted Telegram preview requires an authorized
-                // official integration; we do not bypass its access controls.
-            }
-        }
-        if (bridgeEnabled) {
-            String endpoint = BridgeSource.url(context);
-            if (!endpoint.equals(cachedBridgeUrl)) {
-                cachedBridgeUrl = endpoint;
-                cachedBridge = Collections.emptyList();
-                lastBridgeAttempt = -1L;
-            }
-            cachedTelegram = Collections.emptyList(); // Avoid HTML scraping when the authorized bridge is configured.
-            if (force || lastBridgeAttempt < 0 || now - lastBridgeAttempt >= BRIDGE_REFRESH_MS) {
-                lastBridgeAttempt = now;
+        // Public distribution: users never authenticate with Telegram.
+        // They read only published DVB fields through the owner's HTTPS bridge.
+        // A private/manual override is retained solely for existing developer installs.
+        if (context == null) {
+            if (force || lastTelegramAttempt < 0
+                    || now - lastTelegramAttempt >= TELEGRAM_REFRESH_MS) {
+                lastTelegramAttempt = now;
                 try {
-                    cachedBridge = BridgeSource.fetch(context);
-                } catch (IOException ignored) {
-                    // Keep last successful bridge data; errors appear in source diagnostics.
+                    List<FeedRepository.Feed> reports = TelegramFeedSource.fetch();
+                    if (!reports.isEmpty()) cachedTelegram = reports;
+                } catch (Exception ignored) {
+                    // Non-Android test harness fallback only.
                 }
             }
         } else {
-            cachedBridge = Collections.emptyList();
-            cachedBridgeUrl = "";
-            lastBridgeAttempt = -1L;
+            cachedTelegram = Collections.emptyList();
+            boolean privateOverride = BridgeSource.isConfigured(context);
+            String selected = privateOverride ? "PRIVATE:" + BridgeSource.url(context) : "AUTO-PUBLIC";
+            if (!selected.equals(cachedBridgeUrl)) {
+                cachedBridgeUrl = selected;
+                cachedBridge = Collections.emptyList();
+                lastBridgeAttempt = -1L;
+            }
+            if (force || lastBridgeAttempt < 0 || now - lastBridgeAttempt >= BRIDGE_REFRESH_MS) {
+                lastBridgeAttempt = now;
+                try {
+                    cachedBridge = privateOverride
+                            ? BridgeSource.fetch(context)
+                            : PublicTelegramBridge.fetch(context);
+                } catch (Exception ignored) {
+                    // Source status is shown in diagnostics; website feeds keep working.
+                }
+            }
         }
         if (primary.isEmpty() && cachedSecondary.isEmpty() && cachedTelegram.isEmpty()
                 && cachedBridge.isEmpty() && primaryFailure != null) throw primaryFailure;
