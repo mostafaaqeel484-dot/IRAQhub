@@ -280,28 +280,21 @@ public final class HubSettingsActivity extends HubActivity {
  }
 
  private void showImport(){
-  note(options,tx("الاستيراد الآمن إلى IRAQhub فقط. قاعدة قنوات Aurum ومفاتيحها والمفضلة الأصلية لا تتغير.",
-    "Safe import into IRAQhub only; no factory DB writes or hidden OEM data changes."));
-  link(tx("استيراد قاعدة قنوات SQLite","Import receiver SQLite channel DB"),
-    tx("فهرس قمر وتردد وSID للربط مع CHMAX (قراءة فقط)",
-      "Read-only satellite/transponder/SID channel crosswalk for CHMAX"),
-    ReceiverDbImportActivity.class);
-  link(tx("استيراد خدمات MPEG-TS","Discover services from MPEG-TS recording"),
-    tx("استخراج PAT/PMT/SDT والتحقق قبل حفظ القنوات",
-      "Extract verified PAT/PMT/SDT before any import"),
-    TsServiceImportActivity.class);
-  link(tx("استيراد CHL وفهارس اللوغوات","CHL and logo identity import"),
-    tx("مزامنة الهوية فقط، دون الكتابة على بيانات المصنع",
-      "Identity mapping only; factory records untouched"),
+  note(options,tx("ملفاتك آمنة: لا نغيّر قاعدة قنوات المصنع.",
+    "Your receiver's original channels will not be modified."));
+  link(tx("إضافة قنوات من ملف CHL","Add channels from CHL"),
+    tx("اختر ملف القنوات واربط اللوغوات","Choose a channel file and link logos"),
     LogoSourcesActivity.class);
-  option(tx("حفظ نسخة قنوات ZIP","Export channel backup ZIP"),
-    tx("حفظ نسخة مستقلة من بيانات IRAQhub","Save a separate IRAQhub backup"),
-    this::backupChannels);
-  option(tx("التحقق من نسخة ZIP","Verify a ZIP backup"),
-    tx("فحص سلامة الملف دون تعديل قاعدة القنوات","Integrity verification does not change channels"),
+  link(tx("فحص ملف قنوات SQLite","Inspect channel database"),
+    tx("قراءة فقط، دون استبدال قنواتك","Read-only, never replaces channels"),
+    ReceiverDbImportActivity.class);
+  option(tx("حفظ نسخة احتياطية","Back up my channels"),
+    tx("احفظ نسخة ZIP على USB","Save a ZIP backup to USB"),this::backupChannels);
+  option(tx("فحص نسخة احتياطية","Check a backup"),
+    tx("تأكد من سلامة ملف ZIP قبل استخدامه","Verify ZIP integrity"),
     this::verifyChannelsBackup);
-  note(options,tx("استعادة ZIP ودمج المفضلة في قاعدة المصنع غير مفعّلين قبل اختبارهما.",
-    "OEM ZIP restore and favourites merge remain disabled until fully verified."));
+  note(options,tx("استيراد خدمات MPEG-TS وأدوات الدمج الفنية في «المزيد».",
+    "MPEG-TS discovery and expert import tools are in More."));
  }
 
  private void showApi(){
@@ -366,6 +359,8 @@ public final class HubSettingsActivity extends HubActivity {
  private void showAdvanced(){
   note(options,tx("هذه الأدوات للتركيب وحل المشاكل فقط. لا تحتاجها للمشاهدة اليومية.",
     "These tools are for setup and troubleshooting, not daily TV use."));
+  link(tx("استيراد خدمات MPEG-TS","Discover MPEG-TS services"),"",
+    TsServiceImportActivity.class);
   link(tx("إعدادات 4:2:2 والمحركات","4:2:2 & decoders"),"",
     Unified422SettingsActivity.class);
   link(tx("اختبار تشغيل 4:2:2","Test 4:2:2 playback"),"",
