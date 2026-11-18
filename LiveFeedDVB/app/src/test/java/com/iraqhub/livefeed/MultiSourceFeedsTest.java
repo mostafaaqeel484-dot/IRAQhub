@@ -56,6 +56,15 @@ public final class MultiSourceFeedsTest {
         assertEquals(2, MultiSourceFeeds.merge(Arrays.asList(a), Arrays.asList(b)).size());
     }
 
+    @Test public void separateServicesOnSameTransponderStayVisible() {
+        FeedRepository.Feed serviceA = feed("Eutelsat 16A @ 16.0E", "11051",
+                "H", "3200", "Service A", "Live-Feed.net", "ON");
+        FeedRepository.Feed serviceB = feed("Eutelsat 16A @ 16.0E", "11051",
+                "H", "3200", "Service B", "Live-Feed.net", "ON");
+        assertEquals(2, MultiSourceFeeds.merge(Arrays.asList(serviceA, serviceB),
+                Collections.emptyList()).size());
+    }
+
     private static FeedRepository.Feed feed(String sat, String freq, String pol,
                                             String sr, String name, String source, String status) {
         FeedRepository.Feed f = new FeedRepository.Feed();
