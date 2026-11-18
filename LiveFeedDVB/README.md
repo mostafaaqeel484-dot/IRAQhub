@@ -1,4 +1,4 @@
-# LiveFeed DVB — Android TV 1.2.0
+# LiveFeed DVB — Android TV 1.2.1
 
 A standalone native Android TV receiver companion (Android 8.0–14+; no NDK; works on 32-bit ARM), **not** a modification of IRAQhub.
 
@@ -31,3 +31,7 @@ Permission `POST_NOTIFICATIONS` must be granted on Android 13+. Android power ma
 - The availability of THIS particular channel's public preview could not be independently verified in this development environment. The Telegram parser is covered by an HTML fixture unit test, **not** a live integration test.
 - If Telegram blocks the preview, it fails safely and the other two sources keep working. A reliable authorized API feed would need the channel owner's cooperation or an official credentialled integration.
 - Human reports are labelled REPORTED, not ON AIR. Freshness does not imply verified signal. Avoid publicly redistributing channel content without permission.
+
+### Telegram troubleshooting (v1.2.1)
+Tap **المصادر** in the app header to see the last fetch outcome for each source.
+Telegram diagnostics display HTTP/network errors, whether Telegram returned a public message list, and how many DVB posts the HTML parser recognized. **فحص الآن** forces a new check; **فتح قناة تيليگرام** opens the channel in a browser/app. The public preview is not guaranteed to work on every network or device, and a successful APK build does not validate access to it. No Telegram credentials are embedded.
