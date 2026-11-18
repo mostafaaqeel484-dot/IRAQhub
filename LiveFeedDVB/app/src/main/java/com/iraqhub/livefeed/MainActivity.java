@@ -382,8 +382,8 @@ public final class MainActivity extends Activity {
                         if (f.isReported()) reported++;
                         if (f.is422()) mode422++;
                     }
-                    status.setText("🟢 " + on + " مباشر   •   " + reported + " بلاغ نشط   •   "
-                            + feeds.size() + " تردد فريد   •   " + mode422 + " 4:2:2   •   مصدران");
+                    status.setText("🟢 " + on + " مباشر   •   " + reported + " بلاغ رصد   •   "
+                            + feeds.size() + " فيد غير مكرر   •   " + mode422 + " 4:2:2   •   مصدران");
                     busy = false;
                     render();
                     if (manual) toast("تم تحديث المعلومات");
