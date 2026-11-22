@@ -13,7 +13,7 @@ if(NOT DEFINED NATIVE422_FFMPEG_ROOT OR
 endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-foreach(LIB avformat avcodec swscale avutil)
+foreach(LIB avformat avcodec swscale swresample avutil)
  if(NOT EXISTS "${NATIVE422_FFMPEG_ROOT}/lib/lib${LIB}.so")
   message(FATAL_ERROR "Missing verified LGPL lib${LIB}.so")
  endif()
@@ -27,4 +27,4 @@ target_compile_options(iraqhub_native422 PRIVATE
 target_include_directories(iraqhub_native422 PRIVATE
  "${NATIVE422_FFMPEG_ROOT}/include")
 target_link_libraries(iraqhub_native422 PRIVATE
- avformat avcodec swscale avutil android log z m)
+ avformat avcodec swscale swresample avutil android log z m)
