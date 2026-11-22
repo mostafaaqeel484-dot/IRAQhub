@@ -13,7 +13,13 @@ public final class Native422OutputProfileTest {
     assertEquals(format.startsWith("420"),t.convert420);
    }
   }
-  assertEquals(12,Native422OutputProfile.modes().length);
+  assertEquals(13,Native422OutputProfile.modes().length);
+  Native422OutputProfile.Target compatibility=Native422OutputProfile.target(
+    Rx7Compat422Policy.DEFAULT_OUTPUT);
+  assertTrue(compatibility.valid());
+  assertEquals(800,compatibility.width);
+  assertEquals(450,compatibility.height);
+  assertTrue(compatibility.convert420);
  }
  @Test public void gpuDoesNotForceCpuResize(){
   Native422OutputProfile.Target t=Native422OutputProfile.target("gpu_native");
