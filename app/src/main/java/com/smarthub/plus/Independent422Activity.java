@@ -253,7 +253,7 @@ public final class Independent422Activity extends HubActivity {
    selectedDecoderMode=Mpv422FluidPolicy.decoderMode(
      prefs().getString("independent_422_decoder_mode",Mpv422FluidPolicy.SW));
    activeDecoderMode=selectedDecoderMode;
-   if("jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))){
+   if(ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))){
     selectedRenderMode=Native422OutputProfile.normalize(
       prefs().getString("native422_output_mode",
         Rx7Compat422Policy.DEFAULT_OUTPUT));
@@ -297,9 +297,9 @@ public final class Independent422Activity extends HubActivity {
   status.setTextSize(14);
   status.setBackgroundColor(0xbb050505);
   status.setPadding(dp(16),dp(9),dp(16),dp(9));
-  status.setText("jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))?
+  status.setText(ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))?
     tx("تهيئة المحرك المستقل FFmpeg JNI · فيديو فقط",
-      "Preparing direct FFmpeg JNI · video only"):
+      "Preparing ExtePlayer3 PTS / FFmpeg Android · video only"):
     tx("تهيئة محرك 4:2:2 المستقل · libmpv",
       "Preparing isolated 4:2:2 libmpv engine"));
   FrameLayout.LayoutParams top=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);
@@ -344,12 +344,12 @@ public final class Independent422Activity extends HubActivity {
   controlsOverlay.setVisibility(View.GONE);
   status.setVisibility(View.GONE);
   setContentView(videoRoot);
-  boolean jni="jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"));
+  boolean jni=ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"));
   if(jni){audioButton.setEnabled(false);decoderButton.setEnabled(false);
     subtitles.setEnabled(false);}
   prefs().edit().putString("independent_422_runtime","CREATED")
     .putString("decoder_kind",jni?
-      "DIRECT_LIBAVCODEC_JNI_OPTIONAL":"SOFTWARE_LIBMPV_INDEPENDENT_PROCESS").apply();
+      "EXTEPLAYER3_PTS_ANDROID_FFMPEG_JNI":"SOFTWARE_LIBMPV_INDEPENDENT_PROCESS").apply();
  }
 
  private Button small(String text){
@@ -389,7 +389,7 @@ public final class Independent422Activity extends HubActivity {
   if(renderButton==null)return;
   // Keep the remote button legible on 720p receivers; the dialog and
   // Stats show the full pixel format, bit depth and precise resolution.
-  boolean direct="jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))&&
+  boolean direct=ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))&&
     !nativeFallbackUsed;
   String label=direct?(Native422OutputProfile.GPU_FAST.equals(selectedRenderMode)?
       "Native GPU":Native422OutputProfile.target(selectedRenderMode).height+"p 420 FFmpeg"):
@@ -431,7 +431,7 @@ public final class Independent422Activity extends HubActivity {
    }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
  private void chooseRenderMode(){
-  boolean direct="jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"));
+  boolean direct=ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"));
   final String[] modes=direct?Native422OutputProfile.modes():
     Mpv422FluidPolicy.publicModes();
   String[] options=new String[modes.length];
@@ -587,7 +587,9 @@ public final class Independent422Activity extends HubActivity {
    noFrameSamples=0;
    renderStartedAt=SystemClock.elapsedRealtime();
   nativeLastFrames=0;nativeLastProgressAt=renderStartedAt;nativeSampledAt=renderStartedAt;
-  if("jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))&&
+  prefs().edit().putString("decoder_422_verification","EXTEPLAYER3_PTS_ANDROID_SESSION_START")
+    .putString("exteplayer3_android_port","UPSTREAM_PTS_CLOCK_AND_FFMPEG_SURFACE_NOT_COMPLETE_E2_PLAYER").apply();
+  if(ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))&&
       !nativeFallbackUsed){
    if(Native422Decoder.available()&&Native422Decoder.localAuthorizedTs(url)){
     final Native422Decoder direct=new Native422Decoder(this,videoRoot,
@@ -600,7 +602,7 @@ public final class Independent422Activity extends HubActivity {
          .putString("decoder_422_verification","DIRECT_JNI_FIRST_FRAME_ONLY")
          .putString("decoder_kind","NATIVE_LIBAVCODEC_SW").apply();
         display(tx("FFmpeg JNI · عُرض أول إطار؛ نراقب الحركة",
-          "FFmpeg JNI first frame rendered; verifying progression"));
+          "ExtePlayer3 PTS / FFmpeg Android first frame; watching motion"));
        }
        @Override public void failed(String reason){
         if(stopped||destroyed||callbackEpoch!=rendererEpoch)return;
@@ -768,10 +770,14 @@ public final class Independent422Activity extends HubActivity {
     android.os.Process.myPid()+
     "\nEngine: "+(Native422V2Profile.enabled(getIntent().getStringExtra("decoder_engine"))?
       "IRAQhub Native422 V2 session (FFmpeg via libmpv)":
+      ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))?
+      "ExtePlayer3 90k PTS core + FFmpeg Android Surface (partial port)":
       "libmpv / FFmpeg (NOT LibVLC)")+
     "\nNative JNI present: "+Native422Decoder.available()+
     "\nDirect rendered frames: "+(directDecoder==null?"NOT_ACTIVE":directDecoder.displayedFrames())+
     "\nNative fallback used: "+nativeFallbackUsed+
+    "\nNative output-dropped pictures: "+(directDecoder==null?"NOT_ACTIVE":directDecoder.droppedFrames())+
+    "\nExtePlayer3 source: UPSTREAM_PTS_CLOCK_PORT_ONLY / FFMPEG_ANDROID_OUTPUT"+
     "\nDirect FFmpeg rendered FPS: "+String.format(Locale.ROOT,"%.2f",
       prefs().getInt("native422_fps_x100",0)/100.0)+
     "\nNative output conversion: "+selectedRenderMode+
