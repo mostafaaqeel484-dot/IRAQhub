@@ -1,0 +1,18 @@
+ExtePlayer3 Android experimental PTS core — source attribution
+
+Upstream project: https://github.com/skyjet18/exteplayer3
+Vendored source: include/pts_clock.h (from upstream branch master)
+License: GPL-2.0-or-later (upstream original ExtePlayer3 sources).
+GPL-2.0 text is bundled in this assets directory.
+
+The Android experiment COMPILES the authentic upstream pts_clock.h and
+adapts its 90kHz MPEG-TS PTS corrections into the JNI software decoder.
+The upstream Enigma2 LinuxDVB output/driver and complete movie player
+are NOT shipped and are NOT claimed to be Android compatible.
+A further full player port requires replacing its LinuxDVB writer and
+other receiver-specific runtime dependencies.
+
+Project repository and corresponding integration source:
+https://github.com/mostafaaqeel484-dot/IRAQhub
+FFmpeg 9.0.2 is separately sourced and LGPL shared-linked. See
+assets/third_party/ffmpeg/LICENSE.md for original FFmpeg notices.
