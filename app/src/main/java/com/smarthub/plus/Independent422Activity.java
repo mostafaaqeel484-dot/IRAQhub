@@ -57,7 +57,7 @@ public final class Independent422Activity extends HubActivity {
  private long channelId=-1;
  private volatile String playbackUrl;
  private volatile int generation;
- private boolean videoOnly=true,bound,loaded;
+ private boolean videoOnly=true,bound,loaded,hudPinned;
  private volatile boolean stopped=true,destroyed;
  private long previousPositionAt;
  private double previousPosition=-1;
@@ -260,7 +260,7 @@ public final class Independent422Activity extends HubActivity {
     renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
     selectedDecoderMode=Mpv422FluidPolicy.SW;
     activeDecoderMode=Mpv422FluidPolicy.SW;
-    videoOnly=true; // Direct FFmpeg JNI first stage is video only.
+    videoOnly=prefs().getBoolean("exteplayer3_video_only",false);
    }
    if(Native422V2Profile.enabled(getIntent().getStringExtra("decoder_engine"))){
     selectedRenderMode=Native422V2Profile.renderMode();
@@ -345,7 +345,7 @@ public final class Independent422Activity extends HubActivity {
   status.setVisibility(View.GONE);
   setContentView(videoRoot);
   boolean jni=ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"));
-  if(jni){audioButton.setEnabled(false);decoderButton.setEnabled(false);
+  if(jni){audioButton.setEnabled(true);decoderButton.setEnabled(false);
     subtitles.setEnabled(false);}
   prefs().edit().putString("independent_422_runtime","CREATED")
     .putString("decoder_kind",jni?
@@ -392,7 +392,8 @@ public final class Independent422Activity extends HubActivity {
   boolean direct=ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))&&
     !nativeFallbackUsed;
   String label=direct?(Native422OutputProfile.GPU_FAST.equals(selectedRenderMode)?
-      "Native GPU":Native422OutputProfile.target(selectedRenderMode).height+"p 420 FFmpeg"):
+      "Original":Native422OutputProfile.target(selectedRenderMode).height+"p "+
+        (Native422OutputProfile.target(selectedRenderMode).convert420?"420":"422")):
     Mpv422FluidPolicy.GPU_NATIVE.equals(renderMode)?"GPU":
       Mpv422FluidPolicy.targetHeight(renderMode)+"p "+
       (Mpv422FluidPolicy.is422(renderMode)?"422":"420");
@@ -613,7 +614,7 @@ public final class Independent422Activity extends HubActivity {
           "Direct FFmpeg JNI failed; MPV fallback"));
         restartRenderer();
        }
-      },selectedRenderMode);
+      },selectedRenderMode,!videoOnly);
     directDecoder=direct;
     if(direct.start(url)){
      prefs().edit().putString("independent_422_runtime","DIRECT_FFMPEG_JNI_OPENING")
