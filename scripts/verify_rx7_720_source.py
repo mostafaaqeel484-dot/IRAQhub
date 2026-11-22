@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 root=pathlib.Path(__file__).resolve().parents[1]
 gradle=(root/'app/build.gradle').read_text()
 assert "versionName '7.2.0-rx7'" in gradle
-assert re.search(r'versionCode\s+72\b',gradle)
+assert re.search(r'versionCode\s+73\b',gradle)
 manifest=ET.parse(root/'app/src/main/AndroidManifest.xml').getroot()
 android='{http://schemas.android.com/apk/res/android}'
 names=[n.get(android+'name','') for n in manifest.iter() if n.tag=='activity']
