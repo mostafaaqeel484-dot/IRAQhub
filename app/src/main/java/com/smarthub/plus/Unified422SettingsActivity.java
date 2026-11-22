@@ -44,10 +44,10 @@ public final class Unified422SettingsActivity extends HubActivity {
   android.widget.CheckBox nativeExperiment=check(nativeSettings,
     tx("تجربة FFmpeg JNI على قناة DVB · مع رجوع MPV عند الفشل",
        "Try direct JNI FFmpeg on DVB · MPV fallback on failure"),
-    Native422Decoder.available()&&prefs().getBoolean("native422_experiment",false));
+    Native422Decoder.available()&&prefs().getBoolean(Rx7Compat422Policy.ENABLED,true));
   nativeExperiment.setEnabled(Native422Decoder.available());
   nativeExperiment.setOnCheckedChangeListener((v,on)->
-    prefs().edit().putBoolean("native422_experiment",
+    prefs().edit().putBoolean(Rx7Compat422Policy.ENABLED,
       on&&Native422Decoder.available()).apply());
   if(!Native422Decoder.available())
     note(nativeSettings,tx("مكتبة JNI لم تُبنَ أو تُضمّن في هذا الإصدار",
@@ -69,7 +69,7 @@ public final class Unified422SettingsActivity extends HubActivity {
    tx(" (HW تجريبي)", " (HW experimental)")+
    "\nLibVLC: "+Software422Profile.current(this)+
    "\nDirect JNI ARMv7: "+(Native422Decoder.available()?"COMPILED":"NOT_BUNDLED")+
-   " / "+(prefs().getBoolean("native422_experiment",false)?"OPT_IN":"OFF"));
+   " / "+(prefs().getBoolean(Rx7Compat422Policy.ENABLED,true)?"AUTO_ON_EXPLICIT_422":"OFF"));
  }
  private void chooseOutput(){
   final String[] values=Mpv422FluidPolicy.publicModes();
