@@ -449,8 +449,10 @@ public final class Independent422Activity extends HubActivity {
            Mpv422FluidPolicy.AUTO.equals(mode))
     options[i]=tx("تلقائي · 720p","Auto · 720p");
    else if(Mpv422FluidPolicy.GPU_NATIVE.equals(mode))
-    options[i]=tx("GPU أصلي بدون فلتر (صيغة المصدر)",
-      "GPU native without filter (source format)");
+    options[i]=direct?tx("الدقة الأصلية (بدون تصغير)",
+      "Original source resolution, no downscale"):
+      tx("GPU أصلي بدون فلتر (صيغة المصدر)",
+        "GPU native without filter (source format)");
    else
     options[i]=direct?
       Native422OutputProfile.target(mode).height+"p "+(mode.startsWith("420_")?"420":"422"):
@@ -738,7 +740,7 @@ public final class Independent422Activity extends HubActivity {
  private void display(String value){
   main.post(()->{if(!destroyed&&status!=null){
    status.setText(value);
-   status.setVisibility(controlsVisible?View.VISIBLE:View.GONE);
+   status.setVisibility(controlsVisible||hudPinned?View.VISIBLE:View.GONE);
   }});
  }
  private void toggleControls(){
@@ -748,7 +750,7 @@ public final class Independent422Activity extends HubActivity {
    if(controlsVisible&&controlsOverlay.getChildCount()>0)
     controlsOverlay.getChildAt(0).requestFocus();
   }
-  if(status!=null)status.setVisibility(controlsVisible?View.VISIBLE:View.GONE);
+  if(status!=null)status.setVisibility(controlsVisible||hudPinned?View.VISIBLE:View.GONE);
   prefs().edit().putBoolean("independent_422_controls_visible",controlsVisible).apply();
  }
  private void selectNativeAudio(){
@@ -879,19 +881,31 @@ public final class Independent422Activity extends HubActivity {
    .setMessage(report).setPositiveButton("OK",null).show();
  }
  @Override public boolean dispatchKeyEvent(KeyEvent event){
-  if(event.getKeyCode()==KeyEvent.KEYCODE_0||
-     event.getKeyCode()==KeyEvent.KEYCODE_NUMPAD_0){
-   if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0)
-    toggleControls();
+  int key=event.getKeyCode();
+  boolean down=event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0;
+  if(key==KeyEvent.KEYCODE_INFO||key==KeyEvent.KEYCODE_DPAD_CENTER){
+   if(down)toggleControls();
    return true;
   }
-  if(event.getAction()==KeyEvent.ACTION_DOWN&&event.getRepeatCount()==0){
-   if(event.getKeyCode()==KeyEvent.KEYCODE_BACK){
-    finish();return true;
+  if(key==KeyEvent.KEYCODE_0||key==KeyEvent.KEYCODE_NUMPAD_0){
+   if(down){
+    hudPinned=!hudPinned;
+    if(status!=null)status.setVisibility(
+       hudPinned||controlsVisible?View.VISIBLE:View.GONE);
    }
-   if(event.getKeyCode()==KeyEvent.KEYCODE_INFO){
-    diagnostics();return true;
-   }
+   return true;
+  }
+  if(key==KeyEvent.KEYCODE_PROG_GREEN){
+   if(down)toggleSkyBlueOutput();
+   return true;
+  }
+  if(key==KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK||key==KeyEvent.KEYCODE_PROG_YELLOW){
+   if(down)selectNativeAudio();
+   return true;
+  }
+  if(key==KeyEvent.KEYCODE_BACK||key==KeyEvent.KEYCODE_ESCAPE){
+   if(down)finish();
+   return true;
   }
   return super.dispatchKeyEvent(event);
  }
