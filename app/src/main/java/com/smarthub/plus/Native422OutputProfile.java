@@ -11,6 +11,7 @@ package com.smarthub.plus;
 final class Native422OutputProfile {
  static final String AUTO="auto_720";
  static final String GPU_FAST="gpu_native";
+ static final String COMPAT_450="420_450"; // 800×450, 8-bit 4:2:0 after software decode
  private static final int[] HEIGHTS={1080,720,560,360,240};
  static final class Target {
   final int width,height;
@@ -25,11 +26,12 @@ final class Native422OutputProfile {
  }
  private Native422OutputProfile(){}
  static String[] modes(){
-  String[] values=new String[12];
+  String[] values=new String[13];
   values[0]=AUTO;
   int n=1;
   for(int height:HEIGHTS)values[n++]="422_"+height;
   for(int height:HEIGHTS)values[n++]="420_"+height;
+  values[n++]=COMPAT_450;
   values[n]=GPU_FAST;
   return values;
  }
@@ -44,7 +46,7 @@ final class Native422OutputProfile {
   boolean convert420=mode.startsWith("420_");
   int height=Integer.parseInt(mode.substring(4));
   int width=height==1080?1920:height==720?1280:
-    height==560?996:height==360?640:426;
+    height==560?996:height==450?800:height==360?640:426;
   return new Target(normalize(selected),width,height,convert420,false);
  }
  static String nextAuto(String current,int droppedInSixSeconds,int samples){
