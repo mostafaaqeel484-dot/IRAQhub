@@ -361,7 +361,7 @@ public final class HubSettingsActivity extends HubActivity {
     "These tools are for setup and troubleshooting, not daily TV use."));
   link(tx("استيراد خدمات MPEG-TS","Discover MPEG-TS services"),"",
     TsServiceImportActivity.class);
-  link(tx("تشغيل 4:2:2 · محرك متوافق","4:2:2 compatibility player"),
+  link(tx("تشغيل 4:2:2 · ExtePlayer3 Android","4:2:2 ExtePlayer3 Android player"),
     tx("تشغيل مبسط مع FFmpeg وبرنامج احتياطي","Simple playback with FFmpeg and fallback"),
     Software422CenterActivity.class);
   link(tx("اختبار تشغيل 4:2:2","Test 4:2:2 playback"),"",
