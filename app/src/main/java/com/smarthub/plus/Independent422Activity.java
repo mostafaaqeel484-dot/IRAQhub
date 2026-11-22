@@ -389,8 +389,12 @@ public final class Independent422Activity extends HubActivity {
   if(renderButton==null)return;
   // Keep the remote button legible on 720p receivers; the dialog and
   // Stats show the full pixel format, bit depth and precise resolution.
-  String label=Mpv422FluidPolicy.GPU_NATIVE.equals(renderMode)?"GPU":
-    Mpv422FluidPolicy.targetHeight(renderMode)+"p "+
+  boolean direct="jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))&&
+    !nativeFallbackUsed;
+  String label=direct?(Native422OutputProfile.GPU_FAST.equals(selectedRenderMode)?
+      "Native GPU":Native422OutputProfile.target(selectedRenderMode).height+"p 420 FFmpeg"):
+    Mpv422FluidPolicy.GPU_NATIVE.equals(renderMode)?"GPU":
+      Mpv422FluidPolicy.targetHeight(renderMode)+"p "+
       (Mpv422FluidPolicy.is422(renderMode)?"422":"420");
   renderButton.setText(Mpv422FluidPolicy.AUTO.equals(selectedRenderMode)
     ?"Auto "+label:label);
@@ -427,18 +431,25 @@ public final class Independent422Activity extends HubActivity {
    }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
  }
  private void chooseRenderMode(){
-  final String[] modes=Mpv422FluidPolicy.publicModes();
+  boolean direct="jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"));
+  final String[] modes=direct?Native422OutputProfile.modes():
+    Mpv422FluidPolicy.publicModes();
   String[] options=new String[modes.length];
   for(int i=0;i<modes.length;i++){
    String mode=modes[i];
-   if(Mpv422FluidPolicy.AUTO.equals(mode))
-    options[i]=tx("تلقائي 420: 720 ← 560 ← 360 ← 240 عند تكرر سقوط الإطارات",
-      "Auto 420: 720 → 560 → 360 → 240 on sustained VO drops");
+   if(direct&&Native422OutputProfile.COMPAT_450.equals(mode))
+    options[i]=tx("توافق 4:2:2: تحويل إلى 4:2:0 · 800×450 (مقترح)",
+      "4:2:2 compatibility: convert to 4:2:0 · 800×450 (recommended)");
+   else if((direct&&Native422OutputProfile.AUTO.equals(mode))||
+           Mpv422FluidPolicy.AUTO.equals(mode))
+    options[i]=tx("تلقائي · 720p","Auto · 720p");
    else if(Mpv422FluidPolicy.GPU_NATIVE.equals(mode))
     options[i]=tx("GPU أصلي بدون فلتر (صيغة المصدر)",
       "GPU native without filter (source format)");
    else
-    options[i]=Mpv422FluidPolicy.readable(mode);
+    options[i]=direct?
+      Native422OutputProfile.target(mode).height+"p "+(mode.startsWith("420_")?"420":"422"):
+      Mpv422FluidPolicy.readable(mode);
   }
   int selected=0;
   for(int i=0;i<modes.length;i++)
@@ -454,8 +465,12 @@ public final class Independent422Activity extends HubActivity {
     activeDecoderMode=selectedDecoderMode;
     hardwareRecoveryUsed=false;
     nativeRecoveryUsed=false;
-    prefs().edit().putString("independent_422_fluid_mode",selectedRenderMode)
-      .remove("independent_422_auto_action").apply();
+    if(direct)
+      prefs().edit().putString("native422_output_mode",selectedRenderMode)
+        .remove("independent_422_auto_action").apply();
+    else
+      prefs().edit().putString("independent_422_fluid_mode",selectedRenderMode)
+        .remove("independent_422_auto_action").apply();
     updateRenderButton();
     dialog.dismiss();
     if(playbackUrl!=null&&!stopped)restartRenderer();
