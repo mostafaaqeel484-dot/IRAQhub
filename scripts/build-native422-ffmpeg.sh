@@ -49,6 +49,14 @@ export PATH="$NDK:$PATH"
  --extra-ldflags="-Wl,-z,relro,-z,now"
 make -j "$(nproc)"
 make install
+# Keep the upstream license and attribution with every native APK build.
+mkdir -p "$DEST/notices"
+for notice in LICENSE.md COPYING.LGPLv2.1 COPYING.LGPLv3; do
+ if [[ -f "$notice" ]]; then cp "$notice" "$DEST/notices/$notice"; fi
+done
+test -s "$DEST/notices/LICENSE.md"
+printf 'FFmpeg %s / official PGP fingerprint %s\n' "$VERSION" "$KEY_FINGERPRINT" \
+  > "$DEST/notices/FFmpeg-version-and-origin.txt"
 # Only the 4 LGPL runtime libraries required by the direct decoder.
 for name in avformat avcodec swscale avutil; do
  [[ -s "$DEST/lib/lib${name}.so" ]] || {
