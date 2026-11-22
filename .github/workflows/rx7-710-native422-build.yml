@@ -1,0 +1,141 @@
+name: IRAQhub RX7 7.1.0 - FFmpeg 4:2:2→4:2:0 ARMv7 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/rx7-710-native422-compat-20261122'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rx7-native710-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify correct SOURCE ZIP snapshot, not older RX6 branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "versionName '7.1.0-rx7'" app/build.gradle
+          grep -Fq "versionCode 72" app/build.gradle
+          test -s app/src/main/java/com/smarthub/plus/LiveFeedActivity.java
+          test -s app/src/main/java/com/smarthub/plus/RemoteDirectionPolicy.java
+          test -s app/src/main/java/com/smarthub/plus/ArtworkCachePruner.java
+          test -s app/src/main/java/com/smarthub/plus/ChannelLogoCache.kt
+          python3 scripts/verify_rx7_710_source.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Install exact SDK / build-tools / NDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865' 'cmake;3.22.1'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - name: Run all local Android JVM regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/rx7-test-${attempt}.log"
+            if gradle :app:testDebugUnitTest --no-daemon --stacktrace --max-workers=2 2>&1 | tee "$log"; then
+              echo "RX7 tests passed on attempt $attempt"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]] || ! grep -Eiq 'status code 429|Too Many Requests|HTTP 429|Connection reset|Read timed out' "$log"; then
+              echo "RX7 tests failed for a non-transient reason"
+              exit 1
+            fi
+            echo "Maven transient throttling: retrying dependency resolution"
+            sleep "$((attempt*20))"
+          done
+      - name: Fetch official FFmpeg 9.0.2; verify PGP and build LGPL ARMv7 libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build-native422-ffmpeg.sh "$GITHUB_WORKSPACE/.native422/ffmpeg-armv7"
+          mkdir -p app/src/main/assets/third_party/ffmpeg
+          cp "$GITHUB_WORKSPACE"/.native422/ffmpeg-armv7/notices/* app/src/main/assets/third_party/ffmpeg/
+          test -s app/src/main/assets/third_party/ffmpeg/LICENSE.md
+          test -s app/src/main/assets/third_party/ffmpeg/FFmpeg-version-and-origin.txt
+      - name: Assemble side-by-side X5M preview (ARMv7 only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/rx7-apk-${attempt}.log"
+            if gradle :app:assembleRx6OriginalPreview -Pnative422FfmpegRoot="$GITHUB_WORKSPACE/.native422/ffmpeg-armv7" --no-daemon --stacktrace --max-workers=2 2>&1 | tee "$log"; then
+              echo "RX7 APK assembled on attempt $attempt"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]] || ! grep -Eiq 'status code 429|Too Many Requests|HTTP 429|Connection reset|Read timed out' "$log"; then
+              echo "RX7 APK compilation failed for a non-transient reason"
+              exit 1
+            fi
+            sleep "$((attempt*20))"
+          done
+      - name: Verify exact final APK contents, signature and Android 14 compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/rx6OriginalPreview/app-rx6OriginalPreview.apk
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          test -s "$APK"
+          unzip -tq "$APK"
+          "$BT/zipalign" -c -v 4 "$APK"
+          "$BT/apksigner" verify --min-sdk-version 34 --verbose --print-certs "$APK"
+          "$BT/aapt" dump badging "$APK" | tee "$RUNNER_TEMP/iraqhub-badging.txt"
+          grep -F "package: name='com.smarthub.plus.rx7native710'" "$RUNNER_TEMP/iraqhub-badging.txt"
+          grep -F "native-code: 'armeabi-v7a'" "$RUNNER_TEMP/iraqhub-badging.txt"
+          python3 - "$APK" <<'PY'
+          import sys,zipfile
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              files=set(apk.namelist())
+              assert any(name.startswith('classes') and name.endswith('.dex') for name in files)
+              so=[name for name in files if name.startswith('lib/') and name.endswith('.so')]
+              assert so and all(name.startswith('lib/armeabi-v7a/') for name in so),so
+              assert 'lib/armeabi-v7a/libc++_shared.so' in files
+              for lib in ('avformat','avcodec','avutil','swscale','iraqhub_native422'):
+                  assert 'lib/armeabi-v7a/lib'+lib+'.so' in files,lib
+              assert 'assets/third_party/ffmpeg/LICENSE.md' in files
+              assert 'assets/third_party/ffmpeg/FFmpeg-version-and-origin.txt' in files
+              print('Verified PGP-built LGPL FFmpeg + direct JNI ARMv7 native libraries:',len(so))
+          PY
+          unzip -p "$APK" lib/armeabi-v7a/libiraqhub_native422.so > "$RUNNER_TEMP/rx7-native422.so"
+          readelf -Ws "$RUNNER_TEMP/rx7-native422.so" | grep -F 'Java_com_smarthub_plus_Native422Decoder_nativeRun'
+          for lib in avformat avcodec avutil swscale; do
+            unzip -p "$APK" "lib/armeabi-v7a/lib${lib}.so" > "$RUNNER_TEMP/lib${lib}.so"
+            file "$RUNNER_TEMP/lib${lib}.so" | grep -E 'ELF 32-bit LSB shared object, ARM'
+          done
+          mkdir -p dist
+          cp "$APK" dist/IRAQhub_RX7_7.1.0_Native422_420p450_X5M_Debug.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
+      - name: Store signed preview in a draft pre-release (do not publish as stable)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="iraqhub-rx7-native422-710-${GITHUB_RUN_ID}"
+          gh release create "$TAG" \
+            dist/IRAQhub_RX7_7.1.0_Native422_420p450_X5M_Debug.apk \
+            dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --draft --prerelease \
+            --title "IRAQhub RX7 7.1.0 · Native FFmpeg YUV420P 450p · X5M Device Test" \
+            --notes "RX7 7.1.0 experimental direct FFmpeg 9.0.2 libavcodec/libswscale SW decoding of DVB 4:2:2, converting 800x450 frames to YUV420P then RGBA Surface (NOT H.264 re-encoding). Uses authenticated LGPL FFmpeg ARMv7 shared libraries and PGP verification. Explicit 4:2:2 mode only, one-shot MPV fallback, preserved RX7 Simple UI, CHMAX and Feeds. Source TS capture must work first. Device FPS and picture motion UNVERIFIED. CI unit tests, ARMv7 package, zip alignment and Android 14 signature checked. This is a side-by-side, temporary DEBUG-signed APK (com.smarthub.plus.rx7native710). Live DVB scan, 4:2:2, EPG, feed website parsing and remote controls remain unverified on the physical X5M. Do not replace production or treat as stable."
+          mkdir -p "$RUNNER_TEMP/apk-verify"
+          gh release download "$TAG" -D "$RUNNER_TEMP/apk-verify" -p '*.apk' -p SHA256SUMS.txt
+          (cd "$RUNNER_TEMP/apk-verify" && sha256sum -c SHA256SUMS.txt)
+          cmp "dist/IRAQhub_RX7_7.1.0_Native422_420p450_X5M_Debug.apk" \
+            "$RUNNER_TEMP/apk-verify/IRAQhub_RX7_7.1.0_Native422_420p450_X5M_Debug.apk"
+          echo "Verified draft: https://github.com/${GH_REPO}/releases/tag/${TAG}"
