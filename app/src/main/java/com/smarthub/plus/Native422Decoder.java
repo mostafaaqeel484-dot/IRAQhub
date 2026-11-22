@@ -46,6 +46,7 @@ final class Native422Decoder implements SurfaceHolder.Callback,AutoCloseable {
  private static native void nativeStop(long handle);
  private static native void nativeDestroy(long handle);
  private static native long nativeFrames(long handle);
+ private static native long nativeDropped(long handle);
  private final Object handleLock=new Object();
  private final ExecutorService decodeThread=Executors.newSingleThreadExecutor(r->{
   Thread worker=new Thread(r,"iraqhub-direct-ffmpeg-avcodec");
@@ -112,6 +113,11 @@ final class Native422Decoder implements SurfaceHolder.Callback,AutoCloseable {
  long displayedFrames(){
   synchronized(handleLock){
    return handle==0?0:nativeFrames(handle);
+  }
+ }
+ long droppedFrames(){
+  synchronized(handleLock){
+   return handle==0?0:nativeDropped(handle);
   }
  }
  @Override public void surfaceCreated(SurfaceHolder holder){startIfReady();}
