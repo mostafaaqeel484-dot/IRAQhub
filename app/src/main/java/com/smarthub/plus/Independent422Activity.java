@@ -50,7 +50,7 @@ public final class Independent422Activity extends HubActivity {
  private Mpv422Renderer renderer;
  private Native422Decoder directDecoder;
  private boolean nativeFallbackUsed;
- private long nativeLastFrames,nativeLastProgressAt;
+ private long nativeLastFrames,nativeLastProgressAt,nativeSampledAt;
  private LiveTsRelay relay;
  private Auto422RuntimeMonitor monitor;
  private long audioToken;
@@ -82,8 +82,11 @@ public final class Independent422Activity extends HubActivity {
     long frames=directDecoder.displayedFrames();
     long now=SystemClock.elapsedRealtime();
     if(frames>nativeLastFrames){
-     nativeLastFrames=frames;nativeLastProgressAt=now;
+     int fpsX100=Rx7Compat422Policy.fpsX100(nativeLastFrames,frames,
+       now-nativeSampledAt);
+     nativeLastFrames=frames;nativeLastProgressAt=now;nativeSampledAt=now;
      prefs().edit().putLong("native422_rendered_frames",frames)
+       .putInt("native422_fps_x100",fpsX100)
        .putString("decoder_422_verification","JNI_ANATIVEWINDOW_FRAMES_ADVANCING")
        .putLong("native422_frame_at",System.currentTimeMillis()).apply();
     }else if(!nativeFallbackUsed&&now-renderStartedAt>18000&&
@@ -252,7 +255,8 @@ public final class Independent422Activity extends HubActivity {
    activeDecoderMode=selectedDecoderMode;
    if("jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))){
     selectedRenderMode=Native422OutputProfile.normalize(
-      prefs().getString("native422_output_mode",Native422OutputProfile.AUTO));
+      prefs().getString("native422_output_mode",
+        Rx7Compat422Policy.DEFAULT_OUTPUT));
     renderMode=Mpv422FluidPolicy.initialRenderMode(selectedRenderMode);
     selectedDecoderMode=Mpv422FluidPolicy.SW;
     activeDecoderMode=Mpv422FluidPolicy.SW;
@@ -535,8 +539,12 @@ public final class Independent422Activity extends HubActivity {
        @Override public void error(String cause){
         if(stopped||destroyed||session!=generation)return;
         prefs().edit().putString("independent_422_runtime","TS_ERROR")
-         .putString("decoder_last_error",cause).apply();
-        display(tx("فشل تدفق DVB: ","DVB stream failure: ")+cause);
+         .putString("decoder_last_error",cause)
+         .putString("native422_capture_failure",cause).apply();
+        display(Rx7Compat422Policy.isCaptureMissing(cause)?
+          tx("الرسيفر لم يسلّم بيانات MPEG-TS. افحص مسار الالتقاط قبل تغيير محرك الفيديو.",
+            "Firmware returned no MPEG-TS. Check the capture path before changing decoders."):
+          tx("فشل تدفق DVB: ","DVB stream failure: ")+cause);
        }
       });
     if(stopped||destroyed||session!=generation)newRelay.close();
@@ -563,7 +571,7 @@ public final class Independent422Activity extends HubActivity {
    previousVoDrops=-1;previousDropSampleAt=0;poorDropSamples=0;
    noFrameSamples=0;
    renderStartedAt=SystemClock.elapsedRealtime();
-  nativeLastFrames=0;nativeLastProgressAt=renderStartedAt;
+  nativeLastFrames=0;nativeLastProgressAt=renderStartedAt;nativeSampledAt=renderStartedAt;
   if("jni_ffmpeg".equals(getIntent().getStringExtra("decoder_engine"))&&
       !nativeFallbackUsed){
    if(Native422Decoder.available()&&Native422Decoder.localAuthorizedTs(url)){
@@ -749,6 +757,10 @@ public final class Independent422Activity extends HubActivity {
     "\nNative JNI present: "+Native422Decoder.available()+
     "\nDirect rendered frames: "+(directDecoder==null?"NOT_ACTIVE":directDecoder.displayedFrames())+
     "\nNative fallback used: "+nativeFallbackUsed+
+    "\nDirect FFmpeg rendered FPS: "+String.format(Locale.ROOT,"%.2f",
+      prefs().getInt("native422_fps_x100",0)/100.0)+
+    "\nNative output conversion: "+selectedRenderMode+
+    "\nFFmpeg decode -> YUV420P -> RGBA Surface (no H264 re-encode)"+
     "\nAudio decoding: "+(videoOnly?"DISABLED (aid=no)":"ENABLED")+
     "\nProfile: "+Software422Profile.effective(this)+
      "\nOutput selection: "+selectedRenderMode+
