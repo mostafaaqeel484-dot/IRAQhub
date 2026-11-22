@@ -315,6 +315,10 @@ public final class Independent422Activity extends HubActivity {
   audioButton=small("");
   updateAudioButton();
   audioButton.setOnClickListener(v->{
+   if(ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))
+     &&!nativeFallbackUsed){
+    selectNativeAudio();return;
+   }
    videoOnly=!videoOnly;
    prefs().edit().putBoolean("independent_422_video_only",videoOnly).apply();
    updateAudioButton();
@@ -746,6 +750,53 @@ public final class Independent422Activity extends HubActivity {
   }
   if(status!=null)status.setVisibility(controlsVisible?View.VISIBLE:View.GONE);
   prefs().edit().putBoolean("independent_422_controls_visible",controlsVisible).apply();
+ }
+ private void selectNativeAudio(){
+  if(!ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))
+     ||nativeFallbackUsed){
+   display(tx("مسارات صوت MPV من أزرار المشغّل","Use MPV controls for audio"));return;
+  }
+  Native422Decoder active=directDecoder;
+  if(active==null)return;
+  if(videoOnly){
+   new android.app.AlertDialog.Builder(this)
+    .setTitle(tx("صوت ExtePlayer3 Android","ExtePlayer3 Android audio"))
+    .setMessage(tx("وضع فيديو فقط نشط. تفعيل الصوت سيعيد فتح المشغّل دون إعادة ضبط القمر.",
+      "Video-only mode is active. Enabling audio reopens this player without retuning."))
+    .setPositiveButton(tx("تفعيل الصوت","Enable audio"),(d,w)->{
+     videoOnly=false;prefs().edit().putBoolean("exteplayer3_video_only",false).apply();
+     updateAudioButton();restartRenderer();
+    }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
+   return;
+  }
+  List<Native422Decoder.AudioOption> tracks=active.audioTracks();
+  String[] labels=new String[tracks.size()+1];
+  labels[0]=tx("فيديو فقط · إيقاف الصوت","Video only · mute audio");
+  for(int i=0;i<tracks.size();i++)labels[i+1]=tracks.get(i).label();
+  new android.app.AlertDialog.Builder(this)
+   .setTitle(tx("مسارات صوت MPEG-TS","MPEG-TS audio tracks"))
+   .setItems(labels,(dialog,index)->{
+    if(index==0){
+     videoOnly=true;prefs().edit().putBoolean("exteplayer3_video_only",true).apply();
+     updateAudioButton();restartRenderer();
+    }else{
+     Native422Decoder current=directDecoder;
+     if(current!=null)current.selectAudio(tracks.get(index-1).streamIndex);
+    }
+   }).setNegativeButton(tx("إلغاء","Cancel"),null).show();
+ }
+ private void toggleSkyBlueOutput(){
+  if(!ExtePlayer3AndroidPolicy.isNativeRoute(getIntent().getStringExtra("decoder_engine"))
+     ||nativeFallbackUsed){
+   renderMode=Mpv422FluidPolicy.GPU_NATIVE.equals(renderMode)?
+      Mpv422FluidPolicy.P720:Mpv422FluidPolicy.GPU_NATIVE;
+   updateRenderButton();restartRenderer();return;
+  }
+  selectedRenderMode=ExtePlayer3AndroidPolicy.toggleOutput(selectedRenderMode);
+  prefs().edit().putString("native422_output_mode",selectedRenderMode).apply();
+  updateRenderButton();
+  display(tx("تبديل العرض: ","Output: ")+ExtePlayer3AndroidPolicy.display(selectedRenderMode));
+  restartRenderer();
  }
  private void subtitlePicker(){
   Mpv422Renderer engine=renderer;
