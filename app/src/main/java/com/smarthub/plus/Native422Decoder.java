@@ -1,6 +1,11 @@
 package com.smarthub.plus;
 
 import android.content.Context;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioTrack;
+import java.util.ArrayList;
+import java.util.List;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -42,11 +47,13 @@ final class Native422Decoder implements SurfaceHolder.Callback,AutoCloseable {
  }
  private static native long nativeCreate();
  private native int nativeRun(long handle,String url,Surface surface,
-                                    int width,int height,boolean convert420);
+                                    int width,int height,boolean convert420,
+                                    boolean audioEnabled);
  private static native void nativeStop(long handle);
  private static native void nativeDestroy(long handle);
  private static native long nativeFrames(long handle);
  private static native long nativeDropped(long handle);
+ private static native void nativeSelectAudio(long handle,int streamIndex);
  private final Object handleLock=new Object();
  private final ExecutorService decodeThread=Executors.newSingleThreadExecutor(r->{
   Thread worker=new Thread(r,"iraqhub-direct-ffmpeg-avcodec");
@@ -57,12 +64,37 @@ final class Native422Decoder implements SurfaceHolder.Callback,AutoCloseable {
  private final SurfaceView view;
  private final Listener listener;
  private final Native422OutputProfile.Target target;
+ private final Context app;
+ private final boolean audioEnabled;
+ private final Object audioLock=new Object();
+ private final ArrayList<AudioOption> tracks=new ArrayList<>();
+ private AudioTrack audioOutput;
+ static final class AudioOption {
+  final int streamIndex;
+  final String language,codec;
+  AudioOption(int streamIndex,String language,String codec){
+   this.streamIndex=streamIndex;this.language=language;this.codec=codec;
+  }
+  String label(){return language+" · "+codec+" · stream "+streamIndex;}
+ }
+ List<AudioOption> audioTracks(){
+  synchronized(audioLock){return new ArrayList<>(tracks);}
+ }
+ boolean selectAudio(int index){
+  synchronized(handleLock){
+   if(handle==0||closed)return false;
+   nativeSelectAudio(handle,index);
+   return true;
+  }
+ }
  private String url;
  private long handle;
  private boolean started,closed,reported;
  private int resultCode;
- Native422Decoder(Context c,FrameLayout container,Listener listener,String mode){
-  this.listener=listener;
+ Native422Decoder(Context c,FrameLayout container,Listener listener,String mode,
+                  boolean audioEnabled){
+  this.listener=listener;this.app=c.getApplicationContext();
+  this.audioEnabled=audioEnabled;
   target=Native422OutputProfile.target(mode);
   view=new SurfaceView(c);
   view.setKeepScreenOn(true);
@@ -87,11 +119,13 @@ final class Native422Decoder implements SurfaceHolder.Callback,AutoCloseable {
   final Surface surface=view.getHolder().getSurface();
   decodeThread.execute(()->{
    try{
-    resultCode=nativeRun(id,url,surface,target.width,target.height,target.convert420);
+    resultCode=nativeRun(id,url,surface,target.width,target.height,target.convert420,
+                             audioEnabled);
    }catch(Throwable error){
     resultCode=-101;
     Log.e("IRAQhubNative422","Native AVCodec bridge failed",error);
    }finally{
+    releaseAudio();
     synchronized(handleLock){
      if(handle==id){nativeDestroy(id);handle=0;}
     }
@@ -101,6 +135,59 @@ final class Native422Decoder implements SurfaceHolder.Callback,AutoCloseable {
     });
    }
   });
+ }
+ /** Track IDs are real PMT stream indices, never user-defined audio names. */
+ @SuppressWarnings("unused")
+ private void onNativeAudioTrack(int stream,String language,String codec){
+  synchronized(audioLock){
+   for(AudioOption item:tracks)if(item.streamIndex==stream)return;
+   tracks.add(new AudioOption(stream,language,codec));
+  }
+ }
+ private void releaseAudioLocked(){
+  if(audioOutput!=null){
+   try{audioOutput.pause();audioOutput.flush();audioOutput.release();}
+   catch(Throwable ignored){}
+   audioOutput=null;
+  }
+ }
+ private void releaseAudio(){synchronized(audioLock){releaseAudioLocked();}}
+ @SuppressWarnings("unused")
+ private void onNativeAudioReset(){releaseAudio();}
+ @SuppressWarnings("unused")
+ private void onNativePcm(byte[] pcm,int length){
+  if(closed||!audioEnabled||pcm==null||length<=0||length>pcm.length)return;
+  synchronized(audioLock){
+   if(closed)return;
+   try{
+    if(audioOutput==null){
+     final int min=AudioTrack.getMinBufferSize(48000,
+       AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT);
+     if(min<=0)return;
+     AudioTrack fresh=new AudioTrack.Builder()
+       .setAudioAttributes(new AudioAttributes.Builder()
+         .setUsage(AudioAttributes.USAGE_MEDIA)
+         .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
+       .setAudioFormat(new AudioFormat.Builder()
+         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+         .setSampleRate(48000).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+         .build())
+       .setBufferSizeInBytes(Math.max(min*2,48000*4/2))
+       .setTransferMode(AudioTrack.MODE_STREAM).build();
+     if(fresh.getState()!=AudioTrack.STATE_INITIALIZED){
+      fresh.release();return;
+     }
+     audioOutput=fresh;
+     fresh.setVolume(Math.max(0f,Math.min(1f,
+       app.getSharedPreferences("smarthub",0).getInt("dvb_volume",35)/100f)));
+     fresh.play();
+    }
+    audioOutput.write(pcm,0,length,AudioTrack.WRITE_BLOCKING);
+   }catch(Throwable failure){
+    Log.w("IRAQhubEP3","Android PCM output unavailable",failure);
+    releaseAudioLocked();
+   }
+  }
  }
  /** This callback is invoked by native FFmpeg only after an RGBA frame was
   * successfully presented via ANativeWindow_unlockAndPost. */
@@ -132,6 +219,7 @@ final class Native422Decoder implements SurfaceHolder.Callback,AutoCloseable {
   if(closed)return;
   closed=true;
   stop();
+  releaseAudio();
   view.getHolder().removeCallback(this);
   decodeThread.shutdown();
   android.view.ViewParent parent=view.getParent();
