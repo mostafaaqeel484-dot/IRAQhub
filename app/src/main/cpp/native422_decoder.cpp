@@ -13,6 +13,7 @@
 #include <memory>
 #include <new>
 #include <vector>
+#include "exteplayer3_android_clock.h"
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -29,6 +30,7 @@ struct Session {
  std::atomic<bool> stopped{false};
  std::atomic<long long> displayed{0};
  std::atomic<long long> decoded{0};
+ std::atomic<long long> dropped{0};
 };
 int interrupt(void* opaque) {
  Session* s=reinterpret_cast<Session*>(opaque);
@@ -184,6 +186,9 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
  if(!klass)return -19;
  jmethodID onFrame=env->GetMethodID(klass,"onNativeFrame","(I)V");
  if(!onFrame){env->DeleteLocalRef(klass);return -19;}
+ // Real ExtePlayer3 pts_clock.h corrects MPEG-TS PTS wrap and discontinuities.
+ // Android output is FFmpeg+ANativeWindow, never LinuxDVB ioctl or fake E2 5002.
+ ExtePlayer3AndroidClock ep3Clock;
  auto begin=std::chrono::steady_clock::now();
  int idleErrors=0,sendErrors=0;
  // FFmpeg's send/receive API requires draining BEFORE retrying packets
@@ -194,7 +199,20 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
    if(received==AVERROR(EAGAIN)||received==AVERROR_EOF)break;
    if(received<0)break;
    session->decoded.fetch_add(1,std::memory_order_relaxed);
-   if(output->present(frame.get(),outWidth,outHeight,use420,window)){
+   bool render=true;
+   if(frame->best_effort_timestamp!=AV_NOPTS_VALUE){
+    const int64_t pts90=av_rescale_q(frame->best_effort_timestamp,
+      stream->time_base,AVRational{1,90000});
+    int64_t lateUs=0;
+    render=ep3Clock.paceVideo(stream,pts90,session->stopped,&lateUs);
+    // Drop the OUTPUT of a very late picture, never the compressed input
+    // or codec reference frame. Live soccer must not drift seconds behind.
+    if(lateUs>350000&&session->displayed.load(std::memory_order_relaxed)>0){
+     session->dropped.fetch_add(1,std::memory_order_relaxed);
+     render=false;
+    }
+   }
+   if(render&&output->present(frame.get(),outWidth,outHeight,use420,window)){
     const auto shown=session->displayed.fetch_add(1,std::memory_order_relaxed)+1;
     if(shown==1||shown%60==0){
      env->CallVoidMethod(self,onFrame,static_cast<jint>(shown));
@@ -262,4 +280,10 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_com_smarthub_plus_Native422Decoder_nativeFrames(JNIEnv*,jclass,jlong id){
  Session* s=reinterpret_cast<Session*>(id);
  return s?s->displayed.load(std::memory_order_relaxed):0;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_smarthub_plus_Native422Decoder_nativeDropped(JNIEnv*,jclass,jlong id){
+ Session* s=reinterpret_cast<Session*>(id);
+ return s?s->dropped.load(std::memory_order_relaxed):0;
 }
