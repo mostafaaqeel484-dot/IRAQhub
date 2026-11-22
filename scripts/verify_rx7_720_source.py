@@ -135,7 +135,7 @@ assert 'Rx7Compat422Policy.fpsX100' in independent
 assert 'native422_output_mode' in independent
 assert 'Rx7Compat422Policy.isCaptureMissing' in independent
 assert 'Native422Decoder.available()' in center
-assert '4:2:2 compatibility' in center
+assert 'ExtePlayer3 Android' in center
 assert 'AV_PIX_FMT_YUV420P' in jni and 'ANativeWindow_lock' in jni
 assert 'FFmpeg 9.0.2' in (root/'docs/RX7_710_NATIVE422_COMPAT.md').read_text()
 assert 'gpg --batch --verify source.tar.xz.asc' in buildscript
