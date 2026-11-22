@@ -472,16 +472,16 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
   // when needed; do not remove unverified fallback classes from the APK.
   // Explicit compatibility selection only; ordinary 4:2:0 TV playback stays
   // on OEM decoder. Native FFmpeg is packaged and user may disable it.
-  boolean useNative=Rx7Compat422Policy.direct(Native422Decoder.available(),
+  boolean useNative=ExtePlayer3AndroidPolicy.prefer(Native422Decoder.available(),
     prefs().getBoolean(Rx7Compat422Policy.ENABLED,true),SafePlaybackMode.enabled(this));
-  String engine=useNative?"jni_ffmpeg":"unified";
+  String engine=useNative?ExtePlayer3AndroidPolicy.ID:"unified";
   prefs().edit().putString("decoder_422_engine",engine).apply();
   launchSoftware(ch,engine);
  }
  private void launchSoftware(ReceiverCatalog.Channel ch,String engine){
   new ChannelScope("",satellite,ch.tv,favoritesOnly,alphabetical,group,providerFilter).save(this);
   startActivity(new Intent(this,
-    ("isolated".equals(engine)||"jni_ffmpeg".equals(engine)||
+    ("isolated".equals(engine)||ExtePlayer3AndroidPolicy.isNativeRoute(engine)||
         Native422V2Profile.enabled(engine))?
       Independent422Activity.class:SoftwareVideoActivity.class)
    .putExtra("dvb_channel",ch.id).putExtra("decoder_engine",engine)
