@@ -1,0 +1,144 @@
+name: IRAQhub RX7 7.2.0 - ExtePlayer3 Android PTS/FFmpeg ARMv7 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/rx7-720-exteplayer3-android-core-20261123'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rx7-exte720-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify correct SOURCE ZIP snapshot, not older RX6 branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "versionName '7.2.0-rx7'" app/build.gradle
+          grep -Fq "versionCode 73" app/build.gradle
+          test -s app/src/main/java/com/smarthub/plus/LiveFeedActivity.java
+          test -s app/src/main/java/com/smarthub/plus/RemoteDirectionPolicy.java
+          test -s app/src/main/java/com/smarthub/plus/ArtworkCachePruner.java
+          test -s app/src/main/java/com/smarthub/plus/ChannelLogoCache.kt
+          python3 scripts/verify_rx7_720_source.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Install exact SDK / build-tools / NDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;29.0.14206865' 'cmake;3.22.1'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - name: Run all local Android JVM regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/rx7-test-${attempt}.log"
+            if gradle :app:testDebugUnitTest --no-daemon --stacktrace --max-workers=2 2>&1 | tee "$log"; then
+              echo "RX7 tests passed on attempt $attempt"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]] || ! grep -Eiq 'status code 429|Too Many Requests|HTTP 429|Connection reset|Read timed out' "$log"; then
+              echo "RX7 tests failed for a non-transient reason"
+              exit 1
+            fi
+            echo "Maven transient throttling: retrying dependency resolution"
+            sleep "$((attempt*20))"
+          done
+      - name: Fetch official FFmpeg 9.0.2; verify PGP and build LGPL ARMv7 libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build-native422-ffmpeg.sh "$GITHUB_WORKSPACE/.native422/ffmpeg-armv7"
+          mkdir -p app/src/main/assets/third_party/ffmpeg
+          cp "$GITHUB_WORKSPACE"/.native422/ffmpeg-armv7/notices/* app/src/main/assets/third_party/ffmpeg/
+          test -s app/src/main/assets/third_party/ffmpeg/LICENSE.md
+          test -s app/src/main/assets/third_party/ffmpeg/FFmpeg-version-and-origin.txt
+      - name: Assemble side-by-side X5M preview (ARMv7 only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            log="$RUNNER_TEMP/rx7-apk-${attempt}.log"
+            if gradle :app:assembleRx6OriginalPreview -Pnative422FfmpegRoot="$GITHUB_WORKSPACE/.native422/ffmpeg-armv7" --no-daemon --stacktrace --max-workers=2 2>&1 | tee "$log"; then
+              echo "RX7 APK assembled on attempt $attempt"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]] || ! grep -Eiq 'status code 429|Too Many Requests|HTTP 429|Connection reset|Read timed out' "$log"; then
+              echo "RX7 APK compilation failed for a non-transient reason"
+              exit 1
+            fi
+            sleep "$((attempt*20))"
+          done
+      - name: Verify exact final APK contents, signature and Android 14 compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/rx6OriginalPreview/app-rx6OriginalPreview.apk
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          test -s "$APK"
+          unzip -tq "$APK"
+          "$BT/zipalign" -c -v 4 "$APK"
+          "$BT/apksigner" verify --min-sdk-version 34 --verbose --print-certs "$APK"
+          "$BT/aapt" dump badging "$APK" | tee "$RUNNER_TEMP/iraqhub-badging.txt"
+          grep -F "package: name='com.smarthub.plus.rx7ep3720'" "$RUNNER_TEMP/iraqhub-badging.txt"
+          grep -F "native-code: 'armeabi-v7a'" "$RUNNER_TEMP/iraqhub-badging.txt"
+          python3 - "$APK" <<'PY'
+          import sys,zipfile
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              files=set(apk.namelist())
+              assert any(name.startswith('classes') and name.endswith('.dex') for name in files)
+              so=[name for name in files if name.startswith('lib/') and name.endswith('.so')]
+              assert so and all(name.startswith('lib/armeabi-v7a/') for name in so),so
+              assert 'lib/armeabi-v7a/libc++_shared.so' in files
+              for lib in ('avformat','avcodec','avutil','swscale','swresample','iraqhub_native422'):
+                  assert 'lib/armeabi-v7a/lib'+lib+'.so' in files,lib
+              assert 'assets/third_party/exteplayer3/GPL-2.0.txt' in files
+              assert 'assets/third_party/exteplayer3/NOTICE.txt' in files
+              assert 'assets/third_party/ffmpeg/LICENSE.md' in files
+              assert 'assets/third_party/ffmpeg/FFmpeg-version-and-origin.txt' in files
+              print('Verified PGP-built LGPL FFmpeg + direct JNI ARMv7 native libraries:',len(so))
+          PY
+          unzip -p "$APK" lib/armeabi-v7a/libiraqhub_native422.so > "$RUNNER_TEMP/rx7-native422.so"
+          readelf -Ws "$RUNNER_TEMP/rx7-native422.so" | grep -F 'Java_com_smarthub_plus_Native422Decoder_nativeRun'
+          readelf -Ws "$RUNNER_TEMP/rx7-native422.so" | grep -F 'Java_com_smarthub_plus_Native422Decoder_nativeSelectAudio'
+          for lib in avformat avcodec avutil swscale swresample; do
+            unzip -p "$APK" "lib/armeabi-v7a/lib${lib}.so" > "$RUNNER_TEMP/lib${lib}.so"
+            file "$RUNNER_TEMP/lib${lib}.so" | grep -E 'ELF 32-bit LSB shared object, ARM'
+          done
+          mkdir -p dist
+          cp "$APK" dist/IRAQhub_RX7_7.2.0_ExtePlayer3_Android_X5M_Debug.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt && sha256sum -c SHA256SUMS.txt)
+      - name: Store signed preview in a draft pre-release (do not publish as stable)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="iraqhub-rx7-exteplayer3-720-${GITHUB_RUN_ID}"
+          gh release create "$TAG" \
+            dist/IRAQhub_RX7_7.2.0_ExtePlayer3_Android_X5M_Debug.apk \
+            dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --draft --prerelease \
+            --title "IRAQhub RX7 7.2.0 · ExtePlayer3 PTS Core for Android · X5M Preview" \
+            --notes "RX7 7.2.0 experimental PARTIAL Android adaptation of real upstream ExtePlayer3 pts_clock.h (GPL-2.0-or-later), using FFmpeg 9.0.2 LGPL libavcodec for software 4:2:2, optional libswresample PCM audio via Android AudioTrack, and ANativeWindow instead of Enigma2 LinuxDVB hardware. This is NOT the complete ExtePlayer3 executable, not an OEM /dev/dvb driver port, and NOT H264 re-encoding. Modes original source 1080i or postdecode YUV420 800x450, audio selection from actual PMT, green/yellow/INFO/0 remote. Native on explicit 4:2:2 only; safe OEM normal and one-shot MPV fallback. Actual TS capture must work. LGPL and GPL source/license notices bundled in APK; corresponding integration source in public repo. Android 14/ARMv7 debug separate package com.smarthub.plus.rx7ep3720, signature checked and release checksum validated. Physical X5M moving picture, deinterlace, audio sync and 4:2:2 remain unverified; DO NOT distribute as stable."
+          mkdir -p "$RUNNER_TEMP/apk-verify"
+          gh release download "$TAG" -D "$RUNNER_TEMP/apk-verify" -p '*.apk' -p SHA256SUMS.txt
+          (cd "$RUNNER_TEMP/apk-verify" && sha256sum -c SHA256SUMS.txt)
+          cmp "dist/IRAQhub_RX7_7.2.0_ExtePlayer3_Android_X5M_Debug.apk" \
+            "$RUNNER_TEMP/apk-verify/IRAQhub_RX7_7.2.0_ExtePlayer3_Android_X5M_Debug.apk"
+          echo "Verified draft: https://github.com/${GH_REPO}/releases/tag/${TAG}"
