@@ -41,8 +41,8 @@ export PATH="$NDK:$PATH"
  --disable-debug --disable-doc --disable-programs --disable-autodetect \
  --disable-gpl --disable-nonfree --disable-version3 \
  --disable-everything --enable-avcodec --enable-avformat --enable-avutil \
- --enable-swscale --enable-network --enable-pthreads --enable-neon \
- --enable-demuxer=mpegts --enable-decoder=hevc,h264,mpeg2video,mpeg4 \
+ --enable-swscale --enable-swresample --enable-network --enable-pthreads --enable-neon \
+ --enable-demuxer=mpegts --enable-decoder=hevc,h264,mpeg2video,mpeg4,mp2,mp3,aac,ac3,eac3 \
  --enable-parser=hevc,h264,mpegvideo,mpeg4video \
  --enable-protocol=http,tcp,file \
  --extra-cflags="-O2 -fPIC -march=armv7-a -mfpu=neon" \
@@ -57,8 +57,8 @@ done
 test -s "$DEST/notices/LICENSE.md"
 printf 'FFmpeg %s / official PGP fingerprint %s\n' "$VERSION" "$KEY_FINGERPRINT" \
   > "$DEST/notices/FFmpeg-version-and-origin.txt"
-# Only the 4 LGPL runtime libraries required by the direct decoder.
-for name in avformat avcodec swscale avutil; do
+# Only the 5 LGPL runtime libraries required by the software video and audio decoders.
+for name in avformat avcodec swscale swresample avutil; do
  [[ -s "$DEST/lib/lib${name}.so" ]] || {
   echo "FFmpeg missing lib${name}.so" >&2;exit 5;
  }
