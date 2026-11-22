@@ -18,7 +18,7 @@ import android.widget.LinearLayout;
 public final class Software422CenterActivity extends HubActivity {
  @Override public void onCreate(Bundle state){
   super.onCreate(state);
-  LinearLayout body=page(tx("توافق 4:2:2 · RX7","4:2:2 compatibility · RX7"),
+  LinearLayout body=page(tx("ExtePlayer3 Android · 4:2:2","ExtePlayer3 Android · 4:2:2"),
     tx("خيار واحد للمشاهدة، مع رجوع احتياطي عند تعطل فك الفيديو.",
       "One option to watch, with a safe decoder fallback."));
   LinearLayout main=card(body);
@@ -26,13 +26,13 @@ public final class Software422CenterActivity extends HubActivity {
   boolean installed=Native422Decoder.available();
   boolean enabled=prefs().getBoolean(Rx7Compat422Policy.ENABLED,true);
   note(main,installed?
-     tx("FFmpeg ARMv7 جاهز: يحوّل الصورة إلى 4:2:0 بدقة 800×450، ثم يعرضها على الشاشة.",
-       "ARMv7 FFmpeg ready: converts decoded pictures to 4:2:0 at 800×450 for Android Surface."):
+     tx("ExtePlayer3 PTS مع FFmpeg ARMv7 جاهز؛ وضع 800×450 أو الدقة الأصلية بالزر الأخضر.",
+       "ExtePlayer3 PTS core + ARMv7 FFmpeg ready; green key toggles original and 800×450 output."):
      tx("المحرك المستقل غير مضمّن بهذه النسخة؛ سيستخدم MPV الاحتياطي.",
        "Native FFmpeg is not bundled in this APK; MPV remains available."));
   CheckBox compatibility=check(main,
-    tx("استخدم محرك FFmpeg تلقائياً عند اختيار 4:2:2",
-       "Prefer FFmpeg for selected 4:2:2 feeds"),
+    tx("ExtePlayer3 Android أولاً عند تشغيل 4:2:2",
+       "Prefer ExtePlayer3 Android PTS/FFmpeg for selected 4:2:2 feeds"),
     installed&&enabled);
   compatibility.setEnabled(installed);
   compatibility.setOnCheckedChangeListener((button,checked)->
@@ -45,8 +45,8 @@ public final class Software422CenterActivity extends HubActivity {
   if(Rx7Compat422Policy.isCaptureMissing(captureError))
     note(main,tx("تنبيه: في آخر محاولة لم يصل MPEG-TS من الرسيفر. يجب إصلاح الالتقاط ليعمل أي محرك.",
       "Last attempt had no MPEG-TS from the tuner. Capture needs fixing before decoding."));
-  note(main,tx("الصوت يتوقف أثناء تجربة FFmpeg لتخفيف الحمل. اضغط رجوع للعودة؛ لا يتم تغيير إعدادات الطبق.",
-    "Audio is off for this FFmpeg test to reduce CPU load. Back exits without changing dish settings."));
+  note(main,tx("الصوت عبر AudioTrack؛ الأصفر لاختيار المسار، الأخضر لتبديل الدقة، INFO للمعلومات و0 لتثبيتها. وضع فيديو فقط متاح.",
+    "AudioTrack output: YELLOW selects an audio track, GREEN switches output, INFO shows OSD, 0 pins. Video-only optional."));
 
   LinearLayout expert=card(body);
   expert.setVisibility(View.GONE);
