@@ -14,6 +14,7 @@
 #include <new>
 #include <vector>
 #include "exteplayer3_android_clock.h"
+#include "exteplayer3_android_audio.h"
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -31,6 +32,7 @@ struct Session {
  std::atomic<long long> displayed{0};
  std::atomic<long long> decoded{0};
  std::atomic<long long> dropped{0};
+ std::atomic<int> selectedAudio{-2}; // auto first when enabled; -1 mute
 };
 int interrupt(void* opaque) {
  Session* s=reinterpret_cast<Session*>(opaque);
@@ -145,7 +147,8 @@ bool privateTs(const char* url){
  return strlen(port)>4&&strstr(port,".ts")!=nullptr;
 }
 int decode(JNIEnv* env,jobject self,Session* session,const char* url,
-          ANativeWindow* window,int outWidth,int outHeight,bool use420){
+          ANativeWindow* window,int outWidth,int outHeight,bool use420,
+          bool audioEnabled){
  if(!privateTs(url)||!window||!session)return -10;
  avformat_network_init();
  AVFormatContext* opened=avformat_alloc_context();
@@ -186,6 +189,13 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
  if(!klass)return -19;
  jmethodID onFrame=env->GetMethodID(klass,"onNativeFrame","(I)V");
  if(!onFrame){env->DeleteLocalRef(klass);return -19;}
+ ExtePlayer3AndroidAudio audio(env,self,opened,audioEnabled,klass);
+ if(!audio.valid()){
+  env->DeleteLocalRef(klass);return -19;
+ }
+ const int firstAudio=audio.enumerate();
+ if(session->selectedAudio.load(std::memory_order_relaxed)==-2)
+  session->selectedAudio.store(firstAudio,std::memory_order_relaxed);
  // Real ExtePlayer3 pts_clock.h corrects MPEG-TS PTS wrap and discontinuities.
  // Android output is FFmpeg+ANativeWindow, never LinuxDVB ioctl or fake E2 5002.
  ExtePlayer3AndroidClock ep3Clock;
@@ -229,6 +239,8 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
    break;
   }
   idleErrors=0;
+  const int selected=session->selectedAudio.load(std::memory_order_relaxed);
+  if(audio.active()!=selected)audio.select(selected);
   if(packet->stream_index==index){
    int pushed=avcodec_send_packet(codec.get(),packet.get());
    int retries=0;
@@ -241,6 +253,8 @@ int decode(JNIEnv* env,jobject self,Session* session,const char* url,
    else if(!session->stopped.load(std::memory_order_relaxed)&&
            (++sendErrors<=5||sendErrors%100==0))
     LOGE("FFmpeg packet submission error=%d total=%d",pushed,sendErrors);
+  }else if(audioEnabled&&packet->stream_index==audio.active()){
+   audio.feed(packet.get(),session->stopped);
   }
   av_packet_unref(packet.get());
   if(std::chrono::steady_clock::now()-begin>std::chrono::hours(8))break;
@@ -257,13 +271,15 @@ Java_com_smarthub_plus_Native422Decoder_nativeCreate(JNIEnv*,jclass){
 }
 extern "C" JNIEXPORT jint JNICALL
 Java_com_smarthub_plus_Native422Decoder_nativeRun(JNIEnv* env,jobject self,jlong id,
-    jstring source,jobject surface,jint width,jint height,jboolean convert420){
+    jstring source,jobject surface,jint width,jint height,jboolean convert420,
+    jboolean audioEnabled){
  Session* session=reinterpret_cast<Session*>(id);
  if(!session||!source||!surface)return -1;
  const char* url=env->GetStringUTFChars(source,nullptr);
  if(!url)return -2;
  std::unique_ptr<ANativeWindow,WindowCleanup> window(ANativeWindow_fromSurface(env,surface));
- int result=decode(env,self,session,url,window.get(),width,height,convert420);
+ int result=decode(env,self,session,url,window.get(),width,height,convert420,
+                   audioEnabled==JNI_TRUE);
  env->ReleaseStringUTFChars(source,url);
  return result;
 }
@@ -286,4 +302,11 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_com_smarthub_plus_Native422Decoder_nativeDropped(JNIEnv*,jclass,jlong id){
  Session* s=reinterpret_cast<Session*>(id);
  return s?s->dropped.load(std::memory_order_relaxed):0;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_smarthub_plus_Native422Decoder_nativeSelectAudio(JNIEnv*,jclass,jlong id,jint streamIndex){
+ Session* s=reinterpret_cast<Session*>(id);
+ if(s&&streamIndex>=-1&&streamIndex<128)
+  s->selectedAudio.store(streamIndex,std::memory_order_release);
 }
