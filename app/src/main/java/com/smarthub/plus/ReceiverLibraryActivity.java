@@ -470,8 +470,10 @@ loaded=true;for(ReceiverCatalog.Sat sat:sats)if(sat.id==satellite)satelliteButto
  private void choose422Engine(ReceiverCatalog.Channel ch){
   // One remote-facing player. Internally recover between VLC and mpv only
   // when needed; do not remove unverified fallback classes from the APK.
-  boolean useNative=Native422Decoder.available()&&
-    prefs().getBoolean("native422_experiment",false);
+  // Explicit compatibility selection only; ordinary 4:2:0 TV playback stays
+  // on OEM decoder. Native FFmpeg is packaged and user may disable it.
+  boolean useNative=Rx7Compat422Policy.direct(Native422Decoder.available(),
+    prefs().getBoolean(Rx7Compat422Policy.ENABLED,true),SafePlaybackMode.enabled(this));
   String engine=useNative?"jni_ffmpeg":"unified";
   prefs().edit().putString("decoder_422_engine",engine).apply();
   launchSoftware(ch,engine);
