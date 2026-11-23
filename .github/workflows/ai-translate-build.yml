@@ -43,6 +43,8 @@ jobs:
           echo "e2607e8f246dcb6376bf3080e34d822eae7da7e09bc84b6761fe6cd77fd2a707  /tmp/aitranslate-v03-patch.tar.xz" | sha256sum -c -
           tar -xJf /tmp/aitranslate-v03-patch.tar.xz -C ai-translate/project
           grep -q 'versionCode = 3' ai-translate/project/app/build.gradle.kts
+          sed -i 's/com.github.k2-fsa:sherpa-onnx:v1.13.4/com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.4/' ai-translate/project/app/build.gradle.kts
+          sed -i 's/minHeight = d(/minimumHeight = d(/g' ai-translate/project/app/src/main/java/com/iraqhub/aitranslate/MainActivity.kt
       - name: Download official SenseVoice multilingual int8 model
         shell: bash
         run: |
