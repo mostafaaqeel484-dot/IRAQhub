@@ -43,14 +43,18 @@ jobs:
           echo "e2607e8f246dcb6376bf3080e34d822eae7da7e09bc84b6761fe6cd77fd2a707  /tmp/aitranslate-v03-patch.tar.xz" | sha256sum -c -
           tar -xJf /tmp/aitranslate-v03-patch.tar.xz -C ai-translate/project
           grep -q 'versionCode = 3' ai-translate/project/app/build.gradle.kts
-          sed -i 's/com.github.k2-fsa:sherpa-onnx:v1.13.4/com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.4/' ai-translate/project/app/build.gradle.kts
+          sed -i 's/com.github.k2-fsa:sherpa-onnx:v1.13.4/com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.5/' ai-translate/project/app/build.gradle.kts
           sed -i 's/minHeight = d(/minimumHeight = d(/g' ai-translate/project/app/src/main/java/com/iraqhub/aitranslate/MainActivity.kt
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/sensevoice-int8.tar.bz2
+          key: sensevoice-int8-20240717-v1
       - name: Download official SenseVoice multilingual int8 model
         shell: bash
         run: |
           set -euo pipefail
           MODEL_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
-          curl --fail --location --retry 4 --retry-delay 3 "$MODEL_URL" --output /tmp/sensevoice-int8.tar.bz2
+          if [ ! -s /tmp/sensevoice-int8.tar.bz2 ]; then curl --fail --location --retry 4 --retry-delay 3 "$MODEL_URL" --output /tmp/sensevoice-int8.tar.bz2; fi
           mkdir -p /tmp/sensevoice
           tar -xjf /tmp/sensevoice-int8.tar.bz2 -C /tmp/sensevoice
           MODEL_DIR="$(find /tmp/sensevoice -type f -name model.int8.onnx -printf "%h\\n" | head -1)"
