@@ -1,4 +1,4 @@
-name: AI Translate Xiaomi14T V0.2 APK
+name: AI Translate Xiaomi14T V0.3 APK
 on:
   push:
     branches:
@@ -39,7 +39,24 @@ jobs:
           base64 -d ai-translate/AITranslate-V0.2-patch.tar.xz.base64 > /tmp/aitranslate-v02-patch.tar.xz
           echo "482a9ceb92f64f5eb55a16eec64ae18b097eeec80bda87e93abc33cbe305ac6f  /tmp/aitranslate-v02-patch.tar.xz" | sha256sum -c -
           tar -xJf /tmp/aitranslate-v02-patch.tar.xz -C ai-translate/project
-          grep -q 'versionCode = 2' ai-translate/project/app/build.gradle.kts
+          base64 -d ai-translate/AITranslate-V0.3-native-asr.tar.xz.base64 > /tmp/aitranslate-v03-patch.tar.xz
+          echo "e2607e8f246dcb6376bf3080e34d822eae7da7e09bc84b6761fe6cd77fd2a707  /tmp/aitranslate-v03-patch.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/aitranslate-v03-patch.tar.xz -C ai-translate/project
+          grep -q 'versionCode = 3' ai-translate/project/app/build.gradle.kts
+      - name: Download official SenseVoice multilingual int8 model
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODEL_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+          curl --fail --location --retry 4 --retry-delay 3 "$MODEL_URL" --output /tmp/sensevoice-int8.tar.bz2
+          mkdir -p /tmp/sensevoice
+          tar -xjf /tmp/sensevoice-int8.tar.bz2 -C /tmp/sensevoice
+          MODEL_DIR="$(find /tmp/sensevoice -type f -name model.int8.onnx -printf "%h\\n" | head -1)"
+          test -s "$MODEL_DIR/model.int8.onnx"
+          test -s "$MODEL_DIR/tokens.txt"
+          mkdir -p ai-translate/project/app/src/main/assets/sensevoice
+          cp "$MODEL_DIR/model.int8.onnx" "$MODEL_DIR/tokens.txt" ai-translate/project/app/src/main/assets/sensevoice/
+          ls -lh ai-translate/project/app/src/main/assets/sensevoice/
           sed -i 's/minHeight = d(140)/minimumHeight = d(140)/' ai-translate/project/app/src/main/java/com/iraqhub/aitranslate/MainActivity.kt
           sed -i 's/Gravity.TOP or Gravity.START/Gravity.TOP or Gravity.LEFT/' ai-translate/project/app/src/main/java/com/iraqhub/aitranslate/TranslateService.kt
           sed -i "s/import com.google.mlkit.nl.translate.DownloadConditions/import com.google.mlkit.common.model.DownloadConditions/" ai-translate/project/app/src/main/java/com/iraqhub/aitranslate/TranslateService.kt
@@ -60,6 +77,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: AITranslate-Xiaomi14T-V0.2-debug-APK
+          name: AITranslate-Xiaomi14T-V0.3-debug-APK
           path: ai-translate/project/app/build/outputs/apk/debug/*.apk
           retention-days: 30
