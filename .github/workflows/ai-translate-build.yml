@@ -38,7 +38,13 @@ jobs:
           test -f ai-translate/project/app/build.gradle.kts
       - name: Install Android SDK Platform 35
         shell: bash
-        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug APK
         shell: bash
         working-directory: ai-translate/project
