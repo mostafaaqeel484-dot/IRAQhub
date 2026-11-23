@@ -1,4 +1,4 @@
-name: AI Translate Xiaomi14T V0.1 APK
+name: AI Translate Xiaomi14T V0.2 APK
 on:
   push:
     branches:
@@ -36,6 +36,10 @@ jobs:
           echo "8b46e688ce6a956305cc775ebed758abfa74f68afc242b92558bfd2e2250e95d  /tmp/aitranslate-src.tar.xz" | sha256sum -c -
           tar -xJf /tmp/aitranslate-src.tar.xz -C ai-translate/project
           test -f ai-translate/project/app/build.gradle.kts
+          base64 -d ai-translate/AITranslate-V0.2-patch.tar.xz.base64 > /tmp/aitranslate-v02-patch.tar.xz
+          echo "482a9ceb92f64f5eb55a16eec64ae18b097eeec80bda87e93abc33cbe305ac6f  /tmp/aitranslate-v02-patch.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/aitranslate-v02-patch.tar.xz -C ai-translate/project
+          grep -q 'versionCode = 2' ai-translate/project/app/build.gradle.kts
           sed -i "s/import com.google.mlkit.nl.translate.DownloadConditions/import com.google.mlkit.common.model.DownloadConditions/" ai-translate/project/app/src/main/java/com/iraqhub/aitranslate/TranslateService.kt
       - name: Install Android SDK Platform 35
         shell: bash
@@ -54,6 +58,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: AITranslate-Xiaomi14T-V0.1-debug-APK
+          name: AITranslate-Xiaomi14T-V0.2-debug-APK
           path: ai-translate/project/app/build/outputs/apk/debug/*.apk
           retention-days: 30
