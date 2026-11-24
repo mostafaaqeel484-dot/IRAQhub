@@ -1,0 +1,81 @@
+name: AI Translate MT5889 TV + Xiaomi Companion V0.4
+on:
+  push:
+    branches:
+      - build/ai-translate-mt5889-tv-v04
+    paths:
+      - "ai-translate/AITranslate-MT5889-V04.tar.xz.base64"
+      - ".github/workflows/ai-translate-mt5889-v04.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-tv-and-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Restore verified V0.4 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ai-translate/mt5889
+          base64 -d ai-translate/AITranslate-MT5889-V04.tar.xz.base64 > /tmp/mt5889-source.tar.xz
+          echo "137a38a2250350e653b80fd8514f9f7f67e11dcbc68f18b1f82659cf4003c4d6  /tmp/mt5889-source.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/mt5889-source.tar.xz -C ai-translate/mt5889
+          test -f ai-translate/mt5889/tv/build.gradle.kts
+          test -f ai-translate/mt5889/mobile/build.gradle.kts
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Build MT5889 TV receiver (no native ABI)
+        working-directory: ai-translate/mt5889
+        run: gradle :tv:assembleDebug --no-daemon --stacktrace
+      - name: Verify TV APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=ai-translate/mt5889/tv/build/outputs/apk/debug/tv-debug.apk
+          unzip -t "$APK" | tail -1
+          if unzip -Z1 "$APK" | grep -q '^lib/'; then echo 'TV APK has unwanted native ABIs'; exit 1; fi
+      - name: Upload TV MT5889 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AITranslate-MT5889-TV-V0.4-debug-APK
+          path: ai-translate/mt5889/tv/build/outputs/apk/debug/*.apk
+          retention-days: 30
+      - name: Get official SenseVoice int8 model for Xiaomi companion
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+          curl -fL --retry 4 --retry-delay 4 -o /tmp/sensevoice.tar.bz2 "$URL"
+          mkdir -p /tmp/aitranslate-model ai-translate/mt5889/mobile/src/main/assets/sensevoice
+          tar -xjf /tmp/sensevoice.tar.bz2 -C /tmp/aitranslate-model
+          DIR=/tmp/aitranslate-model/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17
+          test "$(stat -c %s "$DIR/model.int8.onnx")" -gt 100000000
+          cp "$DIR/model.int8.onnx" "$DIR/tokens.txt" ai-translate/mt5889/mobile/src/main/assets/sensevoice/
+          sha256sum ai-translate/mt5889/mobile/src/main/assets/sensevoice/{model.int8.onnx,tokens.txt}
+      - name: Build Xiaomi Companion V0.4
+        working-directory: ai-translate/mt5889
+        run: gradle :mobile:assembleDebug --no-daemon --stacktrace
+      - name: Upload Xiaomi companion APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AITranslate-Xiaomi-Companion-V0.4-debug-APK
+          path: ai-translate/mt5889/mobile/build/outputs/apk/debug/*.apk
+          retention-days: 30
