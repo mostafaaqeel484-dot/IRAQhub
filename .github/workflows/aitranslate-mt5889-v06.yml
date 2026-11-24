@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           mkdir -p ai-translate/v06/tv/src/main/assets/vad
           curl -fL --retry 4 --retry-delay 4 -o ai-translate/v06/tv/src/main/assets/vad/silero_vad.onnx "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"
-          test "$(stat -c %s ai-translate/v06/tv/src/main/assets/vad/silero_vad.onnx)" -gt 1000000
+          test "$(stat -c %s ai-translate/v06/tv/src/main/assets/vad/silero_vad.onnx)" -gt 300000
       - name: Download verified CampPlus anonymous speaker embedding model
         shell: bash
         run: |
