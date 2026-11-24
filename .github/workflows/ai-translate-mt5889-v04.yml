@@ -6,6 +6,11 @@ on:
     paths:
       - "ai-translate/AITranslate-MT5889-V04.tar.xz.base64"
       - ".github/workflows/ai-translate-mt5889-v04.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ai-translate/AITranslate-MT5889-V04.tar.xz.base64"
+      - ".github/workflows/ai-translate-mt5889-v04.yml"
   workflow_dispatch:
 permissions:
   contents: read
