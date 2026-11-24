@@ -1,0 +1,77 @@
+name: AI Translate MT5889 standalone HDMI V0.5
+on:
+  push:
+    branches: [build/aitranslate-mt5889-standalone-hdmi-v05]
+    paths:
+      - "ai-translate/MT5889-V05-Standalone.tar.xz.base64"
+      - ".github/workflows/aitranslate-mt5889-standalone-v05.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ai-translate/MT5889-V05-Standalone.tar.xz.base64"
+      - ".github/workflows/aitranslate-mt5889-standalone-v05.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Restore audited Android TV source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ai-translate/standalone
+          base64 -d ai-translate/MT5889-V05-Standalone.tar.xz.base64 > /tmp/tv-source.tar.xz
+          echo "7a812f40854b401fc95ec4b26ad727ae0bde2a7f642e19055936fe56ac964c4d  /tmp/tv-source.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/tv-source.tar.xz -C ai-translate/standalone
+          grep -q 'versionCode = 5' ai-translate/standalone/tv/build.gradle.kts
+      - name: Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Bundle official on-device SenseVoice model
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+          curl -fL --retry 4 --retry-delay 4 -o /tmp/sensevoice.tar.bz2 "$URL"
+          mkdir -p /tmp/sensevoice-extracted ai-translate/standalone/tv/src/main/assets/sensevoice
+          tar -xjf /tmp/sensevoice.tar.bz2 -C /tmp/sensevoice-extracted
+          DIR=/tmp/sensevoice-extracted/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17
+          test "$(stat -c %s "$DIR/model.int8.onnx")" -gt 100000000
+          cp "$DIR/model.int8.onnx" "$DIR/tokens.txt" ai-translate/standalone/tv/src/main/assets/sensevoice/
+      - name: Build standalone TV APK
+        shell: bash
+        working-directory: ai-translate/standalone
+        run: gradle :tv:assembleDebug --no-daemon --stacktrace
+      - name: Verify TV APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=ai-translate/standalone/tv/build/outputs/apk/debug/tv-debug.apk
+          unzip -t "$APK" | tail -1
+          unzip -Z1 "$APK" | grep 'assets/sensevoice/model.int8.onnx'
+          unzip -Z1 "$APK" | grep '^lib/'
+          sha256sum "$APK"
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AITranslate-MT5889-Standalone-HDMI-Probe-V0.5-APK
+          path: ai-translate/standalone/tv/build/outputs/apk/debug/*.apk
+          retention-days: 30
