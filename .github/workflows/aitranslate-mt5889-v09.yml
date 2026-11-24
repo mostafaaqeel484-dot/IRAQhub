@@ -1,0 +1,107 @@
+name: AI Translate MT5889 V0.9 English Streaming Pro
+on:
+  push:
+    branches: [build/aitranslate-mt5889-english-pro-v09]
+    paths:
+      - "ai-translate/MT5889-V09-EnglishPro.tar.xz.base64"
+      - ".github/workflows/aitranslate-mt5889-v09.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ai-translate/MT5889-V09-EnglishPro.tar.xz.base64"
+      - ".github/workflows/aitranslate-mt5889-v09.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Restore V0.8 source and verify archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ai-translate/v09
+          base64 -d ai-translate/MT5889-V09-EnglishPro.tar.xz.base64 > /tmp/mt5889-v09.tar.xz
+          echo "3cda3501fb86cc93ffd82a1516826986245f3930ba283d34a3bf598469d9e236  /tmp/mt5889-v09.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/mt5889-v09.tar.xz -C ai-translate/v09
+          grep -q 'versionCode = 9' ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/build.gradle.kts
+          test -f ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/java/com/iraqhub/aitranslate/tv/DeepLTranslator.kt
+      - name: Install Android SDK Platform 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Download SenseVoice Japanese English offline model
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+          curl -fL --retry 4 --retry-delay 4 -o /tmp/sensevoice.tar.bz2 "$URL"
+          mkdir -p /tmp/sensevoice ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/sensevoice
+          tar -xjf /tmp/sensevoice.tar.bz2 -C /tmp/sensevoice
+          DIR=/tmp/sensevoice/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17
+          test "$(stat -c %s "$DIR/model.int8.onnx")" -gt 100000000
+          cp "$DIR/model.int8.onnx" "$DIR/tokens.txt" ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/sensevoice/
+      - name: Download English-only 20M Zipformer streaming INT8 model
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODEL_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2"
+          curl -fL --retry 4 --retry-delay 4 -o /tmp/english_zipformer.tar.bz2 "$MODEL_URL"
+          mkdir -p /tmp/english_zipformer ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/english-zipformer
+          tar -xjf /tmp/english_zipformer.tar.bz2 -C /tmp/english_zipformer
+          DIR=/tmp/english_zipformer/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17
+          test "$(stat -c %s "$DIR/encoder-epoch-99-avg-1.int8.onnx")" -gt 20000000
+          cp "$DIR/encoder-epoch-99-avg-1.int8.onnx" "$DIR/decoder-epoch-99-avg-1.onnx" "$DIR/joiner-epoch-99-avg-1.int8.onnx" "$DIR/tokens.txt" ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/english-zipformer/
+      - name: Download lightweight Silero speech detection model
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/vad
+          curl -fL --retry 4 --retry-delay 4 -o ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/vad/silero_vad.onnx "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"
+          test "$(stat -c %s ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/vad/silero_vad.onnx)" -gt 300000
+      - name: Download verified CampPlus anonymous speaker embedding model
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/speaker
+          curl -fL --retry 4 --retry-delay 4 -o ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/speaker/speaker.onnx "https://huggingface.co/bitsydarel/campplus-onnx/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+          echo "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2  ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/src/main/assets/speaker/speaker.onnx" | sha256sum -c -
+      - name: Assemble Android TV standalone app
+        shell: bash
+        working-directory: ai-translate/v09/AITranslate_MT5889_V09_EnglishPro
+        run: gradle :tv:assembleDebug --no-daemon --stacktrace
+      - name: Verify APK and CPU native ABIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/build/outputs/apk/debug/tv-debug.apk
+          unzip -t "$APK" | tail -1
+          unzip -Z1 "$APK" | grep 'assets/sensevoice/model.int8.onnx'
+          unzip -Z1 "$APK" | grep 'assets/english-zipformer/encoder-epoch-99-avg-1.int8.onnx'
+          unzip -Z1 "$APK" | grep 'assets/english-zipformer/joiner-epoch-99-avg-1.int8.onnx'
+          unzip -Z1 "$APK" | grep 'assets/vad/silero_vad.onnx'
+          unzip -Z1 "$APK" | grep 'assets/speaker/speaker.onnx'
+          unzip -Z1 "$APK" | grep 'lib/arm64-v8a/libsherpa-onnx-jni.so'
+          unzip -Z1 "$APK" | grep 'lib/armeabi-v7a/libsherpa-onnx-jni.so'
+          sha256sum "$APK"
+      - name: Upload V0.9 English Pro APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AITranslate-MT5889-V0.9-English-Pro-Streaming-APK
+          path: ai-translate/v09/AITranslate_MT5889_V09_EnglishPro/tv/build/outputs/apk/debug/*.apk
+          retention-days: 30
