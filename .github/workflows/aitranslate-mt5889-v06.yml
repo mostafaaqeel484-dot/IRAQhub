@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ai-translate/v06/tv/src/main/assets/speaker
-          curl -fL --retry 4 --retry-delay 4 -o ai-translate/v06/tv/src/main/assets/speaker/speaker.onnx "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+          curl -fL --retry 4 --retry-delay 4 -o ai-translate/v06/tv/src/main/assets/speaker/speaker.onnx "https://huggingface.co/bitsydarel/campplus-onnx/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
           echo "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2  ai-translate/v06/tv/src/main/assets/speaker/speaker.onnx" | sha256sum -c -
       - name: Assemble Android TV standalone app
         shell: bash
