@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           mkdir -p ai-translate/phone10
           base64 -d ai-translate/Xiaomi14T-V010-RegionOCR.tar.xz.base64 > /tmp/xiaomi14t-v010.tar.xz
-          echo "bd80be5f6e231d0a3ce68c4977b6ca7100076e442da9ca0e982041975efb4c2f  /tmp/xiaomi14t-v010.tar.xz" | sha256sum -c -
+          echo "7954418d57b0b2cb91f1b0d70b2c0a31957603a1d4666edd3cc386028e0ff3db  /tmp/xiaomi14t-v010.tar.xz" | sha256sum -c -
           tar -xJf /tmp/xiaomi14t-v010.tar.xz -C ai-translate/phone10
           grep -q 'versionCode = 10' ai-translate/phone10/Xiaomi14T_V010_RegionOCR/app/build.gradle.kts
           test -f ai-translate/phone10/Xiaomi14T_V010_RegionOCR/app/src/main/java/com/iraqhub/aitranslate/OcrRegionPickerOverlay.kt
@@ -85,6 +85,6 @@ jobs:
       - name: Upload Xiaomi 14T Selectable OCR APK
         uses: actions/upload-artifact@v4
         with:
-          name: AITranslate-Xiaomi14T-V0.10-EnglishPro-APK
+          name: AITranslate-Xiaomi14T-V0.10-Selectable-OCR-APK
           path: ai-translate/phone10/Xiaomi14T_V010_RegionOCR/app/build/outputs/apk/debug/*.apk
           retention-days: 30
