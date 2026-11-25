@@ -35,7 +35,7 @@ jobs:
           echo "13adc5174b99ee5543e5f40f9c9865dc1b2be4c6686184a9ed0c2698e568df98  /tmp/xiaomi14t-v09.tar.xz" | sha256sum -c -
           tar -xJf /tmp/xiaomi14t-v09.tar.xz -C ai-translate/phone09
           grep -q 'versionCode = 9' ai-translate/phone09/Xiaomi14T_V09_EnglishPro/app/build.gradle.kts
-          test -f ai-translate/phone09/Xiaomi14T_V09_EnglishPro/app/src/main/java/com/iraqhub/aitranslate/tv/DeepLTranslator.kt
+          test -f ai-translate/phone09/Xiaomi14T_V09_EnglishPro/app/src/main/java/com/iraqhub/aitranslate/DeepLTranslator.kt
       - name: Install Android SDK Platform 35
         shell: bash
         run: |
