@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 
 public final class FeedData {
     static final class Item {
-        String title="فيد جديد", sat="غير محدد", freq="", pol="", sr="", video="", category="", crypt="غير معروف", source="", link="";
+        String title="فيد جديد", sat="غير محدد", freq="", pol="", sr="", video="", category="", crypt="غير معروف", source="", link="", image="";
         long time=0, fetched=0;
         String key() { return sat.toLowerCase(Locale.ROOT).replace(" ","")+"|"+freq+"|"+pol+"|"+sr; }
         String tp() { return freq+" "+pol+" "+sr; }
@@ -42,7 +42,7 @@ public final class FeedData {
             JSONObject o=new JSONObject();
             try {o.put("title",title);o.put("sat",sat);o.put("freq",freq);o.put("pol",pol);o.put("sr",sr);
                 o.put("video",video);o.put("category",category);o.put("crypt",crypt);o.put("source",source);
-                o.put("link",link);o.put("time",time);o.put("fetched",fetched);} catch(Exception ignored){}
+                o.put("link",link);o.put("image",image);o.put("time",time);o.put("fetched",fetched);} catch(Exception ignored){}
             return o;
         }
         static Item from(JSONObject o) {
@@ -50,7 +50,7 @@ public final class FeedData {
             i.freq=o.optString("freq");i.pol=o.optString("pol");i.sr=o.optString("sr");
             i.video=o.optString("video");i.category=o.optString("category");
             i.crypt=o.optString("crypt",i.crypt);i.source=o.optString("source");
-            i.link=o.optString("link");i.time=o.optLong("time");i.fetched=o.optLong("fetched");return i;
+            i.link=o.optString("link");i.image=o.optString("image");i.time=o.optLong("time");i.fetched=o.optLong("fetched");return i;
         }
     }
     private static final Pattern TP=Pattern.compile("(?i)(?<!\\d)(\\d{4,5})\\s*[-/:]?\\s*([HVLR])\\s*[-/:]?\\s*(\\d{3,6})(?!\\d)");
@@ -104,6 +104,7 @@ public final class FeedData {
                     if(prev!=null) {
                         if(next.title.equals("فيد جديد")) next.title=prev.title;
                         if(next.video.isEmpty()) next.video=prev.video;
+                        if(next.image.isEmpty()) next.image=prev.image;
                         if(next.crypt.equals("غير معروف")) next.crypt=prev.crypt;
                         if(!prev.source.contains(source)) next.source=prev.source+" + "+source;
                     }
@@ -163,7 +164,10 @@ public final class FeedData {
                 String text=body.wholeText();
                 String link=url;Element anchor=message.selectFirst(".tgme_widget_message_date");
                 if(anchor!=null)link=anchor.attr("abs:href");
+                int start=out.size();
                 addMatches(out,text,name,link,120);
+                String photo=imageFrom(message, url);
+                if(!photo.isEmpty())for(int j=start;j<out.size();j++)out.get(j).image=photo;
                 if(out.size()>=200)break;
             }
         } else if(kind.equals("rss")) {
@@ -171,15 +175,79 @@ public final class FeedData {
             for(Element e:d.select("item, entry")){
                 String text=e.select("title").text()+" "+e.select("description, summary, content").text();
                 String link=e.select("link").text(); if(link.isEmpty())link=e.select("link[href]").attr("href");
+                int start=out.size();
                 addMatches(out,text,name,link.isEmpty()?url:link,140);
+                String photo=rssImage(e, url);
+                if(!photo.isEmpty())for(int j=start;j<out.size();j++)out.get(j).image=photo;
                 if(out.size()>=200)break;
             }
         } else {
-            String text=Jsoup.parse(html).body().text();
+            Document doc=Jsoup.parse(html,url);
+            String text=doc.body().text();
             addMatches(out,text,name,url,250);
+            attachScopedImages(out,doc,url);
         }
         return out;
     }
+
+    /**
+     * Associates only locally embedded source images with the transponder they accompany.
+     * Never uses a site's global og:image/favicon, because it is usually not a feed snapshot.
+     */
+    private static void attachScopedImages(List<Item> out,Document doc,String url) {
+        for(Element photo:doc.select("img[src], img[data-src], [style*=background-image]")){
+            String image=imageFrom(photo,url);
+            if(image.isEmpty())continue;
+            Element scope=photo;
+            for(int level=0;level<6 && scope!=null;level++,scope=scope.parent()){
+                String text=scope.text();
+                if(text.length()<25 || text.length()>800)continue;
+                Matcher found=TP.matcher(text);
+                int count=0;String freq="",pol="",sr="";
+                while(found.find() && count<3){count++;freq=found.group(1);pol=found.group(2);sr=found.group(3);}
+                if(count!=1)continue;
+                for(Item item:out)if(item.image.isEmpty()
+                    && item.freq.equals(freq) && item.pol.equalsIgnoreCase(pol) && item.sr.equals(sr)) {
+                    item.image=image;break;
+                }
+                break;
+            }
+        }
+    }
+    private static String rssImage(Element e,String base) {
+        Element media=e.selectFirst("media\\:thumbnail[url], media\\:content[url], enclosure[url], image url, img[src]");
+        if(media!=null){
+            String u=media.hasAttr("url")?media.attr("url"):media.attr("src");
+            if(u.isEmpty())u=media.text();
+            String img=absolute(u,base);
+            if(!img.isEmpty())return img;
+        }
+        return imageFrom(e,base);
+    }
+    private static String imageFrom(Element e,String base) {
+        Element img=e;
+        if(!e.hasAttr("src") && !e.hasAttr("data-src") && !e.hasAttr("style")) {
+            img=e.selectFirst(".tgme_widget_message_photo_wrap, .tgme_widget_message_video_thumb, img[data-src], img[src], [style*=background-image]");
+        }
+        if(img==null)return "";
+        String name=(img.className()+" "+img.attr("alt")+" "+img.attr("src")).toLowerCase(Locale.ROOT);
+        if(name.contains("avatar")||name.contains("favicon")||name.contains("icon")||name.contains("flag")||name.contains("logo"))return "";
+        String raw=img.attr("data-src");
+        if(raw.isEmpty())raw=img.attr("src");
+        if(raw.isEmpty() && img.hasAttr("style")){
+            Matcher css=Pattern.compile("url\\(['\\\"]?([^'\\\")]+)").matcher(img.attr("style"));
+            if(css.find())raw=css.group(1);
+        }
+        return absolute(raw,base);
+    }
+    private static String absolute(String raw,String base) {
+        if(raw==null || raw.isEmpty() || raw.startsWith("data:") || raw.startsWith("blob:"))return "";
+        try {
+            String resolved=new URL(new URL(base),raw.trim()).toString();
+            return ImageLoader.allowed(resolved)?resolved:"";
+        }catch(Exception ignored){return "";}
+    }
+
     private static void addMatches(List<Item> out,String text,String name,String link,int limit) {
         Matcher m=TP.matcher(text);
         while(m.find() && out.size()<limit) create(out,m,text,name,link);

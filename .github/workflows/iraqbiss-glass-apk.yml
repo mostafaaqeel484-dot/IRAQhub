@@ -24,21 +24,32 @@ jobs:
           gradle-version: '8.10.2'
       - name: Install Android SDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - name: Compile and verify universal TV APK
+      - name: Compile Android TV APK
         working-directory: IraqBissGlass
         run: gradle --no-daemon :app:assembleDebug
-      - name: Publish beta release
+      - name: Verify APK and package
+        run: |
+          set -euxo pipefail
+          APK=IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -20
+      - name: Publish beta APK on GitHub release
         if: github.ref == 'refs/heads/feature/iraqbiss-feed-glass-20261126'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk IraqBISS-Glass-TV-v0.2.apk
-          gh release view iraqbiss-glass-v0.2.0-beta >/dev/null 2>&1 && gh release upload iraqbiss-glass-v0.2.0-beta IraqBISS-Glass-TV-v0.2.apk --clobber || gh release create iraqbiss-glass-v0.2.0-beta IraqBISS-Glass-TV-v0.2.apk --target "${{ github.sha }}" --title "IraqBISS Glass TV v0.2 beta" --notes "Native Android TV satellite-feed reader. D-pad lists, glass-style UI, optional floating alerts. Does not decode or tune DVB." --prerelease
-
-      - name: Attach workflow APK (when artifact storage is available)
+          set -euo pipefail
+          cp IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk IraqBISS-tvOS-Glass-v0.3.apk
+          TAG=iraqbiss-glass-v0.3.0-beta
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" IraqBISS-tvOS-Glass-v0.3.apk --clobber
+          else
+            gh release create "$TAG" IraqBISS-tvOS-Glass-v0.3.apk --target "${{ github.sha }}" --title "IraqBISS Glass TV v0.3 · Cinematic UI" --notes "Apple TV-inspired artwork cards, remote focus navigation and optional pictured notifications. Source-dependent images, device testing required." --prerelease
+          fi
+      - name: Upload Actions artifact (optional)
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: IraqBISS-Glass-TV-APK
+          name: IraqBISS-TV-Cinematic-Glass-v0.3
           path: IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error

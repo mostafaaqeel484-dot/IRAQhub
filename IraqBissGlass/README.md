@@ -1,25 +1,19 @@
-# IraqBISS Glass TV · v0.2 beta
+# IraqBISS TV · Cinematic Glass v0.3 beta
 
-Standalone Android TV satellite feed **metadata** aggregator built for 32-bit Android TV receivers (including Amlogic X5M Android 14). Remote/D-pad UI and translucent glass-style cards.
+Standalone native Android TV feed metadata monitor with Apple TV-inspired cinematic presentation (not affiliated with Apple).
 
-- Built-in sources: live-feed.net, Satelliweb, public Telegram previews (feed_hunter, livefeeds1) when accessible.
-- Optional extra HTTPS RSS/Atom feeds, local cached data, duplicate frequency merging.
-- Filters: all, sports, 4:2:2, FTA, favorites. Copy transponder information.
-- Pop-up glass notifications: two independent top/bottom overlays for ~10 s; Android system notifications for newly reported feeds. Both require device permissions, and OEM firmware can restrict overlays.
-- Source diagnostics, manual refresh, remote navigable menus.
-- First sync seeds seen-feed cache and does **not** trigger a flood of alerts. Feed sightings are not verified DVB signals.
-- App uses Android APIs only, no native .so, compatible with 32-bit/armeabi-v7a.
+### What's new
+- Adaptive grid of image cards, an immersive featured-feed hero, remote D-pad focus glow and subtle focus scale.
+- Only displays a feed's actual source-provided screenshot or post image when associated with that frequency; no invented images.
+- Images in the two top/bottom TV pop-ups when available.
+- On-device bounded cache (JPEG-style filename, HTTPS source, 1.5 MB transfer limit, sampled RGB565 bitmaps, cache pruning), safe for 32-bit Amlogic Android TV 14.
+- Existing public sources: Live-Feed, Satelliweb, public Telegram previews when accessible, configurable HTTPS RSS.
+- Favorite, filter (sports, FTA, 4:2:2), copy transponder, custom sources and diagnostics.
 
-## Build / install
+Build CI: `.github/workflows/iraqbiss-glass-apk.yml`
+Release: `iraqbiss-glass-v0.3.0-beta`, asset `IraqBISS-tvOS-Glass-v0.3.apk`.
 
-Go to **Actions > IraqBISS Glass TV APK** on the feature branch. Download artifact `IraqBISS-Glass-TV-APK`, or download the prerelease asset `IraqBISS-Glass-TV-v0.2.apk`.
+Install: `adb install -r IraqBISS-tvOS-Glass-v0.3.apk`
+Then open IraqBISS Glass and enable *Display over other apps* for popups on DVB TV.
 
-```sh
-adb install -r IraqBISS-Glass-TV-v0.2.apk
-```
-
-Optional overlays need **Settings > Display over other apps > IraqBISS Glass > Allow**, then enable inside the app. Android 13+ notification permission is requested if applicable.
-
-Not a DVB tuner, stream player or BISS decryption tool. The original IRAQhub launcher is untouched: this is a standalone project in `IraqBissGlass/`.
-
-Sites may alter layout or rate-limit; adapters are best effort. Respect source terms; add custom permitted RSS sources.
+Image display and parsers are best effort and source-dependent. No unverified generic/website cover images are substituted. Reported satellite transponders are not verified as on-air. Does not tune DVB or unlock BISS. OEMs may block overlay on protected video surfaces.

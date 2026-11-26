@@ -26,11 +26,14 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -39,9 +42,14 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
-    private static final int CYAN=Color.rgb(81,232,210), WHITE=Color.WHITE, SOFT=Color.rgb(185,210,230);
+    private static final int CYAN=Color.rgb(179,205,255), WHITE=Color.WHITE, SOFT=Color.rgb(176,190,210);
     private final List<FeedData.Item> visible=new ArrayList<>();
     private TextView stats;
+    private ImageLoader images;
+    private FrameLayout hero;
+    private ImageView heroImage;
+    private TextView heroTitle,heroKicker,heroInfo;
+    private FeedData.Item highlighted;
     private FeedAdapter adapter;
     private Button[] tabs;
     private int selected=0;
@@ -51,6 +59,7 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);getWindow().getDecorView().setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         getWindow().setStatusBarColor(Color.rgb(7,20,36));
+        images=new ImageLoader(this);
         buildUi();drawFeeds();
         if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},340);
@@ -76,7 +85,7 @@ public class MainActivity extends Activity {
     }
     private GradientDrawable appBackground(){
         return new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-            new int[]{Color.rgb(6,18,36),Color.rgb(14,35,58),Color.rgb(8,17,31)});
+            new int[]{Color.rgb(6,11,21),Color.rgb(19,25,41),Color.rgb(9,11,23)});
     }
     private TextView label(String value,int sp,int color,boolean bold){
         TextView t=new TextView(this);t.setText(value);t.setTextColor(color);t.setTextSize(sp);
@@ -97,8 +106,8 @@ public class MainActivity extends Activity {
     }
     private LinearLayout glassPanel(){
         LinearLayout v=new LinearLayout(this);
-        v.setBackground(background(Color.argb(130,55,98,132),Color.argb(142,16,33,58),
-            Color.argb(150,116,166,206),22));
+        v.setBackground(background(Color.argb(128,53,62,91),Color.argb(148,23,29,49),
+            Color.argb(128,148,170,215),22));
         v.setPadding(dp(18),dp(11),dp(18),dp(11));return v;
     }
     private LinearLayout.LayoutParams lp(int width,int height,int margin){
@@ -107,33 +116,89 @@ public class MainActivity extends Activity {
     }
     private void buildUi(){
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackground(appBackground());root.setPadding(dp(30),dp(18),dp(30),dp(14));
+        root.setBackground(appBackground());root.setPadding(dp(30),dp(14),dp(30),dp(12));
         setContentView(root);
-        LinearLayout header=glassPanel();header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView brand=label("◉   IRAQBISS  /  GLASS FEEDS",27,CYAN,true);
-        brand.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);header.addView(brand,new LinearLayout.LayoutParams(0,dp(53),1));
-        header.addView(chip("⟳  تحديث",()->{stats.setText("جاري تحديث المصادر...");startWorker(true);}),lp(135,49,4));
-        header.addView(chip("☷  المصادر",this::sources),lp(140,49,4));
-        header.addView(chip("⚙  الإعدادات",this::settings),lp(160,49,4));
-        root.addView(header,new LinearLayout.LayoutParams(-1,dp(76)));
-        stats=label("تحميل آخر البيانات...",16,SOFT,false);
-        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(47));sp.setMargins(dp(10),dp(3),dp(6),0);
-        root.addView(stats,sp);
-        LinearLayout filterPanel=glassPanel();filterPanel.setPadding(dp(8),dp(4),dp(8),dp(4));
-        String[] names={"كل الفيدات","رياضة","4:2:2","FTA","المفضلة"};
+
+        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView brand=label("IRAQBISS  ·  tv",26,WHITE,true);
+        brand.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        header.addView(brand,new LinearLayout.LayoutParams(0,dp(55),1));
+        header.addView(chip("⟳  تحديث",()->{stats.setText("جاري تحديث المصادر...");startWorker(true);}),lp(125,47,3));
+        header.addView(chip("◫  المصادر",this::sources),lp(132,47,3));
+        header.addView(chip("⚙  الإعدادات",this::settings),lp(145,47,3));
+        root.addView(header,new LinearLayout.LayoutParams(-1,dp(64)));
+
+        hero=new FrameLayout(this);
+        hero.setBackground(background(Color.rgb(56,67,100),Color.rgb(12,24,44),Color.argb(153,142,169,214),26));
+        hero.setClipToOutline(true);
+        heroImage=new ImageView(this);
+        heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        hero.addView(heroImage,new FrameLayout.LayoutParams(-1,-1));
+        View shade=new View(this);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{Color.argb(239,8,13,28),Color.argb(188,11,18,32),Color.argb(62,10,18,34)}));
+        hero.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(33),dp(19),dp(33),dp(20));info.setGravity(Gravity.BOTTOM|Gravity.LEFT);
+        heroKicker=label("●  LIVE FEED RADAR  /  صورة المصدر عند توفرها",15,CYAN,true);
+        heroTitle=label("استكشف فيدات الأقمار الصناعية",30,WHITE,true);
+        heroInfo=label("انتقل بين البطاقات لاختيار الفيد وعرض التردد",17,SOFT,false);
+        heroKicker.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        heroTitle.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        heroInfo.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        info.addView(heroKicker,new LinearLayout.LayoutParams(-1,dp(35)));
+        info.addView(heroTitle,new LinearLayout.LayoutParams(-1,dp(54)));
+        info.addView(heroInfo,new LinearLayout.LayoutParams(-1,dp(38)));
+        hero.addView(info,new FrameLayout.LayoutParams(-1,-1));
+        hero.setFocusable(true);
+        hero.setOnClickListener(v->{if(highlighted!=null)details(highlighted);});
+        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,dp(218));
+        hp.setMargins(dp(2),dp(2),dp(2),dp(10));root.addView(hero,hp);
+
+        LinearLayout filters=new LinearLayout(this);filters.setGravity(Gravity.CENTER_VERTICAL);
+        String[] names={"الكل","الرياضة","4:2:2","مفتوحة FTA","المفضلة"};
         tabs=new Button[names.length];
         for(int j=0;j<names.length;j++){
             final int index=j;tabs[j]=chip(names[j],()->{selected=index;drawFeeds();});
-            filterPanel.addView(tabs[j],new LinearLayout.LayoutParams(0,dp(43),1));
+            LinearLayout.LayoutParams p=lp(120,43,4);
+            if(j==0)p.width=dp(100);
+            if(j==3)p.width=dp(155);
+            filters.addView(tabs[j],p);
         }
-        root.addView(filterPanel,new LinearLayout.LayoutParams(-1,dp(54)));
-        RecyclerView list=new RecyclerView(this);
-        list.setLayoutManager(new LinearLayoutManager(this));list.setItemViewCacheSize(10);
-        list.setPadding(0,dp(6),0,dp(6));list.setClipToPadding(false);
-        adapter=new FeedAdapter();list.setAdapter(adapter);
-        root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-        TextView footer=label("OK  التفاصيل    •    القائمة  الإعدادات    •    ★  المفضلة    •    تنبيهات Glass فوق القنوات عند السماح",14,SOFT,false);
+        root.addView(filters,new LinearLayout.LayoutParams(-1,dp(54)));
+
+        stats=label("جاري قراءة البيانات...",14,SOFT,false);
+        stats.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams st=new LinearLayout.LayoutParams(-1,dp(32));
+        st.setMargins(dp(8),0,dp(8),dp(4));root.addView(stats,st);
+
+        RecyclerView cards=new RecyclerView(this);
+        float logicalWidth=getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density;
+        int cols=logicalWidth>1400?4:(logicalWidth>850?3:2);
+        cards.setLayoutManager(new GridLayoutManager(this,cols));
+        cards.setItemViewCacheSize(12);
+        cards.setPadding(dp(1),dp(3),dp(1),dp(3));cards.setClipToPadding(false);
+        adapter=new FeedAdapter();cards.setAdapter(adapter);
+        root.addView(cards,new LinearLayout.LayoutParams(-1,0,1));
+
+        TextView footer=label("OK  تفاصيل الفيد       ◦       ♥  المفضلة من التفاصيل       ◦       MENU  الإعدادات       ◦       صور أصلية عند توفرها",13,SOFT,false);
+        footer.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
         root.addView(footer,new LinearLayout.LayoutParams(-1,dp(28)));
+    }
+    private void showHero(FeedData.Item f){
+        highlighted=f;
+        if(heroImage==null)return;
+        if(f==null){
+            images.into(heroImage,null);
+            heroKicker.setText("●  IRAQBISS · SATELLITE FEED DISCOVERY");
+            heroTitle.setText("لا توجد فيدات بعد");
+            heroInfo.setText("اختر تحديث أو راجع حالة المصادر من الإعدادات");
+            return;
+        }
+        images.into(heroImage,f.image);
+        heroKicker.setText("●  "+f.source.toUpperCase(Locale.ROOT)+"     /     "+(f.fourTwoTwo()?"4:2:2":"SATELLITE FEED"));
+        heroTitle.setText(f.title);
+        heroInfo.setText("◉  "+f.sat+"       "+f.tp()+"       "+f.crypt);
     }
     private void drawFeeds(){
         if(adapter==null)return;
@@ -146,6 +211,8 @@ public class MainActivity extends Activity {
             visible.add(f);
         }
         adapter.notifyDataSetChanged();
+        if(!visible.contains(highlighted))showHero(visible.isEmpty()?null:visible.get(0));
+        else if(highlighted!=null)showHero(highlighted);
         long at=FeedData.lastSync(this);
         String when=at==0?"لم يتم التحديث بعد":new SimpleDateFormat("HH:mm:ss",Locale.getDefault()).format(new Date(at));
         stats.setText("📡  "+all.size()+" فيد مسجّل     ◦     آخر محاولة: "+when+"     ◦     بلاغات مصادر، وليست قياس إشارة DVB");
@@ -245,39 +312,77 @@ public class MainActivity extends Activity {
     }
     private class FeedAdapter extends RecyclerView.Adapter<FeedAdapter.Holder>{
         class Holder extends RecyclerView.ViewHolder {
-            final LinearLayout card;final TextView name,tp,meta;
-            Holder(LinearLayout v,TextView a,TextView b,TextView c){super(v);card=v;name=a;tp=b;meta=c;}
+            final LinearLayout card;
+            final TextView name,tp,meta,badge;
+            final ImageView photo;
+            Holder(LinearLayout v,TextView a,TextView b,TextView c,TextView d,ImageView image){
+                super(v);card=v;name=a;tp=b;meta=c;badge=d;photo=image;
+            }
         }
         @Override public Holder onCreateViewHolder(ViewGroup parent,int type){
             LinearLayout card=new LinearLayout(MainActivity.this);card.setOrientation(LinearLayout.VERTICAL);
-            card.setPadding(dp(24),dp(10),dp(24),dp(10));card.setFocusable(true);card.setClickable(true);
-            StateListDrawable focus=new StateListDrawable();
-            focus.addState(new int[]{android.R.attr.state_focused},background(
-                Color.argb(234,46,94,125),Color.argb(239,20,53,82),CYAN,20));
-            focus.addState(new int[]{},background(
-                Color.argb(139,83,131,169),Color.argb(162,20,46,73),Color.argb(129,129,174,218),20));
-            card.setBackground(focus);
-            TextView title=label("",21,WHITE,true);
-            TextView tp=label("",19,CYAN,true);
-            TextView meta=label("",14,SOFT,false);
-            card.addView(title,new LinearLayout.LayoutParams(-1,dp(33)));
-            card.addView(tp,new LinearLayout.LayoutParams(-1,dp(30)));
-            card.addView(meta,new LinearLayout.LayoutParams(-1,dp(25)));
-            RecyclerView.LayoutParams params=new RecyclerView.LayoutParams(-1,dp(105));
-            params.setMargins(dp(3),0,dp(3),dp(9));card.setLayoutParams(params);
-            return new Holder(card,title,tp,meta);
+            card.setFocusable(true);card.setClickable(true);card.setClipToPadding(false);
+            StateListDrawable state=new StateListDrawable();
+            state.addState(new int[]{android.R.attr.state_focused},background(
+                Color.rgb(69,81,119),Color.rgb(30,42,69),CYAN,22));
+            state.addState(new int[]{},background(
+                Color.argb(235,38,47,71),Color.argb(238,20,25,43),Color.argb(92,158,178,219),22));
+            card.setBackground(state);
+            card.setPadding(dp(7),dp(7),dp(7),dp(8));
+            FrameLayout poster=new FrameLayout(MainActivity.this);
+            poster.setBackground(background(Color.rgb(42,53,79),Color.rgb(13,25,44),Color.argb(85,124,154,197),15));
+            poster.setClipToOutline(true);
+            TextView fallback=label("◉  SATELLITE FEED",17,SOFT,true);
+            fallback.setGravity(Gravity.CENTER);
+            poster.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
+            ImageView image=new ImageView(MainActivity.this);
+            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            poster.addView(image,new FrameLayout.LayoutParams(-1,-1));
+            TextView badge=label("  ◉  NEW FEED  ",12,WHITE,true);
+            badge.setBackground(background(Color.argb(210,25,36,63),Color.argb(210,17,31,54),Color.argb(185,200,214,255),12));
+            badge.setGravity(Gravity.CENTER);
+            FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(dp(122),dp(27),Gravity.TOP|Gravity.RIGHT);
+            bp.setMargins(0,dp(10),dp(12),0);poster.addView(badge,bp);
+            card.addView(poster,new LinearLayout.LayoutParams(-1,dp(135)));
+            TextView title=label("",19,WHITE,true);
+            TextView freq=label("",16,CYAN,true);
+            TextView meta=label("",13,SOFT,false);
+            card.addView(title,new LinearLayout.LayoutParams(-1,dp(34)));
+            card.addView(freq,new LinearLayout.LayoutParams(-1,dp(29)));
+            card.addView(meta,new LinearLayout.LayoutParams(-1,dp(24)));
+            RecyclerView.LayoutParams params=new RecyclerView.LayoutParams(-1,dp(242));
+            params.setMargins(dp(6),dp(3),dp(6),dp(11));card.setLayoutParams(params);
+            card.setOnFocusChangeListener((view,focused)->{
+                view.animate().scaleX(focused?1.035f:1f).scaleY(focused?1.035f:1f)
+                    .setDuration(160).start();
+                view.setElevation(focused?dp(14):0);
+                if(focused){
+                    int position=((RecyclerView.ViewHolder)card.getTag()).getBindingAdapterPosition();
+                    if(position>=0 && position<visible.size())showHero(visible.get(position));
+                }
+            });
+            Holder h=new Holder(card,title,freq,meta,badge,image);
+            card.setTag(h);
+            return h;
         }
         @Override public void onBindViewHolder(Holder h,int position){
             FeedData.Item f=visible.get(position);
-            h.name.setText((FeedData.favorite(MainActivity.this,f)?"★ ":"")+" "+f.title);
-            h.tp.setText("🛰 "+f.sat+"        "+f.tp()+(f.fourTwoTwo()?"     ◉ 4:2:2":""));
-            h.meta.setText("◦ "+f.source+"       ◦ "+f.crypt+"       ◦ "+(f.sport()?"رياضة":"فيد عام")+"       ◦  بلاغ تردد");
+            h.name.setText((FeedData.favorite(MainActivity.this,f)?"★  ":"")+f.title);
+            h.tp.setText("◉  "+f.sat+"       "+f.tp());
+            h.meta.setText(f.source+"    ·    "+f.crypt+"    ·    "+(f.fourTwoTwo()?"4:2:2":(f.sport()?"رياضة":"فيد")));
+            h.badge.setText(f.fourTwoTwo()?"  4:2:2  ":f.crypt.equals("FTA")?"  FTA  ":"  SAT FEED  ");
+            images.into(h.photo,f.image);
             h.card.setOnClickListener(v->details(f));
             h.card.setOnLongClickListener(v->{
                 if(f.link.startsWith("https://"))try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(f.link)));}
                 catch(Exception ignored){}
                 return true;
             });
+        }
+        @Override public void onViewRecycled(Holder h){
+            super.onViewRecycled(h);
+            h.photo.setTag(null);
+            h.photo.setImageDrawable(null);
         }
         @Override public int getItemCount(){return visible.size();}
     }

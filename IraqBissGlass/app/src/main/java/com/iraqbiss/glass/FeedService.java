@@ -20,6 +20,7 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
@@ -92,7 +93,7 @@ public class FeedService extends Service {
         GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[]{Color.argb(236,20,40,65),Color.argb(230,10,26,44),Color.argb(236,29,47,68)});
         bg.setCornerRadius(dp(22));
-        bg.setStroke(dp(1),second?Color.rgb(117,161,255):Color.rgb(88,239,211));
+        bg.setStroke(dp(1),second?Color.rgb(206,183,255):Color.rgb(174,203,255));
         return bg;
     }
     private TextView txt(String value,int sp,int color,boolean bold){
@@ -110,9 +111,22 @@ public class FeedService extends Service {
                 LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);
                 box.setPadding(dp(26),dp(14),dp(26),dp(15));
                 box.setBackground(glass(k==1));box.setElevation(dp(12));
-                box.addView(txt("●  فيد جديد  ·  "+f.source,15,Color.rgb(91,241,210),true));
-                box.addView(txt(f.title,21,Color.WHITE,true));
-                box.addView(txt("🛰 "+f.sat+"   •   "+f.tp()+(f.fourTwoTwo()?"   •   4:2:2":""),17,Color.rgb(197,219,240),false));
+                LinearLayout content=new LinearLayout(this);
+                content.setOrientation(LinearLayout.HORIZONTAL);
+                content.setGravity(Gravity.CENTER_VERTICAL);
+                ImageView picture=new ImageView(this);
+                picture.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                new ImageLoader(this).into(picture,f.image);
+                LinearLayout.LayoutParams artParams=new LinearLayout.LayoutParams(dp(138),dp(88));
+                artParams.setMargins(0,0,dp(14),0);
+                content.addView(picture,artParams);
+                LinearLayout words=new LinearLayout(this);
+                words.setOrientation(LinearLayout.VERTICAL);
+                words.addView(txt("●  فيد جديد  ·  "+f.source,15,Color.rgb(174,203,255),true));
+                words.addView(txt(f.title,21,Color.WHITE,true));
+                words.addView(txt("🛰 "+f.sat+"   •   "+f.tp()+(f.fourTwoTwo()?"   •   4:2:2":""),16,Color.rgb(197,219,240),false));
+                content.addView(words,new LinearLayout.LayoutParams(0,-2,1));
+                box.addView(content);
                 WindowManager.LayoutParams p=new WindowManager.LayoutParams(
                         Math.min(dp(670),getResources().getDisplayMetrics().widthPixels-dp(44)),
                         WindowManager.LayoutParams.WRAP_CONTENT,
