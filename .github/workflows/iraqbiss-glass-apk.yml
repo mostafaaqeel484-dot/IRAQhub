@@ -40,16 +40,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          cp IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk IraqBISS-tvOS-Glass-v0.3.apk
-          TAG=iraqbiss-glass-v0.3.0-beta
+          cp IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk IraqBISS-tvOS-NightScenes-v0.4.apk
+          TAG=iraqbiss-glass-v0.4.0-beta
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" IraqBISS-tvOS-Glass-v0.3.apk --clobber
+            gh release upload "$TAG" IraqBISS-tvOS-NightScenes-v0.4.apk --clobber
           else
-            gh release create "$TAG" IraqBISS-tvOS-Glass-v0.3.apk --target "${{ github.sha }}" --title "IraqBISS Glass TV v0.3 · Cinematic UI" --notes "Apple TV-inspired artwork cards, remote focus navigation and optional pictured notifications. Source-dependent images, device testing required." --prerelease
+            gh release create "$TAG" IraqBISS-tvOS-NightScenes-v0.4.apk --target "${{ github.sha }}" --title "IraqBISS Glass TV v0.4 · Night Scenes & Dock" --notes "Night Scenes and Liquid Glass Dock layout inspired by techgenius1/tvOS-Launcher (Apache-2.0). Native feed sources, snapshots and overlays remain. Device testing required." --prerelease
           fi
       - name: Upload Actions artifact (optional)
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: IraqBISS-TV-Cinematic-Glass-v0.3
+          name: IraqBISS-TV-NightScenes-v0.4
           path: IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk

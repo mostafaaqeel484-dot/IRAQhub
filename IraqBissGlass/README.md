@@ -1,19 +1,22 @@
-# IraqBISS TV · Cinematic Glass v0.3 beta
+# IraqBISS Glass TV — v0.4 Night Scenes & Dock
 
-Standalone native Android TV feed metadata monitor with Apple TV-inspired cinematic presentation (not affiliated with Apple).
+Standalone native Android TV satellite-feed metadata app for 32-bit Amlogic receivers.
 
-### What's new
-- Adaptive grid of image cards, an immersive featured-feed hero, remote D-pad focus glow and subtle focus scale.
-- Only displays a feed's actual source-provided screenshot or post image when associated with that frequency; no invented images.
-- Images in the two top/bottom TV pop-ups when available.
-- On-device bounded cache (JPEG-style filename, HTTPS source, 1.5 MB transfer limit, sampled RGB565 bitmaps, cache pruning), safe for 32-bit Amlogic Android TV 14.
-- Existing public sources: Live-Feed, Satelliweb, public Telegram previews when accessible, configurable HTTPS RSS.
-- Favorite, filter (sports, FTA, 4:2:2), copy transponder, custom sources and diagnostics.
+### Look and interaction
+- Night Scenes: three original, low-cost dark landscapes with subtle depth (change from Settings).
+- tvOS-style, bottom-positioned translucent Liquid Glass dock, five remote-focus filters.
+- Clock and Arabic date over a featured-feed hero. Featured feed shows the original post image when available.
+- Side-scrolling source-image shelf with native focus zoom and favorite indicators.
+- Source diagnostics, custom feeds, 4:2:2/FTA/sports filters, background notifications and top/bottom image popups unchanged.
 
-Build CI: `.github/workflows/iraqbiss-glass-apk.yml`
-Release: `iraqbiss-glass-v0.3.0-beta`, asset `IraqBISS-tvOS-Glass-v0.3.apk`.
+### Inspiration and credits
+The visual reference is [techgenius1/tvOS-Launcher](https://github.com/techgenius1/tvOS-Launcher), copyright 2026 techgenius, licensed under Apache 2.0. Its design was adapted as independently written feed UI elements (no launcher internals, device-manager, proprietary media, or other apps bundled). See [ATTRIBUTION.md](ATTRIBUTION.md).
 
-Install: `adb install -r IraqBISS-tvOS-Glass-v0.3.apk`
-Then open IraqBISS Glass and enable *Display over other apps* for popups on DVB TV.
+The new UI is not affiliated with or endorsed by Apple or techgenius1.
 
-Image display and parsers are best effort and source-dependent. No unverified generic/website cover images are substituted. Reported satellite transponders are not verified as on-air. Does not tune DVB or unlock BISS. OEMs may block overlay on protected video surfaces.
+### Build
+Run `.github/workflows/iraqbiss-glass-apk.yml` on the branch `feature/iraqbiss-feed-glass-20261126`; GitHub Releases should publish `IraqBISS-tvOS-NightScenes-v0.4.apk`.
+
+Install with `adb install -r IraqBISS-tvOS-NightScenes-v0.4.apk`. Android overlay permission must be enabled for popups above TV.
+
+Note: website feed data may fail due to source access/markup. Frequency reports are not confirmed on-air DVB signals; this app is not a satellite tuner or BISS descrambler. Testing on real Amlogic X5M and OEM TV surfaces remains necessary.

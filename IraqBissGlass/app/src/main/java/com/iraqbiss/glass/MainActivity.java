@@ -18,6 +18,8 @@ import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -44,7 +46,10 @@ import java.util.Locale;
 public class MainActivity extends Activity {
     private static final int CYAN=Color.rgb(179,205,255), WHITE=Color.WHITE, SOFT=Color.rgb(176,190,210);
     private final List<FeedData.Item> visible=new ArrayList<>();
-    private TextView stats;
+    private TextView stats, clockText, clockDate;
+    private SceneBackdrop sceneBackdrop;
+    private final Handler clockHandler=new Handler(Looper.getMainLooper());
+    private final Runnable clockTick=new Runnable(){public void run(){setClock();clockHandler.postDelayed(this,30000);}};
     private ImageLoader images;
     private FrameLayout hero;
     private ImageView heroImage;
@@ -60,7 +65,7 @@ public class MainActivity extends Activity {
         super.onCreate(saved);getWindow().getDecorView().setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         getWindow().setStatusBarColor(Color.rgb(7,20,36));
         images=new ImageLoader(this);
-        buildUi();drawFeeds();
+        buildUi();drawFeeds();clockHandler.post(clockTick);
         if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},340);
         startWorker(false);
@@ -73,6 +78,7 @@ public class MainActivity extends Activity {
         drawFeeds();
     }
     @Override public void onStop(){unregisterReceiver(update);super.onStop();}
+    @Override protected void onDestroy(){clockHandler.removeCallbacksAndMessages(null);super.onDestroy();}
     private void startWorker(boolean manual){
         Intent i=new Intent(this,FeedService.class);
         if(manual)i.setAction(FeedService.REFRESH);
@@ -102,7 +108,9 @@ public class MainActivity extends Activity {
             background(Color.argb(232,30,74,95),Color.argb(240,14,45,67),CYAN,16));
         state.addState(new int[]{},
             background(Color.argb(125,77,116,155),Color.argb(142,19,42,64),Color.argb(130,150,190,221),16));
-        b.setBackground(state);b.setOnClickListener(v->click.run());return b;
+        b.setBackground(state);b.setOnClickListener(v->click.run());
+        b.setOnFocusChangeListener((v,focus)->{v.setElevation(focus?dp(14):0);v.animate().scaleX(focus?1.09f:1f).scaleY(focus?1.09f:1f).setDuration(165).start();});
+        return b;
     }
     private LinearLayout glassPanel(){
         LinearLayout v=new LinearLayout(this);
@@ -116,11 +124,19 @@ public class MainActivity extends Activity {
     }
     private void buildUi(){
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackground(appBackground());root.setPadding(dp(30),dp(14),dp(30),dp(12));
-        setContentView(root);
+        root.setPadding(dp(30),dp(12),dp(30),dp(10));
+        FrameLayout stage=new FrameLayout(this);
+        sceneBackdrop=new SceneBackdrop(this);
+        sceneBackdrop.setScene(getSharedPreferences("iraqbiss_settings",MODE_PRIVATE).getInt("scene",0));
+        stage.addView(sceneBackdrop,new FrameLayout.LayoutParams(-1,-1));
+        View dim=new View(this);dim.setBackground(new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x10061121,0x2A0B1629,0xBE080D1E}));
+        stage.addView(dim,new FrameLayout.LayoutParams(-1,-1));
+        stage.addView(root,new FrameLayout.LayoutParams(-1,-1));
+        setContentView(stage);
 
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView brand=label("IRAQBISS  ·  tv",26,WHITE,true);
+        TextView brand=label("IRAQBISS    ◦    tvOS FEED CENTER",22,WHITE,true);
         brand.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
         header.addView(brand,new LinearLayout.LayoutParams(0,dp(55),1));
         header.addView(chip("⟳  تحديث",()->{stats.setText("جاري تحديث المصادر...");startWorker(true);}),lp(125,47,3));
@@ -129,30 +145,36 @@ public class MainActivity extends Activity {
         root.addView(header,new LinearLayout.LayoutParams(-1,dp(64)));
 
         hero=new FrameLayout(this);
-        hero.setBackground(background(Color.rgb(56,67,100),Color.rgb(12,24,44),Color.argb(153,142,169,214),26));
+        hero.setBackground(background(0x44536687,0x66232F4D,0x70CAD8F0,26));
         hero.setClipToOutline(true);
         heroImage=new ImageView(this);
         heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        hero.addView(heroImage,new FrameLayout.LayoutParams(-1,-1));
+        FrameLayout.LayoutParams photoParams=new FrameLayout.LayoutParams(dp(440),-1,Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+        hero.addView(heroImage,photoParams);
         View shade=new View(this);
         shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
             new int[]{Color.argb(239,8,13,28),Color.argb(188,11,18,32),Color.argb(62,10,18,34)}));
         hero.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);
-        info.setPadding(dp(33),dp(19),dp(33),dp(20));info.setGravity(Gravity.BOTTOM|Gravity.LEFT);
+        info.setPadding(dp(24),dp(6),dp(24),dp(6));info.setGravity(Gravity.BOTTOM|Gravity.LEFT);
         heroKicker=label("●  LIVE FEED RADAR  /  صورة المصدر عند توفرها",15,CYAN,true);
-        heroTitle=label("استكشف فيدات الأقمار الصناعية",30,WHITE,true);
+        heroTitle=label("استكشف فيدات الأقمار الصناعية",24,WHITE,true);
         heroInfo=label("انتقل بين البطاقات لاختيار الفيد وعرض التردد",17,SOFT,false);
         heroKicker.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
         heroTitle.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
         heroInfo.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
-        info.addView(heroKicker,new LinearLayout.LayoutParams(-1,dp(35)));
-        info.addView(heroTitle,new LinearLayout.LayoutParams(-1,dp(54)));
-        info.addView(heroInfo,new LinearLayout.LayoutParams(-1,dp(38)));
+        clockText=label("",47,WHITE,true);clockText.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        clockText.setIncludeFontPadding(false);clockText.setShadowLayer(dp(3),0,dp(2),0x88000000);
+        clockDate=label("",15,SOFT,false);clockDate.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        info.addView(clockText,new LinearLayout.LayoutParams(-1,dp(54)));
+        info.addView(clockDate,new LinearLayout.LayoutParams(-1,dp(20)));
+        info.addView(heroKicker,new LinearLayout.LayoutParams(-1,dp(20)));
+        info.addView(heroTitle,new LinearLayout.LayoutParams(-1,dp(28)));
+        info.addView(heroInfo,new LinearLayout.LayoutParams(-1,dp(23)));
         hero.addView(info,new FrameLayout.LayoutParams(-1,-1));
         hero.setFocusable(true);
         hero.setOnClickListener(v->{if(highlighted!=null)details(highlighted);});
-        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,dp(218));
+        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,0,1);
         hp.setMargins(dp(2),dp(2),dp(2),dp(10));root.addView(hero,hp);
 
         LinearLayout filters=new LinearLayout(this);filters.setGravity(Gravity.CENTER_VERTICAL);
@@ -160,12 +182,10 @@ public class MainActivity extends Activity {
         tabs=new Button[names.length];
         for(int j=0;j<names.length;j++){
             final int index=j;tabs[j]=chip(names[j],()->{selected=index;drawFeeds();});
-            LinearLayout.LayoutParams p=lp(120,43,4);
-            if(j==0)p.width=dp(100);
-            if(j==3)p.width=dp(155);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(43),1);p.setMargins(dp(4),0,dp(4),0);
             filters.addView(tabs[j],p);
         }
-        root.addView(filters,new LinearLayout.LayoutParams(-1,dp(54)));
+        // Floating Liquid Glass dock is attached below the feed shelf.
 
         stats=label("جاري قراءة البيانات...",14,SOFT,false);
         stats.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
@@ -175,15 +195,19 @@ public class MainActivity extends Activity {
         RecyclerView cards=new RecyclerView(this);
         float logicalWidth=getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density;
         int cols=logicalWidth>1400?4:(logicalWidth>850?3:2);
-        cards.setLayoutManager(new GridLayoutManager(this,cols));
+        cards.setLayoutManager(new LinearLayoutManager(this,RecyclerView.HORIZONTAL,false));
         cards.setItemViewCacheSize(12);
         cards.setPadding(dp(1),dp(3),dp(1),dp(3));cards.setClipToPadding(false);
         adapter=new FeedAdapter();cards.setAdapter(adapter);
-        root.addView(cards,new LinearLayout.LayoutParams(-1,0,1));
+        root.addView(cards,new LinearLayout.LayoutParams(-1,dp(181)));
+        filters.setBackground(background(0x9876819F,0x9E394865,0x9ADAE5F7,30));
+        filters.setPadding(dp(14),dp(6),dp(14),dp(6));
+        root.addView(filters,new LinearLayout.LayoutParams(-1,dp(60)));
 
         TextView footer=label("OK  تفاصيل الفيد       ◦       ♥  المفضلة من التفاصيل       ◦       MENU  الإعدادات       ◦       صور أصلية عند توفرها",13,SOFT,false);
         footer.setGravity(Gravity.CENTER_VERTICAL|Gravity.LEFT);
-        root.addView(footer,new LinearLayout.LayoutParams(-1,dp(28)));
+        root.addView(footer,new LinearLayout.LayoutParams(-1,dp(26)));
+        setClock();
     }
     private void showHero(FeedData.Item f){
         highlighted=f;
@@ -199,6 +223,15 @@ public class MainActivity extends Activity {
         heroKicker.setText("●  "+f.source.toUpperCase(Locale.ROOT)+"     /     "+(f.fourTwoTwo()?"4:2:2":"SATELLITE FEED"));
         heroTitle.setText(f.title);
         heroInfo.setText("◉  "+f.sat+"       "+f.tp()+"       "+f.crypt);
+    }
+    private void setClock(){
+        if(clockText!=null)clockText.setText(new SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date()));
+        if(clockDate!=null)clockDate.setText(new SimpleDateFormat("EEEE · d MMMM yyyy",new Locale("ar")).format(new Date()));
+    }
+    private void nextScene(){
+        SharedPreferences p=getSharedPreferences("iraqbiss_settings",MODE_PRIVATE);
+        int n=(p.getInt("scene",0)+1)%3;p.edit().putInt("scene",n).apply();
+        if(sceneBackdrop!=null)sceneBackdrop.setScene(n);
     }
     private void drawFeeds(){
         if(adapter==null)return;
@@ -252,7 +285,8 @@ public class MainActivity extends Activity {
           "إضافة مصادر RSS/Atom",
           "حالة اتصال المواقع",
           "تحديث الفيدات الآن",
-          "إيقاف خدمة الخلفية"
+          "إيقاف خدمة الخلفية",
+          "تغيير مشهد Night Scenes"
         };
         decorate(new AlertDialog.Builder(this).setTitle("إعدادات IraqBISS Glass").setItems(options,(d,n)->{
             switch(n){
@@ -261,6 +295,7 @@ public class MainActivity extends Activity {
                 case 2:decorate(new AlertDialog.Builder(this).setTitle("تشخيص المصادر").setMessage(FeedData.statuses(this)).setPositiveButton("حسناً",null).create());break;
                 case 3:startWorker(true);break;
                 case 4:stopService(new Intent(this,FeedService.class));toast("تم إيقاف المراقبة");break;
+                case 5:nextScene();break;
             }
         }).setNegativeButton("إغلاق",null).create());
     }
@@ -343,14 +378,14 @@ public class MainActivity extends Activity {
             badge.setGravity(Gravity.CENTER);
             FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(dp(122),dp(27),Gravity.TOP|Gravity.RIGHT);
             bp.setMargins(0,dp(10),dp(12),0);poster.addView(badge,bp);
-            card.addView(poster,new LinearLayout.LayoutParams(-1,dp(135)));
+            card.addView(poster,new LinearLayout.LayoutParams(-1,dp(70)));
             TextView title=label("",19,WHITE,true);
             TextView freq=label("",16,CYAN,true);
             TextView meta=label("",13,SOFT,false);
-            card.addView(title,new LinearLayout.LayoutParams(-1,dp(34)));
-            card.addView(freq,new LinearLayout.LayoutParams(-1,dp(29)));
-            card.addView(meta,new LinearLayout.LayoutParams(-1,dp(24)));
-            RecyclerView.LayoutParams params=new RecyclerView.LayoutParams(-1,dp(242));
+            card.addView(title,new LinearLayout.LayoutParams(-1,dp(30)));
+            card.addView(freq,new LinearLayout.LayoutParams(-1,dp(25)));
+            card.addView(meta,new LinearLayout.LayoutParams(-1,dp(22)));
+            RecyclerView.LayoutParams params=new RecyclerView.LayoutParams(dp(258),dp(170));
             params.setMargins(dp(6),dp(3),dp(6),dp(11));card.setLayoutParams(params);
             card.setOnFocusChangeListener((view,focused)->{
                 view.animate().scaleX(focused?1.035f:1f).scaleY(focused?1.035f:1f)
