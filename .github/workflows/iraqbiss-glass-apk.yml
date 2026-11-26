@@ -18,7 +18,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
@@ -27,12 +27,6 @@ jobs:
       - name: Compile and verify universal TV APK
         working-directory: IraqBissGlass
         run: gradle --no-daemon :app:assembleDebug
-      - name: Attach APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: IraqBISS-Glass-TV-APK
-          path: IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
       - name: Publish beta release
         if: github.ref == 'refs/heads/feature/iraqbiss-feed-glass-20261126'
         env:
@@ -40,3 +34,11 @@ jobs:
         run: |
           cp IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk IraqBISS-Glass-TV-v0.2.apk
           gh release view iraqbiss-glass-v0.2.0-beta >/dev/null 2>&1 && gh release upload iraqbiss-glass-v0.2.0-beta IraqBISS-Glass-TV-v0.2.apk --clobber || gh release create iraqbiss-glass-v0.2.0-beta IraqBISS-Glass-TV-v0.2.apk --target "${{ github.sha }}" --title "IraqBISS Glass TV v0.2 beta" --notes "Native Android TV satellite-feed reader. D-pad lists, glass-style UI, optional floating alerts. Does not decode or tune DVB." --prerelease
+
+      - name: Attach workflow APK (when artifact storage is available)
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: IraqBISS-Glass-TV-APK
+          path: IraqBissGlass/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
